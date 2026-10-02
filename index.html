@@ -6162,7 +6162,7 @@ function decorSt(){ if(!G.home.decor) G.home.decor={owned:{},placed:{}}; return 
 function homeStage(){ const n=FAC.filter(f=>f.id!=='land'&&has(f.id)).length; return n>=FAC.length-1?4:n>=6?3:n>=3?2:1 }
 function decorHave(d){ if(d.from==='relic'){ relicSync(); return (G.relicG[d.g]||0)>0 } return !!decorSt().owned[d.id] }
 function decorImgHTML(file,ic,ext){
-  return `<img src="${HOME_IMG}${file}.${ext||'png'}" alt="" onerror="this.outerHTML='<span class=&quot;dc-fb&quot;>${ic}</span>'">`;
+  return `<img src="${HOME_IMG}${file}.${ext||'webp'}" alt="" onerror="this.outerHTML='<span class=&quot;dc-fb&quot;>${ic}</span>'">`;
 }
 let _dcEdit=false, _dcSel=null, _dcStage=null;
 /* 시설 자리: 기본값(FAC_SLOTS) 위에 편집 모드에서 저장한 값(SET.facSlots)을 덮어씀 */
