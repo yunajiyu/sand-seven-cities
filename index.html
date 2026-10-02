@@ -1925,9 +1925,8 @@ function cityFixedHTML(){
   if(G.comp.met){
     if(G.comp.joined) a+=`<button onclick="talkYumin()">🎵 유민과 이야기</button>`;
     else{
-      const ys=G.comp.spot, s=YUMIN_SPOTS[ys];
-      if(s&&s.kind==='city') a+=(!sp&&ys===d)?`<button onclick="talkYumin()">🎵 유민에게 말 걸기</button>`:`<button onclick="goDistrict('${ys}')">🚶 ${DISTRICTS[ys].n}${josa(DISTRICTS[ys].n,'으로','로')} 유민 찾아가기</button>`;
-      else a+=`<button onclick="toast('유민은 지금 '+yuminWhereText()+'에 있는 것 같습니다. 지도의 🎵 표시를 확인해 보세요.')">🎵 유민 찾기 (지도에서 위치 확인)</button>`;
+      const ys=G.comp.spot, s=YUMIN_SPOTS[ys], here=!sp&&ys===d;
+      a+=here?`<button onclick="talkYumin()">🎵 유민에게 말 걸기</button>`:`<button onclick="seekYumin()">🎵 유민 만나러 가기 <span class="muted">(지금: ${esc(yuminWhereText())})</span></button>`;
     }
   }
   return {mv:bar,mvLbl:sp?`📍 ${esc(G.spot.name)} (임시 장소) · ${DISTRICTS[d].n} 구역 · 장소 이동`:`📍 ${DISTRICTS[d].n} · 장소 이동`,ac:a,acLbl:'🧭 행동'};
@@ -3130,6 +3129,22 @@ function canMeetHere(name){
   if(G.loc==='home') return has('guest')&&c.spot==='guestroom';
   if(G.loc==='town') return s.town===G.town;
   return false;
+}
+/* 유민 만나러 가기: 어디에 있든 버튼 하나로 만난다 (카스르 안이면 그 구역으로 이동, 멀리 있으면 찾아 나서서 만남) */
+function seekYumin(){
+  if(busy||!G||!G.comp||!G.comp.met) return;
+  if(G.comp.joined||canMeetHere('유민')) return talkYumin();
+  if(isWild()&&!(G.comp&&G.comp.joined)&&G.loc!=='road') return toast('유적 안에서는 유민을 찾을 수 없습니다');
+  const c=G.comp, sp=YUMIN_SPOTS[c.spot];
+  if(G.loc==='city'&&sp&&sp.kind==='city'){
+    G.spot=null; G.district=c.spot; G.choices=[];
+    addLog('sys',`${DISTRICTS[c.spot].ic} ${DISTRICTS[c.spot].n}${josa(DISTRICTS[c.spot].n,'으로','로')} 유민을 찾아갔습니다.`);
+  }else{
+    if(G.loc==='city') G.spot=null;
+    c.spot=nearPlayer(); c.spotDay=G.day; G._yuminHere=true;
+    addLog('sys','🎵 여기저기 수소문한 끝에 유민을 찾아냈습니다.');
+  }
+  talkYumin();
 }
 function yuminFindLabel(){
   updateYuminSpot();
@@ -4345,7 +4360,7 @@ function townFixedHTML(){
   if(t.relicBuy) a+=b('appraise()','🏺 골동품상 (유물 +20%)');
   a+=b('openRel()','👥 인연');
   if(!t.west) a+=b('openLeads()',`📍 소문의 장소 (${(G.leads||[]).length})`);
-  if(G.comp&&G.comp.met&&(G.comp.joined||canMeetHere('유민'))) a+=b('talkYumin()','🎵 유민과 이야기');
+  if(G.comp&&G.comp.met) a+=(G.comp.joined||canMeetHere('유민'))?b('talkYumin()','🎵 유민과 이야기'):b('seekYumin()',`🎵 유민 만나러 가기 (지금: ${yuminWhereText()})`);
   const mv=(t.west?'':b('startExpedition()',`🐪 ${t.n} 근처 유적 원정`,'primary'))+b('openTravel()','🐫 길 떠나기 (카스르·다른 마을)')+b('travelBack()',`↩ 카스르로 돌아가기 (${travelDays(curPos(),KASR)}일)`);
   return {mv,mvLbl:`📍 ${t.n} · ✨ ${t.perk}`,ac:a,acLbl:'🧭 행동'};
 }
@@ -5359,7 +5374,7 @@ function fixedHTML(){
     ac=btn('openBuild()','🔨 시설 짓기')+btn('openDecor(true)','🏡 거점 꾸미기')+btn('homeRest()','🛏 거점에서 쉬기')+btn('openRel()','👥 인연')
       +(has('well')?btn('wellFill()',wellLabel()):'')+(has('store')?btn('openStore()','📦 저장고'):'')
       +(has('workshop')?btn('appraise()','🏺 유물 감정'):'')+(has('study')?btn('studyMap()','🌌 별지도 연구'):'')
-      +(G.comp.met&&(G.comp.joined||has('guest'))?btn('talkYumin()',yuminFindLabel()):'');
+      +(G.comp.met?btn(G.comp.joined||canMeetHere('유민')?'talkYumin()':'seekYumin()',G.comp.joined||canMeetHere('유민')?yuminFindLabel():`🎵 유민 만나러 가기 (지금: ${yuminWhereText()})`):'');
   }else if(L==='road'&&G.trip){
     ({mv,mvLbl,ac,acLbl}=tripFixedHTML());
   }else if(L==='road'){
