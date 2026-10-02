@@ -243,6 +243,17 @@ label{display:block;font-weight:500;margin:12px 0 4px}
 /* ---------- 좁은 화면 ---------- */
 .main{overflow-y:auto}
 #log{min-height:110px}
+.controls.folded .choices,.controls.folded .fixed,.controls.folded .free,.controls.folded #intentChip{display:none}
+.controls.folded #dockBtn{margin-bottom:0!important}
+#game.dockF .mapcols,#game.dockF .mapcap,#game.dockF #needBar,#game.dockF .where,#game.dockF #topExtra{display:none}   /* 본문 넓게 보기: 지도·안내줄도 함께 접음 */
+#game.dockF .mapbox{padding-bottom:6px}#game.dockF .maphead{margin-bottom:0}
+/* 낮은 화면(아이패드 가로 등): 선택지·지도 영역이 본문을 다 먹지 않게 */
+@media (max-height:900px){
+  .choices{max-height:26dvh;overflow-y:auto;overscroll-behavior:contain}
+  .mapbox{padding:4px 12px}
+  .controls{padding:6px 12px}
+  .topbar{padding:5px 12px}
+}
 @media (max-width:760px){
   #topExtra{display:none}
   .mapwrap{max-height:min(230px,24dvh)}
@@ -375,6 +386,7 @@ label{display:block;font-weight:500;margin:12px 0 4px}
     <div id="log"><div class="inner" id="logInner"></div></div>
     <div class="controls">
       <div class="inner">
+        <button class="small" id="dockBtn" onclick="toggleDock()" style="width:100%;margin-bottom:6px">▼ 선택지 접기 (본문 넓게 보기)</button>
         <div class="choices" id="choices"></div>
         <div class="fixed" id="fixed"></div>
         <div class="free">
@@ -5727,6 +5739,21 @@ function cycleTheme(){
   try{ localStorage.setItem(THEME_KEY,themeMode) }catch(e){}
   applyTheme();
 }
+const DOCK_KEY='sand7_dock';
+let dockFolded=(function(){ try{ return localStorage.getItem(DOCK_KEY)==='1' }catch(e){ return false } })();
+function applyDock(){
+  const c=document.querySelector('.controls'), b=document.getElementById('dockBtn'); if(!c||!b) return;
+  c.classList.toggle('folded',dockFolded);
+  const g=document.getElementById('game'); if(g) g.classList.toggle('dockF',dockFolded);
+  b.textContent=dockFolded?'▲ 선택지·행동 열기':'▼ 선택지 접기 (본문 넓게 보기)';
+  b.setAttribute('aria-expanded',String(!dockFolded));
+}
+function toggleDock(){
+  dockFolded=!dockFolded;
+  try{ localStorage.setItem(DOCK_KEY,dockFolded?'1':'0') }catch(e){}
+  applyDock();
+  const l=document.getElementById('log'); if(l&&dockFolded) l.scrollTop=l.scrollHeight;
+}
 function applyTopFold(){
   const tb=document.querySelector('.topbar'); if(!tb) return;
   tb.classList.toggle('folded',topFolded);
@@ -6514,7 +6541,7 @@ document.addEventListener('keydown',ev=>{
   if(document.getElementById('modalRoot').innerHTML) closeModal(); else closeSides();
 });
 window.addEventListener('resize',()=>{ applySides(); if(G&&!document.getElementById('game').classList.contains('hidden')){ _sigM=''; renderMapPanel() } });
-applyFontScale(); applyTheme(); applyTopFold(); applySides(); updateUsageChip(); updateUndoBtn();
+applyFontScale(); applyTheme(); applyTopFold(); applyDock(); applySides(); updateUsageChip(); updateUndoBtn();
 show('title');
 
 </script>
