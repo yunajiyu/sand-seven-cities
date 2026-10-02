@@ -722,6 +722,7 @@ function migrate(){
   if(!G.mat) G.mat={stone:0,wood:0,cloth:0,relic:0};
   if(!G.home) G.home={name:'',built:{},lastRestDay:0,lastStudyDay:0};
   if(!G.home.built) G.home.built={};
+  if(!Array.isArray(G.leads)) G.leads=[];
   if(!G.home.decor) G.home.decor={owned:{},placed:{}};
   ['mapDone','discovered','pets','chronicle','lexicon','recent','log','choices','items','heardRumors','rumors','threads'].forEach(k=>{ if(!Array.isArray(G[k])) G[k]=[] });
   if(!G.rel) G.rel={};
@@ -963,7 +964,7 @@ materials는 유적에서 플레이어가 실제로 쓸 만한 석재, 목재, �
 [선택지·사건 규칙]
 - choices는 3~4개의 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기, 해독, 설득, 함정 피하기, 몰래 지나가기 등)은 "check"와 알맞은 skill·dc. 쉬기/잠자기는 "rest", 야영은 "camp", 카스르 귀환은 "return", 유적 밖으로 나가기는 "exit", 사고팔기는 "trade". 그 밖의 관찰·대화·묘사 중심 행동은 "story". 능력치: str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정.
 - 유적 안에서는 return·exit 선택지를 만들지 말 것(이동·귀환은 고정 버튼이 있다).
-- event: 이 장면에서 상인이 물건을 팔겠다고 나서면 {"type":"merchant","name":"상인 이름 짧게"}, 마실 물이 있는 곳(우물·샘·오아시스·물웅덩이·빗물 고인 곳)을 발견하면 {"type":"water_source","name":"짧은 이름"}, 아니면 null. 이 두 경우 물·식량·횃불을 effects로 직접 주지 말 것 — 게임이 거래·물 채우기 버튼을 띄운다.
+- event: 이 장면에서 상인이 물건을 팔겠다고 나서면 {"type":"merchant","name":"상인 이름 짧게"}, 마실 물이 있는 곳(우물·샘·오아시스·물웅덩이·빗물 고인 곳)을 발견하면 {"type":"water_source","name":"짧은 이름"}, 플레이어가 가 볼 만한 구체적인 장소의 이름과 가는 길(소문·지도·단서)을 새로 알게 되면 {"type":"place_lead","name":"장소 이름 14자 이내","hint":"어디에 있고 어떻게 가는지 한 줄"}(이미 알려진 장소·마을·도시는 제외, 한 장면에 하나), 아니면 null. 상인·물 사건은 물·식량·횃불을 effects로 직접 주지 말 것 — 게임이 거래·물 채우기 버튼을 띄운다.
 - [판정 결과] 지시가 있으면 그 결과를 그대로 따른다.`;
 
 function narrCfg(){
@@ -1107,7 +1108,7 @@ function normalizeTurn(r){
     }).filter(Boolean);
     G.choiceMeta=meta;
   }
-  r.event=(r.event&&typeof r.event==='object'&&['merchant','water_source'].includes(r.event.type))?{type:r.event.type,name:String(r.event.name||'').slice(0,20)}:null;
+  r.event=(r.event&&typeof r.event==='object'&&['merchant','water_source','place_lead'].includes(r.event.type))?{type:r.event.type,name:String(r.event.name||'').slice(0,20),hint:String(r.event.hint||'').slice(0,80)}:null;
   return r;
 }
 function metaOf(c){
@@ -1357,6 +1358,8 @@ const INTENTS=[
   {id:'farplace',   // 아직 소문으로만 아는 곳 — 이동하지 않고 이야기로만
    when:t=>isTown()&&!!travelTarget(t)&&travelTarget(t).kind==='far',
    run:()=>{ toast('그곳은 아직 소문으로만 아는 곳이라 갈 수 없습니다'); pend('\n[이동 불가] 플레이어가 말한 곳은 아직 소문으로만 아는 먼 땅이다. 실제로 길을 떠나거나 도착하는 서술은 하지 말고, 그곳을 그리워하거나 소문을 떠올리는 정도로만.',{zeroSupply:true}); return false }},
+  {id:'lead',confirm:true,label:t=>`📍 「${(leadByText(t)||{}).name}」 찾아 떠나기 (소문의 장소)`,
+   when:t=>isTown()&&!!leadByText(t), run:t=>{ const l=leadByText(t); addLog('action',t); startLead(l.id) }},
   {id:'go',confirm:true,label:()=>'🐪 유적 원정 떠나기 (거리만큼 일수 · 하루마다 물·식량 1)',
    when:t=>isTown()&&!(G.loc==='town'&&curTown().west)&&IX.GO.test(t), run:t=>{ addLog('action',t); startExpedition() }},
   {id:'spot',confirm:true,label:t=>`📍 ${spotMove(t)} (임시 장소)로 이동`,
@@ -1405,6 +1408,7 @@ function pickChoice(i){
     if(m.type==='check') return doCheck(c,m.skill,m.dc,'choice');
     if(m.type==='story'&&waterFillIntent(c)) return story(c,{src:'choice'});
     if(m.type!=='story'&&runChoiceType(m.type,c)) return;
+    if(m.type==='story'&&isTown()&&!RX.NEG.test(c)&&leadByText(c)){ addLog('action',c); return startLead(leadByText(c).id) }   // 소문의 장소로 가는 선택지
     if(m.type==='story'&&G.loc==='city'&&!RX.NEG.test(c)){   // 선택지 글이 다른 곳으로 가는 것이면 실제 장소도 옮김
       const k=districtMove(c);
       if(k){ if(k!==curDistrict()||spotOn()) goDistrict(k) }          // 다섯 구역 중 한 곳 (임시 장소도 함께 해제)
@@ -1902,7 +1906,7 @@ function cityFixedHTML(){
   else if(d==='market') a=`<button onclick="openShop()">🛒 상점 (물·식량·재료)</button><button onclick="strollMarket()">🚶 시장 거리 거닐기</button>`;
   else if(d==='teahouse') a=`<button onclick="cityRumor()">🍵 차를 마시며 소문 듣기 (5)</button>`;
   else if(d==='inn') a=`<button onclick="cityRest()">🛏 여관에서 쉬기 (10)</button>`;
-  else if(d==='gate') a=`<button class="primary" onclick="startExpedition()">🐪 유적 원정 떠나기</button><button onclick="openTravel()">🐫 먼 길 떠나기 (와하·천막들·자르한)</button>`;
+  else if(d==='gate') a=`<button class="primary" onclick="startExpedition()">🐪 유적 원정 떠나기</button><button onclick="openTravel()">🐫 먼 길 떠나기 (와하·천막들·자르한)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
   else if(d==='oasis'){ const land=FAC.find(f=>f.id==='land'); a=`<button onclick="goHome()">🏠 ${has('land')?'거점으로':(canPay(land.cost)?'거점 마련하기 (🪙'+land.cost.gold+')':'거점 마련하기 (금화 부족 🪙'+G.gold+'/'+land.cost.gold+')')}</button>` }
   a+=`<button onclick="openRel()">👥 인연</button>`;
   if(G.comp.met){
@@ -2231,11 +2235,13 @@ on('facts',70,(o,rules)=>{
 /* =========================================================
    13. 원정 · 사막 길
    ========================================================= */
-async function startExpedition(){
+async function startExpedition(leadId){
   if(busy||spotBlock()) return;
   if(G.loc==='town'&&curTown().west) return toast('서쪽 땅에는 탐사할 유적이 없습니다. 전설을 쫓아 보세요');
   if(G.water<1||G.food<1) return toast('원정에는 물과 식량이 최소 1씩 필요합니다');
-  const resume=G._resumeRuin!=null&&G.pausedRuins&&G.pausedRuins[G._resumeRuin];
+  const lead=typeof leadId==='string'?(G.leads||[]).find(x=>x.id===leadId):null;   // 소문으로 알게 된 장소를 찾아가는 원정
+  G._leadRuin=lead?lead.id:null;
+  const resume=lead?null:(G._resumeRuin!=null&&G.pausedRuins&&G.pausedRuins[G._resumeRuin]);
   const fromPos=curPos(), fromName=curPlaceName();
   const bonus=[];
   if(has('workshop')){ G.torch+=1; bonus.push('횃불 +1') }
@@ -2243,12 +2249,12 @@ async function startExpedition(){
   clampSupplies(null,false);
   G._yuminHere=false;
   G.base=G.loc==='town'?G.town:null;   // 원정을 떠난 곳 (돌아올 곳)
-  const pos=pickPos(), days=travelDays(fromPos,pos), n=travelNeed(days);
+  const pos=lead?lead.pos:pickPos(), days=travelDays(fromPos,pos), n=travelNeed(days);
   /* 원정 길의 유민 (예전 규칙): 아직 못 만났으면 35%, 사연이 무르익었으면 50% */
   const event=!G.comp.met&&Math.random()<0.35?'yumin':yuminEventReady()&&Math.random()<0.5?'yuminEvt':null;
   const hadMount=!!G.mount;
-  const p=beginTrip({kind:'ruin',name:resume?`「${resume.name}」`:'유적',pos,base:G.base},days,
-    {fromPos,fromName,event,action:resume?`「${resume.name}」${josa(resume.name,'으로','로')} 다시 원정을 떠난다`:'유적을 찾아 사막으로 원정을 떠난다'});
+  const p=beginTrip({kind:'ruin',name:lead?`「${lead.name}」`:resume?`「${resume.name}」`:'유적',pos,base:G.base},days,
+    {fromPos,fromName,event,action:lead?`「${lead.name}」${josa(lead.name,'으로','로')} 길을 떠난다`:resume?`「${resume.name}」${josa(resume.name,'으로','로')} 다시 원정을 떠난다`:'유적을 찾아 사막으로 원정을 떠난다'});
   if(bonus.length) addLog('fx',`거점에서 챙긴 보급: ${bonus.join(' · ')}`);
   if(hadMount&&G.mount){
     if(!n.feed) addLog('fx',`${G.mount.name}에게 줄 사료가 모자라 지쳐 있습니다 — 이번 원정에서는 탈것의 이점이 없습니다`);
@@ -2323,10 +2329,13 @@ ${hasFrag?'이 유적의 깊은 곳에 이람으로 가는 별지도 조각이 �
 JSON만 출력:
 {"name":"유적 이름","theme":"주제 한 줄","intro":"유적에 도착했을 때 서술 2문단, 2인칭","rooms":[{"id":"r1","name":"방 이름","desc":"비밀 메모","exits":["r2"],"danger":0}]}`;
   if(era) prompt+=loreRequest(era,hasFrag);
+  const lead=G._leadRuin&&(G.leads||[]).find(x=>x.id===G._leadRuin); G._leadRuin=null;
+  if(lead) prompt+=`\n[소문으로 알게 된 장소] 이 유적의 이름은 반드시 「${lead.name}」이다(위의 '이름은 겹치지 않게' 요구는 무시). 플레이어가 소문·단서로 들은 정보: ${lead.hint||'(자세한 정보 없음)'}. 이 이름과 소문에 어울리는 구조·분위기·사연으로 만들어라.`;
   let d=null;
   try{ d=parseJSON(await callAI(SYS_BASE,prompt,era?2700:1800,'dungeon')) }catch(e){ if(e.message!=='NO_KEY') addLog('sys','AI 연결 실패: '+e.message) }
   const raw=d;
   if(!d||!Array.isArray(d.rooms)||d.rooms.length<3) d=fallbackDungeon();
+  if(lead){ d.name=lead.name; G.leads=G.leads.filter(x=>x.id!==lead.id); G.chronicle.push({day:G.day,text:`소문으로 들은 「${lead.name}」에 도착했다`}) }
   const rooms=normRooms(d.rooms,8), start=rooms[0];
   // 별지도 조각: 위에서 정한 대로, 있으면 가장 깊은 방 두 곳 중 하나에
   if(hasFrag){ const deepest=[...rooms].sort((a,b)=>(b.lv||0)-(a.lv||0)||b.danger-a.danger); (deepest[Math.floor(Math.random()*Math.min(2,deepest.length-1))]||deepest[0]).fragment=true }
@@ -2357,7 +2366,7 @@ function onLand(x,y){
 function pickPos(){
   if(G&&G._resumeRuin!=null&&G.pausedRuins&&G.pausedRuins[G._resumeRuin]) return G.pausedRuins[G._resumeRuin].pos;
   const C=basePos();
-  const fixed=[KASR,HOME_POS,IRAM_POS,townPos('westport'),townPos('eastport'),...MAP_PLACES,...UNKNOWN_SPOTS,...MOUNTAINS.map(([x,y])=>({x,y})),...(G.mapDone||[])];
+  const fixed=[KASR,HOME_POS,IRAM_POS,townPos('westport'),townPos('eastport'),...MAP_PLACES,...UNKNOWN_SPOTS,...MOUNTAINS.map(([x,y])=>({x,y})),...(G.mapDone||[]),...(G.leads||[]).map(l=>l.pos)];
   let fallback=null;
   for(let i=0;i<40;i++){
     const a=Math.random()*Math.PI*2, r=34+Math.random()*34;   // 대부분 1~2일 거리
@@ -4300,6 +4309,7 @@ function townFixedHTML(){
   if(t.spring) a+=b('springFill()',G.townSpringDay===G.day?'💧 샘터 (오늘 사용함)':'💧 샘터에서 물 채우기 (무료 · 하루 1번)');
   if(t.relicBuy) a+=b('appraise()','🏺 골동품상 (유물 +20%)');
   a+=b('openRel()','👥 인연');
+  if(!t.west) a+=b('openLeads()',`📍 소문의 장소 (${(G.leads||[]).length})`);
   if(G.comp&&G.comp.met&&(G.comp.joined||canMeetHere('유민'))) a+=b('talkYumin()','🎵 유민과 이야기');
   const mv=(t.west?'':b('startExpedition()',`🐪 ${t.n} 근처 유적 원정`,'primary'))+b('openTravel()','🐫 길 떠나기 (카스르·다른 마을)')+b('travelBack()',`↩ 카스르로 돌아가기 (${travelDays(curPos(),KASR)}일)`);
   return {mv,mvLbl:`📍 ${t.n} · ✨ ${t.perk}`,ac:a,acLbl:'🧭 행동'};
@@ -5421,6 +5431,7 @@ function mapSVG(small){
   s+=`<g transform="translate(${KASR.x} ${KASR.y})">${placeIcon('city')}</g>`+lab(KASR.x,KASR.y+24,'카스르',15,'var(--ink)',900);
   if(has('land')) s+=`<g transform="translate(${HOME_POS.x} ${HOME_POS.y})"><path d="M-6 5 V-1 L0 -7 L6 -1 V5Z" style="fill:var(--gold);stroke:var(--ink);stroke-width:.8"/></g>`+lab(HOME_POS.x,HOME_POS.y+20,trunc(G.home.name||'오아시스의 집',8),12,'var(--ink)',700);
   (G.mapDone||[]).forEach(d=>{ s+=`<g transform="translate(${d.x} ${d.y})"><path d="M-4.5 -4.5 L4.5 4.5 M4.5 -4.5 L-4.5 4.5" style="stroke:var(--ink);stroke-width:2.4;stroke-linecap:round"/></g>`+lab(d.x,d.y+18,trunc(d.name,7),11,'var(--muted)',500,true) });
+  s+=leadsMapSVG();
   (G.pausedRuins||[]).forEach(d=>{ if(d.pos) s+=`<g transform="translate(${d.pos.x} ${d.pos.y})"><path d="M0 -7 L7 0 L0 7 L-7 0Z" style="fill:var(--bg);stroke:var(--danger);stroke-width:1.6"/></g>`+lab(d.pos.x,d.pos.y+20,trunc(d.name,8)+' ⏸',11.5,'var(--ink)',700) });
   if(G.dungeon){ const dp=dunPos(); s+=`<g transform="translate(${dp.x} ${dp.y})"><path d="M0 -8 L8 0 L0 8 L-8 0Z" style="fill:var(--danger);stroke:var(--bg);stroke-width:1"/></g>`+lab(dp.x,dp.y+22,trunc(G.dungeon.name,9),13,'var(--ink)',700) }
   if(G.loc==='road'&&G.nextPos) s+=`<g transform="translate(${G.nextPos.x} ${G.nextPos.y})"><path d="M0 -8 L8 0 L0 8 L-8 0Z" style="fill:var(--bg);stroke:var(--accent);stroke-width:1.4;stroke-dasharray:3 3"/>${svgText(0,4,'?',10,'var(--accent)',700,'middle',false)}</g>`;
@@ -5558,7 +5569,7 @@ function renderMapPanel(){
   box.classList.toggle('collapsed',col);
   document.getElementById('mapToggle').textContent=col?'🗺 지도 펼치기':'지도 접기';
   updateYuminSpot();
-  const sig=JSON.stringify([G.loc,G.nextPos,G.mapDone,(G.pausedRuins||[]).map(r=>r.name),G.discovered,G.actDone,has('land'),G.home.name,Object.keys(G.home.built),G.fragments,G.district,G.spot,G.town,G.base,G.act,G.cities&&G.cities.map(c=>c.found),
+  const sig=JSON.stringify([G.loc,G.nextPos,G.mapDone,(G.pausedRuins||[]).map(r=>r.name),G.discovered,G.actDone,has('land'),G.home.name,Object.keys(G.home.built),G.fragments,G.district,G.spot,(G.leads||[]).map(l=>l.id),G.town,G.base,G.act,G.cities&&G.cities.map(c=>c.found),
     G.comp&&[G.comp.met,G.comp.spot,G.comp.joined],G.caravan&&G.caravan.here,
     G.dungeon?[G.dungeon.name,G.dungeon.pos,G.dungeon.cur,G.dungeon.depth,G.dungeon.rooms.map(r=>[r.visited,r.fragTaken,r.exhausted])]:null]);
   if(sig===_sigM) return; _sigM=sig;
@@ -5976,6 +5987,8 @@ function openGuide(){
     ${row('집 단계','지은 시설 개수에 따라 집 그림이 4단계로 바뀜 (0~2 / 3~5 / 6~8 / 전부)')}
     ${row('가구·장식','카스르 시장(가구) · 마을 상점(그 마을 특산 장식)에서 사면 영구 보유. 거점에서 🏡 거점 꾸미기를 열어 자유롭게 놓고 치울 수 있음 (끌어서 이동). 효과는 없고 외형만 바뀜')}
     ${row('유물 진열','보유한 유물 등급별로 진열대를 놓을 수 있음 (팔거나 쓰면 진열도 사라짐)')}
+    ${h3('소문의 장소')}
+    ${row('📍 소문의 장소','이야기 속에서 새 장소와 가는 길을 알게 되면 지도에 ◇ 표식으로 나타나고 📍 소문의 장소 목록에 기록됩니다(최대 '+LEAD_MAX+'곳). 카스르 성문이나 마을에서 일반 원정과 같은 비용으로 찾아가면 그 이름의 유적이 열립니다. 지도에 안 뜬 장소는 이름을 직접 적어 추가할 수 있고, "통곡의 회랑으로 간다"처럼 글로 써도 됩니다')}
     ${h3('효과음')}
     ${row('🔊 효과음','버튼 누르기·판정(주사위와 결과)·구매와 판매·피해와 회복·별지도 조각과 유물 획득·성장·여행 출발과 도착·건설·전투 시작·승패·쓰러짐·야영·식사·석판 해독·도적 조우·결말·하루가 바뀔 때 짧은 소리가 남. 한 순간에 여러 소리가 겹치면 중요한 것 하나나 둘만 남. 상단의 🔊 버튼으로 끔 → 작게 → 보통 → 크게 (브라우저에 저장). 브라우저 규칙상 화면을 한 번 누르기 전에는 소리가 나지 않음')}`);
 }
@@ -6280,6 +6293,83 @@ function sfxLog(type,text){
 }
 document.addEventListener('click',ev=>{ const b=ev.target&&ev.target.closest&&ev.target.closest('button'); if(b&&!b.disabled&&!b.classList.contains('sfxBtn')) sfx('click') },true);
 updateSfxBtn();
+
+/* =========================================================
+   38. 소문의 장소 — 이야기에서 알게 된 '가는 법이 있는 장소'를 지도에 표시하고 찾아갈 수 있게 함
+   - AI가 서술에서 새 장소와 가는 길을 알려 주면(event.type='place_lead') G.leads에 기록 → 지도 표식 + 🐪 원정 선택
+   - 이름이 AI가 정한 장소라 코드가 미리 알 수 없던 곳도 같은 방식으로 처리. 이름을 직접 적어 추가할 수도 있음
+   - 가면 그 이름의 유적이 새로 만들어지고, 도착하면 소문 목록에서 빠짐
+   G.leads=[{id,name,hint,pos,day}] (최대 LEAD_MAX개, 넘치면 오래된 것부터 지움)
+   ========================================================= */
+const LEAD_MAX=6;
+function leadKnown(name){
+  const n=String(name||'').replace(/\s+/g,'');
+  if(!n) return true;
+  const same=x=>String(x||'').replace(/\s+/g,'')===n;
+  if(['카스르','이람'].some(same)||Object.values(DISTRICTS).some(d=>same(d.n))||same(G.home&&G.home.name)||(G.cities||[]).some(c=>c.found&&same(c.name))) return true;
+  return (G.leads||[]).some(l=>same(l.name))||MAP_PLACES.some(p=>same(p.n))||Object.values(TOWNS).some(t=>same(t.n))
+    ||(G.pausedRuins||[]).some(d=>same(d.name))||(G.mapDone||[]).some(d=>same(d.name))||(G.dungeon&&same(G.dungeon.name));
+}
+function addLead(name,hint,quiet){
+  if(!G) return false;
+  name=String(name||'').trim().slice(0,14); hint=String(hint||'').trim().slice(0,80);
+  if(name.length<2||leadKnown(name)) return false;
+  if(!Array.isArray(G.leads)) G.leads=[];
+  G.leads.push({id:'l'+(G.leadN=(G.leadN||0)+1),name,hint,pos:pickPos(),day:G.day});
+  while(G.leads.length>LEAD_MAX) G.leads.shift();
+  upsertLex(name,'장소',`${hint||'가는 길을 알게 된 곳.'} (소문으로 알게 된 장소 — 지도에 표시됨)`);
+  G.chronicle.push({day:G.day,text:`「${name}」으로 가는 길을 알게 되었다`});
+  if(!quiet){
+    addLog('sys',`🗺 「${name}」이(가) 지도에 표시되었습니다 — 카스르 성문이나 마을의 「📍 소문의 장소」에서 찾아갈 수 있습니다.`);
+    toast(`🗺 「${name}」이(가) 지도에 표시되었습니다`);
+  }
+  _sigM=''; return true;
+}
+on('after',61,T=>{ const ev=T.res&&T.res.event; if(ev&&ev.type==='place_lead') addLead(ev.name,ev.hint) });
+on('facts',72,(o,rules)=>{
+  if(!(G.leads||[]).length) return;
+  o.소문의장소=G.leads.map(l=>`${l.name}${l.hint?'('+l.hint+')':''}`);
+  rules.push('「소문의장소」는 플레이어가 이미 가는 길을 아는 곳이다. 이 장소로 떠나거나 도착하는 서술은 하지 말 것(원정 버튼이 처리). 다시 새로 알려 주는 event(place_lead)도 만들지 말 것.');
+});
+function leadByText(t){
+  t=String(t||'');
+  if(!/(간다|가자|가기로|가려|향한다|향해|떠난다|떠나|찾아|출발|이동|나선다|들어간다|걸어간다)/.test(t)) return null;
+  const n=s=>String(s).replace(/\s+/g,'');
+  return (G.leads||[]).find(l=>n(t).includes(n(l.name)))||null;
+}
+async function startLead(id){
+  if(busy||!isTown()||spotBlock()) return;
+  const l=(G.leads||[]).find(x=>x.id===id); if(!l) return;
+  if(G.loc==='town'&&curTown().west) return toast('서쪽 땅에서는 소문의 장소로 원정을 떠날 수 없습니다');
+  const days=travelDays(curPos(),l.pos), n=travelNeed(days);
+  if(!(await askConfirm(`「${l.name}」${josa(l.name,'으로','로')} 떠날까요? (${needText(n)})`,'떠난다'))) return;
+  closeModal(); startExpedition(l.id);
+}
+function removeLead(id){ G.leads=(G.leads||[]).filter(x=>x.id!==id); _sigM=''; save(); render(); openLeads() }
+function addLeadManual(){
+  const el=document.getElementById('leadName'); const v=(el&&el.value||'').trim();
+  if(!v) return;
+  const h=document.getElementById('leadHint');
+  if(!addLead(v,h&&h.value.trim())) return toast('이미 알고 있는 장소이거나 이름이 올바르지 않습니다');
+  save(); render(); openLeads();
+}
+function openLeads(){
+  if(!G) return;
+  const rows=(G.leads||[]).map(l=>{
+    const days=isTown()?travelDays(curPos(),l.pos):null;
+    return `<div class="lex"><div class="h"><b>📍 ${esc(l.name)}</b><span class="cat">${days?days+'일 거리':'—'}</span></div>
+      <div class="muted" style="font-size:13px">${esc(l.hint||'가는 길을 알게 된 곳')}</div>
+      <div class="row" style="justify-content:flex-end;gap:6px;margin-top:6px"><button class="small" onclick="removeLead('${l.id}')">지우기</button><button class="small primary" ${isTown()&&!busy?'':'disabled'} onclick="startLead('${l.id}')">🐪 찾아 떠나기</button></div></div>`;
+  }).join('')||'<p class="muted">아직 소문으로 알게 된 장소가 없습니다. 이야기 속에서 가는 길을 알게 되면 여기에 기록되고 지도에 표시됩니다.</p>';
+  modal('📍 소문의 장소',`<p class="muted" style="font-size:13px">이야기에서 가는 길을 알게 된 곳입니다. 카스르나 마을에서 일반 원정과 같은 비용(거리만큼 일수, 하루마다 물·식량 1)으로 찾아가면, 그 이름의 유적이 열립니다.</p>${rows}
+    <h4 style="margin:14px 0 4px">직접 적기</h4>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><input id="leadName" placeholder="장소 이름 (예: 통곡의 회랑)" maxlength="14" style="flex:1;min-width:140px"><input id="leadHint" placeholder="가는 길·소문 (선택)" maxlength="80" style="flex:2;min-width:160px"><button class="small primary" onclick="addLeadManual()">추가</button></div>
+    <p class="muted" style="font-size:12px">이야기에서 알게 됐는데 지도에 안 뜬 장소가 있으면 이름을 적어 추가하세요.</p>`);
+}
+/* 지도 표식 */
+function leadsMapSVG(){
+  return (G.leads||[]).map(l=>`<g transform="translate(${l.pos.x} ${l.pos.y})"><path d="M0 -7 L7 0 L0 7 L-7 0Z" style="fill:var(--bg);stroke:var(--gold);stroke-width:1.8;stroke-dasharray:3 2"/>${svgText(0,3.5,'!',9,'var(--gold)',900,'middle',false)}</g>`+lab(l.pos.x,l.pos.y+20,trunc(l.name,8),11.5,'var(--ink)',700)).join('');
+}
 
 /* =========================================================
    29. 시작 · 캐릭터 만들기 · 저장 파일
