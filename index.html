@@ -749,6 +749,7 @@ function migrate(){
   if(typeof pf.examples==='string'&&pf.examples.includes('원작 예')) pf.examples=pf.examples.replace(/\(원작 예: [^)]*\)/g,'(예: "그 얘긴 지난 모래바람에 날려 보냈어~")');
   G.comp.profile=pf;
   if(!G.comp.likes) G.comp.likes={liquor:false,fan:false,instr:false};
+  if(!Array.isArray(G.comp.items)) G.comp.items=[];
   if(!G.comp.arc) G.comp.arc={ch:0,active:null,cool:0,canon:[],done:[]};
   if(!Array.isArray(G.relicG)) G.relicG=[G.mat.relic||0,0,0,0];   // 등급 이전 유물은 '흔한 유물'로
   G.discovered.forEach(id=>{ const p=MAP_PLACES.find(x=>x.id===id&&x.far); if(p&&!G.lexicon.some(e=>e.name===p.n)) G.lexicon.push({name:p.n,cat:'장소',desc:`${p.lore} (${p.dir||'서쪽'} 먼 땅 — 지금은 소문으로만 아는 곳)`,isNew:false}) });
@@ -1351,6 +1352,8 @@ const INTENTS=[
    when:t=>G.loc==='dungeon'&&G.dungeon&&IX.EXIT.test(t)&&!IX.HOMEWARD.test(t), run:()=>{ exitRuin() }},
   {id:'reenter',confirm:true,label:()=>'🏛 유적으로 다시 들어가기',
    when:t=>outsideRuin()&&IX.REENTER.test(t), run:()=>{ reenterRuin() }},
+  {id:'gift',confirm:true,label:t=>{ const g=giftParse(t); return g?`🎁 유민에게 ${g.name} 선물${g.cost&&g.kind==='x'?` (🪙${g.cost}에 사서)`:g.kind==='b'?' (🪙40)':''}`:'🎁 유민에게 선물' },
+   when:t=>!!giftParse(t), run:t=>{ giftByText(t) }},
   {id:'caravan',
    when:t=>G.caravan&&G.caravan.here&&G.loc===(G.caravan.loc||'road')&&IX.CARAVAN_BUY.test(t), run:()=>{ openCaravan() }},
   {id:'district',
@@ -3155,6 +3158,7 @@ function yuminFindLabel(){
   if(G.comp.joined) return '🎵 유민과 이야기';
   return canMeetHere('유민')?`🎵 유민에게 가기 (${(YUMIN_SPOTS[G.comp.spot]||{n:'손님방'}).n})`:'🎵 유민 찾기 (지도에서 위치 확인)';
 }
+on('facts',81,o=>{ if(G.comp&&G.comp.met&&(G.comp.items||[]).length) o.유민소지품=G.comp.items.slice(-8).map(x=>x.name).join(', ') });
 on('facts',80,o=>{ if(G.comp&&G.comp.met) o.유민위치=G.comp.joined?'플레이어와 동행 중':yuminWhereText() });
 
 /* ---------- 만남 · 대화 · 동행 ---------- */
@@ -3273,19 +3277,52 @@ function openGiftYumin(){
   rows.push(`<div class="shop-row"><span>💍 은반지 <span class="muted">(시장에서 구입)</span></span><button class="small" ${G.gold>=40?'':'disabled'} onclick="giveYumin('b')">🪙40 · 선물</button></div>`);
   Object.keys(YUMIN_LIKES).filter(k=>L[k]).forEach(k=>{ const b=YUMIN_LIKES[k].buy; rows.push(`<div class="shop-row"><span>${YUMIN_LIKES[k].ic} ${b.name} <span class="muted">(시장에서 구입 · 💝 좋아함)</span></span><button class="small" ${G.gold>=b.cost?'':'disabled'} onclick="giveYumin('p','${k}')">🪙${b.cost} · 선물</button></div>`) });
   const taste=Object.keys(YUMIN_LIKES).map(k=>L[k]?`${YUMIN_LIKES[k].ic} ${YUMIN_LIKES[k].n}`:'🔒 ???').join(' · ');
-  modal('유민에게 선물하기',`<p class="muted">하루에 한 번만 선물할 수 있고, 유민은 선물을 받으면 어색해하며 농담으로 넘기려 합니다. 청혼 때 쓸 반지나 장신구는 남겨 두세요.</p>
+  modal('유민에게 선물하기',`<p class="muted">하루에 한 번만 선물할 수 있고, 유민은 선물을 받으면 어색해하며 농담으로 넘기려 합니다. 청혼 때 쓸 반지나 장신구는 남겨 두세요. 글로 "유민에게 ○○을 사 준다"고 써도 같은 선물로 처리됩니다.</p>
     <p style="margin:8px 0"><b>💝 유민의 취향</b> <span class="muted">(대화하며 알아가면 열립니다)</span><br>${taste}</p>${rows.join('')}`);
+}
+const GIFT_ACC=/반지|목걸이|팔찌|귀걸이|장신구/;
+const GIFT_NOT=/이야기|인사|질문|노래|농담|위로|미소|눈길|시선|한마디|소식|웃음|안부|눈물|부탁|조언|^말$|^손$|^마음$/;
+/* 글로 쓴 선물: "유민에게 부채를 사 준다" / "유민에게 은반지를 선물한다" → {kind,idx|name,cost} 또는 null */
+function giftParse(t){
+  t=String(t||''); if(!G||!G.comp||!G.comp.met||!/유민/.test(t)) return null;
+  const m=t.match(/유민(?:에게|한테|께)\s*(?:(?:시장에서|여기서|가게에서)\s*)?(.+?)\s*(?:을|를)?\s*(?:선물|사\s*주|사\s*준|사주|사서|사다\s*주|건네|건넨|내민|쥐여|전한|준다|주었|줄게|드린|드릴)/);
+  if(!m) return null;
+  let name=m[1].replace(/^["'「『]|["'」』]$/g,'').trim(); if(!name||name.length>16||GIFT_NOT.test(name)) return null;
+  const buy=/사\s*주|사\s*준|사주|사서|사다\s*주|구입|구매|산다/.test(t);
+  if(!buy){
+    const i=G.items.findIndex(it=>it&&!consKind(it)&&(name.includes(it)||String(it).includes(name)));
+    if(i>=0) return {kind:'i',idx:i,name:G.items[i]};
+    if(/유물/.test(name)&&G.mat.relic>0) return {kind:'r',name:'고대 유물'};
+    if(/은반지|반지/.test(name)) return {kind:'b',name:'은반지',cost:40};
+    return null;
+  }
+  const k=likeOf(name);
+  return {kind:'x',name,cost:k?YUMIN_LIKES[k].buy.cost:GIFT_ACC.test(name)?40:15};
+}
+function giftByText(t){
+  const g=giftParse(t); if(!g) return;
+  if(!canMeetHere('유민')) return toast('유민이 지금 이 자리에 없습니다. 먼저 "유민 만나러 가기"로 만나세요');
+  if(G.comp.lastGiftDay===G.day) return toast('오늘은 이미 선물했습니다');
+  if(g.kind==='x'||g.kind==='b'){
+    if(!['city','town'].includes(G.loc)) return toast('물건은 시장이나 마을에서만 살 수 있습니다');
+    if(G.gold<g.cost) return toast(`금화가 모자랍니다 (🪙${g.cost} 필요)`);
+  }
+  giveYumin(g.kind,g.idx!=null?g.idx:g.kind==='x'?{name:g.name,cost:g.cost}:undefined);
 }
 function giveYumin(kind,i){
   if(busy||G.comp.lastGiftDay===G.day) return;
   migrate();
-  const L=G.comp.likes, ACC=/반지|목걸이|팔찌|귀걸이|장신구/;
-  let name='', v=3, k=null;
+  const L=G.comp.likes, ACC=GIFT_ACC;
+  let name='', v=3, k=null, paid=0;
   if(kind==='i'){ name=G.items[i]; if(!name) return; v=ACC.test(name)?5:3; k=likeOf(name); G.items.splice(i,1) }
   else if(kind==='r'){ if(G.mat.relic<1) return; G.mat.relic--; name='고대 유물'; v=4 }
   else if(kind==='b'){ if(G.gold<40) return; G.gold-=40; name='은반지'; v=5 }
-  else if(kind==='p'){ const b=YUMIN_LIKES[i]&&YUMIN_LIKES[i].buy; if(!b||G.gold<b.cost||!L[i]) return; G.gold-=b.cost; name=b.name; k=i }
+  else if(kind==='p'){ const b=YUMIN_LIKES[i]&&YUMIN_LIKES[i].buy; if(!b||G.gold<b.cost||!L[i]) return; G.gold-=b.cost; paid=b.cost; name=b.name; k=i }
+  else if(kind==='x'){ if(!i||!i.name||G.gold<i.cost) return; G.gold-=i.cost; paid=i.cost; name=i.name; k=likeOf(name); v=ACC.test(name)?5:3 }   // 글로 쓴 '사 준다' — 시장에서 산 뒤 바로 건넴
   else return;
+  if(kind==='b') paid=40;
+  if(paid) addLog('fx',`선물 구입 — 금화 -${paid}`);
+  G.comp.items.push({name,day:G.day,k:k||undefined}); if(G.comp.items.length>16) G.comp.items.shift();   // 유민의 소지품
   if(k) v=8;
   const first=k&&!L[k];
   if(k) L[k]=true;
@@ -3295,7 +3332,7 @@ function giveYumin(kind,i){
   closeModal(); save(); render();
   if(k) toast(`💝 유민이 크게 기뻐합니다!${first?` (새 취향 발견: ${YUMIN_LIKES[k].n})`:''}`);
   aiTurn(`유민에게 ${name}${josa(name,'을','를')} 선물한다`,
-    `[선물] 플레이어가 유민에게 ${name}${josa(name,'을','를')} 건넨다. ${k?`이것은 유민이 유난히 좋아하는 ${YUMIN_LIKES[k].story}이다. 평소의 농담 가면이 잠깐 깨질 만큼 기뻐하며, 왜 좋아하는지 사연을 한 줄 흘린다.`:'유민은 어색해하며 농담으로 넘기려 한다.'} 호감 단계(${affTier().name})에 맞는 진심이 조금 새어 나온다. 코드가 이미 호감도 +${v}를 반영했으니 effects.affinity는 0으로 둘 것. 소지품은 이미 정리했으니 items_remove도 비울 것.`);
+    `[선물] 플레이어가 유민에게 ${name}${josa(name,'을','를')} 건넨다. ${k?`이것은 유민이 유난히 좋아하는 ${YUMIN_LIKES[k].story}이다. 평소의 농담 가면이 잠깐 깨질 만큼 기뻐하며, 왜 좋아하는지 사연을 한 줄 흘린다.`:'유민은 어색해하며 농담으로 넘기려 한다.'} 호감 단계(${affTier().name})에 맞는 진심이 조금 새어 나온다. 코드가 이미 호감도 +${v}를 반영했으니 effects.affinity는 0으로 둘 것. 금화·소지품은 이미 정리했으니 effects.gold와 items_remove도 비울 것. 선물은 이제 유민의 소지품이 되었다.`);
 }
 
 
@@ -3404,6 +3441,7 @@ function openYumin(){
     <p class="muted">${t.how}</p>
     ${yuminActionsHTML()}
     ${yuminArcHTML(true)}
+    <div style="margin:10px 0"><b>🎒 유민의 소지품</b> <span class="muted">(받은 선물)</span><br>${(G.comp.items||[]).length?(G.comp.items||[]).map(x=>`<span class="chip">${esc(x.name)} <span class="muted">${x.day}일</span></span>`).join(' '):'<span class="muted">아직 없습니다</span>'}</div>
     ${f('look','외형',4)}${f('personality','성격',3)}${f('speech','말투 규칙 ({이름}은 플레이어 이름으로 바뀝니다)',3)}${f('examples','예시 대사',5)}
     ${f('banned','금지 말투',3)}${f('ability','능력',2)}${f('inner','내면과 과거 (서술에서만 드러남)',3)}${f('avoid','회피 패턴',3)}
     ${G.comp.joined?`<div class="row" style="margin-top:12px"><button class="small" onclick="partYumin()">헤어지기</button></div>`:''}`);
