@@ -3431,6 +3431,12 @@ function yuminActionsHTML(){
     :(!G.comp.joined&&!here?`<div class="muted" style="font-size:12px;margin-top:4px">유민은 지금 ${yuminWhereText()}에 있습니다. 지도의 🎵 표시를 확인해 보세요.</div>`:'');
   return `<div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">${b}</div>${note}`;
 }
+function addYuminItem(){
+  const el=document.getElementById('yuminItemIn'), n=el&&el.value.trim().slice(0,20); if(!n) return;
+  migrate(); G.comp.items.push({name:n,day:G.day}); if(G.comp.items.length>16) G.comp.items.shift();
+  save(); openYumin();
+}
+function delYuminItem(i){ migrate(); G.comp.items.splice(i,1); save(); openYumin() }
 function openYumin(){
   migrate();
   const y=G.comp.profile, t=affTier();
@@ -3441,7 +3447,8 @@ function openYumin(){
     <p class="muted">${t.how}</p>
     ${yuminActionsHTML()}
     ${yuminArcHTML(true)}
-    <div style="margin:10px 0"><b>🎒 유민의 소지품</b> <span class="muted">(받은 선물)</span><br>${(G.comp.items||[]).length?(G.comp.items||[]).map(x=>`<span class="chip">${esc(x.name)} <span class="muted">${x.day}일</span></span>`).join(' '):'<span class="muted">아직 없습니다</span>'}</div>
+    <div style="margin:10px 0"><b>🎒 유민의 소지품</b> <span class="muted">(받은 선물 · 직접 추가·삭제 가능)</span><br>${(G.comp.items||[]).length?(G.comp.items||[]).map((x,i)=>`<span class="chip">${esc(x.name)} <span class="muted">${x.day}일</span> <a href="#" onclick="delYuminItem(${i});return false" title="삭제" aria-label="삭제">✕</a></span>`).join(' '):'<span class="muted">아직 없습니다</span>'}
+      <div class="row" style="gap:6px;margin-top:6px"><input id="yuminItemIn" placeholder="예: 은비녀" maxlength="20" style="flex:1" onkeydown="if(event.key==='Enter')addYuminItem()"><button class="small" onclick="addYuminItem()">추가</button></div></div>
     ${f('look','외형',4)}${f('personality','성격',3)}${f('speech','말투 규칙 ({이름}은 플레이어 이름으로 바뀝니다)',3)}${f('examples','예시 대사',5)}
     ${f('banned','금지 말투',3)}${f('ability','능력',2)}${f('inner','내면과 과거 (서술에서만 드러남)',3)}${f('avoid','회피 패턴',3)}
     ${G.comp.joined?`<div class="row" style="margin-top:12px"><button class="small" onclick="partYumin()">헤어지기</button></div>`:''}`);
