@@ -3192,7 +3192,12 @@ function talkYumin(){
   let action='시장에서 유민을 찾아 말을 건다';
   if(isWild()||G.loc==='town') action='유민에게 말을 건다';
   else if(G.loc==='home') action=G.comp.joined?'거점에서 유민에게 말을 건다':'손님방의 유민에게 말을 건다';
-  else if(!G.comp.joined){ const s=YUMIN_SPOTS[G.comp.spot]; if(s&&s.kind==='city'){ action=`${s.n}에서 유민을 찾아 말을 건다`; extra+=` [장소] 지금 유민은 카스르의 ${s.n}에 있다. 장면의 배경을 그곳으로 하라.` } }
+  else{   // 카스르 안: 지금 내가 있는 구역(또는 임시 장소)이 장면의 배경
+    const j=G.comp.joined, place=spotOn()?G.spot.name:DISTRICTS[curDistrict()].n;
+    if(!j&&!spotOn()){ G.comp.spot=curDistrict(); G.comp.spotDay=G.day }
+    action=j?`${place}에서 유민에게 말을 건다`:`${place}에서 유민을 찾아 말을 건다`;
+    extra+=` [장소] 지금 ${j?'유민과 함께':'유민은'} ${spotOn()?'':'카스르의 '}${place}에 있다. 장면의 배경을 그곳으로 하라.`;
+  }
   if(likeKey) pend('',{likeKey});
   aiTurn(action,extra);
 }
