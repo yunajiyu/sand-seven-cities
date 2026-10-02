@@ -1294,7 +1294,7 @@ const IX={
   HOMEWARD:/(카스르|도시|귀환|거점|집으로)/,
   REENTER:/((유적|안)(으로|에)\s*(다시\s*)?(들어간|들어가|들어선|돌아간|돌아가))/,
   CARAVAN_BUY:/(대상|상인|캐러밴).{0,12}(산다|사다|구입|구매|거래|흥정)|(산다|구입|구매).{0,8}(대상|상인)/,
-  DIST_VERB:/(으로|로|에|를|을)?\s*(간다|가자|가기로|향한|향해|들어간다|들어가|들어서|들른다|들러|도착|발걸음|걸음을\s*옮|이동|돌아간다|돌아가|나선다)/,
+  DIST_VERB:/(으로|로|에|를|을)?\s*(간다|가자|가기로|향한|향해|들어간다|들어가|들어서|들른다|들러|도착|발걸음|걸음을\s*옮|이동|돌아간다|돌아가|나선다|자리를\s*옮|옮겨|옮긴|옮기|가서|가보|데려|이끌)/,
   DIST_KEYS:[['teahouse',/찻집/],['inn',/여관/],['gate',/성문/],['oasis',/오아시스/],['market',/시장/]],
   HOME:/((거점|집|오아시스의\s*집|내\s*집)(으로|에|에서)?\s*(돌아|간다|가자|가기로|향한|향해|복귀|귀환|들어간|들어가)|거점을?\s*찾아)/,
   CITY:/((카스르|시장|도시|성문|시내)(으로|에|를|을)?\s*(돌아|간다|가자|가기로|향한|향해|복귀|들어간|들어가|나간다))/,
@@ -3280,7 +3280,7 @@ function openGiftYumin(){
   modal('유민에게 선물하기',`<p class="muted">하루에 한 번만 선물할 수 있고, 유민은 선물을 받으면 어색해하며 농담으로 넘기려 합니다. 청혼 때 쓸 반지나 장신구는 남겨 두세요. 글로 "유민에게 ○○을 사 준다"고 써도 같은 선물로 처리됩니다.</p>
     <p style="margin:8px 0"><b>💝 유민의 취향</b> <span class="muted">(대화하며 알아가면 열립니다)</span><br>${taste}</p>${rows.join('')}`);
 }
-const GIFT_ACC=/반지|목걸이|팔찌|귀걸이|장신구/;
+const GIFT_ACC=/반지|목걸이|팔찌|귀걸이|장신구|비녀|머리핀|브로치|노리개|펜던트/;
 const GIFT_NOT=/이야기|인사|질문|노래|농담|위로|미소|눈길|시선|한마디|소식|웃음|안부|눈물|부탁|조언|^말$|^손$|^마음$/;
 /* 글로 쓴 선물: "유민에게 부채를 사 준다" / "유민에게 은반지를 선물한다" → {kind,idx|name,cost} 또는 null */
 function giftParse(t){
@@ -3431,6 +3431,21 @@ function yuminActionsHTML(){
     :(!G.comp.joined&&!here?`<div class="muted" style="font-size:12px;margin-top:4px">유민은 지금 ${yuminWhereText()}에 있습니다. 지도의 🎵 표시를 확인해 보세요.</div>`:'');
   return `<div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">${b}</div>${note}`;
 }
+function addYuminItem(){
+  const el=document.getElementById('yuminItemIn'), n=el&&el.value.trim().slice(0,20); if(!n) return;
+  migrate();
+  const gift=!!(document.getElementById('yuminItemGift')||{}).checked, k=likeOf(n);
+  G.comp.items.push({name:n,day:G.day,k:k||undefined}); if(G.comp.items.length>16) G.comp.items.shift();
+  if(gift){
+    const v=k?8:GIFT_ACC.test(n)?5:3;
+    if(k) G.comp.likes[k]=true;
+    changeAff(v,null);
+    G.chronicle.push({day:G.day,text:`유민에게 ${n}${josa(n,'을','를')} 선물했다${k?' (몹시 기뻐했다)':''}`});
+    toast(`🎁 선물로 기록했습니다 (호감 +${v}${k?` · 💝 ${YUMIN_LIKES[k].n} 취향 발견`:''})`);
+  }
+  save(); openYumin();
+}
+function delYuminItem(i){ migrate(); G.comp.items.splice(i,1); save(); openYumin() }
 function openYumin(){
   migrate();
   const y=G.comp.profile, t=affTier();
@@ -3441,7 +3456,9 @@ function openYumin(){
     <p class="muted">${t.how}</p>
     ${yuminActionsHTML()}
     ${yuminArcHTML(true)}
-    <div style="margin:10px 0"><b>🎒 유민의 소지품</b> <span class="muted">(받은 선물)</span><br>${(G.comp.items||[]).length?(G.comp.items||[]).map(x=>`<span class="chip">${esc(x.name)} <span class="muted">${x.day}일</span></span>`).join(' '):'<span class="muted">아직 없습니다</span>'}</div>
+    <div style="margin:10px 0"><b>🎒 유민의 소지품</b> <span class="muted">(받은 선물 · 직접 추가·삭제 가능)</span><br>${(G.comp.items||[]).length?(G.comp.items||[]).map((x,i)=>`<span class="chip">${esc(x.name)} <span class="muted">${x.day}일</span> <a href="#" onclick="delYuminItem(${i});return false" title="삭제" aria-label="삭제">✕</a></span>`).join(' '):'<span class="muted">아직 없습니다</span>'}
+      <div class="row" style="gap:6px;margin-top:6px"><input id="yuminItemIn" placeholder="예: 은비녀" maxlength="20" style="flex:1" onkeydown="if(event.key==='Enter')addYuminItem()"><button class="small" onclick="addYuminItem()">추가</button></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:4px;font-size:12.5px"><input type="checkbox" id="yuminItemGift" checked style="width:auto"> 선물한 것으로 기록 (호감 상승 · 취향 발견 · 연대기)</label></div>
     ${f('look','외형',4)}${f('personality','성격',3)}${f('speech','말투 규칙 ({이름}은 플레이어 이름으로 바뀝니다)',3)}${f('examples','예시 대사',5)}
     ${f('banned','금지 말투',3)}${f('ability','능력',2)}${f('inner','내면과 과거 (서술에서만 드러남)',3)}${f('avoid','회피 패턴',3)}
     ${G.comp.joined?`<div class="row" style="margin-top:12px"><button class="small" onclick="partYumin()">헤어지기</button></div>`:''}`);
