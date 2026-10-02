@@ -83,6 +83,7 @@ label{display:block;font-weight:500;margin:12px 0 4px}
 .fixed button{font-size:13px;padding:6px 10px}
 .hscroll{display:flex;flex-wrap:nowrap;gap:6px;flex:0 0 100%;width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 .hscroll button{flex:0 0 auto;white-space:nowrap}
+@media (min-width:600px){ .hscroll{flex-wrap:wrap;overflow-x:visible;padding-bottom:0} .hscroll button{white-space:normal;text-align:left} }   /* 태블릿 이상: 버튼이 잘리지 않고 줄바꿈 */
 .free{display:flex;gap:6px}
 .free input{flex:1}
 .badge{background:var(--accent);color:#fff;border-radius:10px;font-size:11px;padding:0 6px;margin-left:4px}
