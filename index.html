@@ -3624,6 +3624,7 @@ function addLex(e,silent,ruinName){
   if(ex){
     if(ex.desc.includes(e.desc)) return;
     ex.desc=(ex.desc+' '+e.desc).slice(-500); ex.isNew=true;
+    if(ex.cat==='세력'){ ex.sumPending=(ex.sumPending||0)+1; if(ex.desc.length>FACTION_SUM_LEN||ex.sumPending>=4) summarizeFaction(ex) }   // 세력 기록이 길어지면 한 문단으로 요약
     if(!silent) toast(`📜 사전 갱신: ${e.name}`);
     return;
   }
@@ -3730,6 +3731,26 @@ function linkLegendEra(ruin){
   x.era=era.name;
   upsertLex(era.name,'전설',eraEntryDesc(era),{eraRec:true,fav:true});
 }
+/* 세력 항목: 마주칠 때마다 기록이 덧붙어 길어지므로, 길어지면(또는 유적을 마칠 때) 그 세력이 한 일을 시간 순으로 한 문단에 합쳐 요약.
+   요약은 유적을 나와도 남음 */
+const FACTION_SUM_LEN=220, factionBusy=new Set();
+async function summarizeFaction(x,final){
+  if(!x) return;
+  if(factionBusy.has(x.name)){ if(final) setTimeout(()=>summarizeFaction(x,true),1500); return }   // 요약 중이면 마무리 요약은 잠시 뒤 다시
+  factionBusy.add(x.name);
+  const g=G, before=x.desc;
+  let text=null;
+  try{
+    const r=parseJSON(await callAI('너는 게임 사전을 정리하는 서기다. 사실을 지어내지 말고 주어진 내용만 요약한다. JSON만 출력한다.',
+`다음은 세력 「${x.name}」에 대해 플레이어가 알게 된 기록이다. 이 세력이 한 일(누구에게 무엇을 했는지), 정체와 목적, 플레이어와의 관계를 시간 순서대로 빠짐없이 합쳐 3문장·220자 이내의 한 문단으로 요약하라. 겹치는 내용은 한 번만 쓰고 고유 이름은 그대로 남긴다.
+${before}
+JSON만: {"text":"..."}`,500,'lex'));
+    if(r&&r.text&&String(r.text).trim()) text=String(r.text).trim().slice(0,260);
+  }catch(e){}
+  if(!text&&(final||before.length>260)) text='…'+before.slice(-220);   // AI가 없을 때: 최근 내용만 남김
+  factionBusy.delete(x.name);
+  if(G===g&&text&&x.desc.startsWith(before)){ x.desc=text+x.desc.slice(before.length); x.sumPending=x.desc.length>before.length?1:0; try{ save(); render() }catch(e){} }   // 요약하는 사이 덧붙은 기록은 뒤에 그대로 이음
+}
 const legendBusy=new Set();
 async function summarizeRuinLegend(x){
   if(legendBusy.has(x.name)) return; legendBusy.add(x.name);
@@ -3745,6 +3766,7 @@ JSON만: {"text":"..."}`,500,'lex'));
 }
 function purgeRuinLex(name){
   if(!name||!G||!Array.isArray(G.lexicon)) return 0;
+  G.lexicon.filter(e=>e.ruin===name&&e.cat==='세력').forEach(e=>{ delete e.ruin; summarizeFaction(e,true) });   // 세력은 남기되 한 일을 요약하고 유적 꼬리표를 뗌
   const gone=e=>e.ruin===name&&!e.fav&&e.cat!=='인물'&&e.cat!=='세력';   // 인물·세력·즐겨찾기만 남기고, 물건은 합치지 않고 삭제
   const legends=G.lexicon.filter(e=>gone(e)&&e.cat==='전설'), places=G.lexicon.filter(e=>gone(e)&&e.cat==='장소');
   const b=G.lexicon.length;
@@ -5968,7 +5990,7 @@ function openGuide(){
     ${row('유물 감정','작업실이나 자르한 골동품상에서 등급별 감정가 (🪙'+RELIC_GRADES.map(r=>r.p).join('·')+')')}
     ${row('물건 팔기','시장 상점에서 소지품을 팔 수 있음 (사전의 같은 이름 「물건」 항목도 지워짐)')}
     ${h3('기록')}
-    ${row('📜 사전',`이야기 ${LEX_EVERY}장면마다 한 번, 또는 장소를 옮길 때 따로 정리됩니다. 유적에서 생긴 항목은 탐사를 마치면 정리됩니다 — 인물·세력·즐겨찾기는 그대로, 물건은 삭제, 장소는 「유적 이름」 항목의 '둘러본 곳' 한 줄로, 전설은 「유적 이름의 전설」 한 항목으로 요약되어 고대사 시대와 연결`)}
+    ${row('📜 사전',`이야기 ${LEX_EVERY}장면마다 한 번, 또는 장소를 옮길 때 따로 정리됩니다. 유적에서 생긴 항목은 탐사를 마치면 정리됩니다 — 인물·세력·즐겨찾기는 그대로(세력이 한 일은 한 문단으로 요약), 물건은 삭제, 장소는 「유적 이름」 항목의 '둘러본 곳' 한 줄로, 전설은 「유적 이름의 전설」 한 항목으로 요약되어 고대사 시대와 연결`)}
     ${row('📝 탐사 수첩','유적마다 사연과 방마다 단서. 모으면 탐사를 마칠 때 유적의 기록과 고대사 시대가 사전에 남습니다')}
     ${row('연대기','하루 → 한 주 → 한 달 단위로 자동 요약')}
     ${h3('호감 레벨')}
