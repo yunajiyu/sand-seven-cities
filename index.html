@@ -511,7 +511,7 @@ const RUIN_MAT_CAP=6;                     // 구역 한 곳에서 이야기로 �
 const RUIN_GOLD_CAP=90;                   // 구역 한 곳에서 이야기로 얻는 캐시 합계 상한
 /* AI가 한 장면에 제안할 수 있는 변화 — 프롬프트·코드·가이드가 모두 이 표를 씀 */
 const FX_LIMIT={hp:[-6,4],water:[-2,2],food:[-2,2],torch:[-1,1],gold:[-30,40],demerit:[-2,3],access:[0,1]};
-const FX_BUY_MAX=8;                       // 물건을 살 때만 물·식량·손전등 +8까지 (용량·소지금은 코드가 다시 자름)
+const FX_BUY_MAX=8;                       // 물건을 살 때만 공포·배터리·손전등 +8까지 (용량·소지금은 코드가 다시 자름)
 const FX_NAME={hp:'체력',water:'공포',food:'배터리',torch:'손전등',gold:'캐시',demerit:'벌점',access:'출입권한'};   // water는 내부적으로 '진정 여력'이고, 화면과 AI에는 뒤집어 '공포'로 보임(공포 = 한도 − water)
 function fxRangeText(){ return Object.entries(FX_LIMIT).map(([k,[a,b]])=>`${FX_NAME[k]} ${a}~+${b}`).join(', ') }   // 공포(water)는 범위가 좌우 대칭이라 그대로 읽으면 됨
 const GAME_TITLE='출석부에 없는 구역', GAME_TITLE_FULL='출석부에 없는 구역';
@@ -872,7 +872,7 @@ const RX={
   BUY:/(산다|사다|사들|사 둔|구입|구매|채운다|채워|보충|흥정|값을\s*치)/,
 };
 
-/* 구매 행동인지: '채운다·채워' 같은 말은 상점에서는 구매지만, 우물·샘 앞에서 산다·구입 같은 말 없이 쓰이면 공짜 물 긷기 */
+/* 구매 행동인지: '채운다·채워' 같은 말은 상점에서는 구매지만, 티 코너·샘 앞에서 산다·구입 같은 말 없이 쓰이면 공짜 물 긷기 */
 const BUY_VERB=/(산다|사다|사들|사 둔|구입|구매|흥정|값을\s*치)/;
 function isBuyText(t){
   t=String(t||''); if(!RX.BUY.test(t)) return false;
@@ -1348,7 +1348,7 @@ function applyEffects(raw,T){
 
 /* ---------- 4-8. 시간 흐름 ----------
    걸음 1 = 행동 1. 구역·임시 쉼터 안의 행동(soft)은 2번에 1걸음.
-   도시·아지트에서는 시간만 흐르고 물·식량·체력은 줄지 않음.
+   도시·아지트에서는 시간만 흐르고 공포·배터리·체력은 줄지 않음.
    미리 마시거나 먹었으면(credit) 다음 자동 소비 1회를 건너뜀. */
 function thirstInterval(){
   let v=(hasTrait('담력')?MOVE_STEPS.waterFrugal:MOVE_STEPS.water)+(mountOn()?mountDef().thirst:0);
@@ -1461,7 +1461,7 @@ const waitDays=t=>{ const m=String(t).match(/(\d+)\s*일/); if(m) return Math.mi
 const inRuin=()=>!!G.dungeon&&['dungeon','camp','road'].includes(G.loc);
 const itemIn=t=>G.items.findIndex(it=>it&&String(it).length>=2&&t.includes(it));
 function sleepHere(){ const L=G.loc; if(L==='city'||L==='town') cityRest(); else if(L==='home') homeRest(); else if(L==='camp') breakCamp(); else campHere() }
-function sleepLabel(){ const L=G.loc; return L==='city'||L==='town'?'🛏 기숙사에서 쉬기 (💳10 · 하루 경과)':L==='home'?'🛏 아지트에서 쉬기 (하루 경과)':L==='camp'?'🌅 아침까지 쉬기':'⛺ 임시 쉼터 (물·식량 -1, 밤이 지남)' }
+function sleepLabel(){ const L=G.loc; return L==='city'||L==='town'?'🛏 기숙사에서 쉬기 (💳10 · 하루 경과)':L==='home'?'🛏 아지트에서 쉬기 (하루 경과)':L==='camp'?'🌅 아침까지 쉬기':'⛺ 임시 쉼터 (공포·배터리 -1, 밤이 지남)' }
 
 /* 글로 쓴 행동 → 게임 기능. 위에서부터 처음 맞는 것 하나만.
    run()이 false를 돌려주면 '수정만 하고 이야기로 계속'(예: 기다리기, 물건 버리기) */
@@ -1495,18 +1495,18 @@ const INTENTS=[
    run:()=>{ toast('그곳은 아직 소문으로만 아는 곳이라 갈 수 없습니다'); pend('\n[이동 불가] 플레이어가 말한 곳은 아직 소문으로만 아는 먼 땅이다. 실제로 길을 떠나거나 도착하는 서술은 하지 말고, 그곳을 그리워하거나 소문을 떠올리는 정도로만.',{zeroSupply:true}); return false }},
   {id:'lead',confirm:true,label:t=>`📍 「${(leadByText(t)||{}).name}」 찾아 떠나기 (소문의 장소)`,
    when:t=>isTown()&&!!leadByText(t), run:t=>{ const l=leadByText(t); addLog('action',t); startLead(l.id) }},
-  {id:'go',confirm:true,label:()=>'🐪 구역 조사 떠나기 (거리만큼 일수 · 하루마다 물·식량 1)',
+  {id:'go',confirm:true,label:()=>'🐪 구역 조사 떠나기 (거리만큼 일수 · 하루마다 공포·배터리 1)',
    when:t=>isTown()&&!(G.loc==='town'&&curTown().west)&&IX.GO.test(t), run:t=>{ addLog('action',t); startExpedition() }},
   {id:'spot',confirm:true,label:t=>`📍 ${spotMove(t)} (임시 장소)로 이동`,
    when:t=>!!spotMove(t), run:t=>{ setSpot(spotMove(t)); return false }},   // 장소만 기록하고 이야기로 계속
-  {id:'return',confirm:true,label:()=>{ const r=returnRoute(); return `↩ ${r.name}${josa(r.name,'으로','로')} 귀환 (${r.days}일 · 하루마다 물·식량 1)` },
+  {id:'return',confirm:true,label:()=>{ const r=returnRoute(); return `↩ ${r.name}${josa(r.name,'으로','로')} 귀환 (${r.days}일 · 하루마다 공포·배터리 1)` },
    when:t=>inRuin()&&IX.RET.test(t), run:t=>{ addLog('action',t); returnToCity() }},
   {id:'useItem',
    when:t=>{ const i=itemIn(t); return i>=0&&!!consKind(G.items[i])&&IX.USEV.test(t) }, run:t=>{ addLog('action',t); useItem(itemIn(t)) }},
   {id:'sleep',confirm:true,label:sleepLabel,
    when:t=>IX.SLEEP.test(t)&&!IX.SLEEP_NEG.test(t)&&['city','town','home','road','dungeon','camp'].includes(G.loc),
    run:t=>{ addLog('action',t); addLog('sys','🌙 밤을 보내는 행동은 게임의 휴식 기능으로 처리되어 시간이 흐릅니다.'); G.choices=[]; sleepHere(); save(); render() }},
-  {id:'wait',confirm:true,label:()=>'⏳ 시간 보내기 (날짜·물·식량이 계산됨)',
+  {id:'wait',confirm:true,label:()=>'⏳ 시간 보내기 (날짜·공포·배터리가 계산됨)',
    when:t=>IX.WAIT.test(t),
    run:t=>{   // 시간만 처리하고 장면은 이야기로 계속
      const n=waitDays(t);
@@ -1517,10 +1517,10 @@ const INTENTS=[
          if(!mountNoWater()||i%2===1){ if(G.water>0) G.water--; else G.hp=Math.max(1,G.hp-1) }   // 먹인 전동 스쿠터: 물 절반 (이동과 같음)
          if(G.food>0) G.food--; else G.hp=Math.max(1,G.hp-1);
        }
-       note+=mountNoWater()?` (물 -${Math.floor(n/2)} · 식량 -${n})`:` (물·식량 -${n}씩)`;
+       note+=mountNoWater()?` (물 -${Math.floor(n/2)} · 배터리 -${n})`:` (공포·배터리 -${n}씩)`;
      }
      addLog('sys',`⏳ ${note}. (${G.day}일째)`);
-     pend(` [시간 경과 ${n}일은 게임이 이미 처리했다. 물·식량·체력 effects는 0.]`,{zeroSupply:true});
+     pend(` [시간 경과 ${n}일은 게임이 이미 처리했다. 공포·배터리·체력 effects는 0.]`,{zeroSupply:true});
      return false;
    }},
   {id:'drop',
@@ -1567,7 +1567,7 @@ function act(text,opt={}){
   if(opt.src==='free'&&!opt.confirmed){ const ck=checkIntent(t); if(ck) return showCheckChip(t,ck) }
   story(t,opt);
 }
-/* 이야기로 진행: 물·식량 판정 → 걸음 → 서술 AI */
+/* 이야기로 진행: 공포·배터리 판정 → 걸음 → 서술 AI */
 function story(t,opt={}){
   if(busy||!G) return;
   const soft=(opt.src==='choice'||opt.src==='fixed')&&(G.loc==='dungeon'||G.loc==='camp');
@@ -1692,7 +1692,7 @@ function doCheck(text,skill,dc,src){
 const NEED_RX={
   NEG:/(않|못|말고|아니|대신)/,
   DRINK:/(?!)/,   // 옛 '물 마시기'(재고를 미리 치르는 행동)는 공포 체계에서는 의미가 없어 끔 — 진정은 장소·구매·이야기 근거로만
-  EAT:/(?!)/,     // 옛 '식량 먹기'도 마찬가지(배터리는 충전으로 오를 뿐 미리 쓰지 않음)
+  EAT:/(?!)/,     // 옛 '배터리 먹기'도 마찬가지(배터리는 충전으로 오를 뿐 미리 쓰지 않음)
   SOURCE:/(휴게\s?(공간|정자|실|소파)|티\s?코너|정수기|따뜻한\s?(차|음료)|자판기|식수대|저수지\s?둑길|분수)/,
   GAIN_W:/(휴게\s?(공간|정자|실|소파)|티\s?코너|정수기|자판기|따뜻한\s?(차|음료)|진정제|음료(수)?[을를이가]?\s*.{0,10}(발견|찾|얻|줍|건네|받|챙|사|마))/,
   GAIN_F:/((보조배터리|배터리|충전기|충전\s?케이블|멀티탭|콘센트)[을를이가]?\s*.{0,10}(발견|찾|얻|줍|건네|받|챙|꽂|연결)|충전(했|한다|하며|을\s*하))/,
@@ -1721,14 +1721,14 @@ function judgeNeeds(t){
   }
   if(eat){
     if(isTown()){
-      notes.push('[행동 판정] 도시·아지트에서의 식사는 식량 수치에 영향을 주지 않는다. effects.food·hp는 0.');
+      notes.push('[행동 판정] 도시·아지트에서의 식사는 배터리 수치에 영향을 주지 않는다. effects.food·hp는 0.');
     }else if(G.food>0){
       G.food--; G._fCredit=Math.min(2,(G._fCredit||0)+1);
-      logs.push(`🍞 식량 -1 · 지금 먹은 만큼 다음 자동 소비 1회를 건너뜁니다 (남은 식량 ${G.food})`);
-      notes.push(`[행동 판정 — 코드가 이미 처리] 플레이어는 가진 식량을 먹었다(식량 ${G.food+1}→${G.food}). effects.water·food·hp는 반드시 0.`);
+      logs.push(`🍞 배터리 -1 · 지금 먹은 만큼 다음 자동 소비 1회를 건너뜁니다 (남은 배터리 ${G.food})`);
+      notes.push(`[행동 판정 — 코드가 이미 처리] 플레이어는 가진 배터리를 먹었다(배터리 ${G.food+1}→${G.food}). effects.water·food·hp는 반드시 0.`);
     }else{
-      logs.push('🍞 먹을 식량이 없습니다');
-      notes.push('[행동 판정 — 실패] 식량이 0이다. 플레이어는 먹을 것이 없다. 허기가 풀리는 서술 금지. effects.food·hp는 0.');
+      logs.push('🍞 먹을 배터리가 없습니다');
+      notes.push('[행동 판정 — 실패] 배터리가 0이다. 플레이어는 먹을 것이 없다. 허기가 풀리는 서술 금지. effects.food·hp는 0.');
     }
   }
   return {note:'\n'+notes.join(' '),logs,flags};
@@ -1871,7 +1871,7 @@ on('effects',70,(e,ctx)=>{
 
 /* 적용 뒤 */
 on('applied',10,(e,ctx)=>{ (ctx.consAdd||[]).forEach(([k,n,name])=>{ G[k]+=n; addLog('fx',`${name} → ${k==='water'?`공포 −${n}`:`${NM[k]} +${n}`} (소모품은 수치로 보관됩니다)`) }) });
-on('applied',20,(e,{snap})=>{   // 이 방에서 이미 얻은 유실물·물건 기록 (같은 것을 또 얻지 않게)
+on('applied',20,(e,{snap})=>{   // 이 공간에서 이미 얻은 유실물·물건 기록 (같은 것을 또 얻지 않게)
   if(G.loc!=='dungeon'||!G.dungeon) return;
   const room=curRoom(); if(!room) return;
   if(G.mat.relic>snap.relic) room.relicTaken=true;
@@ -1900,13 +1900,14 @@ on('applied',70,(e,ctx)=>{
   if(cut.length) addLog('fx',`📦 한도(용량·소지금)를 넘는 ${cut.join(', ')}은(는) 사지 못했습니다`);
 });
 on('facts',60,(o,rules)=>{
-  const full=['water','food','torch'].filter(k=>capOf(k)-G[k]<=0).map(k=>NM[k]);
-  rules.push(`물·식량·손전등 구매 가격은 게임이 개당 정가로 자동 결제(지금 이곳: 물${priceHere('water')}·식량${priceHere('food')}·손전등${priceHere('torch')} / 중앙 캠퍼스 지구·아지트: 물${PRICE_TOWN.water}·식량${PRICE_TOWN.food}·손전등${PRICE_TOWN.torch} / 한빛시 뒷길·임시 쉼터: 물${PRICE_ROAD.water}·식량${PRICE_ROAD.food}·손전등${PRICE_ROAD.torch})하므로 effects.gold는 0으로 두고, 산 만큼만 effects의 물/식량/손전등에 넣어라(용량 이내).`+(full.length?` 지금 ${full.join('·')}은(는) 가득 차 있으니 그것을 더 사거나 채우는 선택지·서술을 만들지 말 것.`:''));
-  rules.push(`[거래] 소지금(${G.gold})을 넘는 구매·지불 서술은 성사시키지 말고(돈이 모자란다고 하거나 흥정만), 실제로 지불한 금액을 effects.gold에 음수로 정확히 쓴다. [탈것·동물] 전동 스쿠터·자전거·동물 친구는 서술로 얻거나 잃게 하지 말고 상점가와 입양 기능으로만 다룬다(소문·구경은 가능). [체력] 부상의 크기를 effects.hp와 맞춘다: 경상 -1~-2, 중상 -3~-4, 치명상 -5~-6. 체력 회복은 기숙사·아지트·임시 쉼터·치료 도구를 쓴 경우에만 서술한다.`);
+  const FULLN={water:'공포 진정(공포가 이미 0)',food:'배터리(이미 가득)',torch:'손전등 건전지(이미 가득)'};
+  const full=['water','food','torch'].filter(k=>capOf(k)-G[k]<=0).map(k=>FULLN[k]);
+  rules.push(`진정 음료·배터리·손전등 구매 가격은 게임이 개당 정가로 자동 결제(지금 이곳: 진정 음료${priceHere('water')}·배터리${priceHere('food')}·손전등${priceHere('torch')} / 중앙 캠퍼스 지구·아지트: ${PRICE_TOWN.water}·${PRICE_TOWN.food}·${PRICE_TOWN.torch} / 뒷길 행상·임시 쉼터: ${PRICE_ROAD.water}·${PRICE_ROAD.food}·${PRICE_ROAD.torch})하므로 effects의 캐시는 0으로 두고, 산 만큼만 effects의 공포(진정 음료는 음수)/배터리/손전등에 넣어라(용량 이내).`+(full.length?` 지금 ${full.join('·')} 상태이니 그것을 더 사거나 채우는 선택지·서술을 만들지 말 것.`:''));
+  rules.push(`[거래] 소지금(${G.gold})을 넘는 구매·지불 서술은 성사시키지 말고(돈이 모자란다고 하거나 흥정만), 실제로 지불한 금액을 effects의 캐시에 음수로 정확히 쓴다. [탈것·동물] 전동 스쿠터·자전거·동물 친구는 서술로 얻거나 잃게 하지 말고 상점가와 입양 기능으로만 다룬다(소문·구경은 가능). [체력] 부상의 크기를 effects의 체력과 맞춘다: 경상 -1~-2, 중상 -3~-4, 치명상 -5~-6. 체력 회복은 기숙사·아지트·임시 쉼터·치료 도구를 쓴 경우에만 서술한다.`);
 });
 /* 가득 찬 품목의 구매 선택지 제거 · 가격 표시 */
 on('choices',60,arr=>{
-  const RES={water:/물|수통|물통|물주머니/,food:/식량|음식|빵|대추야자|말린|건포도|육포|포도|꿀|과일/,torch:/손전등|등불|등잔/};
+  const RES={water:/차|음료|커피|진정제|진정/,food:/배터리|충전|충전기|케이블/,torch:/손전등|건전지|랜턴|조명/};
   const U=k=>priceHere(k);
   const out=[];
   arr.forEach(c=>{
@@ -1917,7 +1918,7 @@ on('choices',60,arr=>{
     const room=Math.max(0,capOf(k)-G[k]);
     if(room<=0) return;
     if(/💳\d/.test(c)){ out.push(c); return }   // 이미 가격을 붙였으면 그대로
-    out.push(/(가득|채운다|채워|보충)/.test(c)?`${c} (💳${room*U(k)}, ${NM[k]} +${room})`:`${c} (개당 💳${U(k)})`);
+    out.push(/(가득|채운다|채워|보충)/.test(c)?`${c} (💳${room*U(k)}, ${k==='water'?`공포 −${room}`:`${NM[k]} +${room}`})`:`${c} (개당 💳${U(k)})`);
   });
   return out.length?out:(arr.length?['주변을 둘러본다']:out);
 });
@@ -1944,7 +1945,7 @@ function clampSupplies(before,silent){
     const mx=Math.max(capOf(k),(before&&before[k])||0);
     if(G[k]>mx){ lost.push(`${NM[k]} ${G[k]-mx}`); G[k]=mx }
   });
-  if(lost.length&&!silent) addLog('fx',`📦 휴대 용량 초과 — ${lost.join(', ')} 버려졌습니다 (상점에서 용량을 늘릴 수 있습니다)`);
+  if(lost.length&&!silent) addLog('fx',`📦 용량 초과 — ${lost.join(', ')} 사라졌습니다 (상점가에서 용량을 늘릴 수 있습니다)`);
   return lost.length>0;
 }
 
@@ -1952,8 +1953,8 @@ function clampSupplies(before,silent){
 /* =========================================================
    8. 소지품
    ========================================================= */
-const CONS_RE={water:/물\s?주머니|물\s?부대|물\s?병|수통|물통|가죽\s?부대/,food:/식량|도시락|건빵|육포|말린\s?대추|^대추|^빵|빵$/,torch:/손전등/};
-const CONS_USE_RE=/바꾸|바꿔|바꾼|변환|마신|마시|마셔|채운|채우|채워|따라|따른|붓|부어|옮겨|사용|쓴다|쓰고|먹는|먹어|먹고|씹|꺼내|소비|보충/;
+const CONS_RE={water:/따뜻한\s?차|캔\s?커피|진정\s?음료|진정제|핫팩|음료수?/,food:/보조\s?배터리|배터리|충전기|충전\s?케이블/,torch:/손전등|건전지/};
+const CONS_USE_RE=/바꾸|바꿔|바꾼|변환|마신|마시|마셔|채운|채우|채워|연결|꽂|사용|쓴다|쓰고|먹는|먹어|먹고|꺼내|소비|보충|충전/;
 function consKind(name){ const s=String(name||''); for(const k in CONS_RE) if(CONS_RE[k].test(s)) return k; return null }
 function consCount(name){
   const s=String(name||''), m=s.match(/(\d+)\s*(개|통|부대|자루|병)?/);
@@ -1968,18 +1969,18 @@ function useItem(i){
   if(G[k]>=capOf(k)) return toast('가득 차서 쓸 수 없습니다');
   const n=consCount(it);
   G[k]+=n; G.items.splice(i,1);
-  addLog('fx',`${it} 사용 → ${NM[k]} +${n}`);
+  addLog('fx',`${it} 사용 → ${k==='water'?`공포 −${n}`:`${NM[k]} +${n}`}`);
   save(); render(); if(document.querySelector('#modalRoot .modal')) openInv();
 }
 function itemChipHTML(it,i){
   const k=consKind(it);
-  return `<span class="chip">${esc(it)}${k?` <a href="#" onclick="event.preventDefault();useItem(${i})" style="color:var(--accent2);text-decoration:none" title="${NM[k]}으로 바꾸기">사용</a>`:''}</span>`;
+  return `<span class="chip">${esc(it)}${k?` <a href="#" onclick="event.preventDefault();useItem(${i})" style="color:var(--accent2);text-decoration:none" title="${k==='water'?'공포 가라앉히기':NM[k]+'(으)로 바꾸기'}">사용</a>`:''}</span>`;
 }
 function itemSellPrice(name){
   let h=0; for(const ch of String(name)) h=(h*31+ch.charCodeAt(0))>>>0;
   let p=5+h%8;
-  if(/반지|목걸이|팔찌|귀걸이|보석|황금|순금|은제|금제|캐시|은화|왕관|인장|유실물|조각상|향료|비단/.test(name)) p+=12;
-  else if(/두루마리|문서|지도|열쇠|도자기|항아리|단검|장검|칼|나침반|등잔/.test(name)) p+=4;
+  if(/반지|목걸이|팔찌|귀걸이|보석|순금|은제|금제|상품권|동전|트로피|인장|유실물|조각상|명품|한정판/.test(name)) p+=12;
+  else if(/문서|서류|지도|열쇠|USB|메모리|노트|수첩|도장|카메라|시계/.test(name)) p+=4;
   return p;
 }
 function sellItem(i){
@@ -1990,16 +1991,16 @@ function sellItem(i){
   const nm=String(it).replace(/\(.*?\)|[x×]\s*\d+/g,'').trim(), before=G.lexicon.length;
   G.lexicon=G.lexicon.filter(e=>!(e.cat==='물건'&&nm.length>=2&&(e.name===it||e.name===nm||nm.includes(e.name)||e.name.includes(nm))));
   const del=before-G.lexicon.length;
-  addLog('fx',`상인에게 「${it}」을(를) 팔았습니다 (캐시 +${p})`+(del?` · 사전에서 ${del}건 삭제`:''));
+  addLog('fx',`고물상에게 「${it}」을(를) 팔았습니다 (캐시 +${p})`+(del?` · 사전에서 ${del}건 삭제`:''));
   toast(`💳 +${p}`+(del?` · 사전 ${del}건 삭제`:''));
   save(); render(); openShop();
 }
-/* 이 방에서 이미 얻은 유실물·물건을 다시 줍는 선택지 제거 */
+/* 이 공간에서 이미 얻은 유실물·물건을 다시 줍는 선택지 제거 */
 on('context',20,()=>{
   if(G.loc!=='dungeon'||!G.dungeon) return '';
   const room=curRoom(); let s='';
-  if(room&&room.relicTaken) s+='\n[이미 획득함] 이 방의 유실물은 플레이어가 이미 가져갔다. 같은 유실물을 다시 발견하거나 줍는 서술·선택지를 만들지 말고, 빈 자리나 흔적으로만 묘사하라. materials.relic은 0.';
-  if(room&&room.gotItems&&room.gotItems.length) s+=`\n[이 방에서 이미 획득한 물건] ${room.gotItems.join(', ')} — 플레이어가 이미 가져갔다. 같은 물건을 다시 발견하거나 줍는 서술·선택지를 만들지 말 것(빈자리나 흔적으로만 묘사). items_add에 다시 넣지 말 것.`;
+  if(room&&room.relicTaken) s+='\n[이미 획득함] 이 공간의 유실물은 플레이어가 이미 가져갔다. 같은 유실물을 다시 발견하거나 줍는 서술·선택지를 만들지 말고, 빈 자리나 흔적으로만 묘사하라. materials.relic은 0.';
+  if(room&&room.gotItems&&room.gotItems.length) s+=`\n[이 공간에서 이미 획득한 물건] ${room.gotItems.join(', ')} — 플레이어가 이미 가져갔다. 같은 물건을 다시 발견하거나 줍는 서술·선택지를 만들지 말 것(빈자리나 흔적으로만 묘사). items_add에 다시 넣지 말 것.`;
   return s;
 });
 on('after',20,()=>{
@@ -2040,7 +2041,7 @@ function cityFixedHTML(){
   const bar=Object.keys(DISTRICTS).map(k=>`<button class="small ${k===d&&!sp?'primary':''}" ${k===d&&!sp?'disabled':''} onclick="goDistrict('${k}')">${DISTRICTS[k].ic} ${DISTRICTS[k].n}</button>`).join('');
   let a='';
   if(sp) a=`<button class="primary" onclick="goDistrict('${d}')">↩ ${DISTRICTS[d].n}${josa(DISTRICTS[d].n,'으로','로')} 돌아가기</button>`;
-  else if(d==='market') a=`<button onclick="openShop()">🛒 상점 (물·식량·재료)</button><button onclick="strollMarket()">🚶 상점가 거닐기</button>`;
+  else if(d==='market') a=`<button onclick="openShop()">🛒 상점 (공포·배터리·재료)</button><button onclick="strollMarket()">🚶 상점가 거닐기</button>`;
   else if(d==='teahouse') a=`<button onclick="cityRumor()">🍵 차를 마시며 소문 듣기 (5)</button>`;
   else if(d==='inn') a=`<button onclick="cityRest()">🛏 기숙사에서 쉬기 (10)</button>`;
   else if(d==='gate') a=`<button class="primary" onclick="startExpedition()">🐪 구역 조사 떠나기</button><button onclick="openTravel()">🐫 먼 이동하기 (와하·천막들·자르한)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
@@ -2055,7 +2056,7 @@ function cityFixedHTML(){
   }
   return {mv:bar,mvLbl:sp?`📍 ${esc(G.spot.name)} (임시 장소) · ${DISTRICTS[d].n} 지점 · 장소 이동`:`📍 ${DISTRICTS[d].n} · 장소 이동`,ac:a,acLbl:'🧭 행동'};
 }
-on('context',90,()=>G.loc==='city'&&!spotOn()?` 지금 있는 곳은 중앙 캠퍼스 지구의 「${DISTRICTS[curDistrict()].n}」이다. 장면의 배경과 등장인물을 이 장소에 맞출 것(정문: 대상·경비병·전동 스쿠터꾼, 구내식당: 소문·손님, 기숙사: 투숙객·기숙사 주인, 상점가: 상인·행인, 오아시스: 우물·그늘·나그네). 중앙 캠퍼스 지구의 지점은 상점가·구내식당·기숙사·정문·저수지 둑길 다섯이다. 지점 밖의 장소(대장간, 사원, 골목 등)로 가는 것도 가능하며 그때는 게임이 '임시 장소'로 기록한다. 소문 듣기·숙박·상점 거래·조사 외출 출발은 지점에서만 가능하다.`:'');
+on('context',90,()=>G.loc==='city'&&!spotOn()?` 지금 있는 곳은 중앙 캠퍼스 지구의 「${DISTRICTS[curDistrict()].n}」이다. 장면의 배경과 등장인물을 이 장소에 맞출 것(정문: 대상·경비병·전동 스쿠터꾼, 구내식당: 소문·손님, 기숙사: 투숙객·기숙사 주인, 상점가: 상인·행인, 오아시스: 티 코너·그늘·나그네). 중앙 캠퍼스 지구의 지점은 상점가·구내식당·기숙사·정문·저수지 둑길 다섯이다. 지점 밖의 장소(대장간, 사원, 골목 등)로 가는 것도 가능하며 그때는 게임이 '임시 장소'로 기록한다. 소문 듣기·숙박·상점 거래·조사 외출 출발은 지점에서만 가능하다.`:'');
 on('context',90.1,()=>spotOn()?` [임시 장소] 플레이어는 중앙 캠퍼스 지구 「${DISTRICTS[curDistrict()].n}」 지점에서 벗어나 「${G.spot.name}」에 있다. 이 장소의 풍경·인물 이야기를 하되, 소문 듣기·숙박·상점 거래·휴식은 지점으로 돌아가야 가능하다 — 이 장면에서 물건을 사고팔거나 쉬는 서술을 성사시키지 말고 effects의 hp·water·food·torch·gold는 0으로 둘 것. 다섯 지점 중 하나로 가는 선택지는 허용한다.`:'');
 function cityRumor(){
   if(busy||spotBlock()) return;
@@ -2138,12 +2139,12 @@ function openShop(){
   if(G.mount){
     const d=MOUNTS[G.mount.type];
     mt+=`<div class="shop-row"><span>🐪 ${esc(G.mount.name)} <span class="muted">(${d.n})</span></span><button class="small" onclick="sellMount()">팔기 💳${Math.floor(d.price/2)}</button></div><p class="muted">탈것은 한 마리만 둘 수 있습니다. 다른 동물로 바꾸려면 먼저 파세요.</p>`;
-  }else if(!has('stable')) mt+=`<p class="muted">아지트에 <b>마구간</b>을 지어야 자전거나 전동 스쿠터를 들일 수 있습니다. (아지트 짓기 → 마구간)</p>`;
-  else mt+=Object.entries(MOUNTS).filter(([k,d])=>!d.locked||hasWest(d.locked)).map(([k,d])=>`<div class="shop-row" style="gap:10px;align-items:flex-start"><div><b>${d.n}</b><br><span class="muted">${d.desc}<br>사료: 조사 외출마다 식량 ${d.feed}</span></div><button class="small ${G.gold>=mountPrice(k)?'primary':''}" onclick="buyMount('${k}')">캐시 ${mountPrice(k)}${mountPrice(k)<d.price?' (할인)':''}</button></div>`).join('');
+  }else if(!has('stable')) mt+=`<p class="muted">아지트에 <b>자전거 보관대</b>을 지어야 자전거나 전동 스쿠터를 들일 수 있습니다. (아지트 짓기 → 자전거 보관대)</p>`;
+  else mt+=Object.entries(MOUNTS).filter(([k,d])=>!d.locked||hasWest(d.locked)).map(([k,d])=>`<div class="shop-row" style="gap:10px;align-items:flex-start"><div><b>${d.n}</b><br><span class="muted">${d.desc}<br>충전: 조사 외출마다 배터리 ${d.feed}</span></div><button class="small ${G.gold>=mountPrice(k)?'primary':''}" onclick="buyMount('${k}')">캐시 ${mountPrice(k)}${mountPrice(k)<d.price?' (할인)':''}</button></div>`).join('');
   const sells=G.items.map((it,i)=>consKind(it)?'':`<div class="shop-row"><span>${esc(it)}</span><button class="small" onclick="sellItem(${i})">팔기 💳${itemSellPrice(it)}</button></div>`).join('');
   modal('상점가',`<p class="muted">캐시: <b id="shopGold">${G.gold}</b></p>${goods}
     <h4 style="margin:14px 0 4px">휴대 용량</h4>${capRow('w')}${capRow('f')}${capRow('t')}
-    <p class="muted" style="font-size:12px">물·식량·손전등은 용량까지만 들고 다닐 수 있고 초과분은 버려집니다.${G.loc==='town'?` ${curTown().n}: ${curTown().perk}.`:''} 가격 — 중앙 캠퍼스 지구·아지트: 물 💳${PRICE_TOWN.water} · 식량 💳${PRICE_TOWN.food} · 손전등 💳${PRICE_TOWN.torch}. 한빛시 뒷길에서 가끔 만나는 대상 상인(🐫 버튼)이나 이야기 속 상인에게 사면 물·식량 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch}.</p>
+    <p class="muted" style="font-size:12px">공포·배터리·손전등은 용량까지만 들고 다닐 수 있고 초과분은 버려집니다.${G.loc==='town'?` ${curTown().n}: ${curTown().perk}.`:''} 가격 — 중앙 캠퍼스 지구·아지트: 물 💳${PRICE_TOWN.water} · 배터리 💳${PRICE_TOWN.food} · 손전등 💳${PRICE_TOWN.torch}. 한빛시 뒷길에서 가끔 만나는 대상 상인(🐫 버튼)이나 이야기 속 상인에게 사면 공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch}.</p>
     ${mt}
     ${decorShopHTML()}
     <h4 style="margin:14px 0 4px">물건 팔기</h4>${sells||'<p class="muted">팔 수 있는 물건이 없습니다.</p>'}
@@ -2152,7 +2153,7 @@ function openShop(){
 
 
 /* =========================================================
-   11. 아지트 — 시설 · 휴식 · 우물 · 저장고 · 연구
+   11. 아지트 — 시설 · 휴식 · 티 코너 · 저장고 · 연구
    ========================================================= */
 function goHome(){
   if(busy||spotBlock()) return;
@@ -2191,7 +2192,7 @@ function homeRest(){
   const first=G.home.lastRestDay!==G.day;
   G.home.lastRestDay=G.day;
   G.hp=G.maxhp; G.day++; G.time='낮'; G.dayStep=0;
-  if(has('garden')&&first){ const gf=Math.min(2,Math.max(0,capF()-G.food)); G.food+=gf; addLog('fx',gf?`정원의 대추 — 식량 +${gf}`:'정원의 대추 — 식량 자루가 가득 차 있습니다') }
+  if(has('garden')&&first){ const gf=Math.min(2,Math.max(0,capF()-G.food)); G.food+=gf; addLog('fx',gf?`정원의 대추 — 배터리 +${gf}`:'정원의 대추 — 배터리 자루가 가득 차 있습니다') }
   addLog('sys',`아지트에서 푹 쉬었습니다. 체력이 모두 회복되었습니다. (${G.day}일째 아침)`);
   if(G.mount) petGain(G.mount,1,G.mount.name);
   (G.pets||[]).forEach(p=>petGain(p,1,p.name));
@@ -2243,20 +2244,20 @@ function studyMap(){
 }
 function wellMax(){ return has('well2')?6:3 }
 function wellLeft(){ if(G.home.wellDay!==G.day){ G.home.wellDay=G.day; G.home.wellN=0 } return Math.max(0,wellMax()-(G.home.wellN||0)) }
-function wellLabel(){ return `💧 우물에서 물 채우기 (오늘 ${wellLeft()}/${wellMax()}회 남음)` }
+function wellLabel(){ return `💧 티 코너에서 물 채우기 (오늘 ${wellLeft()}/${wellMax()}회 남음)` }
 function wellFill(){
   if(busy||G.loc!=='home'||!has('well')) return;
-  if(wellLeft()<=0) return toast(`오늘은 우물을 ${wellMax()}번 다 썼습니다. 내일 다시 이용할 수 있습니다`);
+  if(wellLeft()<=0) return toast(`오늘은 티 코너를 ${wellMax()}번 다 썼습니다. 내일 다시 이용할 수 있습니다`);
   const need=capW()-G.water;
   if(need<=0) return toast(`물통이 이미 가득 찼습니다 (${G.water}/${capW()})`);
   G.water=capW(); G.home.wellN=(G.home.wellN||0)+1;
-  addLog('fx',`💧 우물에서 물을 길어 가득 채웠습니다 (+${need}, 무료 · 오늘 ${wellLeft()}회 남음)`);
+  addLog('fx',`💧 티 코너에서 물을 길어 가득 채웠습니다 (+${need}, 무료 · 오늘 ${wellLeft()}회 남음)`);
   save(); render();
 }
 function storeStock(){ const s=G.home.stock||(G.home.stock={}); ['food','water','torch'].forEach(k=>{ if(typeof s[k]!=='number') s[k]=0 }); return s }
 function storeCaps(){ return has('store2')?STORE_CAPS.big:STORE_CAPS.base }
 function storeHTML(){
-  const s=storeStock(), C=storeCaps(), NAME={food:'🍞 식량',water:'💧 물',torch:'🔥 손전등'};
+  const s=storeStock(), C=storeCaps(), NAME={food:'🍞 배터리',water:'💧 물',torch:'🔥 손전등'};
   const rows=['food','water','torch'].map(k=>{
     const room=capOf(k)-G[k], canIn=G[k]>0&&s[k]<C[k], canOut=s[k]>0&&room>0;
     return `<div class="shop-row" style="align-items:center"><span>${NAME[k]}<br><span class="muted" style="font-size:12px">소지 ${G[k]}/${capOf(k)} · 보관 ${s[k]}/${C[k]}</span></span>
@@ -2266,13 +2267,13 @@ function storeHTML(){
         <button class="small" ${canOut?'':'disabled'} onclick="storeMove('${k}','out',1)">꺼냄 -1</button>
         <button class="small" ${canOut?'':'disabled'} onclick="storeMove('${k}','out',99)">가득</button></span></div>`;
   }).join('');
-  return `<p class="muted">아지트에 식량·물·손전등을 맡겨 두었다가 조사 외출 전에 꺼낼 수 있습니다.${has('store2')?' (확장됨)':' 시설 짓기에서 큰 저장고로 확장할 수 있습니다.'}</p>${rows}
-    <p class="muted" style="font-size:12px;margin-top:8px">조사 외출에는 물과 식량이 최소 1씩 필요하니 전부 맡기지 않도록 주의하세요.</p>`;
+  return `<p class="muted">아지트에 배터리·물·손전등을 맡겨 두었다가 조사 외출 전에 꺼낼 수 있습니다.${has('store2')?' (확장됨)':' 시설 짓기에서 큰 저장고로 확장할 수 있습니다.'}</p>${rows}
+    <p class="muted" style="font-size:12px;margin-top:8px">조사 외출에는 공포와 배터리가 최소 1씩 필요하니 전부 맡기지 않도록 주의하세요.</p>`;
 }
 function openStore(){ if(has('store')) modal('📦 저장고',storeHTML()) }
 function storeMove(k,dir,n){
   if(!has('store')||!['food','water','torch'].includes(k)) return;
-  const s=storeStock(), C=storeCaps(), NAME={food:'🍞 식량',water:'💧 물',torch:'🔥 손전등'};
+  const s=storeStock(), C=storeCaps(), NAME={food:'🍞 배터리',water:'💧 물',torch:'🔥 손전등'};
   if(dir==='in'){ const x=Math.min(n,G[k],C[k]-s[k]); if(x<=0) return; G[k]-=x; s[k]+=x; addLog('fx',`📦 저장고에 ${NAME[k]} ${x}개를 맡겼습니다`) }
   else{ const x=Math.min(n,s[k],capOf(k)-G[k]); if(x<=0) return; G[k]+=x; s[k]-=x; addLog('fx',`📦 저장고에서 ${NAME[k]} ${x}개를 꺼냈습니다`) }
   save(); render();
@@ -2295,10 +2296,10 @@ function mountCarry(){
 function mountRescueKeep(){ const m=mountDef(); return (m&&m.rescue&&G._mountFed&&isWild())?0.75:0.5 }
 function buyMount(type){
   const d=MOUNTS[type]; if(!d||G.mount) return;
-  if(!has('stable')) return toast('마구간이 필요합니다');
+  if(!has('stable')) return toast('자전거 보관대가 필요합니다');
   if(G.gold<mountPrice(type)) return toast('캐시가 부족합니다');
   G.gold-=mountPrice(type); G.mount={type,name:d.n,aff:10}; G._mountFed=true;
-  G.chronicle.push({day:G.day,text:`상점가에서 ${d.n}${josa(d.n,'을','를')} 사서 아지트 마구간에 들였다`});
+  G.chronicle.push({day:G.day,text:`상점가에서 ${d.n}${josa(d.n,'을','를')} 사서 아지트 자전거 보관대에 들였다`});
   toast(`🐪 ${d.n}${josa(d.n,'을','를')} 들였습니다`);
   save(); render(); openShop();
 }
@@ -2358,7 +2359,7 @@ function openAnimals(){
   let adopt='';
   if(isTown()) adopt=`<h4 style="margin:14px 0 4px">상점가 입양소 <span class="muted" style="font-size:12px">(${petCount()}/${MAXPETS})</span></h4>`+Object.entries(PET_KINDS).filter(([k,d])=>!d.reward).map(([k,d])=>
     `<div class="shop-row" style="gap:8px;align-items:flex-start"><div><b>${d.icon} ${d.n}</b><br><span class="muted">${d.perk}</span></div><button class="small ${G.gold>=d.price&&petCount()<MAXPETS?'primary':''}" ${petCount()>=MAXPETS?'disabled':''} onclick="adoptPet('${k}')">💳${d.price}</button></div>`).join('');
-  modal('동물 친구',`<p class="muted">하루에 한 번 돌봐 주면 호감이 오릅니다. 아지트에서 쉬거나 탈것과 조사 외출을 가도 조금씩 오르고, 사료를 못 먹여 지치게 하면 내려갑니다. 친근한 사이부터 효과가 생깁니다.</p>${h}${adopt}`);
+  modal('동물 친구',`<p class="muted">하루에 한 번 돌봐 주면 호감이 오릅니다. 아지트에서 쉬거나 탈것과 조사 외출을 가도 조금씩 오르고, 충전을 못 먹여 지치게 하면 내려갑니다. 친근한 사이부터 효과가 생깁니다.</p>${h}${adopt}`);
 }
 on('facts',70,(o,rules)=>{
   const list=[];
@@ -2374,14 +2375,14 @@ on('facts',70,(o,rules)=>{
 async function startExpedition(leadId){
   if(busy||spotBlock()) return;
   if(G.loc==='town'&&curTown().west) return toast('서쪽 땅에는 조사할 구역이 없습니다. 괴담을 쫓아 보세요');
-  if(G.water<1||G.food<1) return toast('조사 외출에는 물과 식량이 최소 1씩 필요합니다');
+  if(G.water<1||G.food<1) return toast('조사 외출에는 공포와 배터리가 최소 1씩 필요합니다');
   const lead=typeof leadId==='string'?(G.leads||[]).find(x=>x.id===leadId):null;   // 소문으로 알게 된 장소를 찾아가는 조사 외출
   G._leadRuin=lead?lead.id:null;
   const resume=lead?null:(G._resumeRuin!=null&&G.pausedRuins&&G.pausedRuins[G._resumeRuin]);
   const fromPos=curPos(), fromName=curPlaceName();
   const bonus=[];
   if(has('workshop')){ G.torch+=1; bonus.push('손전등 +1') }
-  const sp=spouseName(); if(sp){ G.food+=1; bonus.push(`${sp}${josa(sp,'이','가')} 챙겨 준 도시락 식량 +1`) }
+  const sp=spouseName(); if(sp){ G.food+=1; bonus.push(`${sp}${josa(sp,'이','가')} 챙겨 준 도시락 배터리 +1`) }
   clampSupplies(null,false);
   G._yuminHere=false;
   G.base=G.loc==='town'?G.town:null;   // 조사 외출을 떠난 곳 (돌아올 곳)
@@ -2393,7 +2394,7 @@ async function startExpedition(leadId){
     {fromPos,fromName,event,action:lead?`「${lead.name}」${josa(lead.name,'으로','로')} 길을 떠난다`:resume?`「${resume.name}」${josa(resume.name,'으로','로')} 다시 조사 외출을 떠난다`:'구역을 찾아 한빛시로 조사 외출을 떠난다'});
   if(bonus.length) addLog('fx',`아지트에서 챙긴 보급: ${bonus.join(' · ')}`);
   if(hadMount&&G.mount){
-    if(!n.feed) addLog('fx',`${G.mount.name}에게 줄 사료가 모자라 지쳐 있습니다 — 이번 조사 외출에서는 탈것의 이점이 없습니다`);
+    if(!n.feed) addLog('fx',`${G.mount.name}에게 줄 충전이 모자라 지쳐 있습니다 — 이번 조사 외출에서는 탈것의 이점이 없습니다`);
     else if(mountNoWater()) addLog('fx',`${G.mount.name}${josa(G.mount.name,'이','가')} 물을 나릅니다 — 물 소모 절반`);
     petGain(G.mount,G._mountFed?2:-2,G.mount.name);
   }
@@ -2459,7 +2460,7 @@ async function genDungeon(){
 ${hasFrag?'이 구역의 깊은 곳에 라쿠나 구역으로 가는 교표 조각이 하나 있다(정확한 방은 코드가 정함). 깊은 방의 메모에 푸른 안료의 별자리 같은 흔적을 남겨도 좋다.':'이 구역에는 교표 조각이 없다. 방 메모(desc)와 intro에 교표 조각이나 그 흔적을 쓰지 말고, 이 구역만의 보물과 사연에 집중하라.'}
 지금까지의 사전 항목 일부: ${G.lexicon.slice(-8).map(e=>e.name).join(', ')}
 요구:
-- 이름과 주제(예: 진이 봉인된 우물 신전, 사라진 대상의 지하 창고, 별을 섬기던 천문 탑 등)는 이전과 겹치지 않게 독창적으로.
+- 이름과 주제(예: 진이 봉인된 티 코너 신전, 사라진 대상의 지하 창고, 별을 섬기던 천문 탑 등)는 이전과 겹치지 않게 독창적으로.
 - 방 5~7개. 첫 방 id는 "r1"(입구). 각 방은 1~3개 방과 연결. 깊을수록 위험도 높게.
 - desc는 AI 서술용 비밀 메모(함정, 수수께끼, 생물, 유실물, 사연 등) 1~2문장.
 JSON만 출력:
@@ -2486,7 +2487,7 @@ JSON만 출력:
   return d.intro;
 }
 function fallbackDungeon(){
-  const names=['무너진 입구','기둥의 회랑','먼지에 잠긴 방','벽화의 방','봉인된 문','깊은 우물','왕의 그림자 방'];
+  const names=['무너진 입구','기둥의 회랑','먼지에 잠긴 방','벽화의 방','봉인된 문','깊은 티 코너','왕의 그림자 방'];
   const rooms=[], n=5+Math.floor(Math.random()*3);
   for(let i=0;i<n;i++) rooms.push({id:'r'+(i+1),name:names[i],desc:'',exits:i>0?['r'+i]:[],danger:Math.min(3,Math.floor(i/2))});
   return {name:rand(['바람의 신전','붉은 먼지 창고','별지기의 탑','잊힌 대상의 무덤']),theme:'먼지에 반쯤 묻힌 고대 건물',intro:null,rooms};
@@ -2565,10 +2566,10 @@ function campHere(){
   G.hp=clamp(G.hp+heal,0,G.maxhp);
   G.time='야간'; G.dayStep=0; G.loc='camp'; if(from!=='camp') G._campFrom=from;
   cityCampReset();
-  addLog('sys',`임시 쉼터를 합니다. 물 -1, 식량 -1, 체력 +${heal}${fed?'':' (물이나 식량이 부족해 거의 회복하지 못했습니다)'}`);
-  let ex='[임시 쉼터 장면] 밤의 한빛시나 구역 속 임시 쉼터. 모닥불, 별, 소리, 생각. 30% 확률로 작은 사건(방문자, 이상한 소리, 꿈, 진의 속삭임)이 생긴다. 사건이 있으면 선택지로 대응하게 하라. 체력 effects는 0으로 두라(회복은 코드가 처리함).';
-  if(G.comp&&G.comp.joined){ changeAff(3,null); ex+=' [유민과의 임시 쉼터] 모닥불 곁에서 유민과 나누는 대화가 장면의 중심이다. 호감도 단계에 맞게: 낮으면 농담과 가벼운 노래, 중간이면 플레이어의 몸 상태를 챙기며 진심 한 조각, 높으면 플레이어의 여정을 담은 노래와 유민 자신의 숨겨온 이야기. 선택지에 유민에게 하는 말을 포함하라.'+relArmText('유민',0.7)+(G.relEvt?'':yuminArcArm(0.7)) }
-  else if(yuminEventReady()&&Math.random()<0.35) ex+=' '+yuminEventText('모닥불 불빛을 보고 찾아온 임시 쉼터');
+  addLog('sys',`임시 쉼터를 합니다. 물 -1, 배터리 -1, 체력 +${heal}${fed?'':' (물이나 배터리가 부족해 거의 회복하지 못했습니다)'}`);
+  let ex='[임시 쉼터 장면] 밤의 한빛시나 구역 속 임시 쉼터. 랜턴 불빛, 별, 소리, 생각. 30% 확률로 작은 사건(방문자, 이상한 소리, 꿈, 진의 속삭임)이 생긴다. 사건이 있으면 선택지로 대응하게 하라. 체력 effects는 0으로 두라(회복은 코드가 처리함).';
+  if(G.comp&&G.comp.joined){ changeAff(3,null); ex+=' [유민과의 임시 쉼터] 랜턴 불빛 곁에서 유민과 나누는 대화가 장면의 중심이다. 호감도 단계에 맞게: 낮으면 농담과 가벼운 노래, 중간이면 플레이어의 몸 상태를 챙기며 진심 한 조각, 높으면 플레이어의 여정을 담은 노래와 유민 자신의 숨겨온 이야기. 선택지에 유민에게 하는 말을 포함하라.'+relArmText('유민',0.7)+(G.relEvt?'':yuminArcArm(0.7)) }
+  else if(yuminEventReady()&&Math.random()<0.35) ex+=' '+yuminEventText('랜턴 불빛 불빛을 보고 찾아온 임시 쉼터');
   aiTurn('불을 피우고 임시 쉼터를 한다',ex,false);
 }
 /* 아침: 임시 쉼터를 시작한 곳(구역 안 / 한빛시 뒷길 / 구역 입구 밖)으로 돌아감 */
@@ -2678,7 +2679,7 @@ function revealNextPlace(){
 /* 중단한 구역 */
 function resumeRuin(i){
   if(busy||!G.pausedRuins||!G.pausedRuins[i]) return;
-  if(G.water<1||G.food<1) return toast('조사 외출에는 물과 식량이 최소 1씩 필요합니다');
+  if(G.water<1||G.food<1) return toast('조사 외출에는 공포와 배터리가 최소 1씩 필요합니다');
   closeModal(); G._resumeRuin=i; startExpedition();
 }
 async function abandonRuin(i){
@@ -2698,7 +2699,7 @@ function openRuins(){
       <div class="muted" style="margin:4px 0;font-size:13px">마지막 위치: ${esc(cur?cur.name:'입구')} · ${d.pausedDay?G.day-d.pausedDay>0?`${G.day-d.pausedDay}일 전 중단`:'오늘 중단':'중단'}</div>
       <div class="row" style="justify-content:flex-end;gap:6px"><button class="small" onclick="abandonRuin(${i})">포기하기</button><button class="small primary" onclick="resumeRuin(${i})">이어서 조사</button></div></div>`;
   }).join('')||'<p class="muted">중단한 구역이 없습니다.</p>';
-  modal('중단한 구역',`<p class="muted">이어서 조사하면 일반 조사 외출과 같은 비용(식량 -1, 하루 경과)이 들고, 마지막으로 있던 방에서 다시 시작합니다. 최대 3곳까지 보관됩니다.</p>${rows}`);
+  modal('중단한 구역',`<p class="muted">이어서 조사하면 일반 조사 외출과 같은 비용(배터리 -1, 하루 경과)이 들고, 마지막으로 있던 방에서 다시 시작합니다. 최대 3곳까지 보관됩니다.</p>${rows}`);
 }
 /* 다시 온 구역: 몇 턴 동안 지난 조사 기록을 AI에게 */
 function memoText(d){
@@ -2735,7 +2736,7 @@ on('after',35,()=>{ if(G.dungeon&&G.dungeon.memoLeft>0) G.dungeon.memoLeft-- });
 const LOC_RULES={
   dungeonExit:{re:/(은신처|구역 (밖|바깥)|(밖|바깥)으로|구역을 (나|떠|벗어)|중앙 캠퍼스 지구(로|에)|귀환|(전동 스쿠터|자전거)[이가]? ?(기다|있는))/,fill:['주변을 더 살핀다','다음 공간으로 이동한다','잠시 숨을 고르며 상황을 정리한다']},
   dungeonMove:{re:/((내려|올라|나아|들어|건너|지나|넘어|걸어|따라|돌아)[가간]|들어서|향[해한]|이동|빠져나|탈출)/,fill:['주변을 꼼꼼히 살핀다','벽과 바닥을 더듬어 단서를 찾는다','숨을 죽이고 소리에 귀를 기울인다']},
-  camp:{re:/((통로|방|공간)(으로|로|을|를)?\s*(이동|들어|향|나아)|구역\s*(밖|바깥)|중앙 캠퍼스 지구|귀환|깊이\s*(들어|나아))/,fill:['모닥불 곁에서 쉬며 상황을 정리한다','장비를 점검한다','주변 소리에 귀를 기울인다']},
+  camp:{re:/((통로|방|공간)(으로|로|을|를)?\s*(이동|들어|향|나아)|구역\s*(밖|바깥)|중앙 캠퍼스 지구|귀환|깊이\s*(들어|나아))/,fill:['랜턴 불빛 곁에서 쉬며 상황을 정리한다','장비를 점검한다','주변 소리에 귀를 기울인다']},
   road:{re:/((정문|상점가|기숙사|구내식당)(으로|에|을)?\s*(들어|간다|도착|돌아)|구역\s*(안|내부|깊)|통로(로|를)\s*(들어|지나))/,fill:['주변 한빛시를 살핀다','잠시 쉬며 물을 아낀다','구역 방향을 가늠해 본다']},
   city:{re:/(구역\s*(안|내부|깊은\s*곳)(으로|에서)|통로(로|를)\s*(들어|지나)|(방|공간)으로\s*(들어|이동))/,fill:['상점가를 둘러본다','사람들의 이야기를 엿듣는다']},
   home:{re:/(구역\s*(안|내부|깊은\s*곳)(으로|에서)|통로(로|를)\s*(들어|지나)|(방|공간)으로\s*(들어|이동))/,fill:['아지트 주변을 둘러본다','잠시 쉬며 생각을 정리한다']},
@@ -2775,7 +2776,7 @@ on('context',30,()=>{
     if(G.dungeon&&!G.dungeon.rooms.some(r=>r.fragment||r.fragTaken)) s+='\n[비밀] 이 구역에는 교표 조각이 없다. 교표 조각이나 그 흔적을 발견하는 서술·선택지를 만들지 말 것. effects.fragment는 false.';
     if(G.dungeon&&G.dungeon.rooms.some(r=>r.fragTaken)) s+='\n[이미 획득] 이 구역의 교표 조각은 이미 얻었다. 교표 조각을 또 발견하거나 얻는 서술·선택지를 만들지 말 것. effects.fragment는 false.';
     const p=dungeonProg(); if(p&&p.done) s+='\n[조사 완료] 이 구역의 모든 공간을 조사했다. 새로운 방이나 숨은 통로를 만들지 말고, 남은 것이 없다는 분위기로 서술하며 귀환을 암시하라.';
-    if(roomExhausted()) s+='\n[조사 완료] 이 방에서는 더 찾을 것이 없다. 관찰·조사·수색 선택지를 만들지 말고, 대화·장치·위험 대처처럼 정말 할 만한 다른 행동이 없으면 choices를 빈 배열 []로 두라. 서술에서도 더 얻을 것이 없음을 분명히 하라.';
+    if(roomExhausted()) s+='\n[조사 완료] 이 공간에서는 더 찾을 것이 없다. 관찰·조사·수색 선택지를 만들지 말고, 대화·장치·위험 대처처럼 정말 할 만한 다른 행동이 없으면 choices를 빈 배열 []로 두라. 서술에서도 더 얻을 것이 없음을 분명히 하라.';
     if(G.dungeon&&G.dungeon.memoLeft>0) s+='\n'+memoText(G.dungeon);
   }
   else if(isTown()) s+='\n[위치 고정] 플레이어는 지금 구역 밖(도시/아지트)에 있다. 구역 내부를 조사하는 서술이나 선택지를 만들지 말 것(조사 외출은 고정 버튼으로 시작한다).';
@@ -2970,10 +2971,10 @@ on('context',50,()=>{
   const r=curRoom(), got=d.rooms.filter(x=>x.clue&&x.clue.got).map(x=>x.clue.t);
   let s=`\n[구역의 사연 — 비밀 메모, 한꺼번에 설명하지 말 것] 시대: ${L.eraName} / 관련 인물: ${L.fig} / 만든 이: ${L.who} / 실제 있었던 일: ${L.what} / 버려진 이유: ${L.fate} / 라쿠나 구역과의 연결(희미하게만): ${L.iram}`;
   if(got.length) s+=`\n[플레이어가 이미 찾은 단서] ${got.join(' / ')}`;
-  if(r&&r.clue) s+=r.clue.got?`\n[이 방의 단서는 이미 발견됨] ${r.clue.t}`:`\n[이 방에 숨은 단서 — 플레이어가 살펴보거나 조사할 때만 드러냄] ${r.clue.t}`;
+  if(r&&r.clue) s+=r.clue.got?`\n[이 공간의 단서는 이미 발견됨] ${r.clue.t}`:`\n[이 공간에 숨은 단서 — 플레이어가 살펴보거나 조사할 때만 드러냄] ${r.clue.t}`;
   return s;
 });
-/* 살펴보거나 조사하면 이 방의 단서를 반드시 보여 줌 → 수첩에 기록 */
+/* 살펴보거나 조사하면 이 공간의 단서를 반드시 보여 줌 → 수첩에 기록 */
 const INV_RX=/(살펴|조사|읽|들여다|훑|만져|확인|찾아|찾는|뒤진|뒤져|해독|파헤|문양|벽화|비문|기록|둘러|더듬|비춘|비춰)/;
 on('before',30,T=>{
   if(G.loc!=='dungeon'||!G.dungeon||!G.dungeon.lore||inDark()) return;   // 어둠 속에서는 단서를 찾지 못함
@@ -3081,12 +3082,12 @@ function caravanBuy(k,n){
 function caravanTalk(){
   const c=G.caravan; if(busy||!c||!c.here||c.talked) return;
   c.talked=true; closeModal(); tick();
-  aiTurn(`「${c.name}」 사람들과 이야기를 나눈다`,`[대상과의 대화] 한빛시 뒷길에서 쉬어 가는 「${c.name}」 사람들과 이야기를 나눈다. 이들이 지나온 길의 소문(근처 구역의 위험, 다른 탐험대, 진에 관한 이야기, 라쿠나 구역에 관한 엇갈린 믿음 중 하나)을 들려준다. 물건 거래는 플레이어가 상인 버튼으로 하므로 이 장면에서는 effects의 물·식량·손전등·gold를 모두 0으로 둘 것.`+(rivalOn()&&Math.random()<0.6?rivalRumorText():''));
+  aiTurn(`「${c.name}」 사람들과 이야기를 나눈다`,`[대상과의 대화] 한빛시 뒷길에서 쉬어 가는 「${c.name}」 사람들과 이야기를 나눈다. 이들이 지나온 길의 소문(근처 구역의 위험, 다른 탐험대, 진에 관한 이야기, 라쿠나 구역에 관한 엇갈린 믿음 중 하나)을 들려준다. 물건 거래는 플레이어가 상인 버튼으로 하므로 이 장면에서는 effects의 공포·배터리·손전등·gold를 모두 0으로 둘 것.`+(rivalOn()&&Math.random()<0.6?rivalRumorText():''));
 }
 /* AI가 낸 사건 → 버튼 */
 on('after',60,T=>{
   const ev=T.res&&T.res.event; if(!ev) return;
-  const townish=G.loc==='city'||G.loc==='town';   // 도시·마을의 공용 우물도 물 채우기 버튼으로 (하루 한 번)
+  const townish=G.loc==='city'||G.loc==='town';   // 도시·마을의 공용 티 코너도 물 채우기 버튼으로 (하루 한 번)
   if(ev.type==='water_source'&&(isWild()||townish)){
     G.waterSrc={name:ev.name||'물이 있는 곳',loc:G.loc,room:G.dungeon?G.dungeon.cur:null,dist:G.loc==='city'?G.district:null,town:G.loc==='town'?G.town:null,used:false};
     addLog('sys',`💧 「${G.waterSrc.name}」 — 물을 채울 수 있습니다 (💧 버튼${townish?' · 하루 한 번':''})`);
@@ -3095,13 +3096,13 @@ on('after',60,T=>{
   if(ev.type==='merchant'&&!(G.caravan&&G.caravan.here)){
     const r=()=>Math.floor(Math.random()*3);
     G.caravan={here:true,loc:G.loc==='camp'?'road':G.loc,room:G.dungeon&&G.loc==='dungeon'?G.dungeon.cur:null,day:G.day,name:ev.name||'떠돌이 상인',stock:{water:3+r(),food:3+r(),torch:1+r()},talked:true};
-    addLog('sys',`🐫 「${G.caravan.name}」과(와) 거래할 수 있습니다 (🐫 버튼 · 물·식량 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
+    addLog('sys',`🐫 「${G.caravan.name}」과(와) 거래할 수 있습니다 (🐫 버튼 · 공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
   }
 });
 function fillWaterSrc(viaStory){
   const w=G.waterSrc; if(busy||!w||w.used) return false;
   const townish=!isWild();
-  if(townish&&G.cityWaterDay===G.day) return toast('오늘은 이미 공용 우물에서 물을 채웠습니다'), false;
+  if(townish&&G.cityWaterDay===G.day) return toast('오늘은 이미 공용 티 코너에서 물을 채웠습니다'), false;
   const need=capW()-G.water; if(need<=0) return toast('물통이 이미 가득 찼습니다'), false;
   G.water=capW(); w.used=true; if(townish) G.cityWaterDay=G.day;
   if(viaStory!==true) tick();
@@ -3113,25 +3114,25 @@ function fillWaterSrc(viaStory){
 function waterFillIntent(t){
   t=String(t||'');
   if(!G||RX.NEG.test(t)||!/물을?\s*(?:가득\s*|듬뿍\s*|한\s*가득\s*)?(긷|길어|퍼\s*올|채운|채워|담)/.test(t)) return false;
-  /* 아지트 우물(하루 3~6회)·와하 샘터(하루 1번)는 시설이 정한 무료 규칙을 그대로 따름 — 우물이라는 말이 없어도 (아지트에서 "물을 채운다") */
+  /* 아지트 티 코너(하루 3~6회)·와하 샘터(하루 1번)는 시설이 정한 무료 규칙을 그대로 따름 — 티 코너라는 말이 없어도 (아지트에서 "물을 채운다") */
   if(!BUY_VERB.test(t)&&((G.loc==='home'&&has('well'))||(G.loc==='town'&&curTown().spring))){
     const home=G.loc==='home', refuse=m=>{ toast(m); pend(` [물 채움 불가] ${m} effects의 water·food·gold·hp는 0.`,{zeroSupply:true,noMoney:true}); return true };
-    if(home?wellLeft()<=0:G.townSpringDay===G.day) return refuse(home?`오늘은 우물을 ${wellMax()}번 다 썼습니다.`:'오늘은 이미 샘터에서 물을 채웠습니다.');
+    if(home?wellLeft()<=0:G.townSpringDay===G.day) return refuse(home?`오늘은 티 코너를 ${wellMax()}번 다 썼습니다.`:'오늘은 이미 샘터에서 물을 채웠습니다.');
     const need=capW()-G.water; if(need<=0) return refuse('물통이 이미 가득 차 있습니다.');
     G.water=capW(); if(home) G.home.wellN=(G.home.wellN||0)+1; else G.townSpringDay=G.day;
-    addLog('fx',home?`💧 우물에서 물을 길어 가득 채웠습니다 (+${need}, 무료 · 오늘 ${wellLeft()}회 남음)`:`💧 와하의 샘터에서 물을 가득 채웠습니다 (+${need}, 무료)`);
+    addLog('fx',home?`💧 티 코너에서 물을 길어 가득 채웠습니다 (+${need}, 무료 · 오늘 ${wellLeft()}회 남음)`:`💧 와하의 샘터에서 물을 가득 채웠습니다 (+${need}, 무료)`);
     pend(' [물 채움 처리 완료] 코드가 이미 플레이어의 물통을 가득 채웠다(무료). 물 긷는 장면만 짧게 서술하고 effects의 water·gold·hp는 0.',{zeroSupply:true,noMoney:true});
     return true;
   }
   clearStaleEvents();   // 다른 곳으로 옮긴 뒤 남은 낡은 수원은 먼저 지움
   const townish=G.loc==='city'||G.loc==='town';
-  // AI가 수원 사건을 내지 않았어도, 도시·마을에서 우물·샘에서 물을 채운다는 글이면 공용 우물로 처리 (산다·구입이 들어가면 구매)
+  // AI가 수원 사건을 내지 않았어도, 도시·마을에서 티 코너·샘에서 물을 채운다는 글이면 공용 티 코너로 처리 (산다·구입이 들어가면 구매)
   if(!G.waterSrc&&townish&&NEED_RX.SOURCE.test(t)&&!BUY_VERB.test(t))
-    G.waterSrc={name:'공용 우물',loc:G.loc,room:null,dist:G.loc==='city'?G.district:null,town:G.loc==='town'?G.town:null,used:false};
+    G.waterSrc={name:'공용 티 코너',loc:G.loc,room:null,dist:G.loc==='city'?G.district:null,town:G.loc==='town'?G.town:null,used:false};
   if(!G.waterSrc||G.waterSrc.used) return false;
   if(townish&&G.cityWaterDay===G.day){   // 오늘 이미 채웠으면 더 채우지 못하고, AI가 물을 주지도 못하게
-    toast('오늘은 이미 공용 우물에서 물을 채웠습니다');
-    pend(' [물 채움 불가] 플레이어는 오늘 이미 이 우물에서 물을 채웠다. 더 채우지 못한다. effects의 water·food·gold·hp는 0.',{zeroSupply:true,noMoney:true});
+    toast('오늘은 이미 공용 티 코너에서 물을 채웠습니다');
+    pend(' [물 채움 불가] 플레이어는 오늘 이미 이 티 코너에서 물을 채웠다. 더 채우지 못한다. effects의 water·food·gold·hp는 0.',{zeroSupply:true,noMoney:true});
     G.waterSrc=null;
     return true;
   }
@@ -3385,9 +3386,9 @@ function yuminSkillCheck(){
   const risky=nexts.find(x=>x.danger>=2);
   if(risky) opts.push({log:`🎵 유민이 "${risky.name}" 쪽에서 불길한 기척을 느낍니다`,
     ai:`[유민의 경고] 유민이 귀를 기울이다 "${risky.name}" 방향에서 위험한 기척(함정·수호자·무너질 바닥 등 위험도 ${risky.danger}/3에 맞는 것)을 감지하고 짧게 경고한다. 직접적 사실을 다 말하지는 말고 유민답게 농담 섞어 한두 마디.`});
-  if(r.fragment&&!r.fragTaken&&!r.exhausted) opts.push({log:'🎵 유민이 이 방 어딘가에서 이상한 울림을 느낍니다',
-    ai:'[유민의 직감] 유민이 이 방의 어딘가(벽, 바닥, 천장 중 하나)에서 노래가 이상하게 울린다며 가리킨다. 교표 조각이 있다는 말은 하지 말고, 조사할 만한 곳을 한 곳 짚어 주는 식으로.'});
-  if(r.exhausted) opts.push({log:'🎵 유민이 이 방은 더 볼 게 없다고 말합니다',ai:'[유민의 조언] 유민이 이 방은 이미 다 뒤진 것 같다며 다른 방으로 가자고 한다.'});
+  if(r.fragment&&!r.fragTaken&&!r.exhausted) opts.push({log:'🎵 유민이 이 공간 어딘가에서 이상한 울림을 느낍니다',
+    ai:'[유민의 직감] 유민이 이 공간의 어딘가(벽, 바닥, 천장 중 하나)에서 노래가 이상하게 울린다며 가리킨다. 교표 조각이 있다는 말은 하지 말고, 조사할 만한 곳을 한 곳 짚어 주는 식으로.'});
+  if(r.exhausted) opts.push({log:'🎵 유민이 이 공간은 더 볼 게 없다고 말합니다',ai:'[유민의 조언] 유민이 이 공간은 이미 다 뒤진 것 같다며 다른 방으로 가자고 한다.'});
   if(nexts.length) opts.push({log:'🎵 유민이 아직 안 가 본 길을 가리킵니다',
     ai:`[유민의 길 안내] 유민이 아직 가 보지 않은 통로 중 한쪽(${nexts.map(x=>x.name).join(', ')} 중 하나)을 가리키며 바람의 방향이 다르다고 말한다. 확실한 정보는 아니고 유민의 감이다.`});
   if(!opts.length) return '';
@@ -4184,7 +4185,7 @@ ${last.text}
 ${instr}
 
 위 장면을 작가의 지시에 맞게 고쳐 다시 써라.
-- 지시와 무관한 사실, 인물 관계, 이미 반영된 수치(체력·물·식량·캐시·소지품)는 바꾸지 않는다. 지시가 그런 변경을 요구해도 이야기 속 묘사만 고친다.
+- 지시와 무관한 사실, 인물 관계, 이미 반영된 수치(체력·공포·배터리·캐시·소지품)는 바꾸지 않는다. 지시가 그런 변경을 요구해도 이야기 속 묘사만 고친다.
 - 분량은 원문과 비슷하게 (${c.s[0]}~${c.s[1]}문장 안팎). 지시가 분량을 정하면 그에 따른다.
 - 서술에 '수정', 'OOC', '작가' 같은 말을 쓰지 않는다. 문단은 \\n\\n으로 구분.
 - 선택지를 바꿔야 할 때만 choices를 준다(3~4개, 각 15자 안팎 — 행동 하나·대상 하나). 아니면 생략.
@@ -4315,12 +4316,12 @@ function returnBase(){
 /* =========================================================
    33. 이동 — 중앙 캠퍼스 지구 · 마을 · 항구 · 라쿠나 구역 · 출석부가 가리키는 구역 사이의 모든 이동
    - 일수 = 지도 거리 ÷ DAY_DIST (반올림, 최소 1일)
-   - 하루마다 물·식량 1 (사료를 먹은 전동 스쿠터가 있으면 물은 절반) + 출발 때 탈것 사료 1회
+   - 하루마다 공포·배터리 1 (충전을 먹은 전동 스쿠터가 있으면 물은 절반) + 출발 때 탈것 충전 1회
    - 이틀 이상 걸리는 육로에서는 가끔 길 위의 사건(대상 상인 · 유민 · 도적) — 길 한가운데서 멈춤
    ========================================================= */
 function curPos(){ return G.loc==='town'?townPos(G.town):G.loc==='home'?HOME_POS:KASR }
 function curPlaceName(){ return G.loc==='town'?curTown().n:G.loc==='home'?(G.home.name||'아지트'):'중앙 캠퍼스 지구' }
-/* 날랜 탈것(말)은 사료를 먹여 원기 왕성할 때만 빠름: 길 위(귀환 포함)에서는 떠날 때 먹인 상태 그대로, 마을에서 떠날 때는 사료 1을 줄 식량이 있어야 함 */
+/* 날랜 탈것(말)은 충전을 먹여 원기 왕성할 때만 빠름: 길 위(귀환 포함)에서는 떠날 때 먹인 상태 그대로, 마을에서 떠날 때는 충전 1을 줄 배터리가 있어야 함 */
 function mountFast(){ const m=G&&G.mount&&MOUNTS[G.mount.type]; if(!m||!m.fast||!G._mountFed) return false; return isWild()||G.food>=m.feed+1 }
 function travelDays(a,b){ const f=mountFast()?0.75:1; return Math.max(1,Math.round(Math.hypot(a.x-b.x,a.y-b.y)*f/DAY_DIST)) }
 function townDays(id){ return travelDays(KASR,townPos(id)) }
@@ -4328,9 +4329,9 @@ function travelNeed(days){
   const m=mountDef(), feed=m&&G.food-days>=m.feed?m.feed:0, camel=!!(m&&m.noWater&&feed);
   return {days,water:camel?Math.floor(days/2):days,food:days,feed};
 }
-/* 이동 도중·귀환길: 탈것은 떠날 때 이미 먹였음 — 사료 없이, 먹인 전동 스쿠터면 물 절반 */
+/* 이동 도중·귀환길: 탈것은 떠날 때 이미 먹였음 — 충전 없이, 먹인 전동 스쿠터면 물 절반 */
 function travelNeedFed(days){ return {days,water:mountNoWater()?Math.floor(days/2):days,food:days,feed:0} }
-function needText(n){ return `${n.days}일 · 물 -${n.water} · 식량 -${n.food}${n.feed?` · 사료 -${n.feed}`:''}` }
+function needText(n){ return `${n.days}일 · 물 -${n.water} · 배터리 -${n.food}${n.feed?` · 충전 -${n.feed}`:''}` }
 /* 걸린 날만큼 소비. keepFed: 이동 도중(두 번째 구간)이라 탈것은 이미 먹였음. 모자라면 그만큼 체력 */
 function travelPay(n,keepFed){
   const m=mountDef();
@@ -4340,7 +4341,7 @@ function travelPay(n,keepFed){
   if(lack){ G.hp=Math.max(1,G.hp-lack); addLog('fx',`목마름과 허기 속에 걸었습니다 (체력 -${lack})`) }
   G.day+=n.days; G.time='낮'; G.dayStep=0;
   G.dungeon=null; G._yuminHere=false; G.choices=[]; G.base=null;
-  return `물 -${n.water}, 식량 -${n.food}${n.feed?`, 사료 -${n.feed}`:''}`;
+  return `물 -${n.water}, 배터리 -${n.food}${n.feed?`, 충전 -${n.feed}`:''}`;
 }
 /* 지금 있는 곳에서 갈 수 있는 곳 */
 function tripDests(){
@@ -4359,11 +4360,11 @@ function openTravel(){
       <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted">${needText(n)}${G.water<n.water||G.food<n.food+n.feed?' <b style="color:var(--danger)">· 모자람 (모자란 만큼 체력 감소)</b>':''}</span>
       <button class="small primary" ${busy?'disabled':''} onclick="${d.kind==='big'?`startBig('${d.key}')`:d.kind==='kasr'?'travelBack(true)':`travelTo('${d.key}')`}">떠나기</button></div></div>`;
   }).join('');
-  modal('🐫 이동하기',`<p class="muted">지금 있는 곳: <b>${curPlaceName()}</b>. 이동 일수는 지도 거리로 정해지고, 하루마다 물·식량이 1씩 듭니다(사료를 먹은 전동 스쿠터가 있으면 물은 절반). 이틀 이상 걸리는 길에서는 대상 상인·유민·도적을 만날 수도 있습니다. 아지트는 중앙 캠퍼스 지구 바로 옆입니다.</p>${rows}${G.act>=3?`<div class="row" style="margin-top:8px"><button class="small" onclick="openCities()">🗺 출석부가 가리키는 구역들 보기</button></div>`:''}`);
+  modal('🐫 이동하기',`<p class="muted">지금 있는 곳: <b>${curPlaceName()}</b>. 이동 일수는 지도 거리로 정해지고, 하루마다 공포·배터리가 1씩 듭니다(충전을 먹은 전동 스쿠터가 있으면 물은 절반). 이틀 이상 걸리는 길에서는 대상 상인·유민·도적을 만날 수도 있습니다. 아지트는 중앙 캠퍼스 지구 바로 옆입니다.</p>${rows}${G.act>=3?`<div class="row" style="margin-top:8px"><button class="small" onclick="openCities()">🗺 출석부가 가리키는 구역들 보기</button></div>`:''}`);
 }
 /* 이동 시작: 사건이 생기면 길 한가운데(한빛시 뒷길)에서 멈추고, 아니면 바로 도착
    dest.kind: kasr · town · big · ruin(구역 조사)   dest.ret: 구역에서 돌아가는 길(조용히 도착)
-   opt: {fromPos, fromName, keepFed(귀환길 — 사료 없음), event('yumin'|'yuminEvt' 강제 만남), action(행동 기록 문구)} */
+   opt: {fromPos, fromName, keepFed(귀환길 — 충전 없음), event('yumin'|'yuminEvt' 강제 만남), action(행동 기록 문구)} */
 function beginTrip(dest,days,opt){
   opt=opt||{};
   const n=opt.keepFed?travelNeedFed(days):travelNeed(days), from=opt.fromName||curPlaceName(), fromPos=opt.fromPos||curPos(), base=G.loc==='town'?G.town:null;
@@ -4453,7 +4454,7 @@ function tripEvent(force){
     const R=G.rival, first=!R.known; R.known=true;
     addLog('sys',`🏴 길 위에서 적대 세력 「${R.name}」과(와) 마주쳤습니다`);
     fightStart('road');
-    return aiTurn('한빛시 뒷길을 걷는다',`[길 위의 마주침 — 적대 세력] ${where}에서 「${R.name}」의 무리와 마주친다. ${first?`처음 보는 무리다. 우두머리는 ${R.leader}. 겉모습: ${R.look}.`:'전에 소문으로 들은 그 무리다.'} ${fragAtRisk()?'그들은 교표 조각을 빼앗으려는 악한 적대 세력이다. 플레이어가 가진 조각을 내놓으라고 협박하며 길을 막아서는 장면.':'그들은 라쿠나 구역과 학원도시가 숨긴 것을 노리는 악한 적대 세력이다. 교표는 이미 완성되었으므로 조각을 내놓으라는 요구는 하지 말고, 길을 막고 위협하며 시비를 거는 장면.'} 싸움이 막 벌어지려는 순간에서 멈추고 결말은 쓰지 말 것 — 대응(${fragAtRisk()?'싸우기·도망·흥정·조각 내주기':'싸우기·도망·흥정'})은 플레이어가 버튼으로 고른다. choices는 빈 배열 []. 그들의 숨은 목적(${R.motive})은 직접 말하지 말고 섬뜩한 말끝에 살짝 비치게만. 그들 가운데 이름 있는 인물이 플레이어와 말을 섞으면 relations에 넣어라. 물·식량·캐시 effects는 0.`,false);
+    return aiTurn('한빛시 뒷길을 걷는다',`[길 위의 마주침 — 적대 세력] ${where}에서 「${R.name}」의 무리와 마주친다. ${first?`처음 보는 무리다. 우두머리는 ${R.leader}. 겉모습: ${R.look}.`:'전에 소문으로 들은 그 무리다.'} ${fragAtRisk()?'그들은 교표 조각을 빼앗으려는 악한 적대 세력이다. 플레이어가 가진 조각을 내놓으라고 협박하며 길을 막아서는 장면.':'그들은 라쿠나 구역과 학원도시가 숨긴 것을 노리는 악한 적대 세력이다. 교표는 이미 완성되었으므로 조각을 내놓으라는 요구는 하지 말고, 길을 막고 위협하며 시비를 거는 장면.'} 싸움이 막 벌어지려는 순간에서 멈추고 결말은 쓰지 말 것 — 대응(${fragAtRisk()?'싸우기·도망·흥정·조각 내주기':'싸우기·도망·흥정'})은 플레이어가 버튼으로 고른다. choices는 빈 배열 []. 그들의 숨은 목적(${R.motive})은 직접 말하지 말고 섬뜩한 말끝에 살짝 비치게만. 그들 가운데 이름 있는 인물이 플레이어와 말을 섞으면 relations에 넣어라. 공포·배터리·캐시 effects는 0.`,false);
   }
   if(k==='yumin'){
     if(!G.comp.met) return meetYumin(where);
@@ -4482,7 +4483,7 @@ function banditCheck(skill){
   let out=skill==='str'?'도적을 물리쳤다':'도적을 따돌렸다';
   if(res==='fail'){
     if(skill==='str'){ const l=Math.ceil(G.gold*0.3); G.gold-=l; out=`싸움에 져서 캐시 ${l}을 빼앗겼다`; addLog('fx',`💳 빼앗김 -${l}`) }
-    else { G.water=Math.max(0,G.water-1); G.food=Math.max(0,G.food-1); t.left+=1; out='쫓기다 길을 잃어 하루가 더 걸리게 되었고 물·식량 1을 잃었다'; addLog('fx','길을 잃음: 물 -1 · 식량 -1 · 하루 더') }
+    else { G.water=Math.max(0,G.water-1); G.food=Math.max(0,G.food-1); t.left+=1; out='쫓기다 길을 잃어 하루가 더 걸리게 되었고 공포·배터리 1을 잃었다'; addLog('fx','길을 잃음: 물 -1 · 배터리 -1 · 하루 더') }
   }
   story(text,{storyOnly:true,checkHP:true,noActionLog:true,extra:note+` [도적 결과 — 코드가 이미 처리] ${out}. effects는 0.`});
 }
@@ -4495,7 +4496,7 @@ function tripFixedHTML(){
       +b("banditCheck('sur')",`🏃 따돌린다 <span class="cbadge ck">🎲 생존술 · 보통 · ${checkChance('sur','normal','')}%</span>`),mvLbl,ac:'',acLbl:''};
   }
   let ac='';
-  if(caravanHere()) ac+=b('openCaravan()',`🐫 대상 상인 (물·식량 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
+  if(caravanHere()) ac+=b('openCaravan()',`🐫 대상 상인 (공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
   ac+=b('campHere()','⛺ 임시 쉼터');
   if(G.comp&&G.comp.met&&!G.comp.joined&&G._yuminHere) ac+=b('talkYumin()','🎵 유민에게 말 걸기');
   return {mv:b('continueTrip()',`🐪 ${t.dest.name}${josa(t.dest.name,'으로','로')} 계속 가기 (${t.left}일)`,'primary'),mvLbl,ac,acLbl:'🧭 행동'};
@@ -4672,12 +4673,12 @@ async function startBig(key,skipConfirm){
   const rt=bigRoute(sp), r=sp.req;
   if(rt.sea&&!rt.atPort){ const P=TOWNS[rt.port]; return toast(`⚓ 섬으로 가는 배는 「${P.n}」에서 탈 수 있습니다. 먼저 그 나루로 가세요 (🐫 이동하기)`) }
   const n=travelNeed(rt.days);
-  if(G.water<n.water+(r.water||0)||G.food<n.food+n.feed) return toast(`가는 데 물 ${n.water+(r.water||0)}, 식량 ${n.food+n.feed}이 필요합니다`);
+  if(G.water<n.water+(r.water||0)||G.food<n.food+n.feed) return toast(`가는 데 물 ${n.water+(r.water||0)}, 배터리 ${n.food+n.feed}이 필요합니다`);
   const fee=r.gold?seaFee():0;
   if(fee&&G.gold<fee) return toast(`배 삯 💳${fee}이 필요합니다`);
   if(r.torch&&G.torch<r.torch) return toast(`손전등이 ${r.torch}개 이상 필요합니다`);
   const back=sp.terrain==='island'?0:n.water*2+(r.water||0), backF=sp.terrain==='island'?0:n.food*2+n.feed;   // 돌아올 몫까지 (섬은 나루에서 다시 보급)
-  const shortTxt=back&&(G.water<back||G.food<backF)?`\n\n⚠ 돌아올 몫까지 합치면 물 ${back}, 식량 ${backF}이 필요합니다(지금 물 ${G.water}, 식량 ${G.food}). 그곳에는 보급할 곳이 없어, 모자라면 돌아오는 길에 체력이 깎입니다.`:'';
+  const shortTxt=back&&(G.water<back||G.food<backF)?`\n\n⚠ 돌아올 몫까지 합치면 물 ${back}, 배터리 ${backF}이 필요합니다(지금 물 ${G.water}, 배터리 ${G.food}). 그곳에는 보급할 곳이 없어, 모자라면 돌아오는 길에 체력이 깎입니다.`:'';
   if(skipConfirm!==true&&!(await askConfirm(`${sp.name}${josa(sp.name,'으로','로')} 떠날까요? (${needText(n)}${fee?` · 배 삯 💳${fee}`:''})${shortTxt}`))) return;
   closeModal();
   if(fee){ G.gold-=fee; addLog('fx',`⛵ 배 삯 -${fee}`) }
@@ -4740,8 +4741,8 @@ on('context',52,()=>{
   let s=d.key==='iram'?'\n[라쿠나 구역] 플레이어는 마침내 괴담의 황금 도시 라쿠나 구역 안에 있다. 경이와 두려움이 함께. 가장 깊은 「출석부의 성소」에 출석부가 있다.'
     :`\n[출석부가 가리키는 구역] 「${d.name}」 — ${CITY_TYPES[d.terrain].desc} 숨은 사연(조각으로만): ${c?c.lore:''}`;
   if(r&&r.floor) s+=` 지금 층: ${r.floor}.`;
-  if(r&&r.heart&&!d.done) s+=d.key==='iram'?'\n[이 방] 출석부가 있다. 출석부를 읽어 내는 것은 플레이어가 버튼(해독 판정)으로 한다 — 서술에서 출석부 내용을 먼저 밝히지 말 것.'
-    :'\n[이 방] 도시의 심장이 있다. 여는 것은 플레이어가 버튼(판정)으로 한다 — 서술에서 먼저 열지 말 것.';
+  if(r&&r.heart&&!d.done) s+=d.key==='iram'?'\n[이 공간] 출석부가 있다. 출석부를 읽어 내는 것은 플레이어가 버튼(해독 판정)으로 한다 — 서술에서 출석부 내용을 먼저 밝히지 말 것.'
+    :'\n[이 공간] 도시의 심장이 있다. 여는 것은 플레이어가 버튼(판정)으로 한다 — 서술에서 먼저 열지 말 것.';
   return s;
 });
 /* 가장 깊은 방의 버튼: 출석부 해독 / 심장 열기 (🎲 판정) */
@@ -4791,7 +4792,7 @@ ${where}
 JSON만: {"tablet":"출석부 전체 문구 2~3문장(시적으로, 정답을 직접 말하지 말 것)","cities":[{"name":"도시 이름","riddle":"출석부의 한 줄","lore":"숨은 사연 2문장 — 누가 세웠고 왜 묻혔는지, 진실의 어느 조각을 지키는지"}]}`;
   let j=null;
   try{ j=parseJSON(await callAI('너는 텍스트 탐험 게임의 세계관 설계자다. JSON만 출력한다.',prompt,1800,'world')) }catch(e){ if(e&&e.message!=='NO_KEY') console.warn(e) }
-  const FB=[['소금섬의 도시 우마르','짠 물결 너머, 해가 지는 쪽의 흰 섬'],['청동 우물 아래의 도시','마른 우물 바닥, 빛이 닿지 않는 거리'],['붉은 바위산의 도시 셀라','바람이 깎은 붉은 봉우리의 품'],['안개 섬의 도시','해 뜨는 바다, 안개가 걷히지 않는 섬'],['별 없는 지하 도시','먼지 아래 일곱 층, 별을 잃은 사람들의 집'],['거울 호수 밑의 도시','물이 떠난 호수, 소금 거울 아래']];
+  const FB=[['소금섬의 도시 우마르','짠 물결 너머, 해가 지는 쪽의 흰 섬'],['청동 티 코너 아래의 도시','마른 티 코너 바닥, 빛이 닿지 않는 거리'],['붉은 바위산의 도시 셀라','바람이 깎은 붉은 봉우리의 품'],['안개 섬의 도시','해 뜨는 바다, 안개가 걷히지 않는 섬'],['별 없는 지하 도시','먼지 아래 일곱 층, 별을 잃은 사람들의 집'],['거울 호수 밑의 도시','물이 떠난 호수, 소금 거울 아래']];
   const pos=posList, list=Array.isArray(j&&j.cities)?j.cities:[];
   G.tablet=String(j&&j.tablet||'먼지가 삼킨 일곱 문 가운데 첫째가 여기 있다. 나머지 여섯은 바다와 바위산과 땅 밑과 마른 호수 아래에서 별의 길을 기다린다.');
   const nearPort=p=>['westport','eastport'].sort((a,b)=>Math.hypot(townPos(a).x-p.x,townPos(a).y-p.y)-Math.hypot(townPos(b).x-p.x,townPos(b).y-p.y))[0];
@@ -5167,7 +5168,7 @@ function fightSong(){
     const k=rand(opts);
     if(k==='supply'){ const w=Math.min(1,G.water), t=Math.min(1,G.torch); G.water-=w; G.torch-=t; addLog('fx',`🌪 휘몰아친 찬 바람에 짐이 흩어졌습니다 (물 -${w} · 손전등 -${t})`); side=' 부작용: 휘몰아친 바람에 플레이어의 짐이 흩어져 물주머니와 손전등을 잃는다.' }
     if(k==='hurt'){ hurt(1,'유민이 부른 찬 바람이 나까지 덮친다'); side=' 부작용: 유민이 부른 찬 바람이 플레이어까지 덮친다.' }
-    if(k==='collapse'){ const r=curRoom(); if(r) r.exhausted=true; addLog('fx','🪨 바람에 천장이 무너져 이 방은 더 조사할 수 없게 되었습니다'); side=' 부작용: 바람에 천장 일부가 무너져 이 방이 잔해에 묻힌다.' }
+    if(k==='collapse'){ const r=curRoom(); if(r) r.exhausted=true; addLog('fx','🪨 바람에 천장이 무너져 이 공간은 더 조사할 수 없게 되었습니다'); side=' 부작용: 바람에 천장 일부가 무너져 이 공간이 잔해에 묻힌다.' }
   }
   const t=`[유민의 노래] 유민이 노래로 바람과 먼지를 불러 적을 휩쓴다. 버릇대로 과하게 써서 판이 크게 뒤집힌다.${side} 가사 한두 줄과 유민다운 농담(부작용이 있었다면 머쓱한 사과 섞인 농담) 한마디.`;
   if(F.morale<=0) return fightEnd('win','유민에게 눈짓한다',t+' 이 노래로 적이 무너진다.');
@@ -5182,7 +5183,7 @@ function fightRetreat(){
   if(rollCheck.last==='success'||rollCheck.last==='partial'){
     if(G.hp<=0) return fightEnd('lose',text,note);
     let extra=' [전투] 플레이어는 싸움에서 빠져나온다.';
-    if(F.kind==='road'){ const w=Math.min(FIGHT_ESCAPE_LOSS,G.water), f=Math.min(FIGHT_ESCAPE_LOSS,G.food); G.water-=w; G.food-=f; addLog('fx',`🎒 달아나며 짐을 버렸습니다 (물 -${w} · 식량 -${f})`); extra+=' 쫓아오지 못하게 짐 일부를 내던지고 달아났다.' }
+    if(F.kind==='road'){ const w=Math.min(FIGHT_ESCAPE_LOSS,G.water), f=Math.min(FIGHT_ESCAPE_LOSS,G.food); G.water-=w; G.food-=f; addLog('fx',`🎒 달아나며 짐을 버렸습니다 (물 -${w} · 배터리 -${f})`); extra+=' 쫓아오지 못하게 짐 일부를 내던지고 달아났다.' }
     return fightEnd('escape',text,note+extra);
   }
   if(G.hp<=0) return fightEnd('lose',text,note);
@@ -5267,7 +5268,7 @@ on('fixed',12,L=>{
   if(L==='dungeon'&&d&&d.rival&&!d.rival.done) return ruinFightReady()?`<button class="primary" onclick="fightRuin()">🏴 「${esc(G.rival.name)}」을(를) 막아선다</button>`:`<button disabled title="교표 조각이 있는 깊은 곳 가까이 가야 그들을 따라잡을 수 있습니다">🏴 그들의 발소리가 아직 멀다 (더 깊이 들어가야 함)</button>`;
   if(isTown()&&G.rival.known&&fragAtRisk()&&(G.rival.stolen||0)>0&&G.day>=(G.rival.raidCool||0)){
     const n=travelNeed(FIGHT_CAMP_DAYS);
-    return `<button onclick="raidCamp()">🏴 적대 세력 임시 쉼터 습격 (빼앗긴 조각 ${G.rival.stolen}개 · ${FIGHT_CAMP_DAYS}일 · 물 -${n.water} · 식량 -${n.food})</button>`;
+    return `<button onclick="raidCamp()">🏴 적대 세력 임시 쉼터 습격 (빼앗긴 조각 ${G.rival.stolen}개 · ${FIGHT_CAMP_DAYS}일 · 물 -${n.water} · 배터리 -${n.food})</button>`;
   }
   return '';
 });
@@ -5289,7 +5290,7 @@ async function raidCamp(){
   G.loc='road'; G.trip={dest:back,left:FIGHT_CAMP_DAYS,from:`「${G.rival.name}」의 임시 쉼터`,fromPos};
   G.base=back.kind==='town'?back.key:null;
   fightStart('camp');
-  aiTurn(`「${G.rival.name}」의 임시 쉼터를 습격한다`,`[전투 시작 — 임시 쉼터 습격] 소문을 따라 찾아낸 「${G.rival.name}」의 임시 쉼터. 모닥불, 보초, 빼앗긴 교표 조각을 보관한 천막. 우두머리 ${G.rival.leader}이(가) 있을 수도 있다. 플레이어가 기습해 들어가 그들이 「${INTENTS_F[G.fight.intent].n}」 기색을 보이며 무기를 잡는 순간에서 멈추고 결말은 쓰지 말 것. choices는 빈 배열 [].`,false);
+  aiTurn(`「${G.rival.name}」의 임시 쉼터를 습격한다`,`[전투 시작 — 임시 쉼터 습격] 소문을 따라 찾아낸 「${G.rival.name}」의 임시 쉼터. 랜턴 불빛, 보초, 빼앗긴 교표 조각을 보관한 천막. 우두머리 ${G.rival.leader}이(가) 있을 수도 있다. 플레이어가 기습해 들어가 그들이 「${INTENTS_F[G.fight.intent].n}」 기색을 보이며 무기를 잡는 순간에서 멈추고 결말은 쓰지 말 것. choices는 빈 배열 [].`,false);
 }
 function fightFixedHTML(){
   const F=G.fight, I=INTENTS_F[F.intent]||{}, b=(on,txt,cls,dis)=>`<button ${cls?`class="${cls}"`:''} ${dis?'disabled':''} onclick="${on}">${txt}</button>`;
@@ -5371,7 +5372,7 @@ const WEST={
   westfort:{ic:'🏯',price:{water:2,food:3,torch:5},skill:'sur',dc:'normal',act:'성채 바깥 경계선의 옛 이야기를 쫓아 순찰에 따라나선다',
     kind:'고유 물건',reward:'성채의 통행패',ric:'📜',eff:'길 위에서 도적을 만나면 통행패를 보여 통행세 없이 지나감'},
   woodvil:{ic:'🌲',price:{water:2,food:2,torch:4},skill:'sur',dc:'normal',act:'나무꾼과 약초꾼이 피하는 깊은 숲길로 들어가 본다',
-    kind:'탈것',reward:'숲의 말',ric:'🐎',eff:'마구간이 있으면 상점가에서 숲의 말을 들일 수 있음 — 이동 일수가 줄어듦'},
+    kind:'탈것',reward:'숲의 말',ric:'🐎',eff:'자전거 보관대가 있으면 상점가에서 숲의 말을 들일 수 있음 — 이동 일수가 줄어듦'},
   cliff:{ic:'🗻',price:{water:3,food:3,torch:5},skill:'str',dc:'hard',act:'바다 절벽을 타고 요새의 무너진 아랫단으로 내려간다',
     kind:'고유 물건',reward:'한빛시 왕의 인장',ric:'💍',eff:'싸움(체력 판정)에서 +1'},
   swport:{ic:'⛵',price:{water:3,food:2,torch:6},skill:'cha',dc:'hard',act:'밀수꾼들의 술집에서 그들만 아는 이야기를 얻어 내려 한다',
@@ -5385,7 +5386,7 @@ Object.keys(WEST).forEach(id=>{
   TOWNS[id]={n:p.n,ic:W.ic,west:true,price:W.price,desc:`${p.lore} (${p.dir||'서쪽'} 먼 땅)`,perk:`📜 이 땅만의 괴담이 있음 — 쫓아가면 보상(${W.kind})`};
 });
 MOUNTS.horse={n:'숲의 말',price:80,feed:1,thirst:1,noWater:false,carry:1,rescue:true,capBonus:2,fast:true,locked:'woodvil',
-  desc:'서쪽 숲에서 온 날랜 말. 이동 일수가 줄어들고(약 4분의 3), 쓰러져도 캐시를 덜 잃습니다. 물통·식량 자루 용량 +2.'};
+  desc:'서쪽 숲에서 온 날랜 말. 이동 일수가 줄어들고(약 4분의 3), 쓰러져도 캐시를 덜 잃습니다. 물통·배터리 자루 용량 +2.'};
 PET_KINDS.parrot={n:'야자 숲 앵무새',icon:'🦜',price:0,perk:'매력 판정 +1 (친근한 사이부터)',reward:'palmgate'};
 function westSt(){ if(!G.west) G.west={done:{},tried:{}}; return G.west }
 function hasWest(id){ return !!(G&&G.west&&G.west.done&&G.west.done[id]) }
@@ -5535,8 +5536,8 @@ function whereText(){
 function choicesHTML(){
   const ex=roomExhausted();
   let lbl='';
-  if(ex) lbl='🔎 이 방에서는 더 찾을 것이 없어 보입니다 — 아래 → 버튼으로 이동하세요';
-  else if(G.choices.length) lbl=(G.loc==='dungeon'?'💬 이야기 — 이 방 안에서의 행동 (방은 바뀌지 않음)':G.loc==='city'?'💬 이야기 선택지':'💬 이야기 선택지 (1걸음)')+' · 🎲는 판정, 🧭는 게임 기능으로 바로 처리';
+  if(ex) lbl='🔎 이 공간에서는 더 찾을 것이 없어 보입니다 — 아래 → 버튼으로 이동하세요';
+  else if(G.choices.length) lbl=(G.loc==='dungeon'?'💬 이야기 — 이 공간 안에서의 행동 (방은 바뀌지 않음)':G.loc==='city'?'💬 이야기 선택지':'💬 이야기 선택지 (1걸음)')+' · 🎲는 판정, 🧭는 게임 기능으로 바로 처리';
   const TL={rest:'휴식',camp:'임시 쉼터',return:'귀환',exit:'나가기',trade:'거래'};
   return (lbl?`<div class="lbl">${lbl}</div>`:'')+G.choices.map((c,i)=>{
     const m=metaOf(c); let b='';
@@ -5576,7 +5577,7 @@ function fixedHTML(){
     mvLbl='🧭 이동 (시간·자원이 정확히 계산됩니다)';
     mv=d?btn('reenterRuin()',`🏛 「${esc(d.name)}」 안으로 다시 들어가기`,'primary'):btn('continueRoad()','🐪 구역으로 계속 가기','primary');
     if(d) mv+=btn('returnToCity()',`↩ ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${returnRoute().days}일)`);
-    if(caravanHere()) ac+=btn('openCaravan()',`🐫 대상 상인 (물·식량 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
+    if(caravanHere()) ac+=btn('openCaravan()',`🐫 대상 상인 (공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
     ac+=btn('campHere()','⛺ 임시 쉼터');
     if(G.comp&&G.comp.met&&!G.comp.joined&&G._yuminHere) ac+=btn('talkYumin()','🎵 유민에게 말 걸기');
   }else if(L==='camp'){
@@ -5587,7 +5588,7 @@ function fixedHTML(){
   for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }   // 기능 모듈이 덧붙이는 버튼
   // 사건으로 생긴 버튼
   if(G.waterSrc&&!G.waterSrc.used) ac+=btn('fillWaterSrc()',`💧 「${esc(G.waterSrc.name)}」에서 물 채우기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
-  if(L!=='road'&&caravanHere()) ac+=btn('openCaravan()',`🐫 ${esc(G.caravan.name)} (물·식량 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`,'','data-cv="1"');
+  if(L!=='road'&&caravanHere()) ac+=btn('openCaravan()',`🐫 ${esc(G.caravan.name)} (공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`,'','data-cv="1"');
   // 도시·아지트에서만
   if(isTown()){
     if(G.pausedRuins&&G.pausedRuins.length) ac+=btn('openRuins()',`🏛 중단한 구역 (${G.pausedRuins.length}) — 이어서/관리`,'primary');
@@ -5614,7 +5615,7 @@ function renderNeed(){
   const pips=(n,max)=>'●'.repeat(Math.max(0,Math.min(n,max)))+'○'.repeat(Math.max(0,max-n));
   const n=needState(), p=G.loc==='dungeon'?dungeonProg():null;
   let h=`<span class="nb" title="물은 걸음 수에 따라 자동으로 소비됩니다. 0이 되면 갈증으로 체력이 줄어듭니다">💧 물 ${n.w}/${capW()} <span class="pips">${pips(Math.ceil(n.w/capW()*5),5)}</span> <span class="${n.wWarn?'warn':''}">${n.wl}</span></span>`+
-        `<span class="nb" title="식량은 걸음 수에 따라 자동으로 소비됩니다. 0이 되면 굶주림으로 체력이 줄어듭니다">🍞 식량 ${n.f}/${capF()} <span class="pips">${pips(Math.ceil(n.f/capF()*5),5)}</span> <span class="${n.fWarn?'warn':''}">${n.fl}</span></span>`;
+        `<span class="nb" title="배터리는 걸음 수에 따라 자동으로 소비됩니다. 0이 되면 굶주림으로 체력이 줄어듭니다">🍞 배터리 ${n.f}/${capF()} <span class="pips">${pips(Math.ceil(n.f/capF()*5),5)}</span> <span class="${n.fWarn?'warn':''}">${n.fl}</span></span>`;
   if(p) h+=`<span class="nb" title="방문한 공간 / 전체 공간">🧭 조사도 <span class="pips">${pips(p.vis,p.total)}</span> <span class="${p.done?'ok':''}">${p.vis}/${p.total}공간${p.done?' · 조사 완료':''}</span>`+(!p.done?` <span class="muted">(미탐험 발견 ${p.found}${p.hidden>0?` · 아직 못 찾은 ${p.hidden}`:''})</span>`:'')+`</span>`;
   h+=cityStatusHTML()+fightStatusHTML();
   if(inDark()) h+=`<span class="nb" title="손전등을 구하거나 구역 밖으로 나가세요">🌑 <span class="warn">어둠 — 이동 2걸음 · 넘어질 위험 · 단서·조각 못 찾음</span></span>`;
@@ -5622,7 +5623,7 @@ function renderNeed(){
   if(m&&G.mount){
     const tired=G._mountFed===false;
     const fx=tired?['지쳐서 효과 없음']:(m.noWater?['물 소모 크게 느려짐 · 이동·귀환 때 물 절반','쓰러져도 손실 감소','짐 운반',`휴대 용량 +${mountCap()}`]:['물 소모 느려짐','짐 운반',`휴대 용량 +${mountCap()}`]);
-    h+=`<span class="nb" title="${tired?'다음 조사 외출에서 사료를 주면 회복':'탈것 보유 효과'}">🐪 <span class="${tired?'warn':'ok'}">${esc(G.mount.name)}: ${fx.join(' · ')}</span></span>`;
+    h+=`<span class="nb" title="${tired?'다음 조사 외출에서 충전을 주면 회복':'탈것 보유 효과'}">🐪 <span class="${tired?'warn':'ok'}">${esc(G.mount.name)}: ${fx.join(' · ')}</span></span>`;
   }
   el.innerHTML=h;
 }
@@ -5845,14 +5846,14 @@ function leftHTML(){
     <button class="small" style="margin-top:6px" onclick="openChar()">배경 보기·편집</button></div>`;
   h+=`<div class="sec"><h4>소지품</h4>
     <div style="display:flex;justify-content:space-between;align-items:center">❤ 체력 <b>${G.hp}/${G.maxhp}</b><button class="small ${(G.growth||0)>0?'primary':''}" onclick="openGrowth()">🌟 성장${(G.growth||0)>0?` (${G.growth})`:` ${(G.xp||0)%GROW_XP}/${GROW_XP}`}</button></div><div class="bar"><i style="width:${hpP}%"></i></div>
-    <div class="grid2"><div><span>💧 물</span><b>${G.water}/${capW()}</b></div><div><span>🍞 식량</span><b>${G.food}/${capF()}</b></div><div><span>🔥 손전등</span><b>${G.torch}/${capT()}</b></div><div><span>💳 캐시</span><b>${G.gold}</b></div></div>
+    <div class="grid2"><div><span>💧 물</span><b>${G.water}/${capW()}</b></div><div><span>🍞 배터리</span><b>${G.food}/${capF()}</b></div><div><span>🔥 손전등</span><b>${G.torch}/${capT()}</b></div><div><span>💳 캐시</span><b>${G.gold}</b></div></div>
     <div class="grid2" style="margin-top:6px">${MATS.map(m=>`<div><span>${m.i} ${m.n}</span><b>${G.mat[m.k]}</b></div>`).join('')}</div>
     ${G.mat.relic?`<div class="muted" style="font-size:12px;margin-top:2px">🏺 ${relicText()}</div>`:''}
     <div style="margin-top:8px;font-size:14px">교표 조각 ${'★'.repeat(G.fragments)}${'☆'.repeat(Math.max(0,FRAG_GOAL-G.fragments))}</div>
     <div class="chips" style="margin-top:6px">${G.mount?`<span class="chip">🐪 ${esc(G.mount.name)}${G._mountFed===false?' (지침)':''}</span>`:''}${G.items.map((i,n)=>itemChipHTML(i,n)).join('')||(G.mount?'':'<span class="muted">보관품 없음</span>')}</div></div>`;
   const d=mountDef();
   if(d) h+=`<div class="sec"><h4>탈것</h4><div><b>${esc(G.mount.name)}</b> <span class="muted">${d.n}</span></div>
-    <div class="muted">${G._mountFed===false?'지쳐 있음 (다음 조사 외출에서 사료를 주면 회복)':'원기 왕성'} · 조사 외출마다 식량 ${d.feed}</div>
+    <div class="muted">${G._mountFed===false?'지쳐 있음 (다음 조사 외출에서 충전을 주면 회복)':'원기 왕성'} · 조사 외출마다 배터리 ${d.feed}</div>
     <div class="muted">호감 ${G.mount.aff||0} · ${petStageName(G.mount.aff||0)}</div>
     <input value="${esc(G.mount.name)}" style="margin-top:6px" onchange="renameAnimal('m',this.value)" aria-label="탈것 이름"></div>`;
   if((G.pets||[]).length) h+=`<div class="sec"><h4>동물 친구</h4>${G.pets.map(p=>`<div>${PET_KINDS[p.kind].icon} <b>${esc(p.name)}</b> <span class="muted">${petStageName(p.aff)} · 호감 ${p.aff}</span></div>`).join('')}</div>`;
@@ -6019,7 +6020,7 @@ function openChar(){
     <div class="row" style="margin-top:8px"><button class="small" onclick="G.char.bio=document.getElementById('bioEdit').value;save();toast('저장했습니다')">배경 저장</button></div>`);
 }
 function openInv(){
-  modal('소지품',`<p>💧 물 ${G.water} · 🍞 식량 ${G.food} · 🔥 손전등 ${G.torch} · 💳 캐시 ${G.gold}</p>
+  modal('소지품',`<p>💧 물 ${G.water} · 🍞 배터리 ${G.food} · 🔥 손전등 ${G.torch} · 💳 캐시 ${G.gold}</p>
     <p>교표 조각: ${G.fragments}/${FRAG_GOAL}</p>
     <p>자재: ${MATS.map(m=>`${m.i} ${m.n} ${G.mat[m.k]}`).join(' · ')}</p>
     <ul>${G.mount?`<li><span class="chip">🐪 ${esc(G.mount.name)} (${MOUNTS[G.mount.type].n}${G._mountFed===false?' · 지침':''})</span></li>`:''}${G.items.map((i,n)=>`<li>${itemChipHTML(i,n)}</li>`).join('')||(G.mount?'':'<li class="muted">없음</li>')}</ul>`);
@@ -6123,23 +6124,23 @@ function openGuide(){
   const wBase=g&&hasTrait('담력')?MOVE_STEPS.waterFrugal:MOVE_STEPS.water;
   const row=(a,b)=>`<div class="shop-row" style="gap:12px;align-items:flex-start"><span style="flex:0 0 auto;max-width:48%">${a}</span><span style="text-align:right;flex:1">${b}</span></div>`;
   const h3=t=>`<h4 style="margin:16px 0 4px">${t}</h4>`;
-  const priceTown=`중앙 캠퍼스 지구·아지트: 물 💳${PRICE_TOWN.water} · 식량 💳${PRICE_TOWN.food} · 손전등 💳${PRICE_TOWN.torch}`;
-  const priceRoad=`한빛시 뒷길에서 가끔 만나는 대상 상인(🐫 버튼)이나 이야기 속 상인에게 사면 물·식량 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch}`;
+  const priceTown=`중앙 캠퍼스 지구·아지트: 물 💳${PRICE_TOWN.water} · 배터리 💳${PRICE_TOWN.food} · 손전등 💳${PRICE_TOWN.torch}`;
+  const priceRoad=`한빛시 뒷길에서 가끔 만나는 대상 상인(🐫 버튼)이나 이야기 속 상인에게 사면 공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch}`;
   let live='';
   if(g){
     const iv=thirstInterval(), toW=iv-(G.steps%iv), toF=MOVE_STEPS.food-(G.steps%MOVE_STEPS.food), toH=MOVE_STEPS.half-(G.dayStep||0);
     const wLast=toW+Math.max(0,G.water-1)*iv, fLast=toF+Math.max(0,G.food-1)*MOVE_STEPS.food;
     live=h3('지금 내 상태')+
-      (isTown()?row('💧 물 · 🍞 식량',`${G.water} · ${G.food} — 도시·아지트에서는 줄지 않음`):
+      (isTown()?row('💧 물 · 🍞 배터리',`${G.water} · ${G.food} — 도시·아지트에서는 줄지 않음`):
        row(`💧 물 ${G.water}`,G.water>0?`약 ${wLast}걸음 뒤 바닥`:'<span style="color:var(--danger)">바닥 — 다음 주기부터 체력 -1</span>')+
-       row(`🍞 식량 ${G.food}`,G.food>0?`약 ${fLast}걸음 뒤 바닥`:'<span style="color:var(--danger)">바닥 — 다음 주기부터 체력 -1</span>'))+
+       row(`🍞 배터리 ${G.food}`,G.food>0?`약 ${fLast}걸음 뒤 바닥`:'<span style="color:var(--danger)">바닥 — 다음 주기부터 체력 -1</span>'))+
       row(`🔥 손전등 ${G.torch}`,'구역에서 방을 옮길 때 소모')+
       row('⏳ 지금 시각',`${G.day}일째 ${G.time} · ${toH}걸음 뒤 ${G.time==='낮'?'밤':'다음 날 낮'}`);
   }
   const S=13, ex=(extra,noW)=>{ const w=(noW?0:2)+Math.floor(S/(wBase+extra)), f=2+Math.floor(S/MOVE_STEPS.food); return {w,f} };
   const e0=ex(0,false), e1=ex(MOUNTS.donkey.thirst,false), e3=ex(MOUNTS.camel.thirst,true);
   modal('게임 구조 가이드',`
-    <p class="muted">이 게임에서 시간이 흐르고 자원이 줄어드는 규칙입니다. 숫자는 지금 코드의 값입니다. 숫자·위치·시간은 게임(버튼)이 정하고, 이야기 AI는 "어떻게·왜·누구와"를 서술합니다. AI가 제안하는 변화는 한 장면에 ${fxRangeText()} 안에서만 반영되고(물건을 살 때만 물·식량·손전등 +${FX_BUY_MAX}까지), 근거 없는 회복은 코드가 막습니다.</p>
+    <p class="muted">이 게임에서 시간이 흐르고 자원이 줄어드는 규칙입니다. 숫자는 지금 코드의 값입니다. 숫자·위치·시간은 게임(버튼)이 정하고, 이야기 AI는 "어떻게·왜·누구와"를 서술합니다. AI가 제안하는 변화는 한 장면에 ${fxRangeText()} 안에서만 반영되고(물건을 살 때만 공포·배터리·손전등 +${FX_BUY_MAX}까지), 근거 없는 회복은 코드가 막습니다.</p>
     ${live}
     ${h3('행동 방식 — 버튼 · 이야기 · 판정')}
     ${row('🧭 버튼 (게임 기능)','이동·휴식·귀환·거래·물 채우기처럼 시간·자원·위치가 바뀌는 행동. 정확히 계산됩니다')}
@@ -6149,38 +6150,38 @@ function openGuide(){
     ${row('특성 보너스','옛 서류 해독(글·비문 해독 +2) · 말발(매력 +2) · 싸움 경험(싸움 +2) · 동물 친화(동물 +2) · 지독한 호기심(지혜 +1) · 밤눈(밤·어둠 생존술 +1, 손전등 없음 불이익 무시) · 묘한 운(하루 한 번 크게 실패하면 다시 굴림)')}
     ${row('불이익','구역에서 손전등 0: 매력 외 -2 · 체력 30% 이하: -1')}
     ${row('실패의 대가','매력 외 판정 실패: 체력 -(방 위험도, 최소 1) · 위험도 2 이상 방에서 부분 성공: 체력 -1')}
-    ${row('사건','이야기 속에서 상인이나 물이 있는 곳이 나오면 🐫 거래 · 💧 물 채우기 버튼이 생깁니다. 도시·마을의 공용 우물은 하루 한 번 무료이고, "물을 긷는다" 같은 선택지·글로도 채워집니다')}
+    ${row('사건','이야기 속에서 상인이나 물이 있는 곳이 나오면 🐫 거래 · 💧 물 채우기 버튼이 생깁니다. 도시·마을의 공용 티 코너는 하루 한 번 무료이고, "물을 긷는다" 같은 선택지·글로도 채워집니다')}
     ${h3('시간과 걸음')}
-    ${row('1걸음','방(공간) 이동·한빛시 뒷길 이동·상점가 산책·인물 방문·유민과의 대화·구내식당·이야기 행동. 구역과 임시 쉼터 안의 살펴보기·조사·이야기 선택지는 2번에 1걸음. 중앙 캠퍼스 지구 안 이야기 선택지·직접 입력은 세지 않음. 도시·아지트에서 센 걸음은 시간만 흐르게 하고 물·식량은 줄지 않습니다')}
+    ${row('1걸음','방(공간) 이동·한빛시 뒷길 이동·상점가 산책·인물 방문·유민과의 대화·구내식당·이야기 행동. 구역과 임시 쉼터 안의 살펴보기·조사·이야기 선택지는 2번에 1걸음. 중앙 캠퍼스 지구 안 이야기 선택지·직접 입력은 세지 않음. 도시·아지트에서 센 걸음은 시간만 흐르게 하고 공포·배터리는 줄지 않습니다')}
     ${row('낮 ↔ 밤',`${MOVE_STEPS.half}걸음마다 바뀜. 기숙사·아지트에서 쉬거나 임시 쉼터에서 아침을 맞으면 낮이 처음부터 다시 시작`)}
     ${row('하루',`${MOVE_STEPS.half*2}걸음 (밤이 지나 낮이 되면 +1일)`)}
     ${h3('걸음에 따른 소모 (한빛시·구역에서만)')}
     ${row('💧 물',`구역 안·한빛시에서 걸을 때 ${MOVE_STEPS.water}걸음마다 -1 (하루 꼬박 움직이면 약 ${Math.round(MOVE_STEPS.half*2/MOVE_STEPS.water)}) · 이동·기다리기는 하루 1 — 걸음에는 짐 지고 헤매는 몫까지 들어 있어 더 듭니다<br><span class="muted">"담력" 특성: ${MOVE_STEPS.waterFrugal}걸음마다 · 먼지여우(친근한 사이부터) +1걸음</span>`)}
-    ${row('🍞 식량',`${MOVE_STEPS.food}걸음마다 -1`)}
+    ${row('🍞 배터리',`${MOVE_STEPS.food}걸음마다 -1`)}
     ${row('🔥 손전등',`구역에서 방을 ${MOVE_STEPS.torch}번 옮길 때마다 -1`)}
-    ${row('직접 마시기·먹기','지금 1 소비하고 다음 자동 소비 1회를 건너뜀 (공짜도 손해도 없음). 우물·샘처럼 물이 있는 곳에서 마시면 줄지 않음. 물이 0이면 마실 수 없음')}
-    ${row('바닥이 나면','물이나 식량이 0인 채 주기가 오면 체력 -1')}
+    ${row('직접 마시기·먹기','지금 1 소비하고 다음 자동 소비 1회를 건너뜀 (공짜도 손해도 없음). 티 코너·샘처럼 물이 있는 곳에서 마시면 줄지 않음. 물이 0이면 마실 수 없음')}
+    ${row('바닥이 나면','물이나 배터리가 0인 채 주기가 오면 체력 -1')}
     ${row('🌑 손전등 0 (어둠)',`구역 안에서: 방 이동 2걸음 · ${Math.round(DARK_STUMBLE*100)}% 확률로 넘어져 체력 -1 · 단서와 교표 조각을 찾지 못함 · 판정 -2 (매력 제외). 「밤눈」 특성이 있으면 모두 면제`)}
     ${h3('행동별 비용')}
-    ${row('구역 조사 출발','떠난 곳에서 구역까지 지도 거리만큼 (대부분 1~2일) — 하루마다 물·식량 1, 탈것 사료 1회. 이틀 이상이면 길 위의 사건이 생길 수 있음 (아지트 시설 보급이 있으면 더해짐)')}
-    ${row('귀환','떠나온 마을(없으면 중앙 캠퍼스 지구)까지 지도 거리만큼 — 하루마다 물·식량 1 (모자라면 체력), 사료는 없음. 이틀 이상이면 길 위의 사건. 섬의 도시는 배로 나루까지(삯은 왕복 요금에 포함). 자재: 돌 +(방문한 방 수 ÷ 2, 올림 — 이어 조사한 구역은 새로 본 방만큼만), 목재는 50% 확률로 +1')}
-    ${row('임시 쉼터','물 -1, 식량 -1, 체력 40% 회복 (물·식량이 없으면 거의 회복 못함). 아침이 되면 하루 경과하고 임시 쉼터를 시작한 곳으로')}
+    ${row('구역 조사 출발','떠난 곳에서 구역까지 지도 거리만큼 (대부분 1~2일) — 하루마다 공포·배터리 1, 탈것 충전 1회. 이틀 이상이면 길 위의 사건이 생길 수 있음 (아지트 시설 보급이 있으면 더해짐)')}
+    ${row('귀환','떠나온 마을(없으면 중앙 캠퍼스 지구)까지 지도 거리만큼 — 하루마다 공포·배터리 1 (모자라면 체력), 충전은 없음. 이틀 이상이면 길 위의 사건. 섬의 도시는 배로 나루까지(삯은 왕복 요금에 포함). 자재: 돌 +(방문한 방 수 ÷ 2, 올림 — 이어 조사한 구역은 새로 본 방만큼만), 목재는 50% 확률로 +1')}
+    ${row('임시 쉼터','물 -1, 배터리 -1, 체력 40% 회복 (공포·배터리가 없으면 거의 회복 못함). 아침이 되면 하루 경과하고 임시 쉼터를 시작한 곳으로')}
     ${row('기숙사 숙박','💳10, 체력 전부 회복, 하루 경과')}
     ${row('구내식당','💳5, 소문 듣기 (1걸음)')}
-    ${row('아지트에서 쉬기','무료, 체력 전부 회복, 하루 경과 (정원이 있으면 하루 첫 휴식에 식량 +2). 유민은 손님방에 실제로 머물 때만 함께 쉼')}
+    ${row('아지트에서 쉬기','무료, 체력 전부 회복, 하루 경과 (정원이 있으면 하루 첫 휴식에 배터리 +2). 유민은 손님방에 실제로 머물 때만 함께 쉼')}
     ${row('쓰러졌을 때','대상에게 구조되어 떠나온 마을(없으면 중앙 캠퍼스 지구)로. 캐시 절반 손실(전동 스쿠터가 있으면 4분의 1), 이틀 경과, 체력 절반으로 회복')}
     ${h3('구역 입구 밖')}
     ${row('🚪 구역 밖으로 나가기','지금 깊이만큼 걸음(1~3) 소모. 구역은 그대로 남고, 다시 들어가면 나왔던 방으로 돌아갑니다')}
-    ${row('🐫 대상 상인',`한빛시 뒷길에 나올 때 가끔 나타남 (물이 바닥이면 더 자주). 물·식량 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch}, 재고 한정. 자리를 뜨면 함께 떠남`)}
+    ${row('🐫 대상 상인',`한빛시 뒷길에 나올 때 가끔 나타남 (물이 바닥이면 더 자주). 공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch}, 재고 한정. 자리를 뜨면 함께 떠남`)}
     ${row('입구 밖에서 할 수 있는 것','다시 들어가기 · 임시 쉼터(아침에도 입구 밖) · 중앙 캠퍼스 지구로 귀환 · 대상과 거래·대화')}
     ${row('중단한 구역','다 못 본 구역은 최대 3곳까지 보관되어, 나중에 마지막 방에서 이어서 조사할 수 있습니다. 포기하거나 보관 한도에 밀려나도 밝혀낸 단서만큼은 구역의 사연이 사전에 남습니다')}
     ${row('👥 인물의 위치','인물은 마지막으로 만난 곳(중앙 캠퍼스 지구의 장소 · 아지트)에 머뭅니다. 그곳에 가야 찾아갈 수 있고, 한빛시·구역에서 만난 인물은 다시 찾아갈 수 없습니다')}
     ${row('교표 조각',`새 구역의 약 ${Math.round((1-FRAG_SKIP)*100)}%에 하나 (${FRAG_MAX_MISS}곳 연속 없었으면 다음 구역에는 반드시). 교표 연구실 연구로 미리 알 수도 있음`)}
-    ${g&&G.actDone?h3('라쿠나 구역'+(G.act>=3?' · 출석부가 가리키는 구역들':''))+row('✨ 라쿠나 구역',`중앙 캠퍼스 지구 정문(또는 마을·아지트)에서 떠남 · 중앙 캠퍼스 지구에서 ${travelDays(KASR,IRAM_POS)}일(와하·천막들에서는 ${travelDays(townPos('east'),IRAM_POS)}일) · 왕복 물·식량이 넉넉해야 함 · 큰 구역이며 가장 깊은 방의 출석부를 🎲 지혜 판정으로 해독`)+(G.act>=3?Object.values(CITY_TYPES).map(t=>row(`${t.ic} ${t.n}`,`${t.reqText} · 심장 열기 🎲 ${SK[t.check]} 어려움<br><span class="muted">${t.rule}</span>`)).join('')+row('찾아가기','🗺 출석부가 가리키는 구역들 버튼에서 · 중간에 돌아와도 그 자리에서 이어서 조사'):''):''}
+    ${g&&G.actDone?h3('라쿠나 구역'+(G.act>=3?' · 출석부가 가리키는 구역들':''))+row('✨ 라쿠나 구역',`중앙 캠퍼스 지구 정문(또는 마을·아지트)에서 떠남 · 중앙 캠퍼스 지구에서 ${travelDays(KASR,IRAM_POS)}일(와하·천막들에서는 ${travelDays(townPos('east'),IRAM_POS)}일) · 왕복 공포·배터리가 넉넉해야 함 · 큰 구역이며 가장 깊은 방의 출석부를 🎲 지혜 판정으로 해독`)+(G.act>=3?Object.values(CITY_TYPES).map(t=>row(`${t.ic} ${t.n}`,`${t.reqText} · 심장 열기 🎲 ${SK[t.check]} 어려움<br><span class="muted">${t.rule}</span>`)).join('')+row('찾아가기','🗺 출석부가 가리키는 구역들 버튼에서 · 중간에 돌아와도 그 자리에서 이어서 조사'):''):''}
     ${h3('중앙 캠퍼스 지구 밖의 마을 (중앙 캠퍼스 지구 정문 → 🐫 먼 이동하기)')}
-    ${Object.entries(TOWNS).filter(([id])=>townOpen(id)).map(([id,t])=>row(`${t.ic} ${t.n} <span class="muted">(중앙 캠퍼스 지구에서 ${townDays(id)}일)</span>`,`${t.perk}<br><span class="muted">물 💳${t.price.water} · 식량 💳${t.price.food} · 손전등 💳${t.price.torch}</span>`)).join('')}
-    ${row('가는 길',`일수는 지도 거리로 자동 계산(약 ${DAY_DIST}칸에 1일) · 하루마다 물·식량 1 (사료를 먹은 전동 스쿠터가 있으면 물은 절반, 모자라면 그만큼 체력 감소) · 마을끼리도 바로 오감 · 마을에서 떠난 조사 외출은 그 마을로 돌아옴 · 아지트는 중앙 캠퍼스 지구 바로 옆`)}
-    ${row('길 위의 사건',`이틀 이상 걸리는 육로에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🐫 대상 상인(거래) · 🎵 유민 · 🗡 도적(통행세 20% / ⚔ 체력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 하루 더·물·식량 -1)`)}
+    ${Object.entries(TOWNS).filter(([id])=>townOpen(id)).map(([id,t])=>row(`${t.ic} ${t.n} <span class="muted">(중앙 캠퍼스 지구에서 ${townDays(id)}일)</span>`,`${t.perk}<br><span class="muted">물 💳${t.price.water} · 배터리 💳${t.price.food} · 손전등 💳${t.price.torch}</span>`)).join('')}
+    ${row('가는 길',`일수는 지도 거리로 자동 계산(약 ${DAY_DIST}칸에 1일) · 하루마다 공포·배터리 1 (충전을 먹은 전동 스쿠터가 있으면 물은 절반, 모자라면 그만큼 체력 감소) · 마을끼리도 바로 오감 · 마을에서 떠난 조사 외출은 그 마을로 돌아옴 · 아지트는 중앙 캠퍼스 지구 바로 옆`)}
+    ${row('길 위의 사건',`이틀 이상 걸리는 육로에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🐫 대상 상인(거래) · 🎵 유민 · 🗡 도적(통행세 20% / ⚔ 체력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 하루 더·공포·배터리 -1)`)}
     ${(G&&G.act>=3?row('서쪽 땅 🌲','3막부터 서쪽 땅 여덟 곳으로 이동할 수 있음(🐫 이동하기). 땅마다 📜 괴담 쫓기 — 하루 한 번 판정, 성공·부분 성공이면 보상(고유 물건·칭호·탈것·동물 친구·아지트 장식). 🗺 서쪽 수집품에 기록되고, 여덟 곳을 모두 모으면 칭호와 최대 체력 +1. 서쪽 땅에는 조사할 구역이 없어 구역 조사 버튼이 나타나지 않음'):'')}
     ${(G&&G.act>=3?row('항구 ⚓','출석부가 바다의 도시를 가리킨 뒤(3막) 서쪽 만·동쪽 해안 두 곳이 지도에 나타남. 섬으로 가는 배(💳'+seaFee()+')는 가까운 나루에서만'):'')}
     ${row('글로 쓴 이동','「자르한으로 간다」처럼 쓰면 이동 비용이 적힌 확인 칩이 뜸 · 아직 소문으로만 아는 곳은 갈 수 없음')}
@@ -6201,7 +6202,7 @@ function openGuide(){
     ${row('🧠 지형을 이용한다','🎲 지혜 어려움 · 성공하면 기세 -2')}
     ${row('🗣 위협·속임','🎲 매력 · 기세가 절반 이하이거나 적이 흔들릴 때 성공하면 적이 물러남, 아니면 기세 -1 · 실패하면 기세 +1에 적이 선공(체력 -1). 결전에서는 물러나게 할 수 없음')}
     ${row('🎵 유민의 노래',`유민이 동행 중이면 전투마다 한 번, 판정 없이 기세 -2 · ${Math.round(FIGHT_SONG_SIDE*100)}% 확률로 판이 뒤집힘(짐이 흩어지거나, 나도 다치거나, 방이 무너짐)`)}
-    ${row('🏃 물러난다','🎲 생존술 · 성공하면 전투를 벗어남 (길 위에서는 물·식량 1씩 버림 · 구역에서는 그들이 조각에 더 가까워짐)')}
+    ${row('🏃 물러난다','🎲 생존술 · 성공하면 전투를 벗어남 (길 위에서는 공포·배터리 1씩 버림 · 구역에서는 그들이 조각에 더 가까워짐)')}
     ${row('💎 조각을 내준다','1막에서 교표 조각 하나를 내주고 싸움을 피함')}
     ${row('이기면',`길 위: 캐시 · 가끔 빼앗긴 조각을 되찾음 / 구역: 경주가 끝나고 조각을 지켜 냄 / 임시 쉼터 습격: 빼앗긴 조각을 최대 ${FIGHT_CAMP_LOOT}개 되찾음(그들이 스스로 찾은 조각은 못 가져옴), 캐시는 첫 승리 ${FIGHT_CAMP_GOLD[0]} · 그 뒤 ${FIGHT_CAMP_GOLD[1]}, 우두머리에게 상처를 입힐 수도 있음 / 심장 앞: 심장을 열 수 있게 됨 · 그들의 진행도가 뒤로 밀림`)}
     ${row('⚔ 우두머리 결전','3막 마지막 도시의 심장 앞에서 우두머리와 친위대(기세 6, 다쳐 있으면 5)와 싸웁니다. 이기면 적대 세력이 흩어지고 더는 움직이지 않습니다. 그 전까지 우두머리는 서술에서도 죽거나 붙잡히지 않습니다')}
@@ -6212,17 +6213,17 @@ function openGuide(){
     ${row('등급이 정해지는 때','구역에서 유실물을 얻는 순간 코드가 정함. 위험한 방일수록, 자르한 근처 구역일수록 좋은 등급이 잘 나옴')}
     ${row('팔기','아지트 작업실에서 감정가대로 · 자르한 골동품상은 20% 더. 시설 짓기·선물에는 흔한 유실물부터 쓰임')}
     ${h3('조사 외출 한 번의 대략적 소모 (구역 안에서 13걸음 가정)')}
-    ${row('탈것 없음',`물 약 ${e0.w} · 식량 약 ${e0.f}`)}
-    ${row('자전거',`물 약 ${e1.w} · 식량 약 ${e1.f}+사료 ${MOUNTS.donkey.feed} (돌 +1)`)}
-    ${row('전동 스쿠터',`물 약 ${e3.w} · 식량 약 ${e3.f}+사료 ${MOUNTS.camel.feed} (돌 +1, 목재나 천 +1)`)}
+    ${row('탈것 없음',`물 약 ${e0.w} · 배터리 약 ${e0.f}`)}
+    ${row('자전거',`물 약 ${e1.w} · 배터리 약 ${e1.f}+충전 ${MOUNTS.donkey.feed} (돌 +1)`)}
+    ${row('전동 스쿠터',`물 약 ${e3.w} · 배터리 약 ${e3.f}+충전 ${MOUNTS.camel.feed} (돌 +1, 목재나 천 +1)`)}
     <p class="muted">손전등은 별도로 약 2~3개. 전동 스쿠터: 걸음당 물 소모 주기가 ${MOUNTS.camel.thirst}걸음 늘고, 이동·조사 외출 출발과 귀환 때 물이 절반만 듭니다(일수÷2, 내림). 임시 쉼터할 때는 물을 씁니다.</p>
     ${h3('휴대 용량')}
-    ${row('기본 용량',`물 ${CAP_BASE} · 식량 ${CAP_BASE} · 손전등 ${CAP_BASE}`)}
-    ${row('상점 확장 (물통·식량 자루)',`단계마다 +${CAP_STEP} · ${CAP_PRICE.w.length}단계까지 · 💳${CAP_PRICE.w.join(' / ')}`)}
+    ${row('기본 용량',`물 ${CAP_BASE} · 배터리 ${CAP_BASE} · 손전등 ${CAP_BASE}`)}
+    ${row('상점 확장 (물통·배터리 자루)',`단계마다 +${CAP_STEP} · ${CAP_PRICE.w.length}단계까지 · 💳${CAP_PRICE.w.join(' / ')}`)}
     ${row('상점 확장 (손전등 보관대)',`단계마다 +${CAP_STEP} · ${CAP_PRICE.t.length}단계까지 · 💳${CAP_PRICE.t.join(' / ')}`)}
-    ${row('탈것 보너스',`자전거 물·식량 +${MOUNTS.donkey.capBonus} · 전동 스쿠터 +${MOUNTS.camel.capBonus} (사료를 먹어 원기 왕성할 때, 친근한 사이 +1 · 단짝 +2)`)}
+    ${row('탈것 보너스',`자전거 공포·배터리 +${MOUNTS.donkey.capBonus} · 전동 스쿠터 +${MOUNTS.camel.capBonus} (충전을 먹어 원기 왕성할 때, 친근한 사이 +1 · 단짝 +2)`)}
     ${row('가득 채우기',`${priceTown} / ${priceRoad}`)}
-    <p class="muted" style="font-size:12px">용량을 넘겨 얻은 물·식량·손전등은 버려집니다.</p>
+    <p class="muted" style="font-size:12px">용량을 넘겨 얻은 공포·배터리·손전등은 버려집니다.</p>
     ${h3('캐시 수입')}
     ${row('구역 조사 보상',`이야기 AI가 정함. 한 장면 💳${FX_LIMIT.gold[1]}까지, 구역 한 곳을 통틀어 💳${RUIN_GOLD_CAP}까지`)}
     ${row('유실물 감정','작업실이나 자르한 골동품상에서 등급별 감정가 (💳'+RELIC_GRADES.map(r=>r.p).join('·')+')')}
@@ -6238,9 +6239,9 @@ function openGuide(){
     ${row('오르는 때',`대화·선물·함께 쉬기·임시 쉼터·AI가 판단한 교류. 모든 증가는 ×${AFF_RATE} 배율로 반영됩니다. 유민 동행 제안은 Lv.${JOIN_LV}부터`)}
     ${h3('상점가 가격')}
     ${SHOP_GOODS.map(([n,k,p])=>row(n,`💳${p}`)).join('')}
-    ${h3('탈것 (마구간 필요)')}
-    ${Object.values(MOUNTS).filter(d=>!d.locked||hasWest(d.locked)).map(d=>row(`${d.n}<br><span class="muted">${d.desc}</span>`,`💳${d.price}<br><span class="muted">사료 식량 ${d.feed}/조사 외출</span>`)).join('')}
-    <p class="muted">탈것은 한 마리만 둘 수 있습니다. 사료(식량)를 줄 수 없으면 그 조사 외출에서는 이점이 없습니다. 팔면 값의 절반을 돌려받습니다.</p>
+    ${h3('탈것 (자전거 보관대 필요)')}
+    ${Object.values(MOUNTS).filter(d=>!d.locked||hasWest(d.locked)).map(d=>row(`${d.n}<br><span class="muted">${d.desc}</span>`,`💳${d.price}<br><span class="muted">충전 배터리 ${d.feed}/조사 외출</span>`)).join('')}
+    <p class="muted">탈것은 한 마리만 둘 수 있습니다. 충전(배터리)를 줄 수 없으면 그 조사 외출에서는 이점이 없습니다. 팔면 값의 절반을 돌려받습니다.</p>
     ${h3('아지트 시설')}
     ${FAC.map(f=>row(`${f.n}<br><span class="muted">${f.desc}</span>`,costText(f.cost))).join('')}
     ${h3('아지트 꾸미기')}
@@ -6260,7 +6261,7 @@ function openGuide(){
    그림 파일이 없으면 이모지로 대신 보임. 파일은 images/home/ 에 넣고 아래 좌표·크기(%)는 그림에 맞게 조절
    ========================================================= */
 const HOME_IMG='images/home/';
-/* 시설 그림: 지은 시설이 정해진 자리에 나타남 (x,y=중심 위치 %, w=가로 폭 %). 깊은 우물·큰 저장고는 낮은 단계 그림을 대체 */
+/* 시설 그림: 지은 시설이 정해진 자리에 나타남 (x,y=중심 위치 %, w=가로 폭 %). 깊은 티 코너·큰 저장고는 낮은 단계 그림을 대체 */
 const FAC_SLOTS={
   well:{img:'fac_well',ic:'💧',x:18,y:72,w:16.7},well2:{img:'fac_well2',ic:'💧',x:18,y:72,w:20.8,rep:'well'},
   store:{img:'fac_store',ic:'📦',x:80,y:62,w:20.8},store2:{img:'fac_store2',ic:'📦',x:80,y:62,w:25,rep:'store'},
@@ -6463,7 +6464,7 @@ function swell(c,t,f,d,g){
   a.gain.setValueAtTime(0.0001,t); a.gain.exponentialRampToValueAtTime(g,t+d*0.4); a.gain.exponentialRampToValueAtTime(0.0001,t+d);
   o.connect(a); a.connect(_master); o.start(t); o.stop(t+d+0.02);
 }
-/* 갈색 잡음(저음이 센 부드러운 잡음) 한 번: 모닥불 */
+/* 갈색 잡음(저음이 센 부드러운 잡음) 한 번: 랜턴 불빛 */
 function brown(c,t,d,g,f){
   const n=Math.max(1,Math.floor(c.sampleRate*d)), buf=c.createBuffer(1,n,c.sampleRate), ch=buf.getChannelData(0);
   let last=0; for(let i=0;i<n;i++){ last=(last+0.02*(Math.random()*2-1))/1.02; ch[i]=last*3.5 }
@@ -6547,7 +6548,7 @@ function sfxLog(type,text){
   if(/캐시 \+|💳.*\+|환불/.test(t)) return sfx('coin');
   if(/캐시 -|배 삯|통행세|💳.*-|정가 결제|확장 —/.test(t)) return sfx('spend');
   if(/체력 \+|정원의 대추/.test(t)) return sfx('heal');
-  if(/🍞 식량 -1|사용 → 식량/.test(t)) return sfx('eat');
+  if(/🍞 배터리 -1|사용 → 배터리/.test(t)) return sfx('eat');
   if(/💧 물 -1|💧.*(채웠|\+)|사용 → 물/.test(t)) return sfx('water');
   sfx('notify');
 }
@@ -6621,7 +6622,7 @@ function openLeads(){
       <div class="muted" style="font-size:13px">${esc(l.hint||'가는 길을 알게 된 곳')}</div>
       <div class="row" style="justify-content:flex-end;gap:6px;margin-top:6px"><button class="small" onclick="removeLead('${l.id}')">지우기</button><button class="small primary" ${isTown()&&!busy?'':'disabled'} onclick="startLead('${l.id}')">🐪 찾아 떠나기</button></div></div>`;
   }).join('')||'<p class="muted">아직 소문으로 알게 된 장소가 없습니다. 이야기 속에서 가는 길을 알게 되면 여기에 기록되고 지도에 표시됩니다.</p>';
-  modal('📍 소문의 장소',`<p class="muted" style="font-size:13px">이야기에서 가는 길을 알게 된 곳입니다. 중앙 캠퍼스 지구나 마을에서 일반 조사 외출과 같은 비용(거리만큼 일수, 하루마다 물·식량 1)으로 찾아가면, 그 이름의 구역이 열립니다.</p>${rows}
+  modal('📍 소문의 장소',`<p class="muted" style="font-size:13px">이야기에서 가는 길을 알게 된 곳입니다. 중앙 캠퍼스 지구나 마을에서 일반 조사 외출과 같은 비용(거리만큼 일수, 하루마다 공포·배터리 1)으로 찾아가면, 그 이름의 구역이 열립니다.</p>${rows}
     <h4 style="margin:14px 0 4px">직접 적기</h4>
     <div class="row" style="gap:6px;flex-wrap:wrap"><input id="leadName" placeholder="장소 이름 (예: 통곡의 회랑)" maxlength="14" style="flex:1;min-width:140px"><input id="leadHint" placeholder="가는 길·소문 (선택)" maxlength="80" style="flex:2;min-width:160px"><button class="small primary" onclick="addLeadManual()">추가</button></div>
     <p class="muted" style="font-size:12px">이야기에서 알게 됐는데 지도에 안 뜬 장소가 있으면 이름을 적어 추가하세요.</p>`);
