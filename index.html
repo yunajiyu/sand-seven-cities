@@ -510,15 +510,27 @@ const FRAG_SKIP=0.35, FRAG_MAX_MISS=2;    // 새 구역에 교표 조각이 없�
 const RUIN_MAT_CAP=6;                     // 구역 한 곳에서 이야기로 얻는 돌·목재·천 합계 상한
 const RUIN_GOLD_CAP=90;                   // 구역 한 곳에서 이야기로 얻는 캐시 합계 상한
 /* AI가 한 장면에 제안할 수 있는 변화 — 프롬프트·코드·가이드가 모두 이 표를 씀 */
-const FX_LIMIT={hp:[-6,4],water:[-2,2],food:[-2,2],torch:[-1,1],gold:[-30,40]};
+const FX_LIMIT={hp:[-6,4],water:[-2,2],food:[-2,2],torch:[-1,1],gold:[-30,40],demerit:[-2,3],access:[0,1]};
 const FX_BUY_MAX=8;                       // 물건을 살 때만 물·식량·손전등 +8까지 (용량·소지금은 코드가 다시 자름)
-const FX_NAME={hp:'체력',water:'공포',food:'배터리',torch:'손전등',gold:'캐시'};   // water는 내부적으로 '진정 여력'이고, 화면과 AI에는 뒤집어 '공포'로 보임(공포 = 한도 − water)
-function fxRangeText(){ return Object.entries(FX_LIMIT).map(([k,[a,b]])=>`${FX_NAME[k]} ${a}~+${b}`).join(', ') }
+const FX_NAME={hp:'체력',water:'공포',food:'배터리',torch:'손전등',gold:'캐시',demerit:'벌점',access:'출입권한'};   // water는 내부적으로 '진정 여력'이고, 화면과 AI에는 뒤집어 '공포'로 보임(공포 = 한도 − water)
+function fxRangeText(){ return Object.entries(FX_LIMIT).map(([k,[a,b]])=>`${FX_NAME[k]} ${a}~+${b}`).join(', ') }   // 공포(water)는 범위가 좌우 대칭이라 그대로 읽으면 됨
 const GAME_TITLE='출석부에 없는 구역', GAME_TITLE_FULL='출석부에 없는 구역';
 const POINTS=6;
+/* ---------- 새 상태값: 공포 · 벌점 · 출입 권한 · 시간대 ---------- */
+const TIMES=['낮','방과 후','야간','새벽'];                  // 시간대 (낮 → 방과 후 → 야간 → 새벽 → 다음 날 낮)
+const TIME_ICON={'낮':'☀','방과 후':'🌆','야간':'🌙','새벽':'🌌'};
+const DEMERIT_WARN=10;                                         // 벌점이 이 값 이상이면 외출 금지 경고
+const ACCESS_MAX=3;                                            // 출입 권한 등급 1~3
+const FEAR_RED=0.6, FEAR_NOISE=0.85;                           // 공포 비율이 넘으면 화면이 붉어짐 · 노이즈
+function fearMax(){ return capW() }
+function fearNow(){ return clamp(fearMax()-G.water,0,fearMax()) }   // 내부 값 water는 '진정 여력' — 공포는 그 반대
+function fearRatio(){ const m=fearMax(); return m>0?fearNow()/m:0 }
+function batteryPct(){ const m=capF(); return m>0?Math.round(G.food/m*100):0 }
+function isDarkTime(){ return !!G&&(G.time==='야간'||G.time==='새벽') }
+function timeIcon(){ return TIME_ICON[G.time]||'☀' }
 
 /* ---------- 시간과 소모 ---------- */
-const MOVE_STEPS={water:8,waterFrugal:11,food:10,torch:5,half:8};
+const MOVE_STEPS={water:8,waterFrugal:11,food:10,torch:5,half:8,quarter:4};   // quarter: 시간대(낮·방과 후·야간·새벽) 하나가 바뀌는 걸음 수 — 하루 16걸음은 그대로
 
 /* ---------- 아지트 ---------- */
 const MATS=[{k:'stone',n:'철제 부품',i:'🔩'},{k:'wood',n:'합판',i:'🪵'},{k:'cloth',n:'전선',i:'🔌'},{k:'relic',n:'유실물',i:'📦'}];
@@ -782,7 +794,9 @@ function migrate(){
   if(G.act==null) G.act=Array.isArray(G.cities)&&G.cities.length?(G.cities.every(c=>c.found)?4:3):1;   // 막 제도 이전 저장본
   if(G.actDone&&(G.fragments||0)<FRAG_GOAL) G.fragments=FRAG_GOAL;
   if(G.act>=3&&MAP_PLACES.some(p=>p.far&&!G.discovered.includes(p.id))) setTimeout(()=>{ try{ westOpen(true); save(); render() }catch(e){} },0);   // 3막 저장본: 서쪽 땅 열기   // 조각 목표가 늘기 전에 1막을 마친 저장본
-  if(G.dayStep==null) G.dayStep=(G.steps||0)%MOVE_STEPS.half;
+  if(G.dayStep==null) G.dayStep=(G.steps||0)%MOVE_STEPS.quarter;
+  if(!TIMES.includes(G.time)) G.time=G.time==='밤'?'야간':'낮';
+  if(G.demerit==null) G.demerit=0; if(!G.access) G.access=1; if(!Array.isArray(G.ledger)) G.ledger=[];
   if(G.expeditions==null) G.expeditions=(G.mapDone||[]).length+(G.pausedRuins||[]).length+(G.dungeon?1:0);
   if(!G._capInit){   // 용량 제도 이전 저장본: 갖고 있는 양에 맞춰 용량 단계를 한 번 올림
     G._capInit=true;
@@ -961,19 +975,48 @@ function updateUsageChip(){
 }
 
 /* ---------- 4-4. 프롬프트 ---------- */
-const SYS_BASE=`너는 중동풍 텍스트 탐험 게임 「출석부에 없는 구역」의 이야기꾼이다.
-세계관: 천일야화풍 한빛시 세계. 교역 도시 중앙 캠퍼스 지구, 동쪽 오아시스 와하, 남쪽 유목민의 천막들, 북쪽 옛 왕도 자르한, 진(정령), 고대 구역. 한빛시 서쪽 너머에는 초원과 숲이 펼쳐진 서쪽 땅(숲속 성 하르다, 서쪽 성채, 바닷가 포구 등)이 있다 — 3막 전에는 아직 길이 열리지 않은 소문의 땅이라 전입생·교역품·소문으로만 등장시키고 플레이어가 그곳에 가는 서술은 하지 않는다. 3막부터는 길이 열리지만, 그곳으로 떠나거나 도착하는 것은 게임(이동 버튼)이 처리한다. 괴담에 따르면 하룻밤 사이 먼지에 삼켜진 황금 도시 라쿠나 구역의 신전에 출석부가 있고, 그 출석부에 학원도시가 숨긴 것이 묻힌 곳의 좌표가 새겨져 있다. 플레이어는 교표 조각을 모아 라쿠나 구역의 입구를 찾는 중이다(1막).
-아직 플레이어가 모르는 것: 라쿠나 구역 같은 지워진 구역이 일곱 개라는 사실. 1막에서는 절대 직접 말하지 말고, 아주 희미한 암시만 허용한다.
-규칙:
-- 반드시 한국어, 플레이어를 '당신'으로 부르는 2인칭 현재형 서술.
-- 서술은 2~4문단, 350~700자. 감각적 묘사(빛, 냄새, 소리, 열기)를 쓰되 장황하지 않게.
+const SYS_BASE=`너는 텍스트 탐험 게임 「출석부에 없는 구역」의 게임 마스터이자 서술자다.
+장르는 현대 한국 배경의 학원물 + 조사 + 호러 탐험이다.
+플레이어의 행동을 받아 장면을 2인칭 현재형("너는 ~한다")으로 서술하고, 동행 NPC 유민의 대사를 쓰고, 게임 상태 변화를 effects로 제안한다.
+플레이어 캐릭터의 대사·감정·결정을 대신 정하지 않는다. 장면 끝에는 플레이어가 고를 수 있는 행동 여지를 남긴다.
+
+[절대 규칙]
+- 모든 등장인물(재원생, 강사, 직원, NPC)은 20세 이상 성인이다. 미성년 인물을 등장시키지 않는다.
+- 성적인 묘사는 쓰지 않는다. 연애 묘사는 설렘과 감정 중심으로 품위 있게 쓴다.
+- 세계의 진상(구역이 지워진 이유, 출석부의 정체, 교표의 비밀, 엔딩)은 이 프롬프트에 정해져 있지 않다. 플레이 중 네가 일관되게 정하되, 플레이어가 단서로 추리하기 전에 먼저 털어놓지 않는다.
+- 한 번 정한 사실은 [지금까지의 줄거리]·[연대기]·조사 보드(떡밥 장부)에 기록된 대로 유지한다. 모순을 만들지 않는다.
+
+[세계관]
+- 한빛시(한빛 교육특구): 수십 년에 걸쳐 확장된 현대의 거대 교육 신도시. 학원, 기숙사, 상점가, 저수지, 배수 터널이 하나의 도시처럼 이어져 있다. 공식 지도에는 현재 운영 중인 중앙 캠퍼스 지구만 나온다.
+- 지워진 일곱 구역: 도시 확장 과정에서 일곱 구역이 폐쇄되고 공식 문서와 지도에서 지워졌다. 외래어 구역명은 개발 당시 붙인 분양용 브랜드 이름이다. 일부는 폐건물로 남았고, 일부는 저수지와 배수 터널 아래 잠겼다가 수위가 낮아지는 시기에만 드러난다.
+  라쿠나 구역(저수지 아래 잠겼다 드러나는 첫 구역. 오래된 출석부가 다른 구역을 ???로 가리킨다) / 애시우드 구역(하얗게 말라 죽은 가로수) / 브룸 구역(늘 안개 낀 기숙사 단지) / 칸토 구역(방송실과 음악당) / 움브라 구역(창문이 모두 검게 칠해진 건물들) / 엠버 구역(계절과 상관없이 붉은 잎이 진다) / 널 구역(지도에 번호조차 없던 마지막 구역).
+- 3막 곁가지 구역(본편과 별개, 3막부터 진입 가능): 오러리 구역(구 식물원과 천문대), 코덱스 구역(구 본관 도서관). 곁가지 구역은 교표 조각과 별개로 구역마다 서로 다른 종류의 보상을 준다(구체 내용은 네가 정한다).
+- 구역별 교칙: 각 지워진 구역에는 고유한 교칙이 있다(예: "종이 두 번 울리면 복도에 서 있지 말 것"). 교칙의 내용은 구역에 처음 들어갈 때 네가 정하고 장부에 기록한다. 처음부터 다 알려주지 않고 낙서, 게시물, 출석부 메모, 소문, 위반의 결과로 조금씩 드러낸다. 교칙을 어기면 반드시 대가가 따른다(공포 상승, 자원 손실, 길 잃음, 괴이 출현 등).
+- 무대: 한빛 교육특구 중심부의 대형 성인 기숙학원 「한빛 기숙학원」. 만 20세 이상만 입소할 수 있고, 재수·편입·자격시험·공무원 시험 등을 준비하는 20대가 다닌다. 전원 기숙사 생활, 반 담임(관리 선생님), 아침·야간 점호, 휴대폰 반납 시간, 외출 허가제, 벌점제. 플레이어와 유민은 7반이다. 낮에는 수업·자습·급식 같은 짧은 일상 장면, 밤에는 점호 후 몰래 빠져나가 구역을 조사하는 흐름으로 낮과 밤의 대비를 만든다.
+- 플레이어(기본 이름 도현): 20세, 학기 중간에 입소한 전입생(반에서는 '전학생'). 중간 입소 이유는 캐릭터 정보를 따르고, 없으면 네가 정하되 서서히 드러낸다. 입소 첫날 받은 서류 사이에 지워진 구역 이름이 적힌 오래된 출석부가 섞여 들어오면서 이야기가 시작된다.
+- 반 동기 NPC(반장, 규율부원, 괴담 마니아 등): 필요에 따라 등장시키고, 처음 등장할 때 이름과 특징을 정해 서술에 분명히 담는다.
+- 세력: 재원생 자치위원회 규율부(학생 쪽 적대 세력. 교표 조각을 먼저 손에 넣으려 하며 점호 단속과 벌점을 무기로 쓴다), 시설관리공단 특수관리팀 통칭 '청소반'(어른 쪽 적대 세력. 지워진 구역의 흔적을 지우고 조각을 회수하려 한다). 두 세력의 진짜 목적과 관계는 네가 정하되 서서히 드러낸다. 사람인 적대 세력과는 전투가 일어날 수 있다. 괴이와는 전투보다 도주·은신·교칙 지키기가 기본 대응이다.
+- 최종 목표: 한빛 교육특구 교표의 파편인 교표 조각 8개 모으기. 학원도시가 숨긴 것의 정체와 엔딩은 플레이어의 선택과 쌓인 단서로 네가 정한다. 1막에서는 지워진 구역이 일곱이라는 수를 플레이어가 아직 모른다 — 직접 말하지 말고 아주 희미한 암시만 허용한다.
+
+[유민 (동행 NPC)]
+- 20세 남성, 7반 재원생, 플레이어의 옆자리. 느긋하고 장난스럽다. 불편할수록 말이 많아지고 화제를 돌린다. 단답이나 차가운 거절은 유민답지 않다. 학원 괴담과 지워진 구역 소문에 밝은 정보원이며, 주말 외출 때는 상점가에서 버스킹을 한다.
+- 노래로 소리, 교내 방송, 전자기기를 흔든다. 동행 중 위기에서 자동으로 나서기도 하지만 과하게 써서 판을 뒤집는 일이 잦다.
+- 내면(대사로 직접 말하지 않고 서술로만 암시): 친밀감과 의존을 두려워한다. 할아버지의 죽음과 당국의 배신이 얽혀 있다. 이 학원에 들어온 이유는 말하지 않는다.
+- 말투: 가벼운 구어체 반말, 늘임표(~)는 응답당 1~2회까지, 호칭은 "도현아"처럼 플레이어 이름 + "너", 주어를 자주 생략한다. 대화가 깊어지는 걸 감지하면 농담하며 빗겨 가고, 플레이어에게 직접 캐묻지 않는다. 첫 만남에서는 낯선 사이로 대한다.
+- 호감 단계(낯선 사이→아는 사이→친구→…)는 [인연]·유민 프로필의 지시를 따른다. 호감 수치는 게임 코드가 관리한다.
+- 유민의 연애 서사와 사연 서사는 별개다. 본편 진행과 따로 진행되며 본편 진상을 대신 풀어주지 않는다. 실패하면 바로 닫지 말고 시간이 지나 다시 열릴 기회를 만든다.
+
+[서술 규칙]
+- 반드시 한국어, 플레이어를 2인칭 현재형("너는 ~한다")으로 서술한다.
+- 공포는 괴물을 직접 묘사하기보다 소리, 흔적, 빛, 규칙 위반의 결과로 보여준다. 일상 장면은 짧고 가볍게, 조사 장면은 감각 묘사를 촘촘하게. 현대 한국 학원의 생활감(형광등, 자습실, 급식, 단톡방, 점호 방송)을 살린다.
+- 공포 수치가 높으면 서술이 왜곡되고(문장 반복, 착각, 시간 감각 혼란) 선택지가 좁아진다.
+- 서술은 3~6문단 정도, 500~900자. 감각적 묘사(빛, 소리, 냄새, 온도)를 쓰되 장황하지 않게.
 - 한 장면에 새로 드러나는 단서는 하나만. 장치·글귀·물건의 비밀이나 수수께끼의 답, 작동 원리를 한 번에 다 보여 주지 말고, 플레이어가 한 걸음씩 다가갈 때마다 하나씩 드러낸다. 아직 읽지 않은 글이나 열지 않은 것의 내용은 서술하지 않는다.
 - 서술 안에서 중요한 부분(핵심 단서·고유명사·얻거나 잃은 물건·분명한 위험·중대한 결정)은 **이렇게 굵게**, 소리·속삭임·속마음·강조는 *이렇게 기울여* 표시한다. 한 문단에 많아야 한두 곳, 남발하지 않는다. 별표(*) 표기 외의 마크다운(제목·목록·인용)은 쓰지 않고, narration 외의 필드(choices·chronicle 등)에는 별표를 쓰지 않는다.
-- 플레이어의 출신, 특성, 배경 이야기를 자연스럽게 엮어라.
-- 숫자 상태(체력, 물 등)는 게임 코드가 관리한다. 너는 effects로 변화만 제안하라.
+- 플레이어의 입소 이유, 특성, 배경 이야기를 자연스럽게 엮어라.
+- 숫자 상태(체력, 공포, 배터리 등)는 게임 코드가 관리한다. 너는 effects로 변화만 제안하라.
 - 숨겨진 진실은 [숨겨진 진실] 항목의 지시를 따른다. 결말 전에는 절대 직접 밝히지 말고, 단서와 소문으로만 흘려라.
 - 인물과의 관계는 [인연] 단계를 지켜라. 단계를 건너뛰어 고백하거나 연인처럼 굴지 않는다. 호감은 쉽게 오르지 않는다.
-- 연애 묘사는 설렘과 감정 중심으로 품위 있게 쓰고, 성적인 묘사는 하지 않는다. 아이나 청소년 인물과는 어떤 연애 감정도 묘사하지 않는다.
 - 출력은 오직 JSON 하나. 다른 텍스트 금지.`;
 
 /* 서술 AI에게 주는 출력 형식. 선택지는 종류(type)를, 상인·수원은 사건(event)으로 받는다. 사전은 별도 AI가 정리. */
@@ -982,20 +1025,25 @@ const TURN_SCHEMA=`출력 JSON 형식:
  "narration": "서술 (문단은 \\n\\n로 구분)",
  "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","type":"story|check|rest|camp|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)"}],
  "event": null,
- "effects": {"hp":0,"water":0,"food":0,"torch":0,"gold":0,"affinity":0,"companion_join":false,"relations":[],"relation_event":null,"materials":{"stone":0,"wood":0,"cloth":0,"relic":0},"items_add":[],"items_remove":[],"fragment":false},
+ "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"stone":0,"wood":0,"cloth":0,"relic":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[]},
  "chronicle": "이번 장면이 이야기상 중요하면 한 줄 요약, 아니면 빈 문자열"
 }
-effects 범위(한 장면): ${Object.entries(FX_LIMIT).map(([k,[a,b]])=>`${k} ${a}~+${b}`).join(', ')}. 물건을 살 때만 water·food·torch를 산 만큼 넣는다. 범위를 넘는 값은 코드가 잘라 낸다. 아이템은 이야기상 실제로 얻거나 잃을 때만.
-캐시 보상은 절제한다: 작은 발견 +5~15, 큰 발견 +20~40 정도이고, 구역 한 곳을 통틀어 얻는 캐시 합계가 ${RUIN_GOLD_CAP} 이하가 되도록 조절한다. 재물을 얻은 장면이 아니면 gold는 0.
-물·식량·손전등·캐시는 effects 수치로만 관리하고 items_add에 넣지 않는다(물주머니·빵·손전등 같은 소모품도 마찬가지). 소지품 목록에 있는 물건을 쓰거나 다른 것으로 바꾸거나 잃으면 반드시 items_remove에 소지품에 적힌 이름 그대로 넣는다.
-companion_join은 유민이 지금 장면에 있고, 이야기 흐름 속에서 유민이 함께 가기로 분명히 정해진 순간에만 true.
-relations: 이번 장면에서 플레이어와 실제로 대화하거나 교류한 인물(유민 제외)마다 {"name":"사전에 쓴 것과 같은 이름","delta":호감 변화,"adult":성인이면 true, 아이·청소년이면 false}. 교류가 없으면 빈 배열. 호감은 쉽게 오르지 않는다: 스쳐 가는 대화 0, 즐거운 대화 1, 도움이나 진심 2~3, 큰 은혜 4~5, 무례 -2~-5. 사람처럼 대화가 통하는 인물만 넣고 몬스터·동물·괴물·정령·사물은 넣지 말 것.
+effects 범위(한 장면): ${fxRangeText()}. 공포는 늘면 양수·가라앉으면 음수다. 물건을 살 때만 배터리·손전등을 산 만큼 넣고, 따뜻한 차 같은 진정 음료를 샀을 때만 공포를 그만큼 음수로 넣는다. 범위를 넘는 값은 코드가 잘라 낸다. 아이템은 이야기상 실제로 얻거나 잃을 때만.
+공포: 괴이·교칙 위반·어둠·고립에서 오른다(+1~2). 진정되는 장소·동행·따뜻한 음료에서 내려간다(−1~−2). 서술의 공포 묘사와 수치를 맞춘다.
+벌점: 점호 누락·무단 외출·교칙(학원 규정) 위반이 실제로 적발됐을 때만 +1~+3. 코드가 점호 누락·무단 외출은 자동으로 처리하니 중복해서 넣지 말 것. 출입권한: 출입 카드·권한 상향을 서술상 분명히 얻었을 때만 +1(등급은 1~3, 코드가 상한을 지킨다).
+캐시 보상은 절제한다: 작은 발견 +5~15, 큰 발견 +20~40 정도이고, 구역 한 곳을 통틀어 얻는 캐시 합계가 ${RUIN_GOLD_CAP} 이하가 되도록 조절한다. 재물을 얻은 장면이 아니면 캐시는 0.
+배터리·손전등·캐시·공포는 effects 수치로만 관리하고 items_add에 넣지 않는다(보조배터리·건전지·따뜻한 차 같은 소모품도 마찬가지). 소지품 목록에 있는 물건을 쓰거나 다른 것으로 바꾸거나 잃으면 반드시 items_remove에 소지품에 적힌 이름 그대로 넣는다.
+companion_join은 유민이 지금 장면에 있고, 이야기 흐름 속에서 유민이 함께 가기로 분명히 정해진 순간에만 true. 유민호감은 유민과 실제로 교류한 장면에서만(범위 -5~+5).
+relations: 이번 장면에서 플레이어와 실제로 대화하거나 교류한 인물(유민 제외)마다 {"name":"사전에 쓴 것과 같은 이름","delta":호감 변화,"adult":성인이면 true}. 모든 인물은 20세 이상이므로 adult는 항상 true. 교류가 없으면 빈 배열. 호감은 쉽게 오르지 않는다: 스쳐 가는 대화 0, 즐거운 대화 1, 도움이나 진심 2~3, 큰 은혜 4~5, 무례 -2~-5. 사람처럼 대화가 통하는 인물만 넣고 괴이·동물·사물은 넣지 말 것.
 relation_event: 진행 중인 인연 이벤트가 있을 때만 {"name":"..","result":"success|fail|pending"}, 없으면 null.
 yumin_arc: [유민의 사연] 장면이 진행 중일 때만 effects 안에 {"result":"success|fail|pending","canon":"이번 장면에서 새로 드러난 유민의 과거 사실 1~2문장(없으면 빈 문자열)"}, 아니면 넣지 않는다.
-materials는 구역에서 플레이어가 실제로 쓸 만한 석재, 목재, 천, 고대 유실물을 챙겼을 때만 (각 0~2, 유실물 0~1).
-사전(lexicon)은 별도로 자동 정리되므로 JSON에 넣지 않는다. 새 인물·장소·괴담은 서술에 분명히 담아라.
+materials는 구역에서 플레이어가 실제로 쓸 만한 철제 부품, 합판, 전선, 유실물을 챙겼을 때만 (각 0~2, 유실물 0~1).
+교표조각: 교표 조각을 손에 넣는 장면에서만 true (코드가 조건을 확인한다).
+사전추가: 이번 장면에서 새로 나온 인물·장소·괴담이 있으면 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}], 없으면 []. 괴담 사전은 별도로도 자동 정리되니 핵심 항목만 넣는다.
+조사보드: 이번 장면에서 새로 생긴 단서·증언·모순점을 짧은 문장 배열로, 없으면 []. 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등)을 "항목 = 내용" 형식 배열로, 없으면 []. 이미 적힌 것을 반복하지 말 것.
 [선택지·사건 규칙]
 - choices는 3~4개의 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기, 해독, 설득, 함정 피하기, 몰래 지나가기 등)은 "check"와 알맞은 skill·dc. 쉬기/잠자기는 "rest", 임시 쉼터는 "camp", 중앙 캠퍼스 지구 귀환은 "return", 구역 밖으로 나가기는 "exit", 사고팔기는 "trade". 그 밖의 관찰·대화·묘사 중심 행동은 "story". 능력치: str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정.
+- 괴이와 마주친 장면에서는 싸우는 선택지보다 "도주 / 숨기 / 교칙 지키기" 계열을 우선한다. 전투는 규율부·청소반 같은 사람이 상대일 때만.
 - 구역 안에서는 return·exit 선택지를 만들지 말 것(이동·귀환은 고정 버튼이 있다).
 [선택지 작성 규칙 — 몰입을 위해 반드시 지킬 것]
 - 선택지 하나에는 행동 하나, 대상 하나만. "~과 ~을 이용해 ~한다", "~한 뒤 ~한다"처럼 여러 단계를 묶지 않는다.
@@ -1003,8 +1051,8 @@ materials는 구역에서 플레이어가 실제로 쓸 만한 석재, 목재, �
 - 소지품은 플레이어가 이번 장면이나 직전 행동에서 직접 꺼내거나 언급했을 때만 선택지에 넣는다.
 - 수수께끼·함정·장치는 단계별로: 살펴보기 → 만져보기·건드리기 → 풀기. 처음 보는 장치에 바로 '푼다'는 선택지를 만들지 않는다.
 - 짧고 구체적인 동사로(15자 안팎). 구성은 보통: 관찰 하나 + 직접 행동 하나 + 조심스럽거나 다른 방향 하나, 위험이 있으면 판정(check) 하나.
-- 나쁜 예: 「출석부의 내용과 추를 이용해 함정을 푼다」 / 좋은 예: 「먼지 출석부를 들여다본다」 「쐐기 모양 벽을 손으로 더듬는다」 「뒤로 물러나 방 전체를 살핀다」
-- event: 이 장면에서 상인이 물건을 팔겠다고 나서면 {"type":"merchant","name":"상인 이름 짧게"}, 마실 물이 있는 곳(우물·샘·오아시스·물웅덩이·빗물 고인 곳)을 발견하면 {"type":"water_source","name":"짧은 이름"}, 플레이어가 가 볼 만한 구체적인 장소의 이름과 가는 길(소문·지도·단서)을 새로 알게 되면 {"type":"place_lead","name":"장소 이름 14자 이내","hint":"어디에 있고 어떻게 가는지 한 줄"}(이미 알려진 장소·마을·도시는 제외, 한 장면에 하나), 아니면 null. 상인·물 사건은 물·식량·손전등을 effects로 직접 주지 말 것 — 게임이 거래·물 채우기 버튼을 띄운다.
+- 나쁜 예: 「출석부의 내용과 방송 장치를 이용해 교칙을 푼다」 / 좋은 예: 「오래된 출석부를 펼쳐 본다」 「게시판의 낙서를 손으로 더듬는다」 「뒤로 물러나 복도 전체를 살핀다」
+- event: 이 장면에서 상인(행상·자판기 주인 등)이 물건을 팔겠다고 나서면 {"type":"merchant","name":"상인 이름 짧게"}, 공포를 가라앉힐 수 있는 곳(불 켜진 휴게 공간·따뜻한 음료 자판기·정수기 코너·사람 많은 식당)을 발견하면 {"type":"water_source","name":"짧은 이름"}, 플레이어가 가 볼 만한 구체적인 장소의 이름과 가는 길(소문·지도·단서)을 새로 알게 되면 {"type":"place_lead","name":"장소 이름 14자 이내","hint":"어디에 있고 어떻게 가는지 한 줄"}(이미 알려진 장소·지구·구역은 제외, 한 장면에 하나), 아니면 null. 상인·진정 장소 사건은 공포·배터리·손전등을 effects로 직접 바꾸지 말 것 — 게임이 거래·진정 버튼을 띄운다.
 - [판정 결과] 지시가 있으면 그 결과를 그대로 따른다.`;
 
 function narrCfg(){
@@ -1020,13 +1068,17 @@ function narrCfg(){
 function sysBase(){
   const c=narrCfg(), base=SYS_BASE+actNote();
   if(!SET||!SET.narrLen||SET.narrLen==='m') return base;
-  return base.replace(/서술은 2~4문단, 350~700자/,`서술은 ${c.p}, ${c.s[0]}~${c.s[1]}문장(대략 ${c.c[0]}~${c.c[1]}자). 이 분량을 반드시 지킨다`).replace('장황하지 않게','군더더기 없이');
+  return base.replace(/서술은 3~6문단 정도, 500~900자/,`서술은 ${c.p}, ${c.s[0]}~${c.s[1]}문장(대략 ${c.c[0]}~${c.c[1]}자). 이 분량을 반드시 지킨다`).replace('장황하지 않게','군더더기 없이');
 }
 function toneHint(){
   const deep=G.dungeon?(G.dungeon.depth||0):0, parts=[];
-  if(G.act===1) parts.push('전체 분위기: 경이롭고 활기찬 천일야화풍 모험. 다만 위험과 미스터리의 기척을 깔아 둘 것.');
-  if(G.time==='밤') parts.push('지금은 밤: 긴장감 있고 으스스하게.');
-  if(deep>=3) parts.push('구역 깊은 곳: 어둡고 섬뜩한 생존 분위기.');
+  if(G.act===1) parts.push('전체 분위기: 평범한 학원 생활의 질감 속에 위화감이 번지는 일상 + 괴담 호러. 일상은 가볍게, 조사는 촘촘하게.');
+  if(G.time==='낮') parts.push('지금은 낮(수업·자습·급식): 짧고 가벼운 일상 장면 위주.');
+  else if(G.time==='방과 후') parts.push('지금은 방과 후: 학원이 비어 가는 시간. 소문과 조사가 시작된다.');
+  else if(G.time==='야간') parts.push('지금은 야간(점호 후): 긴장감 있고 으스스하게. 형광등 소리와 방송 노이즈.');
+  else if(G.time==='새벽') parts.push('지금은 새벽: 가장 괴이가 강한 시간. 정적과 이상한 흔적.');
+  if(deep>=3) parts.push('구역 깊은 곳: 소리·흔적·빛으로 압박하는 어둡고 섬뜩한 분위기.');
+  if(fearRatio()>=FEAR_RED) parts.push(`[공포 ${fearNow()}/${fearMax()}] 서술이 왜곡된다: 문장 반복, 착각, 시간 감각 혼란.${fearRatio()>=FEAR_NOISE?' 선택지도 좁아진다(도주·숨기·교칙 지키기 위주).':''}`);
   return parts.join(' ');
 }
 
@@ -1034,12 +1086,12 @@ function toneHint(){
 function stateFacts(){
   const c=G.char;
   const o={
-    캐릭터:{이름:c.name,출신:c.origin,고향:c.region,능력치:{체력:c.stats.str,지혜:c.stats.wis,매력:c.stats.cha,생존술:c.stats.sur},특성:c.traits,배경:c.bio||'(없음)'},
-    상태:{체력:`${G.hp}/${G.maxhp}`,물:`${G.water}/${capW()}`,식량:`${G.food}/${capF()}`,손전등:`${G.torch}/${capT()}`,캐시:G.gold,소지품:G.items,교표조각:`${G.fragments}/${FRAG_GOAL}`},
+    캐릭터:{이름:c.name,나이:c.age||20,신분:c.origin,입소이유:c.reason||'(미정 — AI가 정해 서서히 드러낼 것)',능력치:{체력:c.stats.str,지혜:c.stats.wis,매력:c.stats.cha,생존술:c.stats.sur},특성:c.traits,배경:c.bio||'(없음)'},
+    상태:{체력:`${G.hp}/${G.maxhp}`,공포:`${fearNow()}/${fearMax()} (높을수록 위험)`,배터리:`${batteryPct()}%`,손전등:`${G.torch}/${capT()}`,캐시:G.gold,벌점:`${G.demerit||0} (${DEMERIT_WARN} 이상이면 외출 금지 경고)`,출입권한:`${G.access||1}등급 (1~${ACCESS_MAX})`,소지품:G.items,교표조각:`${G.fragments}/${FRAG_GOAL}`},
     날짜:`${G.day}일째 ${G.time}`,
-    알려진지명:MAP_PLACES.filter(p=>p.far&&G.discovered.includes(p.id)).map(p=>`${p.n}(${p.lore||''} 소문으로만 아는 먼 땅)`).join(' / ')||'없음',
-    아지트:has('land')?`${G.home.name||'오아시스의 집'} — 시설: ${FAC.filter(f=>has(f.id)).map(f=>f.n).join(', ')}`:'없음',
-    탈것:G.mount?`${MOUNTS[G.mount.type].n} 「${G.mount.name}」 (${G._mountFed===false?'사료를 못 먹어 지쳐 있음':'원기 왕성'}) — 평소 아지트 마구간에 있고 조사 외출에 데려간다. 한빛시 이동 장면에서 가끔(매번은 아님) 자연스럽게 등장시킬 것`:'없음',
+    알려진지명:MAP_PLACES.filter(p=>p.far&&G.discovered.includes(p.id)).map(p=>`${p.n}(${p.lore||''} 소문으로만 아는 곁가지 구역)`).join(' / ')||'없음',
+    아지트:has('land')?`${G.home.name||'폐 동아리실'} — 시설: ${FAC.filter(f=>has(f.id)).map(f=>f.n).join(', ')}`:'없음',
+    탈것:G.mount?`${MOUNTS[G.mount.type].n} 「${G.mount.name}」 (${G._mountFed===false?'충전을 못 해 지쳐 있음':'상태 좋음'}) — 평소 아지트 자전거 보관대에 있고 조사 외출에 데려간다. 한빛시 이동 장면에서 가끔(매번은 아님) 자연스럽게 등장시킬 것`:'없음',
     자재:MATS.map(m=>`${m.n} ${G.mat[m.k]}`).join(', ')+(G.mat.relic?` (유실물 등급: ${relicText()})`:''),
   };
   const rules=[];
@@ -1050,17 +1102,17 @@ function stateFacts(){
 /* 현재 장면: 기본 + context 훅 (훅은 덧붙일 문장을 돌려줌) */
 function sceneContext(){
   let s;
-  if(G.loc==='city') s='현재 위치: 교역 도시 중앙 캠퍼스 지구 (안전한 아지트).';
+  if(G.loc==='city') s='현재 위치: 중앙 캠퍼스 지구 — 한빛 기숙학원과 상점가가 있는 안전한 생활 지구.';
   else if(G.loc==='town'){ const t=curTown(); s=`현재 위치: ${t.n} — ${t.desc} 중앙 캠퍼스 지구에서 ${townDays(G.town)}일 거리.` }
-  else if(G.loc==='home') s=`현재 위치: 플레이어의 아지트 「${G.home.name||'오아시스의 집'}」 — 중앙 캠퍼스 지구 외곽 저수지 둑길. 지어진 시설: ${FAC.filter(f=>has(f.id)).map(f=>f.n).join(', ')}.`;
-  else if(G.loc==='road') s='현재 위치: 중앙 캠퍼스 지구에서 구역으로 가는 한빛시 뒷길. 뜨거운 찬 바람, 전동 스쿠터 발자국, 멀리 보이는 바위 언덕.';
+  else if(G.loc==='home') s=`현재 위치: 플레이어의 아지트 「${G.home.name||'폐 동아리실'}」 — 중앙 캠퍼스 지구 외곽 저수지 둑길 옆. 지어진 시설: ${FAC.filter(f=>has(f.id)).map(f=>f.n).join(', ')}.`;
+  else if(G.loc==='road') s='현재 위치: 중앙 캠퍼스 지구에서 구역으로 가는 한빛시 뒷길. 깜빡이는 가로등, 닫힌 셔터, 멀리 보이는 폐건물의 실루엣.';
   else if(G.loc==='camp') s=`현재 위치: ${G.dungeon?G.dungeon.name+' 안의 임시 쉼터':'한빛시의 임시 쉼터'}.`;
   else{
     const d=G.dungeon, r=curRoom();
     const exits=r.exits.map(id=>(d.rooms.find(x=>x.id===id)||{}).name).join(', ');
-    s=`현재 위치: 구역 「${d.name}」 (주제: ${d.theme}) / 방: ${r.name} (깊이 ${d.depth}, 위험도 ${r.danger}/3)\n방의 설정 메모: ${r.desc}\n연결된 방: ${exits}`;
-    if(r.fragment&&!r.fragTaken) s+=`\n[비밀] 이 방에는 교표 조각이 숨어 있다. 플레이어가 주의 깊게 조사하거나 장애물(함정, 수수께끼, 수호자)을 넘기면 발견하게 하고, 그때 effects.fragment를 true로 하라. 쉽게 주지는 말 것.`;
-    if(G.torch<=0) s+=hasTrait('밤눈')?'\n손전등이 다 떨어졌지만 플레이어는 밤눈이 밝아 희미하게나마 볼 수 있다.':'\n[어둠] 손전등이 다 떨어져 거의 아무것도 보이지 않는다. 손으로 더듬어 움직인다. 이 상태에서는 단서나 교표 조각을 찾아내지 못한다(effects.fragment는 false). 빛을 구하는 선택지를 하나 넣어라.';
+    s=`현재 위치: 구역 「${d.name}」 (주제: ${d.theme}) / 구역 내부 공간: ${r.name} (깊이 ${d.depth}, 위험도 ${r.danger}/3)\n공간의 설정 메모: ${r.desc}\n연결된 공간: ${exits}`;
+    if(r.fragment&&!r.fragTaken) s+=`\n[비밀] 이 공간에는 교표 조각이 숨어 있다. 플레이어가 주의 깊게 조사하거나 장애물(교칙, 수수께끼, 괴이)을 넘기면 발견하게 하고, 그때 effects의 교표조각을 true로 하라. 쉽게 주지는 말 것.`;
+    if(G.torch<=0) s+=hasTrait('밤눈')?'\n손전등이 다 떨어졌지만 플레이어는 밤눈이 밝아 희미하게나마 볼 수 있다.':'\n[어둠] 손전등이 꺼져 거의 아무것도 보이지 않는다(휴대폰 화면 불빛만 겨우). 손으로 더듬어 움직인다. 이 상태에서는 단서나 교표 조각을 찾아내지 못한다(교표조각은 false). 빛을 구하는 선택지를 하나 넣어라.';
   }
   for(const h of HOOKS.context){ try{ const add=h.fn(); if(add) s+=add }catch(e){ console.warn('[context]',e) } }
   return s;
@@ -1078,8 +1130,8 @@ function buildPrompt(action,extra=''){
   const ctx=sceneContext();
   const allText=action+' '+G.recent.map(r=>r.text).join(' ')+' '+ctx;
   const met=!!(G.comp&&G.comp.met), yn=met&&yuminNeeded(allText);
-  const stable=`${G.act>=4?'[숨겨진 진실 — 결말: 지워진 일곱 구역을 모두 찾았으므로 이제 밝혀도 된다]':'[숨겨진 진실 — 플레이어에게 절대 직접 밝히지 말 것]'}
-보물의 정체: ${G.secret?.truth||'미정'} / ${G.secret?.detail||''}
+  const stable=`${G.act>=4?'[숨겨진 진실 — 결말: 지워진 일곱 구역을 모두 찾았으므로 이제 밝혀도 된다. 정체와 엔딩은 네가 정해 온 사실과 단서에 맞춘다]':'[숨겨진 진실 — 플레이어에게 절대 직접 밝히지 말 것]'}
+학원도시가 숨긴 것의 정체(네가 정한 사실): ${G.secret?.truth||'미정 — 단서가 필요해질 때 네가 일관되게 정하고 떡밥 장부에 기록하라'} / ${G.secret?.detail||''}
 
 [지금까지의 줄거리 요약]
 ${G.summary||'(이제 막 시작)'}
@@ -1197,36 +1249,69 @@ function fallbackTurn(action){
   /* AI 없이 진행할 때의 기본 서술·선택지 — 위치(중앙 캠퍼스 지구·마을·아지트·임시 쉼터·한빛시 뒷길·구역)에 맞춰 고름 */
   const L=G.loc;
   const SET_={
-    city:{lines:['상점가의 소음이 당신을 감싼다. 향신료 냄새와 전동 스쿠터 울음소리 사이로, 누군가 라쿠나 구역이라는 이름을 낮게 속삭인다.','구내식당 주인이 은잔을 닦으며 당신을 흘끗 본다. "한빛시는 원하는 자에게만 길을 보여주지."'],choices:['상점가를 둘러본다','구내식당에 들른다']},
-    town:{lines:['낯선 말씨와 풍습 속에서 사람들이 당신을 흘끗거린다. 이곳에도 라쿠나 구역의 소문이 닿아 있는 듯하다.','골목 끝에서 누군가 먼 길을 떠나는 짐을 꾸리고 있다.'],choices:['마을 사람들의 이야기를 엿듣는다','주변을 둘러본다']},
-    home:{lines:['오아시스의 바람이 야자잎을 흔든다. 흙벽 오두막에는 돌아올 곳의 냄새가 배어 있다.','물 긷는 소리가 멀리서 들린다. 이곳에서는 잠시 숨을 돌려도 좋다.'],choices:['아지트 주변을 둘러본다','잠시 쉬며 생각을 정리한다']},
-    camp:{lines:['모닥불이 낮게 탁탁 튄다. 불빛 너머로 별이 쏟아지고, 어둠 속에서 먼지가 속삭이듯 스친다.','불가에 앉아 있자니 하루의 피로가 천천히 가라앉는다. 멀리서 바람 소리만 들릴 뿐이다.'],choices:['모닥불 곁에서 쉬며 상황을 정리한다','장비를 점검한다','주변 소리에 귀를 기울인다']},
-    road:{lines:['뜨거운 찬 바람이 얼굴을 스친다. 발자국은 곧 먼지에 묻혀 사라진다.','저 멀리 바위 언덕이 아지랑이 속에서 일렁인다.'],choices:['주변 한빛시를 살핀다','잠시 쉬며 물을 아낀다','방향을 가늠해 본다']},
-    dungeon:{lines:['손전등이 흔들리며 벽의 문양이 살아 움직이는 듯 보인다. 먼지가 천장 틈으로 가늘게 흘러내린다.','어디선가 바람이 지나가는 소리가 들린다. 이 구역은 아직 무언가를 숨기고 있다.','발밑의 돌판이 살짝 꺼진다. 당신은 숨을 멈추고 주위를 살핀다.'],choices:['주변을 자세히 조사한다','벽의 문자를 읽어본다','조용히 귀를 기울인다']},
+    city:{lines:['형광등 소리가 낮게 웅웅거린다. 상점가 쪽에서 누군가 지워진 구역 이야기를 낮게 속삭인다.','구내식당 아주머니가 국자를 닦으며 너를 흘끗 본다. "밤에 복도를 돌아다니는 애들, 꼭 한 명씩 사라지더라."'],choices:['상점가를 둘러본다','구내식당에 들른다']},
+    town:{lines:['낯선 거리의 사람들이 너를 흘끗거린다. 이곳에도 지워진 구역의 소문이 닿아 있는 듯하다.','골목 끝에서 누군가 급히 짐을 꾸리고 있다.'],choices:['이 지구 사람들의 이야기를 엿듣는다','주변을 둘러본다']},
+    home:{lines:['폐 동아리실 창밖으로 저수지의 물빛이 흔들린다. 곰팡이와 오래된 종이 냄새에 돌아올 곳의 안도감이 섞여 있다.','복도 끝에서 수도꼭지 떨어지는 소리가 들린다. 이곳에서는 잠시 숨을 돌려도 좋다.'],choices:['아지트 주변을 둘러본다','잠시 쉬며 생각을 정리한다']},
+    camp:{lines:['랜턴 불빛이 낮게 떨린다. 불빛 너머 어둠 속에서 무언가 바닥을 스치는 소리가 난다.','벽에 기대어 앉자 하루의 피로가 천천히 가라앉는다. 멀리서 환풍기 소리만 들린다.'],choices:['랜턴 곁에서 쉬며 상황을 정리한다','장비를 점검한다','주변 소리에 귀를 기울인다']},
+    road:{lines:['깜빡이는 가로등 아래로 네 그림자가 길게 늘어진다. 발소리가 어딘가 한 박자 늦게 따라온다.','저 멀리 폐건물의 창문이 어둠 속에서 하얗게 번득인다.'],choices:['주변 골목을 살핀다','잠시 쉬며 마음을 가라앉힌다','방향을 가늠해 본다']},
+    dungeon:{lines:['손전등 불빛이 흔들리며 벽의 낙서가 살아 움직이는 듯 보인다. 천장에서 물방울이 느리게 떨어진다.','어디선가 끊긴 교내 방송 같은 잡음이 지나간다. 이 구역은 아직 무언가를 숨기고 있다.','발밑의 타일이 살짝 꺼진다. 너는 숨을 멈추고 주위를 살핀다.'],choices:['주변을 자세히 조사한다','벽의 글씨를 읽어본다','조용히 귀를 기울인다']},
   };
   const T=SET_[L]||SET_.city;
   const effects={}, r=curRoom();
   let narration=`(${action})\n\n`+rand(T.lines);
   if(L==='dungeon'&&r&&r.fragment&&!r.fragTaken&&/조사|살펴|찾/.test(action)&&Math.random()<0.6){
-    narration+='\n\n돌 틈에서 푸른 안료로 별자리가 그려진 점토 조각이 손끝에 걸린다. 교표 조각이다!';
+    narration+='\n\n문틈 사이에서 교표의 한 귀퉁이처럼 보이는 금속 조각이 손끝에 걸린다. 교표 조각이다!';
     effects.fragment=true;
   }
   return {narration,choices:T.choices.slice(),effects,chronicle:''};
+}
+
+/* AI가 새 항목명(한글 키)으로 준 효과를 내부 키로 옮김: 체력·공포·배터리·손전등·캐시·벌점·출입권한·유민호감·교표조각·사전추가·조사보드·떡밥장부 */
+function koEffects(e){
+  const m={체력:'hp',배터리:'food',손전등:'torch',캐시:'gold',벌점:'demerit',출입권한:'access',유민호감:'affinity',교표조각:'fragment',사전추가:'lexAdd',조사보드:'board',떡밥장부:'ledgerAdd'};
+  for(const k in m){ if(e[k]!==undefined){ if(e[m[k]]===undefined) e[m[k]]=e[k]; delete e[k] } }
+  if(e['공포']!==undefined){ if(e.water===undefined) e.water=-(+e['공포']||0); delete e['공포'] }   // 공포 +는 내부 water −
+  return e;
+}
+/* 벌점: 점호 누락·무단 외출 등. 임계치를 넘으면 외출 금지 경고 */
+function addDemerit(d,why,fx){
+  const before=G.demerit||0; G.demerit=Math.max(0,before+d);
+  const t=`📕 벌점 ${d>0?'+':''}${d}${why?` (${why})`:''} → ${G.demerit}`;
+  if(fx) fx.push(t); else addLog('fx',t);
+  if(G.demerit>=DEMERIT_WARN&&before<DEMERIT_WARN) addLog('sys',`⚠ 벌점이 ${DEMERIT_WARN}점에 이르렀습니다. 외출 금지 경고 — 이제 무단 외출이 적발되면 더 큰 불이익을 받습니다.`);
+  if(G.demerit<DEMERIT_WARN) G._demWarned=false;
+}
+/* 사전추가 · 조사보드 · 떡밥장부 (AI가 응답에 직접 준 항목) */
+function applyBoardLedger(e,fx){
+  (Array.isArray(e.lexAdd)?e.lexAdd:[]).slice(0,4).forEach(x=>{ if(x&&x.name&&x.desc) addLex({name:String(x.name).slice(0,30),cat:x.cat,desc:String(x.desc).slice(0,300)},false) });
+  const board=(Array.isArray(e.board)?e.board:[]).map(x=>String(x&&(x.text||x)||'').trim()).filter(Boolean).slice(0,2);
+  if(board.length) applyThreads(G,{threads_new:board});
+  (Array.isArray(e.ledgerAdd)?e.ledgerAdd:[]).slice(0,4).forEach(x=>{
+    const s=String(x&&(x.text||x)||'').trim().slice(0,160); if(s.length<3) return;
+    const k=s.split('=')[0].trim();
+    if(!Array.isArray(G.ledger)) G.ledger=[];
+    const i=G.ledger.findIndex(y=>y.split('=')[0].trim()===k);
+    if(i>=0) G.ledger[i]=s; else G.ledger.push(s);
+  });
+  if(G.ledger&&G.ledger.length>40) G.ledger=G.ledger.slice(-40);
 }
 
 /* ---------- 4-7. 효과 적용 ----------
    AI가 제안한 효과 e 를 effects 훅들이 차례로 거른 뒤(코드가 판정), 실제로 반영하고, applied 훅이 뒷정리 */
 function applyEffects(raw,T){
   T=T||curTurn||{flags:{}};
-  const e=Object.assign({},raw||{});
+  const e=koEffects(Object.assign({},raw||{}));
   const snap={water:G.water,food:G.food,torch:G.torch,gold:G.gold,relic:G.mat.relic,items:G.items.slice(),frags:G.fragments,loc:G.loc};
   const ctx={T,snap,fx:[],after:[]};
   for(const h of HOOKS.effects){ try{ h.fn(e,ctx) }catch(err){ console.warn('[effects]',err) } }
   const fx=ctx.fx;
   const num=k=>{ let [lo,hi]=FX_LIMIT[k]; if(ctx.buy&&k!=='hp'&&k!=='gold') hi=FX_BUY_MAX;
-    const v=clamp(Math.round(+e[k]||0),lo,hi); if(v){ G[k]+=v; fx.push(`${FX_NAME[k]} ${v>0?'+':''}${v}`) } };
+    const v=clamp(Math.round(+e[k]||0),lo,hi); if(v){ G[k]+=v; const sv=k==='water'?-v:v; fx.push(`${FX_NAME[k]} ${sv>0?'+':''}${sv}`) } };   // 공포는 water의 반대 방향으로 보여 줌
   ['hp','water','food','torch','gold'].forEach(num);
   G.hp=clamp(G.hp,0,G.maxhp); ['water','food','torch','gold'].forEach(k=>G[k]=Math.max(0,G[k]));
+  const dm=clamp(Math.round(+e.demerit||0),FX_LIMIT.demerit[0],FX_LIMIT.demerit[1]); if(dm) addDemerit(dm,'',fx);
+  if(clamp(Math.round(+e.access||0),0,1)&&(G.access||1)<ACCESS_MAX){ G.access=(G.access||1)+1; fx.push(`🪪 출입 권한 ${G.access}등급`) }
+  applyBoardLedger(e,fx);
   if(e.materials&&G.loc==='dungeon'){
     const d=G.dungeon; if(d) d.matGot=d.matGot||0;
     MATS.forEach(m=>{ let v=clamp(Math.round(+e.materials[m.k]||0),0,m.k==='relic'?1:2);
@@ -1277,17 +1362,24 @@ function tick(soft){
     if(G.steps%thirstInterval()===0){
       if(G._wCredit>0) G._wCredit--;
       else if(G.water>0) G.water--;
-      else { G.hp--; addLog('fx','목이 타들어 갑니다 (체력 -1)') }
+      else { G.hp--; addLog('fx','공포에 숨이 막힙니다 (체력 -1)') }
     }
     if(G.steps%MOVE_STEPS.food===0){
       if(G._fCredit>0) G._fCredit--;
       else if(G.food>0) G.food--;
-      else { G.hp--; addLog('fx','허기가 몰려옵니다 (체력 -1)') }
+      else { G.hp--; addLog('fx','배터리가 방전되어 어둠 속에서 길을 잃고 다칩니다 (체력 -1)') }
     }
   }
   // 낮·밤은 따로 센다: 쉬거나 임시 쉼터하면 이 카운터가 0부터 다시 시작 (일어나자마자 밤이 되지 않게)
   G.dayStep=(G.dayStep||0)+1;
-  if(G.dayStep>=MOVE_STEPS.half){ G.dayStep=0; G.time=G.time==='낮'?'밤':'낮'; if(G.time==='낮') G.day++ }
+  if(G.dayStep>=MOVE_STEPS.quarter){ G.dayStep=0; advanceTime() }
+}
+
+/* 시간대가 한 칸 흐름: 낮 → 방과 후 → 야간 → 새벽 → 다음 날 낮. 야간이 되었을 때 밖에 있으면 점호 누락 */
+function advanceTime(){
+  const i=(Math.max(0,TIMES.indexOf(G.time))+1)%TIMES.length;
+  G.time=TIMES[i]; if(i===0) G.day++;
+  if(G.time==='야간'&&isWild()) addDemerit(1,'점호 누락');
 }
 
 /* ---------- 4-9. 선택지 정리 (턴 끝·화면 그릴 때마다, 여러 번 해도 결과가 같음) ---------- */
@@ -1560,7 +1652,7 @@ function checkBonus(skill,text){
   if(hasTrait('싸움 경험')&&skill==='str'&&/(싸|공격|베|휘두|막아|맞서|찌르|때리|제압)/.test(t)) add(2,'싸움 경험');
   if(hasTrait('동물 친화')&&/(전동 스쿠터|자전거|동물|짐승|말을|가축)/.test(t)) add(2,'동물 친화');
   if(hasTrait('지독한 호기심')&&skill==='wis') add(1,'지독한 호기심');
-  if(hasTrait('밤눈')&&skill==='sur'&&(G.time==='밤'||(G.loc==='dungeon'&&G.torch<=0))) add(1,'밤눈');
+  if(hasTrait('밤눈')&&skill==='sur'&&(isDarkTime()||(G.loc==='dungeon'&&G.torch<=0))) add(1,'밤눈');
   if(G.loc==='dungeon'&&G.torch<=0&&!hasTrait('밤눈')&&skill!=='cha') add(-2,'손전등 없음');
   if(G.hp<=Math.ceil(G.maxhp*0.3)) add(-1,'부상');
   try{ westBonus(skill,t,add) }catch(e){}
@@ -2469,7 +2561,7 @@ function campHere(){
   if(G.water>0) G.water--; if(G.food>0) G.food--;
   const heal=fed?Math.ceil(G.maxhp*0.4):1;
   G.hp=clamp(G.hp+heal,0,G.maxhp);
-  G.time='밤'; G.dayStep=0; G.loc='camp'; if(from!=='camp') G._campFrom=from;
+  G.time='야간'; G.dayStep=0; G.loc='camp'; if(from!=='camp') G._campFrom=from;
   cityCampReset();
   addLog('sys',`임시 쉼터를 합니다. 물 -1, 식량 -1, 체력 +${heal}${fed?'':' (물이나 식량이 부족해 거의 회복하지 못했습니다)'}`);
   let ex='[임시 쉼터 장면] 밤의 한빛시나 구역 속 임시 쉼터. 모닥불, 별, 소리, 생각. 30% 확률로 작은 사건(방문자, 이상한 소리, 꿈, 진의 속삭임)이 생긴다. 사건이 있으면 선택지로 대응하게 하라. 체력 effects는 0으로 두라(회복은 코드가 처리함).';
