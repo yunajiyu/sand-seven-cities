@@ -630,12 +630,13 @@ const YUMIN_SPOTS={
   dorm:{n:'기숙사 앞',kind:'campus',dx:-17,dy:-9},
   bank:{n:'저수지 둑길',kind:'campus',dx:7,dy:17},
   gate:{n:'정문 앞',kind:'campus',dx:20,dy:6},
+  classroom:{n:'교실 앞 복도',kind:'campus',dx:-2,dy:-20},
   sofaroom:{n:'아지트 휴게 소파',kind:'home'},
   road:{n:'한빛시 뒷길',kind:'wild',dx:34,dy:-20},
   alley:{n:'학원가 골목',kind:'wild',hood:'south',dx:45,dy:33},
 };
 const YUMIN_LIKES={
-  liquor:{n:'술',ic:'🍺',re:/술|와인|칵테일|소주|맥주|막걸리|하이볼|캔맥/,buy:{name:'캔 칵테일',cost:30},story:'술(좋은 한 모금)'},
+  drink:{n:'음료',ic:'🥤',re:/음료|사이다|콜라|탄산|에너지\s*드링크|주스|밀크티|아이스티|스무디|아이스크림/,buy:{name:'프리미엄 밀크티 세트',cost:30},story:'음료(달콤한 한 모금)'},
   fan:{n:'이어폰',ic:'🎧',re:/이어폰|헤드폰|이어버드|음반|LP|카세트/,buy:{name:'무선 이어폰',cost:25},story:'이어폰'},
   instr:{n:'악기',ic:'🎸',re:/악기|하모니카|기타|우쿨렐레|건반|키보드|마이크|리코더|칼림바|탬버린|가야금|해금/,buy:{name:'중고 하모니카',cost:45},story:'악기'}
 };
@@ -660,6 +661,7 @@ const DISTRICTS={
   dorm:{n:'기숙사',ic:'🛏'},
   gate:{n:'정문',ic:'🚪'},
   bank:{n:'저수지 둑길',ic:'🌊'},
+  classroom:{n:'교실',ic:'📚'},
 };
 
 /* ---------- 판정 ---------- */
@@ -783,7 +785,8 @@ function migrate(){
   for(const k in YUMIN_DEFAULT){ if(!pf[k]||pf[k]===YUMIN_OLD_DEF[k]) pf[k]=YUMIN_DEFAULT[k] }
   if(typeof pf.examples==='string'&&pf.examples.includes('원작 예')) pf.examples=pf.examples.replace(/\(원작 예: [^)]*\)/g,'(예: "그 얘긴 지난 점호 방송에 날려 보냈어~")');
   G.comp.profile=pf;
-  if(!G.comp.likes) G.comp.likes={liquor:false,fan:false,instr:false};
+  if(!G.comp.likes) G.comp.likes={drink:false,fan:false,instr:false};
+  if(G.comp.likes.liquor!==undefined){ if(G.comp.likes.drink===undefined) G.comp.likes.drink=G.comp.likes.liquor; delete G.comp.likes.liquor }
   if(!Array.isArray(G.comp.items)) G.comp.items=[];
   if(!G.comp.arc) G.comp.arc={ch:0,active:null,cool:0,canon:[],done:[]};
   if(!Array.isArray(G.keepsakeG)) G.keepsakeG=[G.mat.keepsake||0,0,0,0];   // 등급 이전 유실물은 '흔한 유실물'로
@@ -1430,7 +1433,7 @@ const IX={
   REENTER:/((구역|안)(으로|에)\s*(다시\s*)?(들어간|들어가|들어선|돌아간|돌아가))/,
   PEDDLER_BUY:/(행상|상인|푸드트럭|택배\s*기사).{0,12}(산다|사다|구입|구매|거래|흥정)|(산다|구입|구매).{0,8}(행상|상인|푸드트럭)/,
   DIST_VERB:/(으로|로|에|를|을)?\s*(간다|가자|가기로|향한|향해|들어간다|들어가|들어서|들른다|들러|도착|발걸음|걸음을\s*옮|이동|돌아간다|돌아가|나선다|자리를\s*옮|옮겨|옮긴|옮기|가서|가보|데려|이끌)/,
-  DIST_KEYS:[['canteen',/구내식당|식당/],['dorm',/기숙사/],['gate',/정문/],['bank',/저수지|둑길/],['market',/상점가|매점/]],
+  DIST_KEYS:[['canteen',/구내식당|식당/],['dorm',/기숙사/],['classroom',/교실|교무실/],['gate',/정문/],['bank',/저수지|둑길/],['market',/상점가|매점/]],
   HOME:/((아지트|집|폐\s*동아리실|내\s*집)(으로|에|에서)?\s*(돌아|간다|가자|가기로|향한|향해|복귀|귀환|들어간|들어가)|아지트를?\s*찾아)/,
   CAMPUS:/((중앙 캠퍼스 지구|캠퍼스|상점가|정문|시내)(으로|에|를|을)?\s*(돌아|간다|가자|가기로|향한|향해|복귀|들어간|들어가|나간다))/,
   GO:/((구역|조사 외출|한빛시)(을|으로|에)?\s*(찾아|향해)?\s*(떠난다|떠나|출발|나선다|나서|간다)|조사 외출을?\s*(떠난|나선|시작))/,
@@ -1441,7 +1444,7 @@ const IX={
   SLEEP_NEG:/(않|못|말고|안\s*잔|안\s*쉰|아니)/,
   WAIT:/(하루|이틀|사흘|며칠|(\d+)\s*일)\s*(을|를|동안|간|만)?\s*(기다린|머무른|머문|머물|보낸|지낸|버틴|쉰다|묵는다|지새)/,
 };
-/* 다섯 지점(상점가·구내식당·기숙사·정문·저수지 둑길) 중 한 곳으로 '간다'는 문장이면 그 지점 키, 아니면 null.
+/* 여섯 지점(상점가·구내식당·기숙사·정문·저수지 둑길·교실) 중 한 곳으로 '간다'는 문장이면 그 지점 키, 아니면 null.
    장소 이름 바로 뒤에 이동 동사가 올 때만 (예: "상점가에서 구내식당으로 간다" → canteen). 직접 입력·AI 선택지·임시 장소 판정이 함께 씀 */
 function districtMove(t){
   if(!G||G.loc!=='campus') return null;
@@ -1450,11 +1453,11 @@ function districtMove(t){
   const hit=IX.DIST_KEYS.find(([k,re])=>re.test(t)&&new RegExp('(?:'+re.source+')[가-힣\\s]{0,6}'+IX.DIST_VERB.source).test(t));
   return hit?hit[0]:null;
 }
-/* ---------- 임시 장소: 다섯 지점 밖의 곳(강당·옥상·골목 등)으로 가면 G.spot={name}만 기록하고 지점은 그대로 ----------
+/* ---------- 임시 장소: 여섯 지점 밖의 곳(강당·옥상·골목 등)으로 가면 G.spot={name}만 기록하고 지점은 그대로 ----------
    G.spot이 있는 동안: 지점 전용 기능(소문·숙박·상점·조사 외출 출발·아지트 이동)은 막히고, 지점으로 돌아가는 버튼이 나옴.
    지점으로 이동(goDistrict)하거나 중앙 캠퍼스 지구를 떠나면 비워짐 */
 const SPOT_STOP=/^(안|밖|안쪽|바깥|뒤|앞|옆|위|아래|저쪽|이쪽|그쪽|거기|여기|그곳|이곳|저곳|근처|주변)$/;
-const SPOT_EXCL=/(중앙 캠퍼스 지구|캠퍼스|아지트|집|저수지|공원|학원가|재개발|신시가|선착장|오러리|코덱스|천문대|온실|도서관|열람실|서고|라쿠나 구역|구역|한빛시|조사 외출|옥상|지하|동쪽|서쪽|남쪽|북쪽|장소|출구|입구)/;
+const SPOT_EXCL=/(교실|중앙 캠퍼스 지구|캠퍼스|아지트|집|저수지|공원|학원가|재개발|신시가|선착장|오러리|코덱스|천문대|온실|도서관|열람실|서고|라쿠나 구역|구역|한빛시|조사 외출|옥상|지하|동쪽|서쪽|남쪽|북쪽|장소|출구|입구)/;
 function spotOn(){ return !!(G&&G.spot&&G.loc==='campus') }
 function spotMove(t){
   if(!G||G.loc!=='campus') return null;
@@ -1563,7 +1566,7 @@ function pickChoice(i){
     if(m.type==='story'&&isHood()&&!RX.NEG.test(c)&&leadByText(c)){ addLog('action',c); return startLead(leadByText(c).id) }   // 소문의 장소로 가는 선택지
     if(m.type==='story'&&G.loc==='campus'&&!RX.NEG.test(c)){   // 선택지 글이 다른 곳으로 가는 것이면 실제 장소도 옮김
       const k=districtMove(c);
-      if(k){ if(k!==curDistrict()||spotOn()) goDistrict(k) }          // 다섯 지점 중 한 곳 (임시 장소도 함께 해제)
+      if(k){ if(k!==curDistrict()||spotOn()) goDistrict(k) }          // 여섯 지점 중 한 곳 (임시 장소도 함께 해제)
       else{ const n=spotMove(c); if(n) setSpot(n) }                   // 지점 밖 장소 → 임시 장소
     }
     return story(c,{src:'choice'});
@@ -2028,6 +2031,7 @@ function campusFixedHTML(){
   let a='';
   if(sp) a=`<button class="primary" onclick="goDistrict('${d}')">↩ ${DISTRICTS[d].n}${josa(DISTRICTS[d].n,'으로','로')} 돌아가기</button>`;
   else if(d==='market') a=`<button onclick="openShop()">🛒 상점 (진정 음료·배터리·부품)</button><button onclick="strollMarket()">🚶 상점가 거닐기</button>`;
+  else if(d==='classroom') a=classHTML();
   else if(d==='canteen') a=`<button onclick="campusRumor()">🍚 식사하며 소문 듣기 (5)</button>`;
   else if(d==='dorm') a=`<button onclick="campusRest()">🛏 기숙사에서 쉬기 (10)</button>`;
   else if(d==='gate') a=`<button class="primary" onclick="startExpedition()">🔦 구역 조사 떠나기</button><button onclick="openTravel()">🧭 다른 지구로 이동하기 (공원·학원가·재개발지구)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
@@ -2042,8 +2046,8 @@ function campusFixedHTML(){
   }
   return {mv:bar,mvLbl:sp?`📍 ${esc(G.spot.name)} (임시 장소) · ${DISTRICTS[d].n} 지점 · 장소 이동`:`📍 ${DISTRICTS[d].n} · 장소 이동`,ac:a,acLbl:'🧭 행동'};
 }
-on('context',90,()=>G.loc==='campus'&&!spotOn()?` 지금 있는 곳은 중앙 캠퍼스 지구의 「${DISTRICTS[curDistrict()].n}」이다. 장면의 배경과 등장인물을 이 장소에 맞출 것(정문: 경비원·택배 기사·귀가하는 학생, 구내식당: 소문·급식 조리원·동기, 기숙사: 사감 선생님·룸메이트, 상점가: 점원·행인·버스커, 저수지 둑길: 가로등·물가·산책하는 사람). 중앙 캠퍼스 지구의 지점은 상점가·구내식당·기숙사·정문·저수지 둑길 다섯이다. 지점 밖의 장소(편의점, 자습실, 옥상, 골목 등)로 가는 것도 가능하며 그때는 게임이 '임시 장소'로 기록한다. 소문 듣기·숙박·상점 거래·조사 외출 출발은 지점에서만 가능하다.`:'');
-on('context',90.1,()=>spotOn()?` [임시 장소] 플레이어는 중앙 캠퍼스 지구 「${DISTRICTS[curDistrict()].n}」 지점에서 벗어나 「${G.spot.name}」에 있다. 이 장소의 풍경·인물 이야기를 하되, 소문 듣기·숙박·상점 거래·휴식은 지점으로 돌아가야 가능하다 — 이 장면에서 물건을 사고팔거나 쉬는 서술을 성사시키지 말고 effects의 체력·공포·배터리·손전등·캐시는 0으로 둘 것. 다섯 지점 중 하나로 가는 선택지는 허용한다.`:'');
+on('context',90,()=>G.loc==='campus'&&!spotOn()?` 지금 있는 곳은 중앙 캠퍼스 지구의 「${DISTRICTS[curDistrict()].n}」이다. 장면의 배경과 등장인물을 이 장소에 맞출 것(정문: 경비원·택배 기사·귀가하는 학생, 구내식당: 소문·급식 조리원·동기, 기숙사: 사감 선생님·룸메이트, 교실: 담임·교과 선생님·반 친구·칠판과 수업, 상점가: 점원·행인·버스커, 저수지 둑길: 가로등·물가·산책하는 사람). 중앙 캠퍼스 지구의 지점은 상점가·구내식당·기숙사·정문·저수지 둑길·교실 여섯이다. 지점 밖의 장소(편의점, 자습실, 옥상, 골목 등)로 가는 것도 가능하며 그때는 게임이 '임시 장소'로 기록한다. 소문 듣기·숙박·상점 거래·조사 외출 출발은 지점에서만 가능하다.`:'');
+on('context',90.1,()=>spotOn()?` [임시 장소] 플레이어는 중앙 캠퍼스 지구 「${DISTRICTS[curDistrict()].n}」 지점에서 벗어나 「${G.spot.name}」에 있다. 이 장소의 풍경·인물 이야기를 하되, 소문 듣기·숙박·상점 거래·휴식은 지점으로 돌아가야 가능하다 — 이 장면에서 물건을 사고팔거나 쉬는 서술을 성사시키지 말고 effects의 체력·공포·배터리·손전등·캐시는 0으로 둘 것. 여섯 지점 중 하나로 가는 선택지는 허용한다.`:'');
 function campusRumor(){
   if(busy||spotBlock()) return;
   G._yuminHere=false;
@@ -2210,7 +2214,74 @@ function sellKeepsake(g){
   addLog('fx',`📦 ${KEEPSAKE_GRADES[g].n}을(를) 감정해 넘겼습니다 (캐시 +${p})`);
   save(); render(); appraise();
 }
-/* 교표 연구실 연구: 일정 확률(매와 친하면 더 높게)로 조각의 위치 단서 */
+/* 교표 조각의 위치 단서 한 줄 (연구실·수업·땡땡이가 함께 씀). 줄 단서가 없으면 '' */
+function fragClue(){
+  let clue='';
+  const pr=(G.pausedZones||[]).find(d=>d.rooms.some(r=>r.fragment&&!r.fragTaken)&&!d.clued);
+  if(pr){ const room=pr.rooms.find(r=>r.fragment&&!r.fragTaken); pr.clued=true; clue=`중단한 구역 「${pr.name}」의 「${room.name}」 쪽에 교표 조각이 있다` }
+  else if(G.nextZoneFrag==null){ G.nextZoneFrag=Math.random()<0.5; clue=G.nextZoneFrag?'다음에 찾아갈 구역 어딘가에 교표 조각이 있다':'다음에 찾아갈 구역에는 교표 조각이 없다. 다른 곳에서 찾아야 한다' }
+  return clue;
+}
+/* ---------- 수업 듣기 · 땡땡이 (교실, 낮에만) ----------
+   수업 한 교시 = 행동 2번(낮 한 칸의 절반). 하루 CLASS_PERIODS교시까지.
+   수업 듣기: 일정 확률로 단서(조사 보드·교표 조각 위치) / 땡땡이: 확률로 성공하면 몰래 쉬며 단서를 얻을 수도 있지만 들키면 벌점 */
+const CLASS_PERIODS=2, CLASS_CLUE_P=0.3;
+const SKIP_CATCH_P=0.35, SKIP_CATCH_STEP=0.1, SKIP_CATCH_WARN=0.15, SKIP_DEMERIT=2, SKIP_FIND_P=0.25;
+const SUBJECTS=['국어','수학','영어','과학','한국사','사회','음악','체육 이론','기술·가정'];
+function clsSt(){ if(!G.cls||G.cls.day!==G.day) G.cls={day:G.day,n:0,skip:0,tot:(G.cls&&G.cls.tot)||0,sk:(G.cls&&G.cls.sk)||0}; return G.cls }
+function classBlock(){
+  if(G.time!=='낮') return '수업은 낮에만 있습니다';
+  if(clsSt().n>=CLASS_PERIODS) return `오늘 수업은 끝났습니다 (${CLASS_PERIODS}교시)`;
+  return '';
+}
+function skipCatchP(){ return Math.min(0.85,SKIP_CATCH_P+SKIP_CATCH_STEP*clsSt().skip+((G.demerit||0)>=DEMERIT_WARN?SKIP_CATCH_WARN:0)) }
+function classHTML(){
+  const c=clsSt(), why=classBlock();
+  return `<button class="primary" ${why?'disabled':''} onclick="attendClass()" title="${esc(why)}">📚 수업 듣기 (오늘 ${c.n}/${CLASS_PERIODS}교시 · 단서 ${Math.round(CLASS_CLUE_P*100)}%)</button>`
+    +`<button ${why?'disabled':''} onclick="skipClass()" title="${esc(why)}">🏃 땡땡이치기 (들킬 확률 약 ${Math.round(skipCatchP()*100)}% · 들키면 벌점 +${SKIP_DEMERIT})</button>`
+    +(why?`<div class="muted" style="font-size:12px">${esc(why)}</div>`:'');
+}
+function attendClass(){
+  if(busy||spotBlock()) return;
+  const why=classBlock(); if(why) return toast(why);
+  const c=clsSt(); c.n++; c.tot++; G._yuminHere=false;
+  const subj=rand(SUBJECTS);
+  let extra=`[수업 장면] 2학년 7반 ${subj} 수업. 오늘 ${c.n}교시. 선생님과 반 친구들, 칠판·필기·졸음 같은 짧은 일상 장면으로 쓰되 괴담의 기운이 살짝 스며도 좋다. 학생 인물 사이의 관계는 우정으로만.`;
+  let clue='';
+  if(Math.random()<CLASS_CLUE_P){
+    clue=G.fragments<FRAG_GOAL&&Math.random()<0.5?fragClue():'';
+    extra+=` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다: 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`;
+    if(clue) extra+=` 그 단서에는 다음 사실이 담긴다: ${clue}.`;
+    G.chronicle.push({day:G.day,text:`${subj} 수업에서 단서를 얻었다${clue?`: ${clue}`:''}`});
+    addLog('fx',`📚 수업 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
+  }else extra+=' 이번 수업에서는 별다른 단서가 없다. 단서를 억지로 만들지 말 것.';
+  gainXp(1,'수업');
+  tick(); tick();
+  aiTurn(`${subj} 수업을 듣는다`,extra);
+}
+function skipClass(){
+  if(busy||spotBlock()) return;
+  const why=classBlock(); if(why) return toast(why);
+  const c=clsSt(), pc=skipCatchP(); G._yuminHere=false;
+  c.n++; c.skip++; c.sk++;
+  tick(); tick();
+  if(Math.random()<pc){
+    c.n=CLASS_PERIODS;   // 교무실에 불려가 오늘 남은 수업을 못 들음
+    addDemerit(SKIP_DEMERIT,'땡땡이 적발');
+    aiTurn('몰래 교실을 빠져나간다',`[땡땡이 적발] 수업을 몰래 빠져나갔다가 선생님(또는 규율부 학생)에게 들킨다. 교무실에 불려가 꾸중을 듣고 벌점이 붙었다(벌점은 이미 반영되었으니 effects.벌점은 0). 남은 수업은 듣지 못한다. 너무 무겁지 않게, 반성문이나 청소 같은 학교다운 처분으로. 공포 분위기는 쓰지 말 것.`);
+  }else{
+    let extra=`[땡땡이 성공] 수업을 몰래 빠져나가 아무에게도 들키지 않았다. 옥상 문 앞·빈 교실·뒷계단 같은 학교 구석에서 숨을 돌리는 짧은 장면. 들킬 뻔한 아슬아슬함을 한 줄 넣어도 좋다.`;
+    if(G.calm<capW()){ G.calm=Math.min(capW(),G.calm+1); addLog('fx','🏃 몰래 숨을 돌려 공포가 조금 가라앉았습니다'); }
+    if(Math.random()<SKIP_FIND_P){
+      const clue=G.fragments<FRAG_GOAL&&Math.random()<0.5?fragClue():'';
+      extra+=` [땡땡이 중 단서] 빈 교실이나 복도에서 플레이어가 단서 하나를 발견한다(남은 흔적, 엿들은 대화, 잠긴 문 등). 서술에 분명히 담고 effects.조사보드에 한 줄로 적어라.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+      G.chronicle.push({day:G.day,text:`땡땡이 중 단서를 얻었다${clue?`: ${clue}`:''}`});
+      addLog('fx',`🏃 땡땡이 중 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
+    }
+    aiTurn('몰래 교실을 빠져나간다',extra);
+  }
+}
+/* 교표 연구실 연구: 일정 확률(까치와 친하면 더 높게)로 조각의 위치 단서 */
 function labMap(){
   if(busy) return;
   if(G.home.lastLabDay===G.day) return toast('오늘은 이미 연구했습니다. 내일 다시 해 보세요');
@@ -2218,10 +2289,7 @@ function labMap(){
   let extra=`[연구 장면] 지금까지의 연대기, 사전, 모은 교표 조각(${G.fragments}/${FRAG_GOAL})을 바탕으로 라쿠나 구역에 관한 새로운 단서 하나를 발견한다. 1막이므로 지워진 일곱 구역은 아주 희미한 암시만 허용. 발견한 단서를 괴담처럼 서술에 분명히 담아라. 숫자 effects는 0.`;
   const p=petPerk('magpie')?0.5:0.35;
   if(G.fragments<FRAG_GOAL&&Math.random()<p){
-    let clue='';
-    const pr=(G.pausedZones||[]).find(d=>d.rooms.some(r=>r.fragment&&!r.fragTaken)&&!d.clued);
-    if(pr){ const room=pr.rooms.find(r=>r.fragment&&!r.fragTaken); pr.clued=true; clue=`중단한 구역 「${pr.name}」의 「${room.name}」 쪽에 교표 조각이 있다` }
-    else if(G.nextZoneFrag==null){ G.nextZoneFrag=Math.random()<0.5; clue=G.nextZoneFrag?'다음에 찾아갈 구역 어딘가에 교표 조각이 있다':'다음에 찾아갈 구역에는 교표 조각이 없다. 다른 곳에서 찾아야 한다' }
+    const clue=fragClue();
     if(clue){
       extra+=` [연구 단서] 이번 연구로 다음 사실이 드러난다: ${clue}. 교표 문양과 기록을 짚어 가며 이 사실을 서술에 분명히 담아라.`;
       G.chronicle.push({day:G.day,text:`교표 연구로 단서를 얻었다: ${clue}`});
@@ -6208,6 +6276,9 @@ function openGuide(){
     ${row('시간대',`낮 → 방과 후 → 야간 → 새벽 순으로 ${MOVE_STEPS.quarter}걸음마다 바뀜. 기숙사·아지트에서 쉬거나 임시 쉼터에서 아침을 맞으면 낮이 처음부터 다시 시작`)}
     ${row('하루',`${MOVE_STEPS.quarter*TIMES.length}걸음 (새벽이 지나 낮이 되면 +1일)`)}
     ${row('점호 누락·무단 외출','야간이 되었을 때 구역·뒷길에 있으면 벌점 +1(점호 누락). 야간·새벽에 구역 조사를 나가면 벌점 +1(무단 외출 — 외출 금지 경고 중이면 +2). 기숙사에서 하룻밤 쉬면 벌점 -1')}
+    ${h3('수업과 땡땡이 (교실, 낮에만)')}
+    ${row('📚 수업 듣기',`하루 ${CLASS_PERIODS}교시까지. 한 교시는 행동 2번. 매 교시 ${Math.round(CLASS_CLUE_P*100)}% 확률로 단서(조사 보드, 가끔 교표 조각의 위치)를 얻고, 성장 경험치 +1`)}
+    ${row('🏃 땡땡이치기',`한 교시를 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}에 오늘 남은 수업 없음`)}
     ${h3('걸음에 따른 변화 (한빛시·구역에서만)')}
     ${row('😨 공포',`걸을 때 ${MOVE_STEPS.calm}걸음마다 +1 (하루 꼬박 움직이면 약 ${Math.round(MOVE_STEPS.quarter*TIMES.length/MOVE_STEPS.calm)}) · 이동·기다리기는 하루 +1 — 걸음에는 헤매는 몫까지 들어 있어 더 쌓입니다<br><span class="muted">"담력" 특성: ${MOVE_STEPS.calmFrugal}걸음마다 · 떠돌이 개(친근한 사이부터) +1걸음</span>`)}
     ${row('🔋 배터리',`${MOVE_STEPS.battery}걸음마다 -1`)}
