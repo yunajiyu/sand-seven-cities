@@ -91,6 +91,8 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 .controls .inner{max-width:860px;margin:0 auto}
 .choices{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
 .choices button{text-align:left}
+.cslide{display:contents}
+.slidehint{display:none}
 .fixed{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .fixed button{font-size:13px;padding:6px 10px}
 .hscroll{display:flex;flex-wrap:nowrap;gap:6px;flex:0 0 100%;width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
@@ -196,8 +198,12 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 
 /* ---------- 좁은 화면: 선택지 목록에만 높이 제한 (본문이 가려지지 않게) — 칩 줄과 입력줄은 항상 보임 ---------- */
 @media (max-width:760px){
-  .choices{max-height:22dvh;overflow-y:auto;overscroll-behavior:contain}
+  #game .choices{max-height:none;overflow:visible;display:block}
   #log{min-height:160px}
+  /* 모바일: 선택지는 한 줄, 2개씩 보이고 나머지는 옆으로 밀어서 선택 */
+  .cslide{display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding-bottom:6px;scrollbar-width:thin}
+  .cslide button{flex:0 0 calc(46% - 3px);scroll-snap-align:start;white-space:normal;line-height:1.35;font-size:calc(14px*var(--fs,1))}
+  .slidehint{display:inline}
 }
 /* modal */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:30}
@@ -2217,7 +2223,7 @@ function campusFixedHTML(){
       a+=here?`<button onclick="talkYumin()">🎵 유민에게 말 걸기</button>`:`<button onclick="seekYumin()">🎵 유민 만나러 가기 <span class="muted">(지금: ${esc(yuminWhereText())})</span></button>`;
     }
   }
-  return {mv:bar,mvLbl:sp?`📍 ${esc(G.spot.name)} (임시 장소) · ${DISTRICTS[d].n} 지점 · 장소 이동`:`📍 ${DISTRICTS[d].n} (${floorName(floorOf(d))}) · 장소 이동`,ac:a,acLbl:'🧭 행동'};
+  return {mv:bar,mvLbl:sp?`📍 ${esc(G.spot.name)} (임시 장소) · ${DISTRICTS[d].n} 지점 · 장소 이동`:`📍 ${DISTRICTS[d].n} (${floorName(floorOf(d))}) · 장소 이동`,ac:a,acLbl:(schoolInfo()?schoolInfo()+' · ':'')+'🧭 행동'};
 }
 on('context',90,()=>{
   if(G.loc!=='campus'||spotOn()) return '';
@@ -2518,8 +2524,14 @@ function schoolHTML(){
   else if(i===2||i===6) b=`<button class="primary" onclick="breakTime()">☕ 쉬는 시간 보내기</button>`;
   else if(i===4) b=`<button class="primary" onclick="lunchTime()">🍚 급식 먹기 (무료)</button>`;
   else if(i===8) b=inClassroom()?`<button class="primary" onclick="closing()">📋 종례 듣기</button>`:goRoom;
+  return b;
+}
+/* 일과 안내 한 줄 (버튼 줄 아래 이름표에 표시) */
+function schoolInfo(){
+  const i=slotIdx(); if(i<0||G.loc!=='campus'||spotOn()) return '';
+  const c=clsSt(), nx=SCHOOL[i+1]||'방과 후';
   const tt=CLASS_SLOTS.map((_,j)=>`${j+1}교시 ${subjectAt(j).n}`).join(' · ');
-  return `<div class="muted" style="font-size:12px;width:100%">🔔 지금: <b>${esc(slotLabel())}</b>${classActive()?` · 📚 수업 진행 ${classActive().n}/${CLASS_ACTIONS} (선택지·입력도 수업 행동으로 셈)`:''} · 다음: ${esc(nx)} · 오늘 시간표 ${esc(tt)} (출석 ${c.n}회${c.skip?` · 땡땡이 ${c.skip}회`:''}${c.absent?` · 결석 ${c.absent}회`:''})</div>`+b;
+  return `🔔 지금: <b>${esc(slotLabel())}</b>${classActive()?` · 📚 수업 진행 ${classActive().n}/${CLASS_ACTIONS} (선택지·입력도 수업 행동으로 셈)`:''} · 다음: ${esc(nx)} · 오늘 시간표 ${esc(tt)} (출석 ${c.n}회${c.skip?` · 땡땡이 ${c.skip}회`:''}${c.absent?` · 결석 ${c.absent}회`:''})`;
 }
 function homeroom(){
   if(busy||spotBlock()||slotIdx()!==0||!inClassroom()) return;
@@ -6006,12 +6018,13 @@ function choicesHTML(){
   if(ex) lbl='🔎 이 공간에서는 더 찾을 것이 없어 보입니다 — 아래 → 버튼으로 이동하세요';
   else if(G.choices.length) lbl=(G.loc==='site'?'💬 이야기 — 이 공간 안에서의 행동 (공간은 바뀌지 않음)':G.loc==='campus'?'💬 이야기 선택지':'💬 이야기 선택지 (1걸음)')+' · 🎲는 판정, 🧭는 게임 기능으로 바로 처리';
   const TL={rest:'휴식',shelter:'임시 쉼터',return:'귀환',exit:'나가기',trade:'거래'};
-  return (lbl?`<div class="lbl">${lbl}</div>`:'')+G.choices.map((c,i)=>{
+  const slide=G.choices.length>2?' <span class="slidehint">· 옆으로 밀어 더 보기 ⇆</span>':'';
+  return (lbl?`<div class="lbl">${lbl}${slide}</div>`:'')+'<div class="cslide">'+G.choices.map((c,i)=>{
     const m=metaOf(c); let b='';
-    if(m&&m.type==='check') b=`<span class="cbadge ck">🎲 ${SK[m.skill]} · ${DCN[m.dc]} · ${checkChance(m.skill,m.dc,c)}%</span>`;
+    if(m&&m.type==='check') b=`<span class="cbadge ck">🎲 ${SK[m.skill]} · 난이도 무작위</span>`;
     else if(m&&TL[m.type]) b=`<span class="cbadge sys">🧭 ${TL[m.type]}</span>`;
     return `<button onclick="pickChoice(${i})">${b}${esc(c)}</button>`;
-  }).join('');
+  }).join('')+'</div>';
 }
 /* 고정 버튼 = 게임 기능 (시간·자원·위치가 정확히 계산됨) */
 /* 고정 버튼 = 위 줄(이동) + 아래 줄(행동), 각 줄은 가로 스크롤 칩. 이름표(label)는 칩 줄 바로 아래 */
