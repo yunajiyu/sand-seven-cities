@@ -633,7 +633,10 @@ const YUMIN_SPOTS={
   dorm:{n:'기숙사 앞',kind:'campus',dx:-17,dy:-9},
   bank:{n:'저수지 둑길',kind:'campus',dx:7,dy:17},
   gate:{n:'정문 앞',kind:'campus',dx:20,dy:6},
-  classroom:{n:'교실 앞 복도',kind:'campus',dx:-2,dy:-20},
+  classroom:{n:'교실 안',kind:'campus',dx:-2,dy:-20},
+  hall:{n:'복도',kind:'campus',dx:6,dy:-8},
+  snack:{n:'매점 앞',kind:'campus',dx:-9,dy:-16},
+  office:{n:'교무실 앞',kind:'campus',dx:2,dy:-14},
   sofaroom:{n:'아지트 휴게 소파',kind:'home'},
   road:{n:'한빛시 뒷길',kind:'wild',dx:34,dy:-20},
   alley:{n:'학원가 골목',kind:'wild',hood:'south',dx:45,dy:33},
@@ -659,12 +662,15 @@ const CREATURE=/(쥐$|바퀴벌레|벌레|까마귀|박쥐|거미|지네|개$|�
 
 /* ---------- 중앙 캠퍼스 지구 장소 ---------- */
 const DISTRICTS={
-  market:{n:'상점가',ic:'🛒'},
+  classroom:{n:'교실',ic:'📚'},
+  hall:{n:'복도',ic:'🚶'},
+  snack:{n:'매점',ic:'🥪'},
   canteen:{n:'급식실',ic:'🍚'},
+  office:{n:'교무실',ic:'🏢'},
   dorm:{n:'기숙사',ic:'🛏'},
   gate:{n:'정문',ic:'🚪'},
+  market:{n:'상점가',ic:'🛒'},
   bank:{n:'저수지 둑길',ic:'🌊'},
-  classroom:{n:'교실',ic:'📚'},
 };
 
 /* ---------- 판정 ---------- */
@@ -1062,7 +1068,7 @@ materials는 구역에서 플레이어가 실제로 쓸 만한 철제 부품, �
 교표조각: 교표 조각을 손에 넣는 장면에서만 true (코드가 조건을 확인한다).
 사전추가: 이번 장면에서 새로 나온 인물·장소·괴담이 있으면 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}], 없으면 []. 괴담 사전은 별도로도 자동 정리되니 핵심 항목만 넣는다.
 조사보드: 이번 장면에서 새로 생긴 단서·증언·모순점을 짧은 문장 배열로, 없으면 []. 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등)을 "항목 = 내용" 형식 배열로, 없으면 []. 이미 적힌 것을 반복하지 말 것.
-[위치 규칙] 중앙 캠퍼스 지구에 있을 때만 쓴다. "위치"에는 이번 장면이 끝났을 때 플레이어가 실제로 있는 곳을 적는다: 지점 이름(상점가·급식실·기숙사·정문·저수지 둑길·교실 중 하나) 또는 지점 밖 장소 이름(옥상, 매점 앞 등). 플레이어의 행동이나 서술에서 장소가 실제로 바뀐 경우에만 적고, 그대로면 빈 문자열이다("자리를 옮겨", "~로 향했다", "~에 도착했다" 같은 표현도 장소가 바뀐 것이다). 선택지가 다른 곳으로 가는 행동이면 그 선택지의 "to"에 목적지 이름을 적는다. 수업 중에 교실을 벗어나면 땡땡이이므로 서술에서 그렇게 다룬다.
+[위치 규칙] 중앙 캠퍼스 지구에 있을 때만 쓴다. "위치"에는 이번 장면이 끝났을 때 플레이어가 실제로 있는 곳을 적는다: 지점 이름(교실·복도·매점·급식실·교무실·기숙사·정문·상점가·저수지 둑길 중 하나) 또는 지점 밖 장소 이름(옥상, 매점 앞 등). 플레이어의 행동이나 서술에서 장소가 실제로 바뀐 경우에만 적고, 그대로면 빈 문자열이다("자리를 옮겨", "~로 향했다", "~에 도착했다" 같은 표현도 장소가 바뀐 것이다). 선택지가 다른 곳으로 가는 행동이면 그 선택지의 "to"에 목적지 이름을 적는다. 수업 중에 교실을 벗어나면 땡땡이이므로 서술에서 그렇게 다룬다.
 [선택지·사건 규칙]
 - choices는 3~4개의 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기, 해독, 설득, 함정 피하기, 몰래 지나가기 등)은 "check"와 알맞은 skill·dc. 쉬기/잠자기는 "rest", 임시 쉼터는 "shelter", 중앙 캠퍼스 지구 귀환은 "return", 구역 밖으로 나가기는 "exit", 사고팔기는 "trade". 그 밖의 관찰·대화·묘사 중심 행동은 "story". 능력치: str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정.
 - 괴이와 마주친 장면에서는 싸우는 선택지보다 "도주 / 숨기 / 교칙 지키기" 계열을 우선한다. 전투는 규율부·청소반 같은 사람이 상대일 때만.
@@ -1271,6 +1277,7 @@ async function aiTurn(action,extra='',showAction=true){
   run('after',T);
   sanitizeChoices();
   curTurn=null;
+  flushBell();
   save(); render();
 }
 function fallbackTurn(action){
@@ -1400,13 +1407,22 @@ function tick(soft){
   }
   // 낮·밤은 따로 센다: 쉬거나 임시 쉼터하면 이 카운터가 0부터 다시 시작 (일어나자마자 밤이 되지 않게)
   const prevSlot=G.time==='낮'?(G.dayStep||0):-1;
+  if(prevSlot>=0&&G.loc==='campus'&&G._bell==null) G._bell=SCHOOL[prevSlot];
   if(prevSlot>=0&&CLASS_SLOTS.includes(prevSlot)){ const c=clsSt(); if(!c.done.includes(prevSlot)){ c.done.push(prevSlot); c.absent++ } }   // 수업 칸을 그냥 흘려보내면 결석 기록만 남음
   G.dayStep=(G.dayStep||0)+1;
   if(G.dayStep>=blockLen()){ G.dayStep=0; advanceTime() }
-  else if(G.time==='낮'&&G.loc==='campus') addLog('sys',`🔔 ${slotLabel()}`);
+
 }
 
 /* 시간대가 한 칸 흐름: 낮 → 방과 후 → 야간 → 새벽 → 다음 날 낮. 야간이 되었을 때 밖에 있으면 점호 누락 */
+/* 일과 칸이 끝났음을 서술 뒤에 알림: '1교시 수업이 끝났습니다 → 쉬는 시간' */
+function flushBell(){
+  const p=G&&G._bell; if(!p) return; G._bell=null;
+  if(G.loc!=='campus') return;
+  const end=p==='조례'?'조례가 끝났습니다':p==='쉬는 시간'?'쉬는 시간이 끝났습니다':p==='점심시간'?'점심시간이 끝났습니다':p==='종례'?'종례가 끝났습니다':`${p} 수업이 끝났습니다`;
+  const nx=G.time==='낮'?slotLabel():G.time;
+  addLog('sys',`🔔 ${end} → ${nx}`); toast(`🔔 ${end} → ${nx}`);
+}
 function blockLen(){ return G.time==='낮'?SCHOOL.length:MOVE_STEPS.quarter }
 function slotIdx(){ return G.time==='낮'?Math.min(SCHOOL.length-1,G.dayStep||0):-1 }
 function slotLabel(){ const i=slotIdx(); if(i<0) return G.time; const k=CLASS_SLOTS.indexOf(i); return `${SCHOOL[i]}${k>=0?` (${subjectAt(k).n})`:''}` }
@@ -1414,7 +1430,7 @@ function advanceTime(){
   const i=(Math.max(0,TIMES.indexOf(G.time))+1)%TIMES.length;
   G.time=TIMES[i]; if(i===0) G.day++;
   if(G.time==='야간'&&isWild()) addDemerit(1,'점호 누락');
-  if(G.time==='방과 후'&&G.loc==='campus') addLog('sys','🔔 종례가 끝나고 방과 후가 되었습니다.');
+
 }
 
 /* ---------- 4-9. 선택지 정리 (턴 끝·화면 그릴 때마다, 여러 번 해도 결과가 같음) ---------- */
@@ -1448,7 +1464,7 @@ const IX={
   REENTER:/((구역|안)(으로|에)\s*(다시\s*)?(들어간|들어가|들어선|돌아간|돌아가))/,
   PEDDLER_BUY:/(행상|상인|푸드트럭|택배\s*기사).{0,12}(산다|사다|구입|구매|거래|흥정)|(산다|구입|구매).{0,8}(행상|상인|푸드트럭)/,
   DIST_VERB:/(으로|로|에|를|을)?\s*(간다|가기|가자|가기로|먹으러|향한|향해|들어간다|들어가|들어서|들른다|들러|도착|발걸음|걸음을\s*옮|이동|돌아간다|돌아가|나선다|자리를\s*옮|옮겨|옮긴|옮기|가서|가보|데려|이끌)/,
-  DIST_KEYS:[['canteen',/급식실|식당|급식|점심/],['dorm',/기숙사/],['classroom',/교실|교무실|조례|종례/],['gate',/정문/],['bank',/저수지|둑길/],['market',/상점가|매점/]],
+  DIST_KEYS:[['hall',/복도|계단|현관/],['snack',/매점/],['office',/교무실|상담실/],['classroom',/교실|조례|종례/],['canteen',/급식실|식당|급식|점심/],['dorm',/기숙사/],['gate',/정문/],['bank',/저수지|둑길/],['market',/상점가|시내/]],
   HOME:/((아지트|집|폐\s*동아리실|내\s*집)(으로|에|에서)?\s*(돌아|간다|가자|가기로|향한|향해|복귀|귀환|들어간|들어가)|아지트를?\s*찾아)/,
   CAMPUS:/((중앙 캠퍼스 지구|캠퍼스|상점가|정문|시내)(으로|에|를|을)?\s*(돌아|간다|가자|가기로|향한|향해|복귀|들어간|들어가|나간다))/,
   GO:/((구역|조사 외출|한빛시)(을|으로|에)?\s*(찾아|향해)?\s*(떠난다|떠나|출발|나선다|나서|간다)|조사 외출을?\s*(떠난|나선|시작))/,
@@ -1459,20 +1475,25 @@ const IX={
   SLEEP_NEG:/(않|못|말고|안\s*잔|안\s*쉰|아니)/,
   WAIT:/(하루|이틀|사흘|며칠|(\d+)\s*일)\s*(을|를|동안|간|만)?\s*(기다린|머무른|머문|머물|보낸|지낸|버틴|쉰다|묵는다|지새)/,
 };
-/* 여섯 지점(상점가·급식실·기숙사·정문·저수지 둑길·교실) 중 한 곳으로 '간다'는 문장이면 그 지점 키, 아니면 null.
+/* 아홉 지점(교실·복도·매점·급식실·교무실·기숙사·정문·상점가·저수지 둑길) 중 한 곳으로 '간다'는 문장이면 그 지점 키, 아니면 null.
    장소 이름 바로 뒤에 이동 동사가 올 때만 (예: "상점가에서 급식실로 간다" → canteen). 직접 입력·AI 선택지·임시 장소 판정이 함께 씀 */
 function districtMove(t){
   if(!G||G.loc!=='campus') return null;
   t=String(t||'');
   if(/(에서\s*(쉰|묵|잔|마신|듣|산다|거닌))/.test(t)) return null;
-  const hit=IX.DIST_KEYS.find(([k,re])=>re.test(t)&&new RegExp('(?:'+re.source+')[가-힣\\s]{0,6}'+IX.DIST_VERB.source).test(t));
-  return hit?hit[0]:null;
+  // 글에서 가장 나중에 나온 장소가 목적지 ("교실에서 복도로 나간다" → 복도). 장소 이름 바로 뒤에 이동 동사가 올 때만
+  let best=null, bi=-1;
+  for(const [k,re] of IX.DIST_KEYS){
+    const g=new RegExp('(?:'+re.source+')[가-힣\\s]{0,6}'+IX.DIST_VERB.source,'g'); let m;
+    while((m=g.exec(t))){ if(m.index>=bi){ bi=m.index; best=k } if(m[0].length===0) g.lastIndex++ }
+  }
+  return best;
 }
-/* ---------- 임시 장소: 여섯 지점 밖의 곳(강당·옥상·골목 등)으로 가면 G.spot={name}만 기록하고 지점은 그대로 ----------
+/* ---------- 임시 장소: 아홉 지점 밖의 곳(강당·옥상·골목 등)으로 가면 G.spot={name}만 기록하고 지점은 그대로 ----------
    G.spot이 있는 동안: 지점 전용 기능(소문·숙박·상점·조사 외출 출발·아지트 이동)은 막히고, 지점으로 돌아가는 버튼이 나옴.
    지점으로 이동(goDistrict)하거나 중앙 캠퍼스 지구를 떠나면 비워짐 */
 const SPOT_STOP=/^(안|밖|안쪽|바깥|뒤|앞|옆|위|아래|저쪽|이쪽|그쪽|거기|여기|그곳|이곳|저곳|근처|주변)$/;
-const SPOT_EXCL=/(교실|중앙 캠퍼스 지구|캠퍼스|아지트|집|저수지|공원|학원가|재개발|신시가|선착장|오러리|코덱스|천문대|온실|도서관|열람실|서고|라쿠나 구역|구역|한빛시|조사 외출|옥상|지하|동쪽|서쪽|남쪽|북쪽|장소|출구|입구)/;
+const SPOT_EXCL=/(복도|매점|교무실|계단|현관|교실|중앙 캠퍼스 지구|캠퍼스|아지트|집|저수지|공원|학원가|재개발|신시가|선착장|오러리|코덱스|천문대|온실|도서관|열람실|서고|라쿠나 구역|구역|한빛시|조사 외출|옥상|지하|동쪽|서쪽|남쪽|북쪽|장소|출구|입구)/;
 function spotOn(){ return !!(G&&G.spot&&G.loc==='campus') }
 function spotMove(t){
   if(!G||G.loc!=='campus') return null;
@@ -1615,7 +1636,7 @@ function pickChoice(i){
     }
     if(m.type==='story'&&G.loc==='campus'&&!RX.NEG.test(c)){   // 선택지 글이 다른 곳으로 가는 것이면 실제 장소도 옮김
       const k=districtMove(c);
-      if(k){ if(k!==curDistrict()||spotOn()){ classLeaveEffect(k); goDistrict(k) } }          // 여섯 지점 중 한 곳 (임시 장소도 함께 해제)
+      if(k){ if(k!==curDistrict()||spotOn()){ classLeaveEffect(k); goDistrict(k) } }          // 아홉 지점 중 한 곳 (임시 장소도 함께 해제)
       else{ const n=spotMove(c); if(n){ classLeaveEffect(null); setSpot(n) } }                   // 지점 밖 장소 → 임시 장소
     }
     return story(c,{src:'choice'});
@@ -2080,12 +2101,15 @@ function campusFixedHTML(){
   const bar=Object.keys(DISTRICTS).map(k=>`<button class="small ${k===d&&!sp?'primary':''}" ${k===d&&!sp?'disabled':''} onclick="goDistrict('${k}')">${DISTRICTS[k].ic} ${DISTRICTS[k].n}</button>`).join('');
   let a=schoolHTML();
   if(sp) a=`<button class="primary" onclick="goDistrict('${d}')">↩ ${DISTRICTS[d].n}${josa(DISTRICTS[d].n,'으로','로')} 돌아가기</button>`;
+  else if(d==='hall') a=`<button onclick="strollHall()">🚶 복도 거닐기</button>`;
+  else if(d==='snack') a=`<button onclick="openShop()">🥪 매점 (간식·진정 음료·배터리)</button>`;
+  else if(d==='office') a=`<button onclick="officeTalk()">🏢 담임 선생님과 면담</button>`;
   else if(d==='market') a=`<button onclick="openShop()">🛒 상점 (진정 음료·배터리·부품)</button><button onclick="strollMarket()">🚶 상점가 거닐기</button>`;
   else if(d==='canteen') a=`<button onclick="campusRumor()">🍚 식사하며 소문 듣기 (5)</button>`;
   else if(d==='dorm') a=`<button onclick="campusRest()">🛏 기숙사에서 쉬기 (10)</button>`;
   else if(d==='gate') a=`<button class="primary" onclick="startExpedition()">🔦 구역 조사 떠나기</button><button onclick="openTravel()">🧭 다른 지구로 이동하기 (공원·학원가·재개발지구)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
   else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>` }
-  a+=`<button onclick="openRel()">👥 인연</button>`;
+  a+=`<button onclick="openSchoolMap()">🏫 학교 지도</button><button onclick="openRel()">👥 인연</button>`;
   if(G.comp.met){
     if(G.comp.joined) a+=`<button onclick="talkYumin()">🎵 유민과 이야기</button>`;
     else{
@@ -2095,8 +2119,8 @@ function campusFixedHTML(){
   }
   return {mv:bar,mvLbl:sp?`📍 ${esc(G.spot.name)} (임시 장소) · ${DISTRICTS[d].n} 지점 · 장소 이동`:`📍 ${DISTRICTS[d].n} · 장소 이동`,ac:a,acLbl:'🧭 행동'};
 }
-on('context',90,()=>G.loc==='campus'&&!spotOn()?` 지금 있는 곳은 중앙 캠퍼스 지구의 「${DISTRICTS[curDistrict()].n}」이다. 장면의 배경과 등장인물을 이 장소에 맞출 것(정문: 경비원·택배 기사·귀가하는 학생, 급식실: 소문·급식 조리원·동기, 기숙사: 사감 선생님·룸메이트, 교실: 담임·교과 선생님·반 친구·칠판과 수업, 상점가: 점원·행인·버스커, 저수지 둑길: 가로등·물가·산책하는 사람). 중앙 캠퍼스 지구의 지점은 상점가·급식실·기숙사·정문·저수지 둑길·교실 여섯이다. 지점 밖의 장소(편의점, 자습실, 옥상, 골목 등)로 가는 것도 가능하며 그때는 게임이 '임시 장소'로 기록한다. 소문 듣기·숙박·상점 거래·조사 외출 출발은 지점에서만 가능하다.`:'');
-on('context',90.1,()=>spotOn()?` [임시 장소] 플레이어는 중앙 캠퍼스 지구 「${DISTRICTS[curDistrict()].n}」 지점에서 벗어나 「${G.spot.name}」에 있다. 이 장소의 풍경·인물 이야기를 하되, 소문 듣기·숙박·상점 거래·휴식은 지점으로 돌아가야 가능하다 — 이 장면에서 물건을 사고팔거나 쉬는 서술을 성사시키지 말고 effects의 체력·공포·배터리·손전등·캐시는 0으로 둘 것. 여섯 지점 중 하나로 가는 선택지는 허용한다.`:'');
+on('context',90,()=>G.loc==='campus'&&!spotOn()?` 지금 있는 곳은 중앙 캠퍼스 지구의 「${DISTRICTS[curDistrict()].n}」이다. 장면의 배경과 등장인물을 이 장소에 맞출 것(정문: 경비원·택배 기사·귀가하는 학생, 급식실: 소문·급식 조리원·동기, 기숙사: 사감 선생님·룸메이트, 교실: 담임·교과 선생님·반 친구·칠판과 수업, 복도: 오가는 학생·게시판·사물함·창가, 매점: 간식 줄·점원, 교무실: 선생님들·면담·꾸중, 상점가: 점원·행인·버스커, 저수지 둑길: 가로등·물가·산책하는 사람). 중앙 캠퍼스 지구의 지점은 교실·복도·매점·급식실·교무실·기숙사·정문·상점가·저수지 둑길 아홉이다. 지점 밖의 장소(편의점, 자습실, 옥상, 골목 등)로 가는 것도 가능하며 그때는 게임이 '임시 장소'로 기록한다. 소문 듣기·숙박·상점 거래·조사 외출 출발은 지점에서만 가능하다.`:'');
+on('context',90.1,()=>spotOn()?` [임시 장소] 플레이어는 중앙 캠퍼스 지구 「${DISTRICTS[curDistrict()].n}」 지점에서 벗어나 「${G.spot.name}」에 있다. 이 장소의 풍경·인물 이야기를 하되, 소문 듣기·숙박·상점 거래·휴식은 지점으로 돌아가야 가능하다 — 이 장면에서 물건을 사고팔거나 쉬는 서술을 성사시키지 말고 effects의 체력·공포·배터리·손전등·캐시는 0으로 둘 것. 아홉 지점 중 하나로 가는 선택지는 허용한다.`:'');
 function campusRumor(free){
   if(busy||spotBlock()) return;
   G._yuminHere=false;
@@ -2117,6 +2141,50 @@ function campusRest(){
   addLog('sys',`기숙사에서 하룻밤을 보냈습니다. 체력이 모두 회복되었습니다. (${G.day}일째 아침)`);
   if((G.demerit||0)>0){ G.demerit--; addLog('fx',`📕 점호를 정상 통과해 벌점 -1 → ${G.demerit}`) }
   save(); render();
+}
+function strollHall(){
+  if(busy||spotBlock()) return;
+  G._yuminHere=false;
+  const unheard=G.rumors.filter(r=>!G.heardRumors.includes(r.region));
+  let extra='[복도 거닐기] 오가는 학생들, 게시판의 공지와 낙서, 사물함 문 소리, 창가의 햇빛 같은 복도의 작은 장면 하나. 수업 중이면 조용한 복도와 교실 안에서 새어 나오는 선생님 목소리.';
+  if(unheard.length&&Math.random()<0.15){ const r=rand(unheard); G.heardRumors.push(r.region); extra+=` 게시판 앞에서 ${r.region} 쪽 소문이 귀에 들어온다: "${r.belief}". 이 소문이 그 지역의 괴담이라는 것이 서술에서 분명히 드러나게 하라.` }
+  tick(); aiTurn('복도를 천천히 거닌다',extra);
+}
+function officeTalk(){
+  if(busy||spotBlock()) return;
+  G._yuminHere=false;
+  tick(); aiTurn('교무실에서 담임 선생님과 면담한다',`[면담] 담임 선생님이 학교 생활과 벌점 현황(${G.demerit||0}점)을 확인하고, 전학생에게 걱정되는 점을 묻는다. 조언은 현실적이고 학교다운 톤으로. 괴담이나 지워진 구역은 아는 척하지 않거나 어른답게 얼버무린다.`);
+}
+/* ---------- 학교 안 지도 ---------- */
+const SCHOOL_MAP=[
+  {k:'classroom',x:18,y:18,w:104,h:70},{k:'office',x:130,y:18,w:76,h:70},{k:'snack',x:214,y:18,w:84,h:70},
+  {k:'hall',x:18,y:96,w:280,h:36},{k:'canteen',x:18,y:140,w:150,h:58},
+  {k:'gate',x:322,y:96,w:100,h:36},{k:'dorm',x:322,y:18,w:100,h:60},{k:'market',x:322,y:146,w:100,h:50},{k:'bank',x:322,y:206,w:100,h:34},
+];
+function schoolGo(k){
+  if(busy||!G||G.loc!=='campus') return;
+  if(k===curDistrict()&&!spotOn()) return toast('이미 이곳에 있습니다');
+  closeModal(); classLeaveEffect(k); goDistrict(k);
+}
+function openSchoolMap(){
+  if(!G||G.loc!=='campus') return;
+  const cur=spotOn()?null:curDistrict(), y=G.comp&&G.comp.met&&!G.comp.joined?G.comp.spot:null;
+  const room=r=>{
+    const d=DISTRICTS[r.k], on=r.k===cur;
+    return `<g style="cursor:pointer" onclick="schoolGo('${r.k}')"><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="6" style="fill:${on?'var(--accent)':'var(--bg)'};fill-opacity:${on?.25:1};stroke:${on?'var(--accent)':'var(--map-line)'};stroke-width:${on?2.4:1.2}"/>`
+      +`<text x="${r.x+r.w/2}" y="${r.y+r.h/2-2}" text-anchor="middle" style="font:700 13px 'Noto Sans KR',sans-serif;fill:var(--ink)">${d.ic} ${esc(d.n)}</text>`
+      +`<text x="${r.x+r.w/2}" y="${r.y+r.h/2+14}" text-anchor="middle" style="font:11px 'Noto Sans KR',sans-serif;fill:var(--muted)">${on?'📍 여기':''}${y===r.k?' 🎵 유민':''}</text></g>`;
+  };
+  const line=(x1,y1,x2,y2)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="stroke:var(--map-line);stroke-width:2;stroke-dasharray:4 3"/>`;
+  const svg=`<svg viewBox="0 0 430 250" style="width:100%;max-width:560px;display:block;margin:0 auto">
+    <rect x="8" y="8" width="300" height="200" rx="10" style="fill:var(--map-land);stroke:var(--map-line);stroke-width:1.4"/>
+    <text x="14" y="222" style="font:11px 'Noto Sans KR',sans-serif;fill:var(--muted)">한빛학원 본관</text>
+    <rect x="176" y="140" width="56" height="58" rx="6" style="fill:none;stroke:var(--map-line);stroke-dasharray:3 3"/><text x="204" y="173" text-anchor="middle" style="font:11px 'Noto Sans KR',sans-serif;fill:var(--muted)">계단</text>
+    <rect x="240" y="140" width="58" height="58" rx="6" style="fill:none;stroke:var(--map-line);stroke-dasharray:3 3"/><text x="269" y="173" text-anchor="middle" style="font:11px 'Noto Sans KR',sans-serif;fill:var(--muted)">화장실</text>
+    ${line(298,114,322,114)}${line(372,96,372,78)}${line(372,132,372,146)}${line(372,196,372,206)}
+    ${SCHOOL_MAP.map(room).join('')}</svg>`;
+  const sl=slotIdx()>=0?`🔔 지금: <b>${esc(slotLabel())}</b>`:`🕒 ${esc(G.time)}`;
+  modal('🏫 학교 안 지도',`<p class="muted" style="font-size:13px">${sl} · 가고 싶은 곳을 누르면 이동합니다. 수업 중에 교실을 벗어나면 땡땡이로 처리됩니다.</p>${svg}`);
 }
 function strollMarket(){
   if(busy||spotBlock()) return;
@@ -2323,11 +2391,14 @@ function homeroom(){
   if(busy||spotBlock()||slotIdx()!==0||!inClassroom()) return;
   const c=clsSt(); c.done.push(0); G._yuminHere=false;
   if(G.day===1&&!G.comp.met){
+    const nm=G.char.name;
+    const intro=`조례 종이 울리자 교실 앞문이 열린다. 담임 선생님이 출석부를 옆구리에 끼고 들어와 교탁 앞에 선다. 소란스럽던 아이들이 자리에 앉는 동안, 선생님은 분필을 들어 칠판에 천천히 이름을 쓴다.\n\n— ${nm}.\n\n"자, 주목. 오늘부터 우리 2학년 7반에 함께할 전학생이다. 학기 중간이라 낯설겠지만 다들 잘 챙겨 주도록."\n\n서른 개 남짓한 시선이 한꺼번에 네게 쏠린다. 뒷자리에서 수군거리는 소리, 창가 쪽에서 의자가 끼익 밀리는 소리. 선생님이 턱짓으로 교탁 옆 빈자리를 가리킨다.\n\n"인사해 볼까?"`;
+    addLog('scene',intro); G.recent.push({role:'scene',text:intro});
     G.comp.met=true; G._yuminHere=true; getRel('유민'); G.comp.spot='classroom'; G.comp.spotDay=G.day;
     addLex({name:'유민',cat:'인물',desc:'7반 학생이자 주말 버스커. 느긋하고 장난스러운 성격으로, 처음 본 사람에게도 먼저 말을 건다. 전학 첫날 옆자리에 앉았다.'},false,null);
     G.chronicle.push({day:G.day,text:'전학 첫날 조례에서 자기소개를 하고, 옆자리 학생 유민과 처음 이야기했다'});
     tick();
-    return aiTurn('전학 인사를 한다',`[전학 첫날 조례] 담임 선생님이 칠판에 플레이어의 이름을 쓰고 전학생을 소개한다. 반 아이들의 시선 속에서 플레이어가 짧게 자기소개를 한다(전학 이유는 플레이어 정보를 따르되 서서히 암시만). 자리는 창가 뒤쪽, 옆자리는 같은 반 학생 유민이다. 유민이 장난스럽게 먼저 말을 걸고(아직 서로 처음이다), 짧은 노래 한 소절이나 농담으로 분위기를 풀며 이름을 밝힌다. 교과서와 서류를 받는 장면에 서류 사이의 오래된 출석부를 한 줄 스치듯 언급할 수 있다. 선택지에는 유민에게 대꾸하거나 반 분위기를 살피는 행동을 포함하라. 학생 인물 사이의 관계는 우정으로만.`,false);
+    return aiTurn('전학 인사를 한다',`[전학 첫날 조례] 담임 선생님의 전학생 소개는 방금 끝났다(다시 쓰지 말 것). 이어서 반 아이들의 시선 속에서 플레이어가 짧게 자기소개를 한다(전학 이유는 플레이어 정보를 따르되 서서히 암시만). 자리는 창가 뒤쪽, 옆자리는 같은 반 학생 유민이다. 유민이 장난스럽게 먼저 말을 걸고(아직 서로 처음이다), 짧은 노래 한 소절이나 농담으로 분위기를 풀며 이름을 밝힌다. 교과서와 서류를 받는 장면에 서류 사이의 오래된 출석부를 한 줄 스치듯 언급할 수 있다. 선택지에는 유민에게 대꾸하거나 반 분위기를 살피는 행동을 포함하라. 학생 인물 사이의 관계는 우정으로만.`,false);
   }
   const unheard=G.rumors.filter(r=>!G.heardRumors.includes(r.region));
   let extra='[조례] 담임 선생님이 출석을 부르고 오늘 일정과 공지를 전한다. 벌점·점호·외출 같은 학교 규칙 이야기와 반 아이들의 웅성거림을 짧게.';
@@ -6399,6 +6470,8 @@ function openGuide(){
     ${h3('수업과 땡땡이 (교실, 낮에만)')}
     ${row('🔔 일과 칸','낮에는 행동 한 번이 일과 한 칸입니다. 교실에서 조례 → 1교시 → 쉬는 시간 → 2교시 → 점심시간 → 3교시 → 쉬는 시간 → 4교시 → 종례 순으로 흐르고, 종례가 끝나면 방과 후. 칸이 바뀔 때마다 🔔 알림이 뜨고 지금 칸에 맞는 버튼이 나옵니다. 조례·수업·종례는 교실에서, 점심시간 버튼은 급식실로 자동 이동(급식 무료, 소문을 들을 수 있음)')}
     ${row('🧭 장소 이동 인식','서술 AI가 장면이 끝났을 때의 위치를 직접 알려 주고, 선택지도 목적지(to)를 담습니다. 그래서 "자리를 옮겨", "~로 향했다" 같은 표현도 실제 장소 이동으로 반영됩니다(글 해석은 보조). 수업 칸에 교실을 벗어나면 땡땡이로 처리되어 그 칸이 지나가고 확률로 적발됩니다')}
+    ${row('🏫 학교 안 지도','캠퍼스의 🏫 학교 지도 버튼으로 교실·복도·매점·급식실·교무실과 기숙사·정문·상점가·저수지 둑길을 한눈에 보고 눌러서 이동할 수 있습니다. 복도에서는 거닐기, 매점에서는 간식·물품 구입, 교무실에서는 담임 면담이 가능합니다')}
+    ${row('🔔 칸이 끝날 때','수업·쉬는 시간 같은 칸이 끝나면 서술 뒤에 "🔔 1교시 수업이 끝났습니다 → 쉬는 시간"처럼 알림이 뜹니다')}
     ${row('📋 전학 첫날','1일째 조례에서 「전학 인사하기」를 누르면 담임의 소개, 자기소개, 옆자리 유민과의 첫 만남이 이어집니다')}
     ${row('📚 수업 듣기',`시간표는 날짜로 정해져 미리 보입니다. 교시마다 ${Math.round(CLASS_CLUE_P*100)}% 확률로 단서(조사 보드, 가끔 교표 조각의 위치)를 얻고 성장 경험치 +1. 과목마다 단서의 성격이 다름 — 국어: 기록·문서, 수학: 숫자·좌표(조각 위치 단서가 잘 나옴), 영어: 구역 이름의 유래, 과학: 구역 환경, 한국사: 구역 연혁, 사회: 지도·위치(조각 위치 단서가 잘 나옴), 음악: 소리·방송, 체육 이론: 안전 수칙, 기술·가정: 건물 구조. 수업 칸에 다른 행동을 하면 결석 기록만 남음`)}
     ${row('🏃 땡땡이치기',`수업 한 칸을 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}`)}
