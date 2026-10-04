@@ -1687,17 +1687,17 @@ function doCheck(text,skill,dc,src){
 }
 
 /* =========================================================
-   5. 물·식량 — 마시고 먹는 행동, 상태바, 서술 규칙
+   5. 공포·배터리 — 상태바, 서술 규칙 (내부 값 water=진정 여력, food=배터리)
    ========================================================= */
 const NEED_RX={
   NEG:/(않|못|말고|아니|대신)/,
-  DRINK:/(물을?\s*(마신|마시|들이켠|들이켜|한\s*모금|벌컥)|목을\s*축이|목을\s*축인|수통을?\s*(꺼|연|기울)|물주머니(를|에서)|갈증을\s*(달랜|해소|채운|풀))/,
-  EAT:/(식량을?\s*(먹|꺼내|씹)|(빵|대추야자|말린\s*과일|육포|건포도|말린\s*대추|비상식)[을를]?\s*(먹|씹|꺼내)|끼니를|허기를\s*(달랜|채운|해소)|배를\s*채운|음식을\s*먹|밥을\s*먹)/,
-  SOURCE:/(오아시스|우물|샘|물웅덩이|수원|빗물|저수조|저수지|분수)/,
-  GAIN_W:/(오아시스|우물|샘|물웅덩이|수원|빗물|저수조|물(병|통|주머니|단지)[을를이가]?\s*.{0,10}(발견|찾|얻|줍|주웠|건네|받|챙|채운|채웠))/,
-  GAIN_F:/((식량|빵|대추|열매|고기|과일|말린|육포|보급품|자루|도시락)[을를이가]?\s*.{0,10}(발견|찾|얻|줍|주웠|건네|받|챙))/,
+  DRINK:/(?!)/,   // 옛 '물 마시기'(재고를 미리 치르는 행동)는 공포 체계에서는 의미가 없어 끔 — 진정은 장소·구매·이야기 근거로만
+  EAT:/(?!)/,     // 옛 '식량 먹기'도 마찬가지(배터리는 충전으로 오를 뿐 미리 쓰지 않음)
+  SOURCE:/(휴게\s?(공간|정자|실|소파)|티\s?코너|정수기|따뜻한\s?(차|음료)|자판기|식수대|저수지\s?둑길|분수)/,
+  GAIN_W:/(휴게\s?(공간|정자|실|소파)|티\s?코너|정수기|자판기|따뜻한\s?(차|음료)|진정제|음료(수)?[을를이가]?\s*.{0,10}(발견|찾|얻|줍|건네|받|챙|사|마))/,
+  GAIN_F:/((보조배터리|배터리|충전기|충전\s?케이블|멀티탭|콘센트)[을를이가]?\s*.{0,10}(발견|찾|얻|줍|건네|받|챙|꽂|연결)|충전(했|한다|하며|을\s*하))/,
 };
-/* 마시기·먹기: 지금 1 소비 → 다음 자동 소비 1회 면제. 물이 없으면 실패. 수원 앞이면 줄지 않음 */
+/* (옛 마시기·먹기 판정 — 지금은 DRINK·EAT가 끔이라 실행되지 않음) */
 function judgeNeeds(t){
   if(!G||!t) return null;
   t=String(t);
@@ -1736,24 +1736,26 @@ function judgeNeeds(t){
 function needState(){
   const w=G.water, f=G.food;
   const iv=thirstInterval(), toW=iv-(G.steps%iv), toF=MOVE_STEPS.food-(G.steps%MOVE_STEPS.food);
-  if(isTown()) return {w,f,wl:'도시·아지트에서는 줄지 않음',fl:'도시·아지트에서는 줄지 않음',wWarn:false,fWarn:false};
+  if(isTown()) return {w,f,wl:'지구·아지트에서는 공포가 쌓이지 않음',fl:'지구·아지트에서는 닳지 않음',wWarn:false,fWarn:false};
   return {w,f,
-    wl:w>=2?'갈증 없음':(w===1?`물이 곧 바닥 (약 ${toW}걸음)`:'갈증 — 체력 감소 중'),
-    fl:f>=2?'허기 없음':(f===1?`식량이 곧 바닥 (약 ${toF}걸음)`:'굶주림 — 체력 감소 중'),
+    wl:w>=2?'공포 여유 있음':(w===1?`공포가 곧 한계 (약 ${toW}걸음)`:'공포 한계 — 체력 감소 중'),
+    fl:f>=2?'배터리 여유 있음':(f===1?`배터리가 곧 방전 (약 ${toF}걸음)`:'방전 — 체력 감소 중'),
     wWarn:w<=1,fWarn:f<=1};
 }
 on('facts',10,(o,rules)=>{
   const n=needState();
-  o.상태.갈증=`${n.wl} (물 ${n.w}개 보유)`;
-  o.상태.허기=`${n.fl} (식량 ${n.f}개 보유)`;
-  rules.push(`물과 식량은 이동하며 자동으로 마시고 먹는다. 물이 1개 이상이면 갈증·목마름 서술(타는 목, 마른 입술 등)을 쓰지 말 것(물이 1개면 '물이 거의 떨어져 간다'는 걱정까지만). 물이 0일 때만 갈증과 탈수 증상을 묘사한다. 식량과 허기도 같다.`);
-  rules.push(`휴대 용량은 물 ${capW()}, 식량 ${capF()}, 손전등 ${capT()}이다. 용량을 넘겨 얻는 서술은 하지 말고, '가득 채운다'는 용량까지만 채우는 것이다(effects 수치도 용량 이내).`);
-  if(isTown()) rules.push('도시와 아지트에서는 물·식량이 줄지 않고 갈증·허기도 생기지 않는다(우물·상점가·식사가 가까이 있다).');
+  o.상태.공포상태=`${n.wl} (공포 ${fearNow()}/${fearMax()})`;
+  o.상태.배터리상태=`${n.fl} (배터리 ${batteryPct()}%)`;
+  rules.push(`공포는 이동하며 자동으로 쌓이고 배터리는 자동으로 닳는다. 공포 여유(한계−현재)가 2 이상이면 심한 공포 증상(떨림·식은땀·호흡 곤란)을 쓰지 말 것(여유가 1이면 '한계에 가까워진다'까지). 공포가 한계에 닿았을 때만 공황 증상을 묘사한다. 배터리도 같다: 0일 때만 방전·연락 두절을 묘사한다.`);
+  rules.push(`휴대 용량은 공포 한계 ${capW()}, 보조배터리 팩 ${capF()}, 건전지 ${capT()}이다. 용량을 넘겨 얻는 서술은 하지 말고, '가득 채운다'는 용량까지만 채우는 것이다(effects 수치도 용량 이내).`);
+  if(isTown()) rules.push('중앙 캠퍼스 지구·다른 지구·아지트에서는 공포가 쌓이지 않고 배터리도 닳지 않는다(충전기와 사람이 가까이 있다).');
+  if((G.demerit||0)>=DEMERIT_WARN) rules.push(`[벌점 ${G.demerit}점 — 외출 금지 경고] 담임과 규율부가 플레이어를 주시한다. 외출·무단 이탈은 더 크게 적발되고 감시가 따라붙는 서술로 반영하라(조사 자체를 막지는 말 것).`);
+  rules.push(`[출입 권한 ${G.access||1}등급] 이보다 높은 등급이 필요한 문·구역은 열리지 않는다(서술로 처리하고, 올릴 방법을 단서로 흘릴 것).`);
 });
-/* 한빛시에서 물이 거의 없으면 물을 구하는 선택지를 하나 넣어 둠 */
+/* 공포가 한계에 가까우면 진정할 곳을 찾는 선택지를 하나 넣어 둠 */
 on('after',40,T=>{
-  if(isWild()&&Array.isArray(G.choices)&&G.water<=1&&!mountNoWater()&&!G.choices.some(c=>/오아시스|우물|물을|물주머니/.test(c))){
-    const add=G.water<=0?'물을 구할 곳(우물·오아시스)을 찾는다':'남은 물을 아껴 마시며 서두른다';
+  if(isWild()&&Array.isArray(G.choices)&&G.water<=1&&!mountNoWater()&&!G.choices.some(c=>/휴게|진정|따뜻한|자판기|정수기|심호흡/.test(c))){
+    const add=G.water<=0?'불 켜진 휴게 공간을 찾는다':'심호흡으로 마음을 다잡으며 서두른다';
     G.choices=G.choices.length>=4?G.choices.slice(0,3).concat(add):G.choices.concat(add);
   }
 });
@@ -1776,11 +1778,11 @@ on('effects',20,(e,{T})=>{
   if(!isWild()) return;
   const narr=lastScene(), blocked=[];
   const buying=+e.gold<0||isBuyText(lastAction());
-  if(+e.water>0&&!T.flags.srcOK&&!buying&&!NEED_RX.GAIN_W.test(narr)){ e.water=0; blocked.push('물') }
-  if(+e.food>0&&!buying&&!NEED_RX.GAIN_F.test(narr)){ e.food=0; blocked.push('식량') }
+  if(+e.water>0&&!T.flags.srcOK&&!buying&&!NEED_RX.GAIN_W.test(narr)){ e.water=0; blocked.push('공포 진정') }
+  if(+e.food>0&&!buying&&!NEED_RX.GAIN_F.test(narr)){ e.food=0; blocked.push('배터리') }
   const usedItem=Array.isArray(e.items_remove)&&e.items_remove.length>0;
   if(+e.hp>0&&!usedItem){ e.hp=0; blocked.push('체력') }
-  if(blocked.length) addLog('sys',`⚖ ${blocked.join('·')} 회복은 근거(수원·보급품 발견, 임시 쉼터·휴식, 약초 같은 아이템 사용)가 있을 때만 적용됩니다.`);
+  if(blocked.length) addLog('sys',`⚖ ${blocked.join('·')} 회복은 근거(진정 장소·충전기 발견, 임시 쉼터·휴식, 약 같은 아이템 사용)가 있을 때만 적용됩니다.`);
   if(G.loc==='dungeon'&&G.dungeon&&+e.gold>0){
     const d=G.dungeon; d.goldGot=d.goldGot||0;
     const g=Math.max(0,Math.min(Math.round(+e.gold),RUIN_GOLD_CAP-d.goldGot));
@@ -1788,7 +1790,7 @@ on('effects',20,(e,{T})=>{
   }
 });
 /* 21: 도시·마을·아지트 — 이야기로 얻는 캐시는 하루 합계 TOWN_GOLD_DAY까지, 체력 회복은 쉼·치료가 있을 때만 */
-const TOWN_GOLD_DAY=30, HEAL_RX=/(쉬|쉰|휴식|잠|눕|기숙사|치료|의원|약사|약초|붕대|연고|상처를\s*(감|닦|싸)|간호|돌봐|목욕|찜질|기도)/;
+const TOWN_GOLD_DAY=30, HEAL_RX=/(쉬|쉰|휴식|잠|눕|기숙사|치료|보건실|병원|약국|약사|약|붕대|연고|밴드|상처를\s*(감|닦|싸)|간호|돌봐|샤워|찜질|파스)/;
 on('effects',21,(e,ctx)=>{
   if(isWild()) return;
   if(+e.gold>0&&!(Array.isArray(e.items_remove)&&e.items_remove.length)){   // 물건을 판 값은 제외
@@ -1815,7 +1817,7 @@ on('effects',30,(e,{T})=>{
     });
   }
 });
-/* 40: 물·식량·손전등 구매는 게임 정가로 (구역 밖) */
+/* 40: 진정 음료·배터리·손전등 구매는 게임 정가로 (구역 밖) */
 on('effects',40,(e,ctx)=>{
   if(G.loc==='dungeon'||!(+e.gold<0||isBuyText(lastAction()))) return;
   const U=k=>priceHere(k);
@@ -1846,7 +1848,7 @@ on('effects',60,e=>{
 });
 /* 65: 이미 유실물을 가져간 방에서는 유실물을 또 주지 않음 */
 on('effects',65,e=>{ const r=G.loc==='dungeon'?curRoom():null; if(r&&r.relicTaken&&e.materials) e.materials=Object.assign({},e.materials,{relic:0}) });
-/* 70: 소모품 아이템은 수치로 (물주머니 → 물) */
+/* 70: 소모품 아이템은 수치로 (따뜻한 차 → 공포 진정, 보조배터리 → 배터리) */
 on('effects',70,(e,ctx)=>{
   ctx.consAdd=[];
   if(Array.isArray(e.items_add)){
@@ -1868,7 +1870,7 @@ on('effects',70,(e,ctx)=>{
 });
 
 /* 적용 뒤 */
-on('applied',10,(e,ctx)=>{ (ctx.consAdd||[]).forEach(([k,n,name])=>{ G[k]+=n; addLog('fx',`${name} → ${NM[k]} +${n} (소모품은 수치로 보관됩니다)`) }) });
+on('applied',10,(e,ctx)=>{ (ctx.consAdd||[]).forEach(([k,n,name])=>{ G[k]+=n; addLog('fx',`${name} → ${k==='water'?`공포 −${n}`:`${NM[k]} +${n}`} (소모품은 수치로 보관됩니다)`) }) });
 on('applied',20,(e,{snap})=>{   // 이 방에서 이미 얻은 유실물·물건 기록 (같은 것을 또 얻지 않게)
   if(G.loc!=='dungeon'||!G.dungeon) return;
   const room=curRoom(); if(!room) return;
@@ -1893,7 +1895,7 @@ on('applied',50,(e,{snap})=>{   // 휴대 용량: 넘친 만큼 버리고, 캐�
 on('applied',60,()=>cleanCreatureRel());
 on('applied',70,(e,ctx)=>{
   const b=ctx.buy; if(!b) return;
-  if(b.cost>0){ G.gold=Math.max(0,G.gold-b.cost); addLog('fx',`💳 정가 결제 -${b.cost} (${isTown()?'중앙 캠퍼스 지구 시세':'한빛시 뒷길 시세'})`) }
+  if(b.cost>0){ G.gold=Math.max(0,G.gold-b.cost); addLog('fx',`💳 정가 결제 -${b.cost} (${isTown()?'중앙 캠퍼스 지구 시세':'뒷길 행상 시세'})`) }
   const cut=Object.keys(b.gains).filter(k=>b.got[k]<b.gains[k]).map(k=>`${NM[k]} ${b.gains[k]-b.got[k]}`);
   if(cut.length) addLog('fx',`📦 한도(용량·소지금)를 넘는 ${cut.join(', ')}은(는) 사지 못했습니다`);
 });
