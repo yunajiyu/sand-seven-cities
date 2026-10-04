@@ -775,7 +775,7 @@ const AI_ROLES=[
   {k:'story',  n:'서술 · 유민 대사',     d:'장면 서술, 유민 대사, 선택지 (가장 중요)'},
   {k:'world',  n:'세계 설정 (숨겨진 것의 정체)', d:'새 게임 시작 시 1회 · 구역 연혁 뼈대 1회'},
   {k:'site',n:'구역 생성 (구역 내부 공간)', d:'조사 외출마다 1회 (JSON 구조)'},
-  {k:'lex',    n:'괴담 사전 추출',       d:'새 인물·장소·괴담 정리 (3턴마다 또는 장소를 옮길 때, 뒤에서 실행)'},
+  {k:'lex',    n:'괴담 사전 추출',       d:'새 인물·장소·괴담 정리 (4턴마다 또는 장소를 옮길 때, 뒤에서 실행)'},
   {k:'chron',  n:'연대기 압축',          d:'하루·한 주·한 달 단위로 옛 기록을 합침 (가끔, 저렴하게)'},
   {k:'summary',n:'줄거리 요약',          d:'오래된 장면을 압축 (약 5턴마다 · 이야기 기억의 핵심)'},
 ];
@@ -787,7 +787,7 @@ const AI_ROLE_DEFAULT={
   summary:{provider:'gemini',model:'gemini-3.8-flash',effort:'low'},
   chron:  {provider:'gemini',model:'gemini-3.8-flash',effort:'low'},
 };
-const LEX_EVERY=3;          // 사전 추출: 이 턴 수마다 한 번 (장소를 옮기면 그때도)
+const LEX_EVERY=4;          // 사전 추출: 이 턴 수마다 한 번 (장소를 옮기면 그때도)
 
 /* ---------- 지도 좌표 ---------- */
 const MAP_W=400, MAP_H=800/3, MAP_SC=400/1536;
@@ -1207,11 +1207,16 @@ function sceneContext(){
   for(const h of HOOKS.context){ try{ const add=h.fn(); if(add) s+=add }catch(e){ console.warn('[context]',e) } }
   return s;
 }
+/* 사전 전달: 이름이 글에 나온 항목은 설명(200자)을, 즐겨찾기·최근 항목은 한 줄(60자)만, 합쳐 8개까지 */
+const LEX_HIT_N=6, LEX_TOTAL=8, LEX_FULL=200, LEX_BRIEF=60;
 function relevantLex(text){
-  const hits=G.lexicon.filter(e=>text.includes(e.name));
-  const favs=G.lexicon.filter(e=>e.fav&&!e.arch).slice(-3);
-  const recent=G.lexicon.filter(e=>!e.arch).slice(-6);
-  return [...new Set([...hits,...favs,...recent])].slice(0,14).map(e=>`- [${e.cat}] ${e.name}: ${e.desc}`).join('\n')||'(없음)';
+  const hits=G.lexicon.filter(e=>e.name&&e.name.length>=2&&text.includes(e.name)).slice(-LEX_HIT_N);
+  hits.forEach(e=>{ e.seen=G.day; if(e.full){ e.desc=e.full; delete e.full } });
+  const favs=G.lexicon.filter(e=>e.fav&&!e.arch&&!hits.includes(e)).slice(-2);
+  const recent=G.lexicon.filter(e=>!e.arch&&!hits.includes(e)&&!favs.includes(e)).slice(-2);
+  const L=(e,n)=>`- [${e.cat}] ${e.name}: ${String(e.desc||'').slice(0,n)}${String(e.desc||'').length>n?'…':''}`;
+  const rows=[...hits.map(e=>L(e,LEX_FULL)),...favs.map(e=>L(e,LEX_BRIEF)),...recent.map(e=>L(e,LEX_BRIEF))].slice(0,LEX_TOTAL);
+  return rows.join('\n')||'(없음)';
 }
 /* 프롬프트는 '거의 안 변하는 앞부분'(숨겨진 진실·줄거리·연대기·유민 프로필)과 '매 턴 바뀌는 뒷부분'으로 나눠 이어 붙임.
    앞부분이 매 턴 같아야 제공자의 프롬프트 캐시(자동/명시)가 맞아 입력 비용이 줄어듦 — 순서를 바꿀 때 이 원칙을 지킬 것.
@@ -4899,7 +4904,7 @@ on('facts',90,(o,rules)=>{
 
 /* =========================================================
    20-1. 떡밥 장부 — 아직 풀리지 않은 이야기
-   - 사전 추출(3장면마다) 때 같은 AI가 새 떡밥을 적고, 풀린 떡밥을 닫음 (호출이 늘지 않음)
+   - 사전 추출(4장면마다) 때 같은 AI가 새 떡밥을 적고, 풀린 떡밥을 닫음 (호출이 늘지 않음)
    - 서술 AI에게는 매 턴 2~3개를 '자연스러우면 회수'로 넘김 (억지로 풀지 않게)
    - G.threads=[{id,text,day,status:'open'|'closed',closedDay,shown}]
    ========================================================= */
@@ -4963,23 +4968,36 @@ function openThreads(){
 }
 
 /* =========================================================
-   20. 사전 — 별도 AI가 정리 (3턴마다 한 번, 또는 장소를 옮길 때)
+   20. 사전 — 별도 AI가 정리 (4턴마다 한 번, 또는 장소를 옮길 때)
    ========================================================= */
 const LEX_CATS=['인물','장소','괴담','물건','세력'];
 /* zoneName: 이 항목이 생긴 구역 이름 (조사를 마치면 인물·세력·즐겨찾기 말고는 정리됨 — 장소·괴담은 합치고 물건은 삭제).
    undefined면 지금 구역 안에 있을 때 그 구역으로 표시 */
+const LEX_DESC_MAX=250, STALE_DAYS=7, STALE_KEEP=150;
+/* 설명이 길어지면 앞(정체)과 뒤(최근 소식)만 남김 */
+function lexClip(t){ t=String(t||'').trim(); return t.length>LEX_DESC_MAX?t.slice(0,110)+' … '+t.slice(-(LEX_DESC_MAX-114)):t }
+/* 7일 넘게 이야기에 나오지 않은 인물·세력은 설명을 150자로 줄이고 원문은 보관(AI 호출 없음). 이름이 다시 나오면 줄인 설명으로 전달 */
+function lexTrimStale(){
+  if(!G||!Array.isArray(G.lexicon)) return;
+  G.lexicon.forEach(e=>{
+    if(!['인물','세력'].includes(e.cat)||e.fav||e.full||String(e.desc||'').length<=STALE_KEEP+20) return;
+    const seen=e.seen==null?G.day:e.seen; if(e.seen==null) e.seen=G.day;
+    if(G.day-seen>=STALE_DAYS){ e.full=e.desc; e.desc=e.desc.slice(0,STALE_KEEP-1)+'…' }
+  });
+}
 function addLex(e,silent,zoneName){
   if(!e||!e.name||!e.desc) return;
   const cat=LEX_CATS.includes(e.cat)?e.cat:'괴담';
   const ex=G.lexicon.find(x=>x.name===e.name);
   if(ex){
     if(ex.desc.includes(e.desc)) return;
-    ex.desc=(ex.desc+' '+e.desc).slice(-500); ex.isNew=true;
+    if(ex.full){ ex.desc=ex.full; delete ex.full }   // 다시 나온 인물은 원문 복원
+    ex.desc=lexClip(ex.desc+' '+e.desc); ex.isNew=true; ex.seen=G.day;
     if(ex.cat==='세력'){ ex.sumPending=(ex.sumPending||0)+1; if(ex.desc.length>FACTION_SUM_LEN||ex.sumPending>=4) summarizeFaction(ex) }   // 세력 기록이 길어지면 한 문단으로 요약
     if(!silent) toast(`📜 괴담 사전 갱신: ${e.name}`);
     return;
   }
-  const x={name:e.name,cat,desc:e.desc,isNew:!silent};
+  const x={name:e.name,cat,desc:lexClip(e.desc),isNew:!silent,seen:G.day};
   const rn=zoneName!==undefined?zoneName:((G.site&&(G.loc==='site'||G.loc==='shelter'))?G.site.name:null);
   if(rn) x.zone=rn;
   G.lexicon.push(x);
@@ -5004,8 +5022,8 @@ function flushLex(){
 }
 async function extractLex(q){
   const g=G;
-  const names=g.lexicon.map(e=>e.name).slice(-80).join(', ')||'(없음)';
-  const scenes=q.items.map((x,i)=>`(${i+1}) 플레이어: ${x.a}\n${x.n}`).join('\n\n');
+  const scenes=q.items.map((x,i)=>`(${i+1}) 플레이어: ${x.a}\n${String(x.n).slice(0,350)}`).join('\n\n');
+  const names=[...new Set([...g.lexicon.filter(e=>e.name.length>=2&&scenes.includes(e.name)).map(e=>e.name),...g.lexicon.map(e=>e.name).slice(-30)])].join(', ')||'(없음)';
   const prompt=`다음은 텍스트 탐험 게임의 최근 장면들이다. 이 장면들에서 새로 등장했거나 새로 알게 된 인물, 장소, 괴담, 물건, 세력만 뽑아 사전 항목으로 정리하라.
 - 이미 사전에 있는 대상이면 반드시 같은 이름을 쓰고, desc에는 이번에 새로 알게 된 내용만 쓴다.
 - 플레이어 캐릭터(${g.char.name}) 자신은 넣지 않는다. 몬스터·동물은 '인물'로 넣지 않는다.${q.zone?`
@@ -5162,7 +5180,7 @@ async function lexCompact(force){
     else if(force) toast('요약할 수 있는 항목이 없었습니다 (AI 키 확인)');
   }finally{ lexCompacting=false }
 }
-on('after',80,()=>{ setTimeout(()=>{ if(!busy) lexCompact(false) },800) });
+on('after',80,()=>{ try{ lexTrimStale() }catch(e){ console.warn(e) } setTimeout(()=>{ if(!busy) lexCompact(false) },800) });
 
 /* 사전 화면 */
 let sideLexTab='전체', sideLexN=8, lexTab='전체', lexQ='', lexShown=30;
