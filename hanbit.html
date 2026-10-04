@@ -1093,7 +1093,7 @@ materials는 구역에서 플레이어가 실제로 쓸 만한 철제 부품, �
 사전추가: 이번 장면에서 새로 나온 인물·장소·괴담이 있으면 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}], 없으면 []. 괴담 사전은 별도로도 자동 정리되니 핵심 항목만 넣는다.
 조사보드: 이번 장면에서 새로 생긴 단서·증언·모순점을 짧은 문장 배열로, 없으면 []. 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등)을 "항목 = 내용" 형식 배열로, 없으면 []. 이미 적힌 것을 반복하지 말 것.
 [위치 규칙] 중앙 캠퍼스 지구에 있을 때만 쓴다. "위치"에는 이번 장면이 끝났을 때 플레이어가 실제로 있는 곳을 적는다: 지점 이름(${placeNames()} 중 하나) 또는 지점 밖 장소 이름(옥상, 매점 앞 등). 플레이어의 행동이나 서술에서 장소가 실제로 바뀐 경우에만 적고, 그대로면 빈 문자열이다("자리를 옮겨", "~로 향했다", "~에 도착했다" 같은 표현도 장소가 바뀐 것이다). 선택지가 다른 곳으로 가는 행동이면 그 선택지의 "to"에 목적지 이름을 적는다. 수업 중에 교실을 벗어나면 땡땡이이므로 서술에서 그렇게 다룬다.
-[일과 규칙] 수업은 코드가 센다. 수업 중에는 [수업 끝] 지시가 있는 장면에서만 종을 울리고, 그 전에는 수업이 계속되는 것으로 서술한다. 만약 이번 장면의 서술에서 수업이나 쉬는 시간 같은 일과 칸이 끝났다는 종이 울렸다면 "칸종료"를 true로 한다(그 밖에는 false).
+[일과 규칙] 낮(학교 일과 중)에는 졸기·엎드리기·잠깐 쉬기도 type "rest"가 아니라 "story"로 낸다("rest"는 밤에 잠자리에 드는 선택지에만 쓴다). 수업은 코드가 센다. 수업 중에는 [수업 끝] 지시가 있는 장면에서만 종을 울리고, 그 전에는 수업이 계속되는 것으로 서술한다. 만약 이번 장면의 서술에서 수업이나 쉬는 시간 같은 일과 칸이 끝났다는 종이 울렸다면 "칸종료"를 true로 한다(그 밖에는 false).
 [선택지·사건 규칙]
 - choices는 3~4개의 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기, 해독, 설득, 함정 피하기, 몰래 지나가기 등)은 "check"와 알맞은 skill·dc. 쉬기/잠자기는 "rest", 임시 쉼터는 "shelter", 중앙 캠퍼스 지구 귀환은 "return", 구역 밖으로 나가기는 "exit", 사고팔기는 "trade". 그 밖의 관찰·대화·묘사 중심 행동은 "story". 능력치: str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정.
 - 괴이와 마주친 장면에서는 싸우는 선택지보다 "도주 / 숨기 / 교칙 지키기" 계열을 우선한다. 전투는 규율부·청소반 같은 사람이 상대일 때만.
@@ -1634,7 +1634,7 @@ const INTENTS=[
   {id:'useItem',
    when:t=>{ const i=itemIn(t); return i>=0&&!!consKind(G.items[i])&&IX.USEV.test(t) }, run:t=>{ addLog('action',t); useItem(itemIn(t)) }},
   {id:'sleep',confirm:true,label:sleepLabel,
-   when:t=>IX.SLEEP.test(t)&&!IX.SLEEP_NEG.test(t)&&['campus','hood','home','road','site','shelter'].includes(G.loc),
+   when:t=>IX.SLEEP.test(t)&&!IX.SLEEP_NEG.test(t)&&['campus','hood','home','road','site','shelter'].includes(G.loc)&&!(G.loc==='campus'&&G.time==='낮'),
    run:t=>{ addLog('action',t); addLog('sys','🌙 밤을 보내는 행동은 게임의 휴식 기능으로 처리되어 시간이 흐릅니다.'); G.choices=[]; sleepHere(); save(); render() }},
   {id:'wait',confirm:true,label:()=>'⏳ 시간 보내기 (날짜·공포·배터리가 계산됨)',
    when:t=>IX.WAIT.test(t),
@@ -1716,7 +1716,10 @@ function story(t,opt={}){
 /* AI 선택지의 종류 → 게임 기능 */
 function runChoiceType(type,text){
   const L=G.loc, say=()=>addLog('action',text);
-  if(type==='rest'){ say(); sleepHere(); return true }
+  if(type==='rest'){
+    if(L==='campus'&&G.time==='낮') return false;   // 학교 일과 중의 졸기·쉬기는 하룻밤 휴식이 아니라 이야기 행동으로 처리
+    say(); sleepHere(); return true;
+  }
   if(type==='shelter'&&['road','site'].includes(L)){ say(); shelterHere(); return true }
   if(type==='return'&&inZone()){ say(); returnToCampus(); return true }
   if(type==='exit'&&L==='site'){ exitZone(); return true }
@@ -2193,6 +2196,7 @@ function campusRumor(free){
 }
 function campusRest(){
   if(busy||spotBlock()) return;
+  if(G.loc==='campus'&&G.time==='낮') return toast('학교 일과 중에는 기숙사에서 하룻밤을 보낼 수 없습니다. 종례가 끝난 뒤(방과 후)부터 가능합니다');
   if(G.cash<10) return toast('기숙사 이용비 캐시 10이 필요합니다');
   G.cash-=10; G.hp=G.maxhp; G.day++; G.time='낮'; G.dayStep=0;
   addLog('sys',`기숙사에서 하룻밤을 보냈습니다. 체력이 모두 회복되었습니다. (${G.day}일째 아침)`);
