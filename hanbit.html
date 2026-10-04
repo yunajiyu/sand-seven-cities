@@ -1043,7 +1043,8 @@ const SYS_ZONE=`너는 텍스트 호러 게임 「출석부에 없는 구역」�
 const TURN_SCHEMA=`출력 JSON 형식:
 {
  "narration": "서술 (문단은 \\n\\n로 구분)",
- "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","type":"story|check|rest|shelter|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)"}],
+ "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","type":"story|check|rest|shelter|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)","to":"장소를 옮기는 선택지일 때만 목적지 이름"}],
+ "위치": "",
  "event": null,
  "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[]},
  "chronicle": "이번 장면이 이야기상 중요하면 한 줄 요약, 아니면 빈 문자열"
@@ -1061,6 +1062,7 @@ materials는 구역에서 플레이어가 실제로 쓸 만한 철제 부품, �
 교표조각: 교표 조각을 손에 넣는 장면에서만 true (코드가 조건을 확인한다).
 사전추가: 이번 장면에서 새로 나온 인물·장소·괴담이 있으면 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}], 없으면 []. 괴담 사전은 별도로도 자동 정리되니 핵심 항목만 넣는다.
 조사보드: 이번 장면에서 새로 생긴 단서·증언·모순점을 짧은 문장 배열로, 없으면 []. 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등)을 "항목 = 내용" 형식 배열로, 없으면 []. 이미 적힌 것을 반복하지 말 것.
+[위치 규칙] 중앙 캠퍼스 지구에 있을 때만 쓴다. "위치"에는 이번 장면이 끝났을 때 플레이어가 실제로 있는 곳을 적는다: 지점 이름(상점가·급식실·기숙사·정문·저수지 둑길·교실 중 하나) 또는 지점 밖 장소 이름(옥상, 매점 앞 등). 플레이어의 행동이나 서술에서 장소가 실제로 바뀐 경우에만 적고, 그대로면 빈 문자열이다("자리를 옮겨", "~로 향했다", "~에 도착했다" 같은 표현도 장소가 바뀐 것이다). 선택지가 다른 곳으로 가는 행동이면 그 선택지의 "to"에 목적지 이름을 적는다. 수업 중에 교실을 벗어나면 땡땡이이므로 서술에서 그렇게 다룬다.
 [선택지·사건 규칙]
 - choices는 3~4개의 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기, 해독, 설득, 함정 피하기, 몰래 지나가기 등)은 "check"와 알맞은 skill·dc. 쉬기/잠자기는 "rest", 임시 쉼터는 "shelter", 중앙 캠퍼스 지구 귀환은 "return", 구역 밖으로 나가기는 "exit", 사고팔기는 "trade". 그 밖의 관찰·대화·묘사 중심 행동은 "story". 능력치: str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정.
 - 괴이와 마주친 장면에서는 싸우는 선택지보다 "도주 / 숨기 / 교칙 지키기" 계열을 우선한다. 전투는 규율부·청소반 같은 사람이 상대일 때만.
@@ -1217,12 +1219,14 @@ function normalizeTurn(r){
         const type=CHOICE_TYPES.includes(c.type)?c.type:'story';
         const m={type};
         if(type==='check'){ m.skill=SK[c.skill]?c.skill:'sur'; m.dc=DCV[c.dc]?c.dc:'normal' }
+        if(c.to&&String(c.to).trim()) m.to=String(c.to).trim().slice(0,16);
         meta[text]=m; return text;
       }
       return typeof c==='string'?fixCalling(c):null;
     }).filter(Boolean);
     G.choiceMeta=meta;
   }
+  r.place=r['위치']!=null?String(r['위치']).trim().slice(0,16):'';
   r.event=(r.event&&typeof r.event==='object'&&['merchant','calm_source','place_lead'].includes(r.event.type))?{type:r.event.type,name:String(r.event.name||'').slice(0,20),hint:String(r.event.hint||'').slice(0,80)}:null;
   return r;
 }
@@ -1255,6 +1259,7 @@ async function aiTurn(action,extra='',showAction=true){
   addLog('scene',res.narration);
   G.recent.push({role:'scene',text:stripMd(res.narration)});
   applyEffects(res.effects||{},T);
+  applyPlace(res);
   G._evtTurn=false;
   if(G.relEvt){ if(G._relSetup) G._relSetup=false; else if(++G.relEvt.turns>=4){ getRel(G.relEvt.name).cool=G.day+1; G.relEvt=null } }
   if(res.chronicle&&String(res.chronicle).trim()) G.chronicle.push({day:G.day,text:stripMd(String(res.chronicle).trim())});
@@ -1486,6 +1491,35 @@ function setSpot(name){
   G.spot={name:String(name).slice(0,16)}; G._yuminHere=false;
   addLog('sys',`📍 ${G.spot.name} (임시 장소) — 소문·숙박·상점 같은 지점 전용 기능은 지점으로 돌아가야 쓸 수 있습니다.`);
 }
+/* ---------- AI가 알려 준 장소('위치'·선택지 'to') 처리 ---------- */
+function destKey(n){
+  n=String(n||'').trim(); if(!n) return null;
+  const e=Object.entries(DISTRICTS).find(([k,d])=>d.n===n||(YUMIN_SPOTS[k]&&YUMIN_SPOTS[k].n===n)); if(e) return e[0];
+  const h=IX.DIST_KEYS.find(([k,re])=>re.test(n)); return h?h[0]:null;
+}
+function validSpotName(n){ n=String(n||'').trim(); return n.length>=2&&n.length<=16&&!SPOT_STOP.test(n)&&!/(구역|라쿠나|한빛시|조사 외출|캠퍼스|아지트|선착장|공원|학원가|재개발)/.test(n) }
+/* 수업 칸에 교실을 벗어나면 땡땡이: 그 칸이 흘러가고 확률로 적발(벌점) */
+function classLeaveEffect(toKey){
+  const i=slotIdx();
+  if(i<0||!CLASS_SLOTS.includes(i)||G.loc!=='campus'||curDistrict()!=='classroom'||spotOn()||toKey==='classroom') return;
+  const c=clsSt(); if(c.done.includes(i)) return;
+  c.done.push(i); c.skip++; c.sk++;
+  tick();
+  if(Math.random()<skipCatchP()){ addDemerit(SKIP_DEMERIT,'수업 이탈 적발'); pend(' [적발] 수업 시간에 자리를 벗어난 것이 들켜 벌점이 붙었다(벌점은 이미 반영되었으니 effects.벌점은 0). 선생님이나 규율부 학생의 가벼운 꾸중으로 짧게만 언급하라.') }
+  else addLog('sys','🏃 수업 중 자리를 벗어났지만 들키지 않았습니다.');
+}
+/* 서술 뒤에 AI가 알려 준 '위치'를 실제 장소로 반영 (선택지를 지우지 않도록 조용히) */
+function applyPlace(res){
+  if(!G||G.loc!=='campus'||!res||!res.place) return;
+  const k=destKey(res.place);
+  if(k){
+    if(k===curDistrict()&&!spotOn()) return;
+    classLeaveEffect(k);
+    G.spot=null; G.district=k; G._yuminHere=false;
+    addLog('sys',`${DISTRICTS[k].ic} ${DISTRICTS[k].n}${josa(DISTRICTS[k].n,'으로','로')} 이동했습니다.`);
+    if(G.comp&&G.comp.met&&!G.comp.joined&&G.comp.spot===k) addLog('sys','🎵 이곳에서 유민의 모습이 보입니다.');
+  }else if(validSpotName(res.place)&&!(G.spot&&G.spot.name===res.place)){ classLeaveEffect(null); setSpot(res.place) }
+}
 function spotBlock(){ if(spotOn()){ toast('임시 장소에서는 할 수 없습니다. 먼저 지점으로 돌아가세요'); return true } return false }
 const waitDays=t=>{ const m=String(t).match(/(\d+)\s*일/); if(m) return Math.min(3,Math.max(1,+m[1])); if(/사흘/.test(t)) return 3; if(/이틀|며칠/.test(t)) return 2; return 1 };
 const inZone=()=>!!G.site&&['site','shelter','road'].includes(G.loc);
@@ -1506,7 +1540,7 @@ const INTENTS=[
    when:t=>G.peddler&&G.peddler.here&&G.loc===(G.peddler.loc||'road')&&IX.PEDDLER_BUY.test(t), run:()=>{ openPeddler() }},
   {id:'district',
    when:t=>!!districtMove(t),
-   run:t=>{ const k=districtMove(t); addLog('action',t); if(curDistrict()===k&&!G.spot) toast(`이미 ${DISTRICTS[k].n}에 있습니다`); else goDistrict(k) }},
+   run:t=>{ const k=districtMove(t); addLog('action',t); if(curDistrict()===k&&!G.spot) toast(`이미 ${DISTRICTS[k].n}에 있습니다`); else{ classLeaveEffect(k); goDistrict(k) } }},
   {id:'home',confirm:true,label:()=>'🏠 아지트로 이동',
    when:t=>IX.HOME.test(t),
    run:t=>{
@@ -1574,10 +1608,15 @@ function pickChoice(i){
     if(m.type==='story'&&calmFillIntent(c)) return story(c,{src:'choice'});
     if(m.type!=='story'&&runChoiceType(m.type,c)) return;
     if(m.type==='story'&&isHood()&&!RX.NEG.test(c)&&leadByText(c)){ addLog('action',c); return startLead(leadByText(c).id) }   // 소문의 장소로 가는 선택지
+    if(m.type==='story'&&G.loc==='campus'&&m.to){   // AI가 준 목적지(to)가 있으면 글 해석 없이 그대로 이동
+      const k=destKey(m.to);
+      if(k){ if(k!==curDistrict()||spotOn()){ classLeaveEffect(k); goDistrict(k) } return story(c,{src:'choice'}) }
+      if(validSpotName(m.to)){ classLeaveEffect(null); setSpot(m.to); return story(c,{src:'choice'}) }
+    }
     if(m.type==='story'&&G.loc==='campus'&&!RX.NEG.test(c)){   // 선택지 글이 다른 곳으로 가는 것이면 실제 장소도 옮김
       const k=districtMove(c);
-      if(k){ if(k!==curDistrict()||spotOn()) goDistrict(k) }          // 여섯 지점 중 한 곳 (임시 장소도 함께 해제)
-      else{ const n=spotMove(c); if(n) setSpot(n) }                   // 지점 밖 장소 → 임시 장소
+      if(k){ if(k!==curDistrict()||spotOn()){ classLeaveEffect(k); goDistrict(k) } }          // 여섯 지점 중 한 곳 (임시 장소도 함께 해제)
+      else{ const n=spotMove(c); if(n){ classLeaveEffect(null); setSpot(n) } }                   // 지점 밖 장소 → 임시 장소
     }
     return story(c,{src:'choice'});
   }
@@ -6359,6 +6398,7 @@ function openGuide(){
     ${row('점호 누락·무단 외출','야간이 되었을 때 구역·뒷길에 있으면 벌점 +1(점호 누락). 야간·새벽에 구역 조사를 나가면 벌점 +1(무단 외출 — 외출 금지 경고 중이면 +2). 기숙사에서 하룻밤 쉬면 벌점 -1')}
     ${h3('수업과 땡땡이 (교실, 낮에만)')}
     ${row('🔔 일과 칸','낮에는 행동 한 번이 일과 한 칸입니다. 교실에서 조례 → 1교시 → 쉬는 시간 → 2교시 → 점심시간 → 3교시 → 쉬는 시간 → 4교시 → 종례 순으로 흐르고, 종례가 끝나면 방과 후. 칸이 바뀔 때마다 🔔 알림이 뜨고 지금 칸에 맞는 버튼이 나옵니다. 조례·수업·종례는 교실에서, 점심시간 버튼은 급식실로 자동 이동(급식 무료, 소문을 들을 수 있음)')}
+    ${row('🧭 장소 이동 인식','서술 AI가 장면이 끝났을 때의 위치를 직접 알려 주고, 선택지도 목적지(to)를 담습니다. 그래서 "자리를 옮겨", "~로 향했다" 같은 표현도 실제 장소 이동으로 반영됩니다(글 해석은 보조). 수업 칸에 교실을 벗어나면 땡땡이로 처리되어 그 칸이 지나가고 확률로 적발됩니다')}
     ${row('📋 전학 첫날','1일째 조례에서 「전학 인사하기」를 누르면 담임의 소개, 자기소개, 옆자리 유민과의 첫 만남이 이어집니다')}
     ${row('📚 수업 듣기',`시간표는 날짜로 정해져 미리 보입니다. 교시마다 ${Math.round(CLASS_CLUE_P*100)}% 확률로 단서(조사 보드, 가끔 교표 조각의 위치)를 얻고 성장 경험치 +1. 과목마다 단서의 성격이 다름 — 국어: 기록·문서, 수학: 숫자·좌표(조각 위치 단서가 잘 나옴), 영어: 구역 이름의 유래, 과학: 구역 환경, 한국사: 구역 연혁, 사회: 지도·위치(조각 위치 단서가 잘 나옴), 음악: 소리·방송, 체육 이론: 안전 수칙, 기술·가정: 건물 구조. 수업 칸에 다른 행동을 하면 결석 기록만 남음`)}
     ${row('🏃 땡땡이치기',`수업 한 칸을 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}`)}
