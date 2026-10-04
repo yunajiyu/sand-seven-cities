@@ -363,7 +363,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 <!-- 게임 -->
 <section id="game" class="hidden">
   <aside class="side left" id="sideL" aria-label="캐릭터 정보">
-    <div class="sidehead"><b>👤 전입생</b><button class="small only-narrow" onclick="closeSides()">닫기</button><button class="small only-wide" onclick="hideSide('L',true)" title="사이드바 접기">접기</button></div>
+    <div class="sidehead"><b>👤 입소생</b><button class="small only-narrow" onclick="closeSides()">닫기</button><button class="small only-wide" onclick="hideSide('L',true)" title="사이드바 접기">접기</button></div>
     <div class="sbody"></div>
   </aside>
 
@@ -5856,20 +5856,20 @@ function locPanel(){
   if(G.loc==='city'){
     const land=FAC.find(f=>f.id==='land');
     t='중앙 캠퍼스 지구'; sub=spotOn()?`📍 ${G.spot.name} (임시 장소)`:`📍 ${DISTRICTS[curDistrict()].n}`;
-    body=`<ul class="locl"><li>🛒 상점가</li><li>🍵 구내식당</li><li>🛏 기숙사</li><li>🏠 ${has('land')?esc(nm):(canPay(land.cost)?`아지트 부지 (구입 가능 · 💳${land.cost.gold})`:`아지트 부지 (캐시 부족 · 💳${G.gold}/${land.cost.gold})`)}</li></ul>`;
+    body=`<ul class="locl"><li>🛒 상점가</li><li>🍚 구내식당</li><li>🛏 기숙사</li><li>🏠 ${has('land')?esc(nm):(canPay(land.cost)?`폐 동아리실 (마련 가능 · 💳${land.cost.gold})`:`폐 동아리실 (캐시 부족 · 💳${G.gold}/${land.cost.gold})`)}</li></ul>`;
   }else if(G.loc==='town'){
-    const tw=curTown(); t=`${tw.ic} ${tw.n}`; sub=tw.port?'선착장 · 섬으로 가는 배':`중앙 캠퍼스 지구에서 ${townDays(G.town)}일 거리`;
+    const tw=curTown(); t=`${tw.ic} ${tw.n}`; sub=tw.port?'선착장 · 수몰 구역으로 가는 보트':`중앙 캠퍼스 지구에서 ${townDays(G.town)}일 거리`;
     body=`<p class="muted" style="margin:6px 4px">${esc(tw.desc)}</p><ul class="locl"><li>✨ ${esc(tw.perk)}</li>${cv}</ul>`;
   }else if(G.loc==='home'){
     const b=FAC.filter(f=>f.id!=='land'&&has(f.id));
-    t=nm; sub='중앙 캠퍼스 지구 외곽 오아시스';
-    body=`<ul class="locl">${b.map(f=>`<li>✅ ${f.n}</li>`).join('')||'<li class="muted">아직 지은 시설이 없습니다</li>'}</ul><div class="muted" style="margin:0 4px;font-size:12px">시설 ${b.length}/${FAC.length-1}</div>`;
+    t=nm; sub='중앙 캠퍼스 지구 외곽 저수지 둑길 옆';
+    body=`<ul class="locl">${b.map(f=>`<li>✅ ${f.n}</li>`).join('')||'<li class="muted">아직 들인 시설이 없습니다</li>'}</ul><div class="muted" style="margin:0 4px;font-size:12px">시설 ${b.length}/${FAC.length-1}</div>`;
   }else if(outsideRuin()){
-    t=`${G.dungeon.name} — 입구 밖`; sub='한빛시 · 구역은 그대로 남아 있음';
+    t=`${G.dungeon.name} — 입구 밖`; sub='뒷길 · 구역은 그대로 남아 있음';
     body=`<ul class="locl"><li>🏚 마지막으로 있던 곳: ${esc((curRoom()||{}).name||'입구')}</li>${cv}</ul>`;
   }else if(G.loc==='road'){
     t='한빛시 뒷길'; sub='중앙 캠퍼스 지구에서 아직 모르는 구역으로';
-    body=`<p class="muted" style="margin:6px 4px">찬 바람 속을 걷는 중입니다.</p>${cv?`<ul class="locl">${cv}</ul>`:''}`;
+    body=`<p class="muted" style="margin:6px 4px">깜빡이는 가로등 아래를 걷는 중입니다.</p>${cv?`<ul class="locl">${cv}</ul>`:''}`;
   }else if(G.dungeon){
     const d=G.dungeon, r=curRoom();
     t=d.name; sub=G.loc==='camp'?`임시 쉼터 중 · ${r.name}`:`${r.name} · 깊이 ${d.depth} · 위험 ${'●'.repeat(r.danger)}${'○'.repeat(3-r.danger)}`;
@@ -5913,21 +5913,21 @@ function renderMapPanel(){
    ========================================================= */
 function leftHTML(){
   const c=G.char, s=c.stats, hpP=Math.max(0,Math.round(G.hp/G.maxhp*100));
-  let h=`<div class="sec"><div class="name">${esc(c.name)}</div><div class="muted">${esc(c.origin)} · 고향 ${esc(c.region)}</div>
+  let h=`<div class="sec"><div class="name">${esc(c.name)}</div><div class="muted">${esc(c.origin)} · ${c.age||20}세${c.reason?` · 입소 이유 ${esc(c.reason)}`:''}</div>
     <div class="grid2" style="margin-top:8px"><div><span>체력</span><b>${s.str}</b></div><div><span>지혜</span><b>${s.wis}</b></div><div><span>매력</span><b>${s.cha}</b></div><div><span>생존술</span><b>${s.sur}</b></div></div>
     <div class="chips" style="margin-top:8px">${c.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join('')||'<span class="muted">특성 없음</span>'}</div>
     ${c.bio?`<div class="bio">${esc(c.bio)}</div>`:''}
     <button class="small" style="margin-top:6px" onclick="openChar()">배경 보기·편집</button></div>`;
   h+=`<div class="sec"><h4>소지품</h4>
     <div style="display:flex;justify-content:space-between;align-items:center">❤ 체력 <b>${G.hp}/${G.maxhp}</b><button class="small ${(G.growth||0)>0?'primary':''}" onclick="openGrowth()">🌟 성장${(G.growth||0)>0?` (${G.growth})`:` ${(G.xp||0)%GROW_XP}/${GROW_XP}`}</button></div><div class="bar"><i style="width:${hpP}%"></i></div>
-    <div class="grid2"><div><span>💧 물</span><b>${G.water}/${capW()}</b></div><div><span>🍞 배터리</span><b>${G.food}/${capF()}</b></div><div><span>🔥 손전등</span><b>${G.torch}/${capT()}</b></div><div><span>💳 캐시</span><b>${G.gold}</b></div></div>
+    <div class="grid2"><div><span>😨 공포</span><b>${fearNow()}/${fearMax()}</b></div><div><span>🔋 배터리</span><b>${batteryPct()}%</b></div><div><span>🔦 손전등</span><b>${G.torch}/${capT()}</b></div><div><span>💳 캐시</span><b>${G.gold}</b></div><div><span>📕 벌점</span><b>${G.demerit||0}</b></div><div><span>🪪 출입 권한</span><b>${G.access||1}등급</b></div></div>
     <div class="grid2" style="margin-top:6px">${MATS.map(m=>`<div><span>${m.i} ${m.n}</span><b>${G.mat[m.k]}</b></div>`).join('')}</div>
     ${G.mat.relic?`<div class="muted" style="font-size:12px;margin-top:2px">📦 ${relicText()}</div>`:''}
     <div style="margin-top:8px;font-size:14px">교표 조각 ${'★'.repeat(G.fragments)}${'☆'.repeat(Math.max(0,FRAG_GOAL-G.fragments))}</div>
-    <div class="chips" style="margin-top:6px">${G.mount?`<span class="chip">🔦 ${esc(G.mount.name)}${G._mountFed===false?' (지침)':''}</span>`:''}${G.items.map((i,n)=>itemChipHTML(i,n)).join('')||(G.mount?'':'<span class="muted">보관품 없음</span>')}</div></div>`;
+    <div class="chips" style="margin-top:6px">${G.mount?`<span class="chip">🚲 ${esc(G.mount.name)}${G._mountFed===false?' (지침)':''}</span>`:''}${G.items.map((i,n)=>itemChipHTML(i,n)).join('')||(G.mount?'':'<span class="muted">보관품 없음</span>')}</div></div>`;
   const d=mountDef();
   if(d) h+=`<div class="sec"><h4>탈것</h4><div><b>${esc(G.mount.name)}</b> <span class="muted">${d.n}</span></div>
-    <div class="muted">${G._mountFed===false?'지쳐 있음 (다음 조사 외출에서 충전을 주면 회복)':'원기 왕성'} · 조사 외출마다 배터리 ${d.feed}</div>
+    <div class="muted">${G._mountFed===false?'지쳐 있음 (다음 조사 외출에서 충전을 주면 회복)':'상태 좋음'} · 조사 외출마다 배터리 ${d.feed}</div>
     <div class="muted">호감 ${G.mount.aff||0} · ${petStageName(G.mount.aff||0)}</div>
     <input value="${esc(G.mount.name)}" style="margin-top:6px" onchange="renameAnimal('m',this.value)" aria-label="탈것 이름"></div>`;
   if((G.pets||[]).length) h+=`<div class="sec"><h4>동물 친구</h4>${G.pets.map(p=>`<div>${PET_KINDS[p.kind].icon} <b>${esc(p.name)}</b> <span class="muted">${petStageName(p.aff)} · 호감 ${p.aff}</span></div>`).join('')}</div>`;
@@ -5941,14 +5941,14 @@ function leftHTML(){
   h+=relSideHTML();
   if(has('land')){
     const b=FAC.filter(f=>f.id!=='land'&&has(f.id));
-    h+=`<div class="sec"><h4>아지트</h4><div><b>${esc(G.home.name||'폐 동아리실')}</b></div><div class="chips" style="margin-top:6px">${b.map(f=>`<span class="chip">${f.n}</span>`).join('')||'<span class="muted">지은 시설 없음</span>'}</div></div>`;
+    h+=`<div class="sec"><h4>아지트</h4><div><b>${esc(G.home.name||'폐 동아리실')}</b></div><div class="chips" style="margin-top:6px">${b.map(f=>`<span class="chip">${f.n}</span>`).join('')||'<span class="muted">들인 시설 없음</span>'}</div></div>`;
   }else h+=`<div class="sec"><h4>아지트</h4><div class="muted">아직 없습니다. 중앙 캠퍼스 지구에서 마련할 수 있습니다.</div></div>`;
   return h;
 }
 function rightHTML(){
   const recent=G.chronicle.slice(-10), cats=['전체',...LEX_CATS], list=lexSideList(), nNew=G.lexicon.filter(e=>e.isNew).length;
   let h=`<div class="sec"><h4>연대기 <button class="small" onclick="openChron()">전체·편집</button></h4>${recent.map(c=>`<div class="ch"><span class="d">${chronLabel(c)}</span><span>${esc(c.text)}</span></div>`).join('')||'<div class="muted">아직 기록이 없습니다.</div>'}</div>`;
-  h+=`<div class="sec"><h4><span>사전 ${nNew?`<span class="badge">${nNew}</span>`:''}</span><button class="small" onclick="openLex()">검색·편집</button></h4>
+  h+=`<div class="sec"><h4><span>괴담 사전 ${nNew?`<span class="badge">${nNew}</span>`:''}</span><button class="small" onclick="openLex()">검색·편집</button></h4>
     <div class="lt">${cats.map(c=>`<button class="small ${c===sideLexTab?'on':''}" onclick="setSideLex('${c}')">${c}</button>`).join('')}</div>
     ${list.map(e=>`<details data-n="${esc(e.name)}" ${openLexSet.has(e.name)?'open':''}><summary><span>${e.fav?'⭐ ':''}${e.sum?'📚 ':''}${esc(e.name)}</span><span>${e.isNew?'<span class="nw">NEW</span> ':''}<span class="muted">${e.cat}</span></span></summary><p>${esc(e.desc)}</p></details>`).join('')||'<div class="muted">항목이 없습니다.</div>'}${lexSideMoreHTML()}</div>`;
   h+=rivalSideHTML();
@@ -5960,7 +5960,7 @@ function renderSides(){
   if(!G) return;
   if(_lastG!==G){ _lastG=G; _sigL=_sigR=_sigM='' }
   const L=document.querySelector('#sideL .sbody'), R=document.querySelector('#sideR .sbody');
-  const sl=JSON.stringify([G.xp,G.growth,G.char,G.hp,G.maxhp,G.water,G.food,G.torch,G.gold,G.items,G.mat,G.fragments,G.comp,G.home,G.rel,G.relEvt,G.relicG,G.mount,G._mountFed,G.pets,G._yuminHere,G.loc,G.district,G.day,busy]);
+  const sl=JSON.stringify([G.xp,G.growth,G.char,G.hp,G.maxhp,G.water,G.food,G.torch,G.gold,G.demerit,G.access,G.time,G.items,G.mat,G.fragments,G.comp,G.home,G.rel,G.relEvt,G.relicG,G.mount,G._mountFed,G.pets,G._yuminHere,G.loc,G.district,G.day,busy]);
   if(sl!==_sigL){ _sigL=sl; L.innerHTML=leftHTML() }
   const sr=JSON.stringify([G.chronicle.slice(-10),G.lexicon,G.rival&&[G.rival.known,G.rival.log.length,G.rival.frags,G.rival.stolen,G.rival.cities,G.rival.leader_st],threadsOpen().map(t=>t.id),sideLexTab,sideLexN,themeMode,fontScale,SET.narrLen,SET.narrMin,SET.narrMax]);
   if(sr!==_sigR){ _sigR=sr; R.innerHTML=rightHTML() }
