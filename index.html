@@ -3278,7 +3278,7 @@ function yuminWhereText(){ const s=YUMIN_SPOTS[G.comp.spot]; if(!s) return '어�
 /* 인물은 마지막으로 만난 곳에 머묾: 'city:상점가' 같은 중앙 캠퍼스 지구 장소 · 'home' · 'wild'(한빛시·구역에서 만남 — 다시 찾아갈 수 없음) */
 function placeKey(){ return G.loc==='city'?'city:'+curDistrict():G.loc==='home'?'home':G.loc==='town'?'town:'+G.town:'wild' }
 function npcWhere(name){ return getRel(name).where||'city:market' }   // 위치 기록이 없던 예전 인물은 상점가에 있는 것으로
-function npcWhereText(name){ const w=npcWhere(name); if(w.startsWith('town:')) return (TOWNS[w.slice(5)]||{n:'먼 마을'}).n; return w==='home'?`아지트 「${G.home.name||'오아시스의 집'}」`:w==='wild'?'한빛시 어딘가 (만난 곳에서 헤어짐)':`중앙 캠퍼스 지구의 「${(DISTRICTS[w.slice(5)]||DISTRICTS.market).n}」` }
+function npcWhereText(name){ const w=npcWhere(name); if(w.startsWith('town:')) return (TOWNS[w.slice(5)]||{n:'다른 지구'}).n; return w==='home'?`아지트 「${G.home.name||'폐 동아리실'}」`:w==='wild'?'한빛시 어딘가 (만난 곳에서 헤어짐)':`중앙 캠퍼스 지구의 「${(DISTRICTS[w.slice(5)]||DISTRICTS.market).n}」` }
 on('applied',65,e=>{ (Array.isArray(e.relations)?e.relations:[]).forEach(x=>{ const nm=x&&x.name&&String(x.name).trim().slice(0,30); if(nm&&nm!=='유민'&&G.rel[nm]) G.rel[nm].where=placeKey() }) });
 on('facts',85,o=>{ const n=Object.keys(G.rel||{}).filter(n=>n!=='유민'&&G.rel[n].where).slice(-8); if(n.length) o.인물위치=n.map(k=>`${k}: ${npcWhereText(k)}`).join(' / ') });
 function canMeetHere(name){
@@ -3323,12 +3323,12 @@ on('facts',80,o=>{ if(G.comp&&G.comp.met) o.유민위치=G.comp.joined?'플레�
 async function meetYumin(place){
   G.comp.met=true; G._yuminHere=true; getRel('유민');
   G.comp.spot=spotHere(); G.comp.spotDay=G.day;
-  addLex({name:'유민',cat:'인물',desc:'떠돌이 음유시인. 느긋하고 장난스러운 성격으로, 처음 본 사람에게도 먼저 말을 건다.'},false,null);
+  addLex({name:'유민',cat:'인물',desc:'7반 재원생이자 주말 버스커. 느긋하고 장난스러운 성격으로, 처음 본 사람에게도 먼저 말을 건다.'},false,null);
   G.chronicle.push({day:G.day,text:`${place}에서 떠돌이 음유시인 유민을 처음 만났다`});
   const unheard=G.rumors.filter(r=>!G.heardRumors.includes(r.region));
   let rumor='';
   if(unheard.length){ const r=rand(unheard); G.heardRumors.push(r.region); rumor=`흘리듯 알려주는 소문: ${r.region} 사람들의 믿음 — "${r.belief}". 이 소문이 그 지역의 괴담이라는 것이 서술에서 분명히 드러나게 하라.` }
-  await aiTurn(place.includes('길')?'뜨거운 한빛시 뒷길을 걷는다':'상점가를 걷는다', `[첫 만남] ${place}에서 떠돌이 음유시인 유민이 플레이어에게 먼저 말을 건다. 플레이어가 아는 척하지 않아도 유민이 다가온다. 둘은 서로 처음 보는 사이다. 유민은 장난스럽게 거리를 두며 짧은 노래 한 소절을 부르고, 자기 이름을 밝힌다. ${rumor} 선택지에는 유민에게 말을 걸거나 대꾸하는 행동을 포함하라.`, false);
+  await aiTurn(place.includes('길')?'인적 드문 뒷길을 걷는다':'상점가를 걷는다', `[첫 만남] ${place}에서 7반 옆자리 재원생 유민이 플레이어에게 먼저 말을 건다(같은 반이지만 제대로 말을 섞는 건 처음이다). 플레이어가 아는 척하지 않아도 유민이 다가온다. 둘은 서로 처음 보는 사이다. 유민은 장난스럽게 거리를 두며 짧은 노래 한 소절을 부르고, 자기 이름을 밝힌다. ${rumor} 선택지에는 유민에게 말을 걸거나 대꾸하는 행동을 포함하라.`, false);
 }
 function talkYumin(){
   if(busy) return;
@@ -3397,9 +3397,9 @@ function yuminSkillCheck(){
     if(crisis||r.danger>=2||Math.random()<0.2){
       G.comp.lastSkill=G.steps;
       addLog('sys','🎵 유민이 노래를 부르기 시작합니다…');
-      if(crisis){ G.hp=Math.min(G.maxhp,G.hp+2); addLog('fx','바람이 당신을 감쌉니다 (체력 +2)') }
+      if(crisis){ G.hp=Math.min(G.maxhp,G.hp+2); addLog('fx','노랫소리가 너를 감싸 마음이 놓입니다 (체력 +2)') }
       return `
-[유민 능력 자동 발동] 유민이 노래를 불러 바람과 먼지를 부린다. 버릇대로 과하게 써서 상황이 크게 뒤집힌다(적이 날아가거나, 숨은 통로가 드러나거나, 천장의 먼지가 쏟아지는 등 예상 못한 부작용 포함). ${crisis?'플레이어가 위기에 처해 있으니 결과적으로 플레이어를 구하는 방향으로.':''} 노래 가사 한두 줄을 직접 지어 넣어라. 발동 직후 유민다운 농담 한마디.`;
+[유민 능력 자동 발동] 유민이 노래를 불러 소리와 교내 방송, 전자기기를 흔든다. 버릇대로 과하게 써서 상황이 크게 뒤집힌다(적이 흠칫 물러나거나, 잠긴 문의 전자 자물쇠가 풀리거나, 꺼진 형광등이 일제히 깜빡이는 등 예상 못한 부작용 포함). ${crisis?'플레이어가 위기에 처해 있으니 결과적으로 플레이어를 구하는 방향으로.':''} 노래 가사 한두 줄을 직접 지어 넣어라. 발동 직후 유민다운 농담 한마디.`;
     }
   }
   if(G.steps-(G.comp.lastHelp==null?-99:G.comp.lastHelp)<4||Math.random()>0.35) return '';
@@ -3411,7 +3411,7 @@ function yuminSkillCheck(){
     ai:'[유민의 직감] 유민이 이 공간의 어딘가(벽, 바닥, 천장 중 하나)에서 노래가 이상하게 울린다며 가리킨다. 교표 조각이 있다는 말은 하지 말고, 조사할 만한 곳을 한 곳 짚어 주는 식으로.'});
   if(r.exhausted) opts.push({log:'🎵 유민이 이 공간은 더 볼 게 없다고 말합니다',ai:'[유민의 조언] 유민이 이 공간은 이미 다 뒤진 것 같다며 다른 방으로 가자고 한다.'});
   if(nexts.length) opts.push({log:'🎵 유민이 아직 안 가 본 길을 가리킵니다',
-    ai:`[유민의 길 안내] 유민이 아직 가 보지 않은 통로 중 한쪽(${nexts.map(x=>x.name).join(', ')} 중 하나)을 가리키며 바람의 방향이 다르다고 말한다. 확실한 정보는 아니고 유민의 감이다.`});
+    ai:`[유민의 길 안내] 유민이 아직 가 보지 않은 통로 중 한쪽(${nexts.map(x=>x.name).join(', ')} 중 하나)을 가리키며 노래의 울림이 그쪽에서 다르게 돌아온다고 말한다. 확실한 정보는 아니고 유민의 감이다.`});
   if(!opts.length) return '';
   const o=risky?opts[0]:rand(opts);
   G.comp.lastHelp=G.steps;
@@ -3462,7 +3462,7 @@ function giftByText(t){
   if(!canMeetHere('유민')) return toast('유민이 지금 이 자리에 없습니다. 먼저 "유민 만나러 가기"로 만나세요');
   if(G.comp.lastGiftDay===G.day) return toast('오늘은 이미 선물했습니다');
   if(g.kind==='x'||g.kind==='b'){
-    if(!['city','town'].includes(G.loc)) return toast('물건은 상점가나 마을에서만 살 수 있습니다');
+    if(!['city','town'].includes(G.loc)) return toast('물건은 상점가나 다른 지구에서만 살 수 있습니다');
     if(G.gold<g.cost) return toast(`캐시가 모자랍니다 (💳${g.cost} 필요)`);
   }
   giveYumin(g.kind,g.idx!=null?g.idx:g.kind==='x'?{name:g.name,cost:g.cost}:undefined);
@@ -3502,11 +3502,11 @@ function giveYumin(kind,i){
 const ARC_COOL=3, ARC_TURNS=4;
 const YUMIN_ARC=[
   {lv:25,key:'trace',n:'흔적',
-   frame:'유민이 늘 부르는 노래, 지니고 다니는 물건, 한빛시에 대한 지식 가운데 하나가 할아버지에게서 왔다는 사실이 드러나는 계기가 생긴다(누군가 그 노래를 알아보거나, 물건이 망가지거나, 옛 길목을 지나는 등). 유민은 웃어넘기려 하지만 평소보다 말이 많아진다.',
+   frame:'유민이 늘 부르는 노래, 지니고 다니는 물건, 학원도시에 대한 지식 가운데 하나가 할아버지에게서 왔다는 사실이 드러나는 계기가 생긴다(누군가 그 노래를 알아보거나, 물건이 망가지거나, 옛 건설 현장 근처를 지나는 등). 유민은 웃어넘기려 하지만 평소보다 말이 많아진다.',
    win:'플레이어가 그 순간을 가볍게 넘기지 않고 관심을 보이면서도 캐묻지 않을 때',
    grow:'할아버지와 관련된 화제에서는 농담으로 빠지되, 이야기를 한두 마디 더 이어 갈 수 있다.'},
   {lv:35,key:'shadow',n:'그림자',
-   frame:'유민을 배신한 나라(권력자)와 이어진 사람·소식·물건이 유민 앞에 나타난다. 유민이 처음으로 동요를 다 숨기지 못한다. 그 일을 말로 털어놓지는 않지만, 굳은 표정·끊긴 노래·평소와 다른 침묵으로 무언가 있었다는 것이 드러난다.',
+   frame:'유민 할아버지를 배신한 당국(권력자)과 이어진 사람·소식·물건이 유민 앞에 나타난다. 유민이 처음으로 동요를 다 숨기지 못한다. 그 일을 말로 털어놓지는 않지만, 굳은 표정·끊긴 노래·평소와 다른 침묵으로 무언가 있었다는 것이 드러난다.',
    win:'플레이어가 그의 동요를 알아채고 몰아붙이지 않고 곁에 있어 줄 때',
    grow:'회피하다가도 플레이어가 기다려 주면 지금의 마음을 담은 진심 한 마디를 덧붙인다(과거 이야기는 아직 하지 않는다).'},
   {lv:45,key:'choice',n:'선택',
@@ -3515,7 +3515,7 @@ const YUMIN_ARC=[
    lose:'유민은 웃으며 잠시 혼자 걷겠다고 거리를 둔다(떠나지는 않지만 마음은 닫힌다)',
    grow:'가끔(대략 세 번에 한 번) 빗겨가지 않고 그 자리에 머문다. 회피가 시작되면 스스로 알아차리는 기색이 있다.'},
   {lv:55,key:'knot',n:'매듭',
-   frame:'할아버지의 죽음과 혼자 떠돈 세월에 대해 유민이 스스로 매듭을 짓는 장면. 노래가 중심이 된다. 할아버지를 기리는 장소나 의식이 있어도 좋다.',
+   frame:'할아버지의 죽음과 혼자 지낸 세월에 대해 유민이 스스로 매듭을 짓는 장면. 노래가 중심이 된다. 할아버지를 기리는 장소나 의식이 있어도 좋다.',
    win:'플레이어가 그 노래와 이야기를 끝까지 함께 들어 줄 때',
    grow:'회피는 버릇으로 남아 있지만, 스스로 알아차리고 웃으며 돌아와 진심을 말한다. 외로움을 "감당할 수 있는 것"이라 말하지 않게 되었다.'},
 ];
@@ -3782,8 +3782,8 @@ function weddingWith(name){
   if(name==='유민') G._yuminHere=true;
   G.chronicle.push({day:G.day,text:`${name}${josa(name,'과','와')} 혼례를 올렸다`});
   toast(`💒 ${name}${josa(name,'과','와')} 혼례를 올렸습니다`);
-  const place=has('land')?`아지트 「${G.home.name||'오아시스의 집'}」`:'중앙 캠퍼스 지구';
-  aiTurn(`${name}${josa(name,'과','와')} 혼례를 올린다`,`[혼례] ${place}에서 소박하지만 아름다운 혼례가 열린다. 그동안 만난 인물들 중 몇이 축하하러 오고, 한빛시의 풍습(헤나, 등불, 대추와 꿀, 북과 노래)이 어우러진다. ${name}의 성격이 드러나는 순간과 두 사람이 나누는 짧은 약속의 말. 품위 있고 따뜻하게. 숫자 effects는 0.`+(name!=='유민'&&G.comp.joined?' 유민은 축가를 부른다.':''));
+  const place=has('land')?`아지트 「${G.home.name||'폐 동아리실'}」`:'중앙 캠퍼스 지구';
+  aiTurn(`${name}${josa(name,'과','와')} 혼례를 올린다`,`[혼례] ${place}에서 소박하지만 아름다운 혼례가 열린다. 그동안 만난 인물들 중 몇이 축하하러 오고, 작은 파티룸의 풍선과 손글씨 현수막, 7반 동기들의 서툰 축가가 어우러진다. ${name}의 성격이 드러나는 순간과 두 사람이 나누는 짧은 약속의 말. 품위 있고 따뜻하게. 숫자 effects는 0.`+(name!=='유민'&&G.comp.joined?' 유민은 축가를 부른다.':''));
 }
 /* 플레이어를 부를 때 성을 빼고 이름만 */
 on('facts',90,(o,rules)=>{
@@ -3802,11 +3802,11 @@ function threadsOpen(g){ g=g||G; return (g.threads||[]).filter(t=>t.status==='op
 function threadsRequest(g){
   const open=threadsOpen(g);
   return `
-[열린 이야기 정리 — 사전과 별도]
-'열린 이야기'는 플레이어가 장면에서 직접 보거나 들은 것 중 아직 풀리지 않은 것이다: 인물이 한 약속이나 부탁, 답이 나오지 않은 수수께끼, 인물의 미해결 사정, 예고된 위협, 다시 만나자고 한 사람. 사소한 묘사·이미 끝난 일·플레이어가 모르는 비밀은 넣지 않는다.
-- threads_new: 이번 장면들에서 새로 생긴 열린 이야기(최대 2개, 각 40자 이내, 누가·무엇을이 드러나게). 아래 목록과 겹치면 넣지 말 것. 없으면 [].
+[조사 보드 정리 — 사전과 별도]
+'조사 보드'는 플레이어가 장면에서 직접 보거나 들은 것 중 아직 풀리지 않은 것이다: 인물이 한 약속이나 부탁, 답이 나오지 않은 수수께끼, 인물의 미해결 사정, 예고된 위협, 다시 만나자고 한 사람. 사소한 묘사·이미 끝난 일·플레이어가 모르는 비밀은 넣지 않는다.
+- threads_new: 이번 장면들에서 새로 생긴 조사 보드(최대 2개, 각 40자 이내, 누가·무엇을이 드러나게). 아래 목록과 겹치면 넣지 말 것. 없으면 [].
 - threads_closed: 아래 목록 중 이번 장면들에서 분명히 풀렸거나 끝난 것의 id. 없으면 [].
-[현재 열린 이야기 목록]
+[현재 조사 보드 목록]
 ${open.map(t=>`${t.id}: ${t.text}`).join('\n')||'(없음)'}`;
 }
 function applyThreads(g,r){
@@ -3824,8 +3824,8 @@ function applyThreads(g,r){
   const open=threadsOpen(g);
   if(open.length>THREAD_MAX) open.slice(0,open.length-THREAD_MAX).forEach(t=>{ t.status='faded'; t.closedDay=g.day });
   g.threads=g.threads.filter(t=>t.status==='open'||g.day-(t.closedDay||g.day)<=30).slice(-40);   // 닫힌 기록은 한 달만 보관
-  if(nn) toast(`🧵 열린 이야기 ${nn}개가 적혔습니다`);
-  if(nc) toast(`🧵 열린 이야기 ${nc}개가 풀렸습니다`);
+  if(nn) toast(`🧵 조사 보드 ${nn}개가 적혔습니다`);
+  if(nc) toast(`🧵 조사 보드 ${nc}개가 풀렸습니다`);
 }
 /* 이번 턴에 서술 AI에게 넘길 것: 지금 장면에 이름이 나온 것 → 오래 언급 안 된 것 순 */
 function pickThreads(text){
@@ -3836,7 +3836,7 @@ function pickThreads(text){
 function threadsBlock(text){
   const list=pickThreads(text); if(!list.length) return '';
   list.forEach(t=>t.shown=(t.shown||0)+1);
-  return `\n[열린 이야기 — 아직 풀리지 않은 것. 지금 장면과 자연스럽게 이어질 때만 하나를 이어 가거나 매듭지어라. 억지로 끌어오지 말고, 이번 장면과 무관하면 무시해도 된다. 목록이 있다는 사실은 서술에 드러내지 말 것]\n${list.map(t=>'- '+t.text).join('\n')}`;
+  return `\n[조사 보드 — 아직 풀리지 않은 것. 지금 장면과 자연스럽게 이어질 때만 하나를 이어 가거나 매듭지어라. 억지로 끌어오지 말고, 이번 장면과 무관하면 무시해도 된다. 목록이 있다는 사실은 서술에 드러내지 말 것]\n${list.map(t=>'- '+t.text).join('\n')}`;
 }
 function closeThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; t.status='closed'; t.closedDay=G.day; _sigR=''; save(); renderSides(); if(document.getElementById('thrList')) openThreads() }
 function reopenThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; t.status='open'; delete t.closedDay; _sigR=''; save(); renderSides(); openThreads() }
@@ -3846,12 +3846,12 @@ function addThread(){
 }
 function threadsSideHTML(){
   const open=threadsOpen();
-  return `<div class="sec"><h4>🧵 열린 이야기 <button class="small" onclick="openThreads()">관리</button></h4>${open.slice(-5).reverse().map(t=>`<div class="ch"><span class="d">${t.day}일</span><span>${esc(t.text)}</span></div>`).join('')||'<div class="muted">아직 없습니다. 이야기 속 약속·수수께끼가 자동으로 적힙니다.</div>'}${open.length>5?`<div class="muted" style="font-size:12px">외 ${open.length-5}개</div>`:''}</div>`;
+  return `<div class="sec"><h4>🧵 조사 보드 <button class="small" onclick="openThreads()">관리</button></h4>${open.slice(-5).reverse().map(t=>`<div class="ch"><span class="d">${t.day}일</span><span>${esc(t.text)}</span></div>`).join('')||'<div class="muted">아직 없습니다. 이야기 속 약속·수수께끼가 자동으로 적힙니다.</div>'}${open.length>5?`<div class="muted" style="font-size:12px">외 ${open.length-5}개</div>`:''}</div>`;
 }
 function openThreads(){
   const all=G.threads||[], open=all.filter(t=>t.status==='open'), done=all.filter(t=>t.status!=='open').slice(-15).reverse();
-  modal('🧵 열린 이야기',`<p class="muted">이야기 속에서 생긴 약속·수수께끼·인물의 사정 중 아직 풀리지 않은 것입니다. 사전을 정리할 때 함께 적히고, 풀리면 자동으로 닫힙니다. 이야기꾼은 매 장면 몇 개를 참고해 자연스러울 때 이어 갑니다(최대 ${THREAD_MAX}개).</p>
-    <div id="thrList">${open.map(t=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${t.day}일 ·</span> ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')||'<p class="muted">열린 이야기가 없습니다.</p>'}</div>
+  modal('🧵 조사 보드',`<p class="muted">이야기 속에서 생긴 약속·수수께끼·인물의 사정 중 아직 풀리지 않은 것입니다. 사전을 정리할 때 함께 적히고, 풀리면 자동으로 닫힙니다. 이야기꾼은 매 장면 몇 개를 참고해 자연스러울 때 이어 갑니다(최대 ${THREAD_MAX}개).</p>
+    <div id="thrList">${open.map(t=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${t.day}일 ·</span> ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')||'<p class="muted">조사 보드가 없습니다.</p>'}</div>
     <div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="thrNew" placeholder="직접 적기 (예: 하킴이 은화를 갚겠다고 했다)" maxlength="60"><button class="small" onclick="addThread()">추가</button></div>
     ${done.length?`<h4 style="margin:14px 0 4px">최근에 닫힌 것</h4>${done.map(t=>`<div class="shop-row muted" style="gap:8px"><span>${t.status==='faded'?'💨':'✓'} ${esc(t.text)}</span><button class="small" onclick="reopenThread('${t.id}')">다시 열기</button></div>`).join('')}`:''}`);
 }
@@ -3911,7 +3911,7 @@ ${relevantLex(scenes)}
 [장면]
 ${scenes}
 ${threadsRequest(g)}
-JSON만 출력: {"lexicon":[{"name":"이름","cat":"인물|장소|괴담|물건|세력","desc":"플레이어가 알게 된 내용 1~2문장"}],"threads_new":[{"text":"열린 이야기 한 줄"}],"threads_closed":["t1"]}`;
+JSON만 출력: {"lexicon":[{"name":"이름","cat":"인물|장소|괴담|물건|세력","desc":"플레이어가 알게 된 내용 1~2문장"}],"threads_new":[{"text":"조사 보드 한 줄"}],"threads_closed":["t1"]}`;
   let r=null;
   try{ r=parseJSON(await callAI('너는 게임 사전을 정리하는 서기다. JSON 하나만 출력한다.',prompt,1000,'lex')) }catch(e){ return }
   if(G!==g||!r) return;
@@ -4458,7 +4458,7 @@ function tripEvent(force){
   if(force){   // 조사 외출 길의 유민 만남 (예전 조사 외출 규칙 그대로)
     rollCaravan('trip');
     if(force==='yumin'&&!G.comp.met) return meetYumin(where);
-    if(yuminEventReady()) return aiTurn('뜨거운 한빛시 뒷길을 걷는다',yuminEventText(where),false);
+    if(yuminEventReady()) return aiTurn('인적 드문 뒷길을 걷는다',yuminEventText(where),false);
   }
   const opts=[['merchant',40],['bandit',35]];
   if(G.comp&&!G.comp.joined) opts.push(['yumin',25]);
@@ -5548,7 +5548,7 @@ function render(){
 function whereText(){
   if(G.loc==='city') return spotOn()?`중앙 캠퍼스 지구 — 📍 ${G.spot.name} (임시 장소)`:`중앙 캠퍼스 지구 — ${DISTRICTS[curDistrict()].n}`;
   if(G.loc==='town') return `${curTown().ic} ${curTown().n}`;
-  if(G.loc==='home') return `아지트 — ${G.home.name||'오아시스의 집'}`;
+  if(G.loc==='home') return `아지트 — ${G.home.name||'폐 동아리실'}`;
   if(G.loc==='road') return outsideRuin()?`${G.dungeon.name} › 입구 밖 한빛시`:'한빛시 뒷길';
   if(G.loc==='camp') return (G.dungeon?G.dungeon.name+' › ':'')+'임시 쉼터';
   if(G.dungeon){ const r=curRoom(); return `${G.dungeon.name} › ${r?r.name:''} (깊이 ${G.dungeon.depth})` }
@@ -5696,7 +5696,7 @@ function mapSVG(small){
   if(!G.actDone) s+=unknownMark(IRAM_POS.x,IRAM_POS.y);
   s+=citiesMapSVG();
   s+=`<g transform="translate(${KASR.x} ${KASR.y})">${placeIcon('city')}</g>`+lab(KASR.x,KASR.y+24,'중앙 캠퍼스 지구',15,'var(--ink)',900);
-  if(has('land')) s+=`<g transform="translate(${HOME_POS.x} ${HOME_POS.y})"><path d="M-6 5 V-1 L0 -7 L6 -1 V5Z" style="fill:var(--gold);stroke:var(--ink);stroke-width:.8"/></g>`+lab(HOME_POS.x,HOME_POS.y+20,trunc(G.home.name||'오아시스의 집',8),12,'var(--ink)',700);
+  if(has('land')) s+=`<g transform="translate(${HOME_POS.x} ${HOME_POS.y})"><path d="M-6 5 V-1 L0 -7 L6 -1 V5Z" style="fill:var(--gold);stroke:var(--ink);stroke-width:.8"/></g>`+lab(HOME_POS.x,HOME_POS.y+20,trunc(G.home.name||'폐 동아리실',8),12,'var(--ink)',700);
   (G.mapDone||[]).forEach(d=>{ s+=`<g transform="translate(${d.x} ${d.y})"><path d="M-4.5 -4.5 L4.5 4.5 M4.5 -4.5 L-4.5 4.5" style="stroke:var(--ink);stroke-width:2.4;stroke-linecap:round"/></g>`+lab(d.x,d.y+18,trunc(d.name,7),11,'var(--muted)',500,true) });
   s+=leadsMapSVG();
   (G.pausedRuins||[]).forEach(d=>{ if(d.pos) s+=`<g transform="translate(${d.pos.x} ${d.pos.y})"><path d="M0 -7 L7 0 L0 7 L-7 0Z" style="fill:var(--bg);stroke:var(--danger);stroke-width:1.6"/></g>`+lab(d.pos.x,d.pos.y+20,trunc(d.name,8)+' ⏸',11.5,'var(--ink)',700) });
@@ -5797,7 +5797,7 @@ function roomSVG(){
   return s+`</svg><div class="muted" style="font-size:11px;margin:2px 4px"><span style="color:#5a8f5f">●</span> 조사 완료(더 찾을 것 없음/길 모두 확인) · <span style="color:#d49a3a">●</span> 더 조사 가능 · <span style="color:var(--accent)">●</span> 현재 · ? 미지${fd?' · ✧ 교표 쪽':''}</div>`;
 }
 function locPanel(){
-  const nm=G.home.name||'오아시스의 집';
+  const nm=G.home.name||'폐 동아리실';
   let t='',sub='',body='';
   const cv=caravanHere()?`<li>🧭 ${esc(G.caravan.name)}이(가) 쉬어 가는 중</li>`:'';
   if(G.loc==='city'){
@@ -5888,7 +5888,7 @@ function leftHTML(){
   h+=relSideHTML();
   if(has('land')){
     const b=FAC.filter(f=>f.id!=='land'&&has(f.id));
-    h+=`<div class="sec"><h4>아지트</h4><div><b>${esc(G.home.name||'오아시스의 집')}</b></div><div class="chips" style="margin-top:6px">${b.map(f=>`<span class="chip">${f.n}</span>`).join('')||'<span class="muted">지은 시설 없음</span>'}</div></div>`;
+    h+=`<div class="sec"><h4>아지트</h4><div><b>${esc(G.home.name||'폐 동아리실')}</b></div><div class="chips" style="margin-top:6px">${b.map(f=>`<span class="chip">${f.n}</span>`).join('')||'<span class="muted">지은 시설 없음</span>'}</div></div>`;
   }else h+=`<div class="sec"><h4>아지트</h4><div class="muted">아직 없습니다. 중앙 캠퍼스 지구에서 마련할 수 있습니다.</div></div>`;
   return h;
 }
