@@ -1649,6 +1649,8 @@ const INTENTS=[
   {id:'sleep',confirm:true,label:sleepLabel,
    when:t=>IX.SLEEP.test(t)&&!IX.SLEEP_NEG.test(t)&&['campus','hood','home','road','site','shelter'].includes(G.loc)&&!(G.loc==='campus'&&G.time==='낮'),
    run:t=>{ addLog('action',t); addLog('sys','🌙 밤을 보내는 행동은 게임의 휴식 기능으로 처리되어 시간이 흐릅니다.'); G.choices=[]; sleepHere(); save(); render() }},
+  {id:'rollcall',when:t=>/점호(\s*시간)?(까지|이\s*될\s*때까지|를\s*기다|를\s*맞|가\s*될\s*때까지)/.test(t)&&G.loc==='campus'&&!RX.NEG.test(t),
+   run:t=>{ addLog('action',t); const why=rollCallBlock(); if(why) return toast(why); waitRollCall() }},
   {id:'wait',confirm:true,label:()=>'⏳ 시간 보내기 (날짜·공포·배터리가 계산됨)',
    when:t=>IX.WAIT.test(t),
    run:t=>{   // 시간만 처리하고 장면은 이야기로 계속
@@ -2215,6 +2217,7 @@ function campusFixedHTML(){
   else if(d==='dorm') a=`<button onclick="campusRest()">🛏 기숙사에서 쉬기 (10)</button>`;
   else if(d==='gate') a=`<button class="primary" onclick="startExpedition()">🔦 구역 조사 떠나기</button><button onclick="openTravel()">🧭 다른 지구로 이동하기 (공원·학원가·재개발지구)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
   else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>` }
+  if(!sp&&G.time==='방과 후') a+=`<button class="primary" onclick="waitRollCall()">🔔 점호 시간까지 기다리기</button>`;
   a+=`<button onclick="openSchoolMap()">🏫 학교 지도</button><button onclick="openRel()">👥 인연</button>`;
   if(G.comp.met){
     if(G.comp.joined) a+=`<button onclick="talkYumin()">🎵 유민과 이야기</button>`;
@@ -2532,6 +2535,22 @@ function schoolInfo(){
   const c=clsSt(), nx=SCHOOL[i+1]||'방과 후';
   const tt=CLASS_SLOTS.map((_,j)=>`${j+1}교시 ${subjectAt(j).n}`).join(' · ');
   return `🔔 지금: <b>${esc(slotLabel())}</b>${classActive()?` · 📚 수업 진행 ${classActive().n}/${CLASS_ACTIONS} (선택지·입력도 수업 행동으로 셈)`:''} · 다음: ${esc(nx)} · 오늘 시간표 ${esc(tt)} (출석 ${c.n}회${c.skip?` · 땡땡이 ${c.skip}회`:''}${c.absent?` · 결석 ${c.absent}회`:''})`;
+}
+/* 점호 시간까지 기다리기: 방과 후(수업이 끝난 뒤)에 야간(점호)이 될 때까지 시간을 보내고 기숙사 점호 장면으로 */
+function rollCallBlock(){
+  if(!G||G.loc!=='campus') return '점호 시간까지 기다리기는 학교(캠퍼스)에서만 할 수 있습니다';
+  if(G.time==='낮') return '수업 중에는 기다릴 수 없습니다. 종례가 끝난 뒤(방과 후)부터 가능합니다';
+  if(G.time!=='방과 후') return '이미 점호 시간이 지났습니다';
+  return '';
+}
+function waitRollCall(){
+  if(busy||spotBlock()) return;
+  const why=rollCallBlock(); if(why) return toast(why);
+  G._yuminHere=false;
+  let n=0; while(G.time==='방과 후'&&n++<10) tick();
+  G.spot=null; G.district='dorm'; G.choices=[];
+  addLog('sys',`🔔 점호 시간이 되었습니다. 기숙사로 돌아와 줄을 섭니다. (${G.day}일째 ${G.time})`);
+  aiTurn('점호 시간까지 기다린다','[점호] 방과 후 시간이 흘러 저녁 점호 시간이 되었다. 기숙사 복도에 줄을 서고 사감 선생님이 출석을 부르며 휴대폰을 걷는다. 학생들의 웅성거림과 점호가 끝난 뒤의 소등 분위기를 짧게. 방금 흘려보낸 방과 후 시간에 있었던 일상의 한두 장면을 가볍게 덧붙여도 좋다. 이후 밤에는 몰래 나가면 무단 외출이라는 긴장을 마지막 한 줄에.');
 }
 function homeroom(){
   if(busy||spotBlock()||slotIdx()!==0||!inClassroom()) return;
@@ -6650,6 +6669,7 @@ function openGuide(){
     ${row('🔎 특별실 둘러보기','도서관·음악실·가사실·과학실·방송실·미술실·자습실·컴퓨터실·옥상·운동장·체육관에서는 🔎 둘러보기로 곳곳을 살펴 단서(조사 보드, 가끔 교표 조각의 위치)를 얻을 수 있습니다(곳마다 확률이 다르고 하루 단서는 '+BROWSE_CLUE_LIMIT+'번까지). 🩹 보건실은 하루 한 번 체력 +2·공포 −1')}
     ${row('🔗 서술과 일과 맞추기','시간의 기준은 게임이고, 서술이 종소리로 수업 끝을 알리면(AI가 "칸종료"를 알리거나 서술에 수업 끝 종소리가 있으면) 게임도 수업을 끝내고 다음 칸으로 넘깁니다. 수업 시작 종소리 같은 표현은 끝으로 보지 않습니다')}
     ${row('🔔 칸이 끝날 때','수업·쉬는 시간 같은 칸이 끝나면 서술 뒤에 "🔔 1교시 수업이 끝났습니다 → 쉬는 시간"처럼 알림이 뜹니다')}
+    ${row('🔔 점호 시간까지 기다리기','종례가 끝난 방과 후에 캠퍼스에서 🔔 버튼(또는 "점호 시간까지 기다린다"라고 입력)을 누르면 야간이 될 때까지 시간을 보내고 기숙사 점호 장면으로 넘어갑니다. 낮(수업 중)에는 쓸 수 없습니다')}
     ${row('📋 전학 첫날','1일째 조례에서 「전학 인사하기」를 누르면 담임의 소개, 자기소개, 옆자리 유민과의 첫 만남이 이어집니다')}
     ${row('📚 수업 듣기',`시간표는 날짜로 정해져 미리 보입니다. 한 교시는 행동 ${CLASS_ACTIONS}번(수업 듣기 버튼이나, 수업 중 고른 선택지·입력 행동)이고 마지막 행동 뒤에 종이 울립니다. 교시마다 ${Math.round(CLASS_CLUE_P*100)}% 확률로 마지막 장면에서 단서(조사 보드, 가끔 교표 조각의 위치)를 얻고 성장 경험치 +1. 과목마다 단서의 성격이 다름 — 국어: 기록·문서, 수학: 숫자·좌표(조각 위치 단서가 잘 나옴), 영어: 구역 이름의 유래, 과학: 구역 환경, 한국사: 구역 연혁, 사회: 지도·위치(조각 위치 단서가 잘 나옴), 음악: 소리·방송, 체육 이론: 안전 수칙, 기술·가정: 건물 구조. 수업 칸에 수업을 듣지 않고 시간이 흐르는 다른 행동(둘러보기·거닐기·급식 등)을 하면 땡땡이로 처리되어 확률로 적발됩니다(칸당 한 번)`)}
     ${row('🏃 땡땡이치기',`수업 한 칸을 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}`)}
