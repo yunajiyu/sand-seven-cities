@@ -5556,10 +5556,14 @@ function render(){
   run('render');
 }
 /* 공포가 높을수록 화면을 붉게 · 노이즈 (게임 화면에서만) */
+let _fearLvl=0;
 function applyFearFx(){
   try{
     const inGame=!!G&&!document.getElementById('game').classList.contains('hidden');
     const r=inGame?fearRatio():0;
+    const lvl=!inGame?0:r>=FEAR_NOISE?2:r>=FEAR_RED?1:0;
+    if(lvl>_fearLvl&&typeof sfx==='function') sfx('alert');   // 공포 단계가 오르면 끊기는 교내 방송 소리
+    _fearLvl=lvl;
     document.body.classList.toggle('fear1',inGame&&r>=FEAR_RED&&r<FEAR_NOISE);
     document.body.classList.toggle('fear2',inGame&&r>=FEAR_NOISE);
   }catch(e){}
@@ -6512,7 +6516,35 @@ function swell(c,t,f,d,g){
   a.gain.setValueAtTime(0.0001,t); a.gain.exponentialRampToValueAtTime(g,t+d*0.4); a.gain.exponentialRampToValueAtTime(0.0001,t+d);
   o.connect(a); a.connect(_master); o.start(t); o.stop(t+d+0.02);
 }
-/* 갈색 잡음(저음이 센 부드러운 잡음) 한 번: 랜턴 불빛 */
+/* 형광등 웅웅거림: 저주파 험(60Hz와 배음)에 아주 느린 떨림 — 형광등이 켜져 있는 복도의 소리 */
+function hum(c,t,d,g){
+  const a=c.createGain(); a.gain.setValueAtTime(0.0001,t); a.gain.exponentialRampToValueAtTime(g,t+Math.min(0.25,d*0.3)); a.gain.setValueAtTime(g,t+d*0.7); a.gain.exponentialRampToValueAtTime(0.0001,t+d);
+  const lfo=c.createOscillator(), lg=c.createGain(); lfo.frequency.value=7.3; lg.gain.value=g*0.25; lfo.connect(lg); lg.connect(a.gain);
+  [[60,'sawtooth',1],[120,'sine',0.6],[180,'sine',0.25]].forEach(([f,ty,k])=>{ const o=c.createOscillator(), og=c.createGain(); o.type=ty; o.frequency.value=f; og.gain.value=k;
+    const fl=c.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value=420; o.connect(og); og.connect(fl); fl.connect(a); o.start(t); o.stop(t+d+0.05) });
+  a.connect(_master); lfo.start(t); lfo.stop(t+d+0.05);
+  noise(c,t,0.03,g*0.5,'highpass',4000);   // 켜질 때 딱 하는 소리
+}
+/* 학교 종·띵동 차임: 사인에 비정수배 배음을 얹어 길게 울림 */
+function bell(c,t,f,d,g){
+  [[1,1],[2.76,0.35],[5.4,0.12]].forEach(([m,k])=>{ const o=c.createOscillator(), a=c.createGain(); o.type='sine'; o.frequency.setValueAtTime(f*m,t);
+    a.gain.setValueAtTime(0.0001,t); a.gain.exponentialRampToValueAtTime(g*k,t+0.01); a.gain.exponentialRampToValueAtTime(0.0001,t+d/(m>2?2:1));
+    o.connect(a); a.connect(_master); o.start(t); o.stop(t+d+0.02) });
+}
+/* 끊기는 교내 방송 노이즈: 지직거리다 끊기는 정적 + 가라앉는 신호음 */
+function pa(c,t,g){
+  [0,0.1,0.17,0.33,0.4,0.62].forEach((x,i)=>noise(c,t+x,0.05+(i%2)*0.03,g,'bandpass',1400+Math.random()*1800));
+  tone(c,t,880,0.07,'square',g*0.5,520); tone(c,t+0.2,740,0.06,'square',g*0.4,380);
+}
+/* 유민의 노래: 짧은 허밍 몇 음(떨림) + 끝에 전자 글리치 */
+function songHum(c,t){
+  [[392,0],[440,0.22],[349,0.44],[392,0.66]].forEach(([f,x])=>{ const o=c.createOscillator(), a=c.createGain(), v=c.createOscillator(), vg=c.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(f,t+x); v.frequency.value=5.5; vg.gain.value=f*0.012; v.connect(vg); vg.connect(o.frequency);
+    a.gain.setValueAtTime(0.0001,t+x); a.gain.exponentialRampToValueAtTime(0.1,t+x+0.05); a.gain.exponentialRampToValueAtTime(0.0001,t+x+0.34);
+    o.connect(a); a.connect(_master); o.start(t+x); o.stop(t+x+0.36); v.start(t+x); v.stop(t+x+0.36) });
+  [0,0.04,0.07,0.12,0.15,0.21].forEach((x,i)=>tone(c,t+0.95+x,300+Math.random()*2200,0.035,i%2?'square':'sawtooth',0.07));
+}
+/* 갈색 잡음(저음이 센 부드러운 잡음) 한 번 */
 function brown(c,t,d,g,f){
   const n=Math.max(1,Math.floor(c.sampleRate*d)), buf=c.createBuffer(1,n,c.sampleRate), ch=buf.getChannelData(0);
   let last=0; for(let i=0;i<n;i++){ last=(last+0.02*(Math.random()*2-1))/1.02; ch[i]=last*3.5 }
@@ -6544,26 +6576,28 @@ const SFX={
   hurt:(c,t)=>{ noise(c,t,0.16,0.18,'lowpass',500); tone(c,t,130,0.18,'sine',0.18,55) },
   heal:(c,t)=>{ tone(c,t,523,0.3,'sine',0.1,784); tone(c,t+0.15,1046,0.2,'sine',0.07) },
   water:(c,t)=>[0,0.09,0.17].forEach((x,i)=>tone(c,t+x,600+i*150,0.08,'sine',0.09,1000+i*200)),
-  fragment:(c,t)=>[784,988,1175,1568].forEach((f,i)=>tone(c,t+i*0.07,f,0.25,'triangle',0.11)),
-  relic:(c,t)=>[523,659,784,1046,1318].forEach((f,i)=>tone(c,t+i*0.1,f,0.3,'triangle',0.11)),
+  fragment:(c,t)=>{ bell(c,t,988,0.9,0.16); bell(c,t+0.32,784,1.2,0.16) },   // 띵동
+  relic:(c,t)=>[784,988,880,587].forEach((f,i)=>bell(c,t+i*0.28,f,0.9,0.13)),   // 학교 종
   levelup:(c,t)=>{ [392,523,659,784].forEach((f,i)=>tone(c,t+i*0.1,f,0.22,'triangle',0.12)); [523,659,784].forEach(f=>tone(c,t+0.45,f,0.5,'triangle',0.08)) },
-  travel:(c,t)=>noise(c,t,0.6,0.09,'bandpass',400,1400),
+  travel:(c,t)=>hum(c,t,0.9,0.07),
   arrive:(c,t)=>{ tone(c,t,523,0.14,'triangle',0.1); tone(c,t+0.14,659,0.28,'triangle',0.1) },
-  newday:(c,t)=>{ tone(c,t,880,0.7,'sine',0.08); tone(c,t,1760,0.35,'sine',0.04) },
+  newday:(c,t)=>[784,659,698,523].forEach((f,i)=>bell(c,t+i*0.33,f,1.1,0.1)),   // 등교 종
   build:(c,t)=>[0,0.15,0.3].forEach(x=>{ noise(c,t+x,0.08,0.2,'lowpass',900); tone(c,t+x,200,0.09,'square',0.08,120) }),
   win:(c,t)=>{ [523,659,784,1046].forEach((f,i)=>tone(c,t+i*0.09,f,0.22,'triangle',0.12)); [523,784,1046].forEach(f=>tone(c,t+0.4,f,0.45,'triangle',0.08)) },
   lose:(c,t)=>[392,330,262].forEach((f,i)=>tone(c,t+i*0.16,f,0.3,'sawtooth',0.08)),
   eat:(c,t)=>[0,0.15].forEach(x=>noise(c,t+x,0.08,0.025,'highpass',5000)),
-  camp:(c,t)=>{ brown(c,t,1.2,0.1,380); [0.15,0.38,0.55,0.8,1.0].forEach(x=>noise(c,t+x,0.025,0.04,'highpass',3000)) },
+  camp:(c,t)=>hum(c,t,1.4,0.08),
   tablet:(c,t)=>[220,330,440,660].forEach((f,i)=>swell(c,t+i*0.12,f,2,0.07)),
   fightstart:(c,t)=>[0,0.24].forEach(x=>tone(c,t+x,80,0.2,'sine',0.35,40)),
   collapse:(c,t)=>{ tone(c,t,60,0.3,'sine',0.35); noise(c,t,0.1,0.15,'lowpass',250) },
   ending:(c,t)=>[261.6,329.6,392,493.9,587.3].forEach((f,i)=>swell(c,t+i*0.15,f,4,0.06)),
-  bandit:(c,t)=>[740,554,740,554].forEach((f,i)=>tone(c,t+i*0.15,f,0.14,'square',0.08)),
+  bandit:(c,t)=>pa(c,t,0.15),
+  alert:(c,t)=>pa(c,t,0.12),
+  song:(c,t)=>songHum(c,t),
 };
 /* 우선순위(작을수록 먼저): 큰 사건 → 판정 결과 → 캐시 → 소비·상태 → 알림. 같은 순간(약 60ms)에 여러 개가 요청되면 위에서 두 개만 냄.
    주사위 소리는 판정 결과와 한 쌍이라 따로 세지 않음. 클릭음은 항상 바로 냄 */
-const SFX_PRI={collapse:0,ending:0,tablet:0,fightstart:0,win:0,lose:0,bandit:0,fragment:1,relic:1,levelup:1,
+const SFX_PRI={collapse:0,ending:0,tablet:0,fightstart:0,win:0,lose:0,bandit:0,alert:0,song:1,fragment:1,relic:1,levelup:1,
   success:2,partial:2,fail:2,coin:3,spend:3,hurt:4,heal:4,water:4,eat:4,build:4,travel:4,arrive:4,camp:4,newday:5,scene:6,notify:6,error:5};
 let _sfxQ=[], _sfxTimer=null;
 function sfx(name,delay){
@@ -6587,8 +6621,10 @@ function sfxPlay(name,delay){
 /* 기록(addLog)의 효과 줄에서 알맞은 소리를 고름 — 위에서부터 처음 맞는 것 하나 */
 function sfxLog(type,text){
   if(type==='scene') return sfx('scene');
+  if(type==='sys'&&/🎵 유민이 노래를 부르기/.test(String(text||''))) return sfx('song');
   if(type!=='fx') return;
   const t=String(text||'');
+  if(/🎵 유민의 노래/.test(t)) return sfx('song');
   if(/★ 교표 조각/.test(t)) return sfx('fragment');
   if(/📦.*얻었습니다/.test(t)) return sfx('relic');
   if(/💪|❤ 최대 체력|성장 포인트/.test(t)) return sfx('levelup');
@@ -6596,8 +6632,8 @@ function sfxLog(type,text){
   if(/캐시 \+|💳.*\+|환불/.test(t)) return sfx('coin');
   if(/캐시 -|보트 대여료|통행세|💳.*-|정가 결제|확장 —/.test(t)) return sfx('spend');
   if(/체력 \+|충전 거치대/.test(t)) return sfx('heal');
-  if(/🍞 배터리 -1|사용 → 배터리/.test(t)) return sfx('eat');
-  if(/💧 물 -1|💧.*(채웠|\+)|사용 → 물/.test(t)) return sfx('water');
+  if(/🔋|사용 → 배터리/.test(t)) return sfx('eat');
+  if(/🫧|사용 → 공포|공포 −/.test(t)) return sfx('water');
   sfx('notify');
 }
 document.addEventListener('click',ev=>{ const b=ev.target&&ev.target.closest&&ev.target.closest('button'); if(b&&!b.disabled&&!b.classList.contains('sfxBtn')) sfx('click') },true);
