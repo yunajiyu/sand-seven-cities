@@ -1654,7 +1654,7 @@ function dormPlead(){
     addLog('sys','🌙 사감 선생님이 문을 열어 주어 기숙사로 들어왔습니다.');
     enterDormQuiet();
   }
-  aiTurn('사감 선생님께 사정한다',extra+' 학생 인물 사이의 관계는 우정으로만. 짧게.');
+  aiTurn('사감 선생님께 사정한다',extra+' 짧게.');
 }
 function dormAskYumin(){
   if(busy||!dormLocked()) return;
@@ -1667,7 +1667,7 @@ function dormAskYumin(){
     return aiTurn('유민에게 몰래 문자를 보낸다',`[휴대폰 압수] 플레이어가 문 앞에서 몰래 휴대폰을 꺼내다 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 사감의 가벼운 꾸중으로 짧게.`);
   }
   const p=Math.min(0.85,0.5+yuminLv()*0.01), ok=Math.random()<p;
-  let extra=`[문을 열어 달라는 문자] 소등 후 기숙사 문이 잠겨 들어가지 못한 플레이어가 유민에게 몰래 문자를 보내 뒷문이나 창문을 열어 달라고 부탁한다. 문자 화면을 말풍선 형식으로 보여 주고(예: "나 > …", "유민 > …"), 유민은 장난스럽지만 실제로 도와줄 수 있다. 학생 인물 사이의 관계는 우정으로만. `;
+  let extra=`[문을 열어 달라는 문자] 소등 후 기숙사 문이 잠겨 들어가지 못한 플레이어가 유민에게 몰래 문자를 보내 뒷문이나 창문을 열어 달라고 부탁한다. 문자 화면을 말풍선 형식으로 보여 주고(예: "나 > …", "유민 > …"), 유민은 장난스럽지만 실제로 도와줄 수 있다. `;
   if(ok){
     G.comp.spot='dorm'; G.comp.spotDay=G.day; enterDormQuiet(); G._yuminHere=true;
     addLog('sys','🎵 유민이 몰래 뒷문을 열어 주어 기숙사로 들어왔습니다.');
@@ -2476,7 +2476,7 @@ function weekendOuting(){
   G.spot=null; G.district='market'; G.comp.spot='market'; G.comp.spotDay=G.day; G._yuminHere=true; G.choices=[];
   tick(); tick();
   addLog('sys','🛒 유민과 함께 상점가로 외출했습니다 (캐시 -5, 두 칸).');
-  aiTurn('유민과 주말 외출을 한다',`[주말 외출] ${dowName(G.day)}요일, 플레이어가 유민과 함께 상점가로 나선다. 간식 가게 구경, 중고 음반 가게, 버스킹 자리 같은 작은 일정과 둘의 가벼운 대화. 유민은 장난스럽지만 평소보다 조금 더 속마음이 새어 나온다(과하지 않게). 연애 분위기 없이 친구로서. 유민호감은 규칙대로.`);
+  aiTurn('유민과 주말 외출을 한다',`[주말 외출] ${dowName(G.day)}요일, 플레이어가 유민과 함께 상점가로 나선다. 간식 가게 구경, 중고 음반 가게, 버스킹 자리 같은 작은 일정과 둘의 가벼운 대화. 유민은 장난스럽지만 평소보다 조금 더 속마음이 새어 나온다(과하지 않게). 유민호감은 규칙대로.`);
 }
 function buskHTML(){ return isWeekend()?`<button onclick="busking()">🎸 버스킹 구경하기 (주말 · 하루 한 번 · 공포 −1)</button>`:'' }
 function busking(){
@@ -2498,7 +2498,7 @@ function visitHour(){
   G.cash+=cash; G.items.push(snack);
   addLog('fx',`📮 면회 온 사람에게 용돈 💳${cash}과 ${snack}을(를) 받았습니다`);
   tick();
-  aiTurn('면회 시간에 정문으로 나간다',`[면회 시간] 주말 면회 시간. 정문 앞에서 플레이어를 만나러 온 가족이나 오랜 친구(플레이어의 배경에 맞는 사람)가 용돈과 ${snack}을(를) 건네며 안부를 묻는다. 학교 생활을 걱정하는 따뜻하고 짧은 대화. 받은 용돈과 간식은 코드가 이미 반영했으니 effects.캐시와 items_add는 0/빈 배열. 학생 인물 사이의 관계는 우정(가족은 가족 관계)으로.`);
+  aiTurn('면회 시간에 정문으로 나간다',`[면회 시간] 주말 면회 시간. 정문 앞에서 플레이어를 만나러 온 가족이나 오랜 친구(플레이어의 배경에 맞는 사람)가 용돈과 ${snack}을(를) 건네며 안부를 묻는다. 학교 생활을 걱정하는 따뜻하고 짧은 대화. 받은 용돈과 간식은 코드가 이미 반영했으니 effects.캐시와 items_add는 0/빈 배열.`);
 }
 const BROWSE_CLUE_LIMIT=3;
 function browsePlace(k){
@@ -2765,7 +2765,7 @@ function weekendHTML(i){
 function weekendMorning(){
   if(busy||spotBlock()||slotIdx()!==0) return;
   G._yuminHere=false; tick();
-  aiTurn('주말 아침을 맞는다',`[${dowName(G.day)}요일 아침] 학교에 가지 않는 주말 아침. 늦잠, 느긋한 기숙사 분위기, 창밖의 햇빛과 복도의 슬리퍼 소리 같은 짧은 장면. 오늘 하루를 어떻게 보낼지(공부, 산책, 친구 만나기, 쇼핑, 아르바이트 등) 고민하는 마지막 한 줄. 학생 인물 사이의 관계는 우정으로만.`);
+  aiTurn('주말 아침을 맞는다',`[${dowName(G.day)}요일 아침] 학교에 가지 않는 주말 아침. 늦잠, 느긋한 기숙사 분위기, 창밖의 햇빛과 복도의 슬리퍼 소리 같은 짧은 장면. 오늘 하루를 어떻게 보낼지(공부, 산책, 친구 만나기, 쇼핑, 아르바이트 등) 고민하는 마지막 한 줄.`);
 }
 function weekendEvening(){
   if(busy||spotBlock()||slotIdx()!==8) return;
@@ -2789,7 +2789,7 @@ function studyHere(){
 function freeTime(){
   if(busy||spotBlock()||!isWeekend()||slotIdx()<0) return;
   G._yuminHere=false; tick();
-  aiTurn('자유 시간을 보낸다',`[주말 자유 행동] ${dowName(G.day)}요일 자유 시간. 플레이어가 하고 싶은 대로 시간을 보낸다. 선택지는 산책, 친구나 유민과 어울리기, 낮잠, 취미, 쇼핑, 몰래 하는 작은 일탈, 학교 구석 둘러보기 등 서로 다른 성격으로 3~4개 줄 것. 장면은 짧고 가볍게. 학생 인물 사이의 관계는 우정으로만.`);
+  aiTurn('자유 시간을 보낸다',`[주말 자유 행동] ${dowName(G.day)}요일 자유 시간. 플레이어가 하고 싶은 대로 시간을 보낸다. 선택지는 산책, 친구나 유민과 어울리기, 낮잠, 취미, 쇼핑, 몰래 하는 작은 일탈, 학교 구석 둘러보기 등 서로 다른 성격으로 3~4개 줄 것. 장면은 짧고 가볍게.`);
 }
 function schoolHTML(){
   const i=slotIdx(); if(i<0||G.loc!=='campus'||spotOn()) return '';
@@ -2843,7 +2843,7 @@ function homeroom(){
     addLex({name:'유민',cat:'인물',desc:'7반 학생이자 주말 버스커. 느긋하고 장난스러운 성격으로, 처음 본 사람에게도 먼저 말을 건다. 전학 첫날 옆자리에 앉았다.'},false,null);
     G.chronicle.push({day:G.day,text:'전학 첫날 조례에서 자기소개를 하고, 옆자리 학생 유민과 처음 이야기했다'});
     tick();
-    return aiTurn('전학 인사를 한다',`[전학 첫날 조례] 담임 선생님의 전학생 소개는 방금 끝났다(다시 쓰지 말 것). 이어서 반 아이들의 시선 속에서 플레이어가 짧게 자기소개를 한다(전학 이유는 플레이어 정보를 따르되 서서히 암시만). 자리는 창가 뒤쪽, 옆자리는 같은 반 학생 유민이다. 유민이 장난스럽게 먼저 말을 걸고(아직 서로 처음이다), 짧은 노래 한 소절이나 농담으로 분위기를 풀며 이름을 밝힌다. 교과서와 서류를 받는 장면에 서류 사이의 오래된 출석부를 한 줄 스치듯 언급할 수 있다. 선택지에는 유민에게 대꾸하거나 반 분위기를 살피는 행동을 포함하라. 학생 인물 사이의 관계는 우정으로만.`,false);
+    return aiTurn('전학 인사를 한다',`[전학 첫날 조례] 담임 선생님의 전학생 소개는 방금 끝났다(다시 쓰지 말 것). 이어서 반 아이들의 시선 속에서 플레이어가 짧게 자기소개를 한다(전학 이유는 플레이어 정보를 따르되 서서히 암시만). 자리는 창가 뒤쪽, 옆자리는 같은 반 학생 유민이다. 유민이 장난스럽게 먼저 말을 걸고(아직 서로 처음이다), 짧은 노래 한 소절이나 농담으로 분위기를 풀며 이름을 밝힌다. 교과서와 서류를 받는 장면에 서류 사이의 오래된 출석부를 한 줄 스치듯 언급할 수 있다. 선택지에는 유민에게 대꾸하거나 반 분위기를 살피는 행동을 포함하라.`,false);
   }
   const unheard=G.rumors.filter(r=>!G.heardRumors.includes(r.region));
   let extra='[조례] 담임 선생님이 출석을 부르고 오늘 일정과 공지를 전한다. 벌점·점호·외출 같은 학교 규칙 이야기와 반 아이들의 웅성거림을 짧게.';
@@ -2894,7 +2894,7 @@ function classStep(){
   if(!c.active||c.active.slot!==i) c.active={slot:i,n:0};
   const n=++c.active.n, fin=n>=CLASS_ACTIONS;
   let extra;
-  if(n===1) extra=`[수업 시작] 2학년 7반 ${k+1}교시 ${subj} 수업이 시작된다(진행 ${n}/${CLASS_ACTIONS}). 선생님의 첫마디, 칠판, 교과서 펼치는 소리 같은 도입 장면. 이후 선택지는 필기하기·질문하기·졸기·옆자리와 속닥이기·딴짓 같은 교실 안 수업 중 행동으로 줄 것. 학생 인물 사이의 관계는 우정으로만.`;
+  if(n===1) extra=`[수업 시작] 2학년 7반 ${k+1}교시 ${subj} 수업이 시작된다(진행 ${n}/${CLASS_ACTIONS}). 선생님의 첫마디, 칠판, 교과서 펼치는 소리 같은 도입 장면. 이후 선택지는 필기하기·질문하기·졸기·옆자리와 속닥이기·딴짓 같은 교실 안 수업 중 행동으로 줄 것.`;
   else if(!fin) extra=`[수업 중 ${n}/${CLASS_ACTIONS}] ${subj} 수업이 한창이다. 수업 중의 짧은 장면(선생님의 설명, 필기, 졸음, 옆자리의 속삭임, 지명 등). 아직 수업이 끝나지 않았으니 끝내지 말 것. 선택지는 교실 안 수업 중 행동으로.`;
   else{
     extra=`[수업 끝 ${n}/${CLASS_ACTIONS}] ${subj} 수업의 마무리 장면. 마지막에 종이 울리며 ${k+1}교시가 끝난다.`;
@@ -4089,7 +4089,7 @@ function readMessage(i){
   }
   if(!body) body=m.topic==='warn'?`오늘 학교와 기숙사 분위기(순찰, 점호, 규율부·청소반의 움직임 중 하나)를 조심하라고 한마디 알려 준다.`:m.topic==='invite'?`방과 후나 쉬는 시간에 어디서 보자고 가볍게 제안한다(장소는 학교 안 한 곳, 플레이어는 이 제안에 답장하거나 무시할 수 있다).`:`안부를 묻거나 가벼운 잡담을 건넨다(플레이어의 최근 일과 관련해서).`;
   const secret=rs?` ${rs}이라 플레이어는 몰래 읽는 중이다.`:'';
-  aiTurn(`${name}의 문자를 읽는다`,`[수신 문자] ${name}이(가) 플레이어에게 먼저 문자를 보냈다. 내용: ${body}${secret} 문자 화면을 말풍선 형식으로 보여 주고(예: "${name} > …"), 플레이어가 읽는 반응과 주변 묘사로 마친다. ${name}은(는) 지금 이 자리에 없다(${contactWhere(name)}). 학생 인물 사이의 관계는 우정으로만. 짧게.`);
+  aiTurn(`${name}의 문자를 읽는다`,`[수신 문자] ${name}이(가) 플레이어에게 먼저 문자를 보냈다. 내용: ${body}${secret} 문자 화면을 말풍선 형식으로 보여 주고(예: "${name} > …"), 플레이어가 읽는 반응과 주변 묘사로 마친다. ${name}은(는) 지금 이 자리에 없다(${contactWhere(name)}). 짧게.`);
 }
 function inboxHTML(){ return (G.inbox||[]).map((m,i)=>`<button class="primary" onclick="readMessage(${i})">📩 ${esc(m.from)}에게서 새 문자</button>`).join('') }
 function openPhone(){
@@ -4131,7 +4131,7 @@ function phoneAct(name,kind){
   G._yuminHere=false;
   const inZone=!!(G.site||G.loc==='site'||G.loc==='shelter');
   const secret=(rs?` ${rs}이라 플레이어는 몰래 쓰는 중이다. 소리를 죽이고 속삭이듯.`:'')+(inZone?' 플레이어는 지금 구역 안이라 신호가 약해 문자가 느리게, 끊겨서 오간다. 답장이 짧거나 한 글자씩 깨져도 좋다.':'');
-  const common=` ${name}은(는) 지금 이 자리에 없다(${where}). 상대의 위치·시간·성격에 맞게 반응하고(수업 중이면 답이 늦거나 짧게), 학생 인물 사이의 관계는 우정으로만. 억지로 새 사실을 만들지 말고 괴담 정보는 상대가 실제로 알 법한 만큼만. 이 장면은 짧게.`;
+  const common=` ${name}은(는) 지금 이 자리에 없다(${where}). 상대의 위치·시간·성격에 맞게 반응하고(수업 중이면 답이 늦거나 짧게), 억지로 새 사실을 만들지 말고 괴담 정보는 상대가 실제로 알 법한 만큼만. 이 장면은 짧게.`;
   if(kind==='meet'){
     const ok=!rs&&G.loc!=='road'&&Math.random()<MEET_OK_P;
     if(ok){ G.comp.spot=nearPlayer(); G.comp.spotDay=G.day; addLog('sys','🎵 유민이 이쪽으로 오겠다고 합니다. 곧 만날 수 있습니다.') }
