@@ -1728,7 +1728,7 @@ const waitDays=t=>{ const m=String(t).match(/(\d+)\s*일/); if(m) return Math.mi
 const inZone=()=>!!G.site&&['site','shelter','road'].includes(G.loc);
 const itemIn=t=>G.items.findIndex(it=>it&&String(it).length>=2&&t.includes(it));
 function sleepHere(){ const L=G.loc; if(L==='campus'||L==='hood') campusRest(); else if(L==='home') homeRest(); else if(L==='shelter') breakCamp(); else shelterHere() }
-function sleepLabel(){ const L=G.loc; return L==='campus'||L==='hood'?'🛏 기숙사에서 쉬기 (💳10 · 하루 경과)':L==='home'?'🛏 아지트에서 쉬기 (하루 경과)':L==='shelter'?'🌅 아침까지 쉬기':'⛺ 임시 쉼터 (공포 +1·배터리 -1, 야간이 지남)' }
+function sleepLabel(){ const L=G.loc; return L==='campus'||L==='hood'?'🛏 잠들기 (기숙사 · 💳10 · 하루 경과)':L==='home'?'🛏 아지트에서 쉬기 (하루 경과)':L==='shelter'?'🌅 아침까지 쉬기':'⛺ 임시 쉼터 (공포 +1·배터리 -1, 야간이 지남)' }
 
 /* 글로 쓴 행동 → 게임 기능. 위에서부터 처음 맞는 것 하나만.
    run()이 false를 돌려주면 '수정만 하고 이야기로 계속'(예: 기다리기, 물건 버리기) */
@@ -2390,12 +2390,13 @@ function campusFixedHTML(){
   else if(d==='classroom') a=penanceHTML('clean');
   else if(d==='market') a=buskHTML()+`<button onclick="openShop()">🛒 상점 (진정 음료·배터리·부품)</button><button onclick="strollMarket()">🚶 상점가 거닐기</button>`;
   else if(d==='canteen') a=`<button onclick="campusRumor()">🍚 식사하며 소문 듣기 (5)</button>`+jobHTML('canteen');
-  else if(d==='dorm') a=`<button onclick="dormTea()">🍵 휴게실에서 차 마시기 (공포 −1 · 오늘 ${3-dormSt().tea}번 남음)</button><button onclick="dormShower()">🚿 따뜻한 샤워 (공포 −2 · ${dormSt().shower?'오늘 사용함':'하루 1번'})</button><button onclick="campusRest()">🛏 기숙사에서 쉬기 (10)</button>`;
+  else if(d==='dorm') a=`<button onclick="dormTea()">🍵 휴게실에서 차 마시기 (공포 −1 · 오늘 ${3-dormSt().tea}번 남음)</button><button onclick="dormShower()">🚿 따뜻한 샤워 (공포 −2 · ${dormSt().shower?'오늘 사용함':'하루 1번'})</button><button class="primary" onclick="campusRest()">🛏 잠들기 (기숙사 · 💳10 · 하루 경과)</button>`;
   else if(d==='gate') a=visitHTML()+`<button class="primary" onclick="startExpedition()">🔦 구역 조사 떠나기</button><button onclick="openTravel()">🧭 다른 지구로 이동하기 (공원·학원가·재개발지구)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
   else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>` }
   if(!sp) a=schoolHTML()+a;   // 지금 일과 칸의 버튼은 어느 지점에서나 맨 앞에 보임
   if(dormLocked()) a=`<button class="primary" onclick="dormPlead()">🙏 사감 선생님께 사정하기 (매력 판정)</button>`+(G.comp.met&&!G.comp.joined?`<button class="primary" onclick="dormAskYumin()">📱 유민에게 몰래 문을 열어 달라고 문자</button>`:'')+a;
   if(!sp&&G.time==='방과 후') a+=`<button class="primary" onclick="waitRollCall()">🔔 점호 시간까지 기다리기</button>`;
+  if(G.time!=='낮'&&(sp||d!=='dorm')&&!dormLocked()) a+=`<button class="primary" onclick="sleepAtDorm()">🛏 ${isDarkTime()?'기숙사로 돌아가 잠들기':'기숙사로 가서 잠들기'} (💳10 · 하루 경과)</button>`;
   a+=`<button onclick="openSchoolMap()">🏫 학교 지도</button><button onclick="openRel()">👥 인연</button>`;
   if(G.comp.met){
     if(G.comp.joined) a+=`<button onclick="talkYumin()">🎵 유민과 이야기</button>`;
@@ -2443,6 +2444,12 @@ function dormShower(){
   d.shower++; const v=Math.min(2,fearNow()); G.calm=Math.min(capW(),G.calm+v); G._yuminHere=false;
   addLog('fx',`🚿 따뜻한 물로 샤워하며 마음을 가라앉혔습니다 (공포 −${v} → ${fearNow()})`);
   tick(); aiTurn('기숙사 샤워실에서 씻는다','[샤워] 김 서린 샤워실, 쏟아지는 따뜻한 물, 하루의 긴장이 풀리는 느낌. 짧은 장면. 공포 수치는 코드가 이미 반영했으니 effects는 0.');
+}
+/* 어느 지점에서든 눌러 기숙사로 돌아가 잠드는 버튼 (소등 후면 출입 판정을 거침) */
+function sleepAtDorm(){
+  if(busy||!G||G.loc!=='campus'||G.time==='낮') return;
+  if(curDistrict()!=='dorm'||spotOn()){ goDistrict('dorm'); if(curDistrict()!=='dorm'||spotOn()) return }
+  campusRest();
 }
 function campusRest(){
   if(busy||spotBlock()) return;
@@ -5692,7 +5699,7 @@ function loungeFill(){
 }
 function hoodFixedHTML(){
   const t=curHood(), b=(on,txt,cls)=>`<button ${cls?`class="${cls}"`:''} onclick="${on}">${txt}</button>`;
-  let a=b('openShop()','🛒 상점')+b('campusRumor()','🍚 소문 듣기 (5)')+b('campusRest()','🛏 기숙사에서 쉬기 (10)');
+  let a=b('openShop()','🛒 상점')+b('campusRumor()','🍚 소문 듣기 (5)')+b('campusRest()','🛏 잠들기 (기숙사 · 10)');
   if(t.lounge) a+=b('loungeFill()',G.hoodLoungeDay===G.day?'🫧 휴게 정자 (오늘 사용함)':'🫧 휴게 정자에서 공포 가라앉히기 (무료 · 하루 1번)');
   if(t.keepsakeBuy) a+=b('appraise()','📦 고물상 (유실물 +20%)');
   a+=b('openRel()','👥 인연');
@@ -7395,7 +7402,7 @@ function openGuide(){
     ${row('구역 조사 출발','떠난 곳에서 구역까지 지도 거리만큼 (대부분 1~2일) — 하루마다 공포 +1·배터리 −1, 탈것 충전 1회. 이틀 이상이면 길 위의 사건이 생길 수 있음 (아지트 시설 보급이 있으면 더해짐). 공포 여유와 배터리가 최소 1씩 필요')}
     ${row('귀환','떠나온 지구(없으면 중앙 캠퍼스 지구)까지 지도 거리만큼 — 하루마다 공포 +1·배터리 −1 (모자라면 체력), 충전은 없음. 이틀 이상이면 길 위의 사건. 수몰 구역은 보트로 선착장까지(대여료는 왕복 요금에 포함). 자재: 철제 부품 +(방문한 공간 수 ÷ 2, 올림 — 이어 조사한 구역은 새로 본 공간만큼만), 합판은 50% 확률로 +1')}
     ${row('임시 쉼터','공포 +1, 배터리 -1, 체력 40% 회복 (공포 여유·배터리가 없으면 거의 회복 못함). 아침이 되면 하루 경과하고 임시 쉼터를 시작한 곳으로. 야간 전에 밖에서 쉬면 점호 누락')}
-    ${row('기숙사에서 쉬기','💳10, 체력 전부 회복, 하루 경과, 벌점 -1')}
+    ${row('🛏 잠들기','기숙사의 「잠들기」 버튼(학교 안 어느 지점에서든 방과 후 이후에 보입니다): 💳10, 체력 전부 회복, 하루 경과, 벌점 -1. 소등 후에는 기숙사 출입 판정을 거칩니다')}
     ${row('급식실','💳5, 식사하며 소문 듣기 (1걸음)')}
     ${row('아지트에서 쉬기',`무료, 체력 전부 회복, 공포 −${HOME_FEAR_RECOVER}, 하루 경과 (충전 거치대가 있으면 하루 첫 휴식에 배터리 +2). 유민은 휴게 소파에 실제로 머물 때만 함께 쉼`)}
     ${row('쓰러졌을 때','"출석부에서 네 이름이 지워졌다…" 잠시 의식을 잃었다가 구조되어 떠나온 지구(없으면 중앙 캠퍼스 지구)로. 캐시 절반 손실(전동 스쿠터가 있으면 4분의 1), 이틀 경과, 체력 절반으로 회복')}
