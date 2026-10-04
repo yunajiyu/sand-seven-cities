@@ -15,11 +15,13 @@
 - `system_prompt_hanbit.md` — 서술·유민 대사용 메인 프롬프트와 구역 즉석 생성용 보조 프롬프트의 원문(설계 초안).
 - 코드에는 `SYS_BASE`(메인), `SYS_ZONE`(보조), `TURN_SCHEMA`(JSON 출력 형식)로 들어 있습니다. 상태 블록은 JSON의 `effects`로 받습니다: `체력`·`공포`·`배터리`·`손전등`·`캐시`·`벌점`·`출입권한`·`유민호감`·`교표조각`·`사전추가`·`조사보드`·`떡밥장부`.
 
-## 아지트 이미지(선택)
-`images/home/`에 정해진 파일명으로 이미지를 넣으면 🪴 아지트 장식에 표시됩니다. 없으면 이모지로 표시됩니다(파일명은 이전 버전과 같습니다).
-- 아지트 배경: `house_1.webp` ~ `house_4.webp`
-- 시설: `fac_well.webp`(티 코너), `fac_well2.webp`, `fac_store.webp`(사물함), `fac_store2.webp`, `fac_stable.webp`(자전거 보관대), `fac_workshop.webp`(작업대), `fac_garden.webp`(충전 거치대), `fac_guest.webp`(휴게 소파), `fac_study.webp`(교표 연구실)
-- 가구: `furn_bed`, `furn_rug`, `furn_table`, `furn_lamp`, `furn_shelf`, `furn_pot`, `furn_plant`, `furn_cushion` (`.webp`)
-- 지구 특산 장식: `deco_east_*`(동부 저수지 공원), `deco_south_*`(고시촌 골목), `deco_north_*`(구 신시가 재개발지구)
-- 유실물 진열대: `relic_1.webp` ~ `relic_4.webp`
-- 곁가지 구역 보상 장식: `deco_west_coral`, `deco_west_gate`, `deco_west_map` (`.webp`)
+## 아지트 꾸미기 (이미지 없음)
+이미지 파일은 쓰지 않습니다. 아지트 장면은 CSS 배경(집 단계 1~4)과 이모지만으로 그립니다.
+- 시설: 지으면 `FAC_SLOTS`의 자리에 이모지로 나타납니다 (티 코너 🍵, 사물함 🗄, 자전거 보관대 🚲, 작업대 🔨, 충전 거치대 🔋, 휴게 소파 🛋, 교표 연구실 🔍).
+- 가구·장식·유실물 진열대: `DECOR`의 이모지(`ic`)로 표시되고 끌어서 옮깁니다.
+- 단계 배경 소품: `HOME_BG`(창문·문·조명·액자·시계 등)가 단계에 따라 늘어납니다.
+- 좌표·크기(%)는 `FAC_SLOTS`/`DECOR`에서 조절하며, 🛠 시설 위치 편집 모드로 끌어서 맞춘 뒤 좌표를 복사해 반영할 수 있습니다.
+
+## 내부 식별자 (옛 이름 → 새 이름)
+`KASR→CAMPUS_POS` · `IRAM_POS→LACUNA_POS` · `tablet→roster` · `G.dungeon→G.site` · `ruin→zone` · `town→hood` · `city(허브)→campus` · `cities→wards` · `west→branch` · `relic→keepsake` · `caravan→peddler` · `camp→shelter` · `MOUNTS→RIDES` · `water→calm`(공포 여유, 공포 = 한계 − calm) · `food→battery` · `gold→cash`. 시설 id: `well→tea`, `store→locker`, `stable→bikerack`, `workshop→workbench`, `garden→charger`, `guest→sofa`, `study→lab`, `land→clubroom`. 설정 저장 키(`sand7_settings` 등)는 API 키를 이어 쓰려고 그대로 둡니다.
+

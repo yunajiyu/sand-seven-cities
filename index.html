@@ -723,7 +723,7 @@ const LEX_EVERY=3;          // 사전 추출: 이 턴 수마다 한 번 (장소�
 /* ---------- 지도 좌표 ---------- */
 const MAP_W=400, MAP_H=800/3, MAP_SC=400/1536;
 const P=(x,y)=>({x:Math.round(x*MAP_SC*10)/10,y:Math.round(y*MAP_SC*10)/10});
-const CAMPUS_POS=P(840,440), HOME_POS=P(700,515), LACUNA_POS=P(1225,810);   // 중앙 캠퍼스 지구 · 아지트 · 라쿠나 구역 (옛 이름의 좌표 상수)
+const CAMPUS_POS=P(840,440), HOME_POS=P(700,515), LACUNA_POS=P(1225,810);   // 중앙 캠퍼스 지구 · 아지트 · 라쿠나 구역 좌표
 const MAP_PLACES=[
   {id:'north',n:'구 신시가 재개발지구',...P(1030,255),t:'zone',region:'구 신시가 재개발지구'},
   {id:'east',n:'동부 저수지 공원',...P(1212,478),t:'park',region:'동부 저수지 공원'},
@@ -732,14 +732,14 @@ const MAP_PLACES=[
   // 곁가지 구역(오러리·코덱스) — 3막 전에는 소문뿐 (갈 수 없음). lore는 이름이 드러날 때 사전과 AI에게 전달
   {id:'observatory',n:'오러리 천문대',...P(283,208),t:'tower',far:1,lore:'오러리 구역 언덕 위의 구 천문대. 돔 안쪽에 오래된 관측 기록이 남아 있다고 한다.'},
   {id:'pier',n:'오러리 온실 정원',...P(335,268),t:'pier',far:1,lore:'오러리 구역의 유리 온실 단지. 저수지로 이어진 수로 끝에 작은 선착장이 있다.'},
-  {id:'reading',n:'코덱스 대열람실',...P(525,352),t:'castle',far:1,lore:'코덱스 구역의 중심인 구 본관 도서관. 사서 완장을 찬 이들이 지키며 외부 재원생을 \'외부 열람자\'라 부른다.'},
-  {id:'checkpoint',n:'코덱스 서고 검문소',...P(410,432),t:'castle',far:1,lore:'코덱스 구역으로 들어가는 서고 입구의 검문소. 외부에서 오는 이들은 이곳에서 통행료를 낸다.'},
+  {id:'reading',n:'코덱스 대열람실',...P(525,352),t:'hall',far:1,lore:'코덱스 구역의 중심인 구 본관 도서관. 사서 완장을 찬 이들이 지키며 외부 재원생을 \'외부 열람자\'라 부른다.'},
+  {id:'checkpoint',n:'코덱스 서고 검문소',...P(410,432),t:'hall',far:1,lore:'코덱스 구역으로 들어가는 서고 입구의 검문소. 외부에서 오는 이들은 이곳에서 통행료를 낸다.'},
   {id:'herbgarden',n:'오러리 약초원',...P(600,228),t:'hood',far:1,lore:'오러리 구역 깊은 곳의 약초원. 식물원 관리인들이 지키며 이동 행상이 드물게 들러 간식을 판다.'},
-  {id:'rooftop',n:'코덱스 옥상 서고',...P(665,735),t:'castle',far:1,dir:'남서쪽',lore:'코덱스 구역 본관 옥상에 얹힌 폐서고. 오래전 건설추진단이 쌓았다는 소문이 있다.'},
+  {id:'rooftop',n:'코덱스 옥상 서고',...P(665,735),t:'hall',far:1,dir:'남서쪽',lore:'코덱스 구역 본관 옥상에 얹힌 폐서고. 오래전 건설추진단이 쌓았다는 소문이 있다.'},
   {id:'depot',n:'코덱스 지하 반입구',dir:'남서쪽',...P(312,778),t:'pier',far:1,lore:'도서 반입 업자와 밀거래꾼이 드나드는 지하 반입구. 한빛시 유실물을 몰래 사들이는 장사꾼이 있다.'},
   {id:'irongate',n:'오러리 온실 철문',dir:'남서쪽',...P(800,800),t:'zone',far:1,lore:'온실 단지 안쪽에 반쯤 덩굴에 묻힌 거대한 철문. 어디로 통하는지 아무도 모른다.'},
 ];
-const EDGE_PX=[[180,120],[520,60],[900,40],[1300,30],[1450,110],[1490,420],[1470,700],[1440,900],[1100,960],[700,950],[420,900],[220,820],[160,600],[200,330]];   // 한빛시 외곽선 (도시 지도)
+const EDGE_PX=[[180,120],[520,60],[900,40],[1300,30],[1450,110],[1490,420],[1470,700],[1440,900],[1100,960],[700,950],[420,900],[220,820],[160,600],[200,330]];   // 한빛시 외곽선 (지도)
 const EDGE_D='M'+EDGE_PX.map(([x,y])=>`${(x*MAP_SC).toFixed(1)} ${(y*MAP_SC).toFixed(1)}`).join(' L')+' Z';
 const UNKNOWN_SPOTS=[P(1262,140),P(1215,630),P(960,705),P(1215,800),P(1100,380)];
 const HILLS=[[80,64],[95,56],[110,50],[125,46],[140,44],[102,68],[118,62],[133,58],[154,48]];
@@ -799,7 +799,7 @@ function migrate(){
   if(G.rival&&!G.rival.hostile){ if(!G.rival.known) G.rival=null; else G.rival.hostile=true }   // 적대 세력 이전 저장본
   if(G.act==null) G.act=Array.isArray(G.wards)&&G.wards.length?(G.wards.every(c=>c.found)?4:3):1;   // 막 제도 이전 저장본
   if(G.actDone&&(G.fragments||0)<FRAG_GOAL) G.fragments=FRAG_GOAL;
-  if(G.act>=3&&MAP_PLACES.some(p=>p.far&&!G.discovered.includes(p.id))) setTimeout(()=>{ try{ branchOpen(true); save(); render() }catch(e){} },0);   // 3막 저장본: 서쪽 땅 열기   // 조각 목표가 늘기 전에 1막을 마친 저장본
+  if(G.act>=3&&MAP_PLACES.some(p=>p.far&&!G.discovered.includes(p.id))) setTimeout(()=>{ try{ branchOpen(true); save(); render() }catch(e){} },0);   // 3막 저장본: 곁가지 구역 열기   // 조각 목표가 늘기 전에 1막을 마친 저장본
   if(G.dayStep==null) G.dayStep=(G.steps||0)%MOVE_STEPS.quarter;
   if(!TIMES.includes(G.time)) G.time=G.time==='밤'?'야간':'낮';
   if(G.demerit==null) G.demerit=0; if(!G.access) G.access=1; if(!Array.isArray(G.ledger)) G.ledger=[];
@@ -878,7 +878,7 @@ const RX={
   BUY:/(산다|사다|사들|사 둔|구입|구매|채운다|채워|보충|흥정|값을\s*치)/,
 };
 
-/* 구매 행동인지: '채운다·채워' 같은 말은 상점에서는 구매지만, 티 코너·샘 앞에서 산다·구입 같은 말 없이 쓰이면 공짜 물 긷기 */
+/* 구매 행동인지: '채운다·채워' 같은 말은 상점에서는 구매지만, 티 코너·휴게 공간에서 산다·구입 같은 말 없이 쓰이면 공짜 물 긷기 */
 const BUY_VERB=/(산다|사다|사들|사 둔|구입|구매|흥정|값을\s*치)/;
 function isBuyText(t){
   t=String(t||''); if(!RX.BUY.test(t)) return false;
@@ -1033,7 +1033,7 @@ const SYS_ZONE=`너는 텍스트 호러 게임 「출석부에 없는 구역」�
 떡밥 장부의 사실과 모순되지 않게 하고, 세계의 진상을 직접 밝히지 않는다. 등장인물은 모두 20세 이상 성인이다.
 출력은 사용자 지시의 JSON 형식을 따르는 JSON 하나뿐이다. 다른 텍스트는 쓰지 않는다.`;
 
-/* 서술 AI에게 주는 출력 형식. 선택지는 종류(type)를, 상인·수원은 사건(event)으로 받는다. 사전은 별도 AI가 정리. */
+/* 서술 AI에게 주는 출력 형식. 선택지는 종류(type)를, 이동 행상·휴게 공간은 사건(event)으로 받는다. 사전은 별도 AI가 정리. */
 const TURN_SCHEMA=`출력 JSON 형식:
 {
  "narration": "서술 (문단은 \\n\\n로 구분)",
@@ -1365,7 +1365,7 @@ function applyEffects(raw,T){
 
 /* ---------- 4-8. 시간 흐름 ----------
    걸음 1 = 행동 1. 구역·임시 쉼터 안의 행동(soft)은 2번에 1걸음.
-   도시·아지트에서는 시간만 흐르고 공포·배터리·체력은 줄지 않음.
+   캠퍼스·아지트에서는 시간만 흐르고 공포·배터리·체력은 줄지 않음.
    미리 마시거나 먹었으면(credit) 다음 자동 소비 1회를 건너뜀. */
 function fearInterval(){
   let v=(hasTrait('담력')?MOVE_STEPS.calmFrugal:MOVE_STEPS.calm)+(rideOn()?rideDef().fearStep:0);
@@ -1450,7 +1450,7 @@ function districtMove(t){
   const hit=IX.DIST_KEYS.find(([k,re])=>re.test(t)&&new RegExp(re.source+'[가-힣\\s]{0,6}'+IX.DIST_VERB.source).test(t));
   return hit?hit[0]:null;
 }
-/* ---------- 임시 장소: 다섯 지점 밖의 곳(대장간·사원·골목 등)으로 가면 G.spot={name}만 기록하고 지점은 그대로 ----------
+/* ---------- 임시 장소: 다섯 지점 밖의 곳(강당·옥상·골목 등)으로 가면 G.spot={name}만 기록하고 지점은 그대로 ----------
    G.spot이 있는 동안: 지점 전용 기능(소문·숙박·상점·조사 외출 출발·아지트 이동)은 막히고, 지점으로 돌아가는 버튼이 나옴.
    지점으로 이동(goDistrict)하거나 중앙 캠퍼스 지구를 떠나면 비워짐 */
 const SPOT_STOP=/^(안|밖|안쪽|바깥|뒤|앞|옆|위|아래|저쪽|이쪽|그쪽|거기|여기|그곳|이곳|저곳|근처|주변)$/;
@@ -1509,7 +1509,7 @@ const INTENTS=[
    when:t=>isHood()&&!!travelTarget(t)&&travelTarget(t).kind!=='far', run:t=>{ travelByText(t) }},
   {id:'farplace',   // 아직 소문으로만 아는 곳 — 이동하지 않고 이야기로만
    when:t=>isHood()&&!!travelTarget(t)&&travelTarget(t).kind==='far',
-   run:()=>{ toast('그곳은 아직 소문으로만 아는 곳이라 갈 수 없습니다'); pend('\n[이동 불가] 플레이어가 말한 곳은 아직 소문으로만 아는 먼 땅이다. 실제로 길을 떠나거나 도착하는 서술은 하지 말고, 그곳을 그리워하거나 소문을 떠올리는 정도로만.',{zeroSupply:true}); return false }},
+   run:()=>{ toast('그곳은 아직 소문으로만 아는 곳이라 갈 수 없습니다'); pend('\n[이동 불가] 플레이어가 말한 곳은 아직 소문으로만 아는 먼 곳이다. 실제로 길을 떠나거나 도착하는 서술은 하지 말고, 그곳을 그리워하거나 소문을 떠올리는 정도로만.',{zeroSupply:true}); return false }},
   {id:'lead',confirm:true,label:t=>`📍 「${(leadByText(t)||{}).name}」 찾아 떠나기 (소문의 장소)`,
    when:t=>isHood()&&!!leadByText(t), run:t=>{ const l=leadByText(t); addLog('action',t); startLead(l.id) }},
   {id:'go',confirm:true,label:()=>'🔦 구역 조사 나가기 (거리만큼 일수 · 하루마다 공포 +1·배터리 −1)',
@@ -1574,7 +1574,7 @@ function pickFixed(a){ if(busy||!G) return; story(a,{src:'fixed'}) }
 
 function act(text,opt={}){
   const t=String(text);
-  if(calmFillIntent(t)) return story(t,opt);   // 수원 앞에서 물을 긷는 글 → 실제로 채운 뒤 이야기로
+  if(calmFillIntent(t)) return story(t,opt);   // 휴게 공간에서 공포를 가라앉히는 글 → 실제로 가라앉힌 뒤 이야기로
   const it=RX.NEG.test(t)?null:INTENTS.find(x=>{ try{ return x.when(t) }catch(_){ return false } });
   if(it&&spotOn()&&['go','travel','sleep','home'].includes(it.id)){ spotBlock(); return }   // 임시 장소에서는 지점 전용 행동 불가
   if(it){
@@ -1774,7 +1774,7 @@ on('effects',20,(e,{T})=>{
     d.cashGot+=g; e.cash=g;
   }
 });
-/* 21: 도시·지구·아지트 — 이야기로 얻는 캐시는 하루 합계 HOOD_GOLD_DAY까지, 체력 회복은 쉼·치료가 있을 때만 */
+/* 21: 캠퍼스·지구·아지트 — 이야기로 얻는 캐시는 하루 합계 HOOD_GOLD_DAY까지, 체력 회복은 쉼·치료가 있을 때만 */
 const HOOD_GOLD_DAY=30, HEAL_RX=/(쉬|쉰|휴식|잠|눕|기숙사|치료|보건실|병원|약국|약사|약|붕대|연고|밴드|상처를\s*(감|닦|싸)|간호|돌봐|샤워|찜질|파스)/;
 on('effects',21,(e,ctx)=>{
   if(isWild()) return;
@@ -2684,7 +2684,7 @@ async function abandonZone(i){
   const d=G.pausedZones&&G.pausedZones[i]; if(!d) return;
   if(!(await askConfirm(`「${d.name}」 조사를 포기할까요? 포기한 구역은 다시 올 수 없습니다.`))) return;
   G.pausedZones.splice(i,1);
-  G.mapDone.push({name:d.name,x:d.pos.x,y:d.pos.y});   // 먼 땅 소문은 끝까지 조사했을 때만 알려짐 (포기·밀려남은 해당 없음)
+  G.mapDone.push({name:d.name,x:d.pos.x,y:d.pos.y});   // 먼 곳 소문은 끝까지 조사했을 때만 알려짐 (포기·밀려남은 해당 없음)
   purgeZoneLex(d.name);
   if(d.lore) finalizeZone(d);   // 포기해도 밝혀낸 단서만큼은 사연이 남음
   G.chronicle.push({day:G.day,text:`「${d.name}」 조사를 포기했다`});
@@ -3122,7 +3122,7 @@ function calmFillIntent(t){
     pend(' [진정 처리 완료] 코드가 이미 플레이어의 공포를 가라앉혔다(무료). 마음이 가라앉는 장면만 짧게 서술하고 effects의 공포·캐시·체력은 0.',{zeroSupply:true,noMoney:true});
     return true;
   }
-  clearStaleEvents();   // 다른 곳으로 옮긴 뒤 남은 낡은 수원은 먼저 지움
+  clearStaleEvents();   // 다른 곳으로 옮긴 뒤 남은 낡은 휴게 공간 사건은 먼저 지움
   const hoodish=G.loc==='campus'||G.loc==='hood';
   // AI가 진정 장소 사건을 내지 않았어도, 지구에서 휴게 공간·티 코너에서 쉬며 공포를 가라앉힌다는 글이면 공용 휴게 공간으로 처리 (산다·구입이 들어가면 구매)
   if(!G.calmSrc&&hoodish&&NEED_RX.SOURCE.test(t)&&!BUY_VERB.test(t))
@@ -3474,7 +3474,7 @@ function giveYumin(kind,i){
 /* ---------- 유민의 사연 — 연애와 별개로, 호감 레벨에 따라 열리는 개인 서사 ----------
    - 장마다 뼈대(무엇이 일어나는가)만 코드가 정하고, 구체적인 내용(사람·이름·사건)은 이야기꾼이 지어냄
    - 지어낸 사실은 G.comp.arc.canon에 쌓여 이후 모든 장면에 '이미 밝혀진 과거'로 전달됨 (모순 방지)
-   - 본편(라쿠나 구역·보물·구역 연혁·적대 세력)과는 엮지 않음
+   - 본편(라쿠나 구역·학원도시가 숨긴 것·구역 연혁·적대 세력)과는 엮지 않음
    - 실패하면 ARC_COOL일 뒤 같은 장이 다시 열림 · 장을 넘길수록 회피 습관이 달라짐 */
 const ARC_COOL=3, ARC_TURNS=4;
 const YUMIN_ARC=[
@@ -3505,7 +3505,7 @@ function yuminArcArm(prob){
   if(!nx||a.active||G.day<(a.cool||0)||yuminLv()<nx.lv||Math.random()>prob) return '';
   a.active={ch:a.ch,turns:0,setup:true};
   addLog('sys',`📖 유민의 사연 — 「${nx.n}」`);
-  return ` [유민의 사연 ${a.ch+1}장 「${nx.n}」 — 시작] ${nx.frame} 구체적인 사람·이름·장소·사건은 네가 정하되, 이미 밝혀진 유민의 과거와 프로필(할아버지는 이름이 크게 알려지지 않은 모험가, 당국의 배신, 16세부터 혼자)에 모순되지 않게. 본편(라쿠나 구역·보물·구역 연혁·적대 세력)과는 엮지 말 것 — 이것은 유민 개인의 이야기다. 이번 장면에서는 결말을 내지 말고 플레이어의 반응을 기다려라(effects.yumin_arc.result는 "pending"). 이번에 새로 드러난 과거 사실이 있으면 effects.yumin_arc.canon에 적어라. 선택지에 다가가는 말, 지켜보는 행동, 가볍게 넘기는 말을 섞어라.`;
+  return ` [유민의 사연 ${a.ch+1}장 「${nx.n}」 — 시작] ${nx.frame} 구체적인 사람·이름·장소·사건은 네가 정하되, 이미 밝혀진 유민의 과거와 프로필(할아버지는 이름이 크게 알려지지 않은 모험가, 당국의 배신, 16세부터 혼자)에 모순되지 않게. 본편(라쿠나 구역·학원도시가 숨긴 것·구역 연혁·적대 세력)과는 엮지 말 것 — 이것은 유민 개인의 이야기다. 이번 장면에서는 결말을 내지 말고 플레이어의 반응을 기다려라(effects.yumin_arc.result는 "pending"). 이번에 새로 드러난 과거 사실이 있으면 effects.yumin_arc.canon에 적어라. 선택지에 다가가는 말, 지켜보는 행동, 가볍게 넘기는 말을 섞어라.`;
 }
 function yuminArcText(){
   const a=G.comp&&G.comp.arc; if(!a||!a.active||a.active.setup) return '';
@@ -4319,7 +4319,7 @@ function returnBase(){
    ========================================================= */
 function curPos(){ return G.loc==='hood'?hoodPos(G.hood):G.loc==='home'?HOME_POS:CAMPUS_POS }
 function curPlaceName(){ return G.loc==='hood'?curHood().n:G.loc==='home'?(G.home.name||'아지트'):'중앙 캠퍼스 지구' }
-/* 날랜 탈것(말)은 충전을 먹여 원기 왕성할 때만 빠름: 길 위(귀환 포함)에서는 떠날 때 먹인 상태 그대로, 지구에서 떠날 때는 충전 1을 줄 배터리가 있어야 함 */
+/* 날랜 탈것(전동 카트)은 충전을 먹여 원기 왕성할 때만 빠름: 길 위(귀환 포함)에서는 떠날 때 먹인 상태 그대로, 지구에서 떠날 때는 충전 1을 줄 배터리가 있어야 함 */
 function rideFast(){ const m=G&&G.ride&&RIDES[G.ride.type]; if(!m||!m.fast||!G._rideFed) return false; return isWild()||G.battery>=m.feed+1 }
 function travelDays(a,b){ const f=rideFast()?0.75:1; return Math.max(1,Math.round(Math.hypot(a.x-b.x,a.y-b.y)*f/DAY_DIST)) }
 function hoodDays(id){ return travelDays(CAMPUS_POS,hoodPos(id)) }
@@ -4617,7 +4617,7 @@ const WARD_NAMES=[
   {n:'엠버 구역',mood:'계절과 상관없이 붉은 잎이 진다'},
   {n:'널 구역',mood:'지도에 번호조차 없던 마지막 구역'},
 ];
-const WARD_SPOT_IDX=[1,0,2,4];            // 지도의 ??? 자리 중 땅 위 도시가 들어설 곳 (UNKNOWN_SPOTS 순서)
+const WARD_SPOT_IDX=[1,0,2,4];            // 지도의 ??? 자리 중 지상 구역이 들어설 곳 (UNKNOWN_SPOTS 순서)
 function wardPositions(){
   const land=[UNKNOWN_SPOTS[1],UNKNOWN_SPOTS[0],UNKNOWN_SPOTS[2],UNKNOWN_SPOTS[4]], reservoir=[{x:4,y:112},{x:408,y:178}];
   let li=0, si=0;
@@ -4662,7 +4662,7 @@ on('facts',95,o=>{
   if(G.wards) o.출석부의구역들=G.wards.map(c=>c.found?`${c.name}(${WARD_TYPES[c.terrain].n}, 찾음)`:`이름 모름 — ${WARD_TYPES[c.terrain].n}: "${c.riddle}"`).join(' / ');
 });
 
-/* ---------- 큰 구역으로 떠나기 (라쿠나 구역 · 도시) ---------- */
+/* ---------- 큰 구역으로 떠나기 (라쿠나 구역 · 출석부의 구역) ---------- */
 function bigSpec(key){
   if(key==='lacuna') return {key,terrain:'lacuna',pos:LACUNA_POS,name:'라쿠나 구역',req:{},reqText:'특별한 준비 없음'};
   const c=(G.wards||[]).find(x=>x.id===key); if(!c) return null;
@@ -4963,7 +4963,7 @@ function openWards(){
        1~2막: 중단한 구역을 털어 감(교표 조각·유실물) / 조각을 모아 감 / 근처 폐구역을 뒤짐
        3막:   출석부가 가리키는 구역 하나에 먼저 닿음 → 그 구역은 위험도 +1, 이야기에 그들이 등장
    - 교표 조각이 있는 새 구역에서는 가끔 그들과 '경주' — 늑장 부리면 조각을 빼앗김
-   - 소식은 구내식당·대상·유민의 노래로 들려옴
+   - 소식은 구내식당·이동 행상·유민의 노래로 들려옴
    ========================================================= */
 const RIVAL_START_DAY=3, RIVAL_PACE=[3,6], RIVAL_STEP=20, RIVAL_WARD_STEP=25, RIVAL_RACE_P=0.35, RIVAL_RACE_TURNS=12, RIVAL_FRAG_CAP=6;
 /* 적대 세력은 둘: ① 재원생 자치위원회 규율부(학생 쪽) ② 시설관리공단 특수관리팀 '청소반'(어른 쪽).
@@ -5061,7 +5061,7 @@ function rivalEvent(){
   const near=rand(['중앙 캠퍼스 지구 남쪽','동부 저수지 공원 쪽 길목','재개발지구 폐건물 근처','고시촌 골목 너머']);
   rivalNews(`「${R.name}」이(가) ${near}의 작은 구역을 뒤지고 지나갔다`,null);
 }
-/* 소식 전달: 구내식당·대상·유민 — 아직 안 들은 소식 하나를 이야기에 실음 */
+/* 소식 전달: 구내식당·이동 행상·유민 — 아직 안 들은 소식 하나를 이야기에 실음 */
 function rivalRumorText(){
   if(!rivalOn()) return '';
   const R=G.rival, n=R.news.find(x=>!x.heard);
@@ -5391,7 +5391,7 @@ function rivalSideHTML(){
    36. 곁가지 구역 — 오러리 · 코덱스 (3막부터)
    - 출석부를 해독하면(3막) 곁가지 구역(오러리·코덱스) 8곳으로 가는 길이 열림. 이동은 다른 지구와 같은 규칙
    - 곳마다 학원도시가 숨긴 것과 무관한 '그 구역만의 괴담'이 하나 — 🎲 판정으로 쫓고(하루 한 번), 성공하면 보상
-   - 보상 종류는 땅마다 다름: 고유 물건 · 칭호 · 탈것 · 동물 친구 · 아지트 장식. 모두 「곁가지 수집품」에 기록
+   - 보상 종류는 구역마다 다름: 고유 물건 · 칭호 · 탈것 · 동물 친구 · 아지트 장식. 모두 「곁가지 수집품」에 기록
    - 괴담의 내용·인물은 AI가 정함. 코드는 보상의 이름과 효과만 정함
    ========================================================= */
 const BRANCH={
@@ -5637,7 +5637,7 @@ function fixedHTML(){
   // 사건으로 생긴 버튼
   if(G.calmSrc&&!G.calmSrc.used) ac+=btn('fillCalmSrc()',`🫧 「${esc(G.calmSrc.name)}」에서 공포 가라앉히기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
   if(L!=='road'&&peddlerHere()) ac+=btn('openPeddler()',`🧭 ${esc(G.peddler.name)} (공포·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch})`,'','data-cv="1"');
-  // 도시·아지트에서만
+  // 캠퍼스·아지트에서만
   if(isHood()){
     if(G.pausedZones&&G.pausedZones.length) ac+=btn('openZones()',`🏚 중단한 구역 (${G.pausedZones.length}) — 이어서/관리`,'primary');
     if(L==='campus'&&G.fragMerchant&&needFrag()) ac+=btn('openMerchant()',`🕵 수상한 상인 (캐시 ${G.fragMerchant.price})`,'primary');
@@ -5687,7 +5687,7 @@ function svgText(x,y,txt,size=11,fill='var(--ink)',weight=400,anchor='middle',ha
 function placeKnown(p){ return !p.far||!!(G.discovered&&G.discovered.includes(p.id))||G.char.region===p.region }
 function placeIcon(t){
   if(t==='tower') return `<path d="M-3 6 L-2 -6 L2 -6 L3 6Z" style="fill:var(--bg);stroke:var(--ink);stroke-width:1.2"/><circle cy="-8" r="2.2" style="fill:var(--hl)"/>`;
-  if(t==='castle') return `<path d="M-7 6 V-4 H-4 V-1 H-1 V-4 H1 V-1 H4 V-4 H7 V6Z" style="fill:var(--bg);stroke:var(--ink);stroke-width:1.2"/>`;
+  if(t==='hall') return `<path d="M-7 6 V-4 H-4 V-1 H-1 V-4 H1 V-1 H4 V-4 H7 V6Z" style="fill:var(--bg);stroke:var(--ink);stroke-width:1.2"/>`;
   if(t==='pier') return `<path d="M0 -6 V4 M-5 1 Q0 8 5 1 M-3 -3 H3" style="fill:none;stroke:var(--accent2);stroke-width:1.8;stroke-linecap:round"/>`;
   if(t==='hood') return `<path d="M-6 5 V-1 L0 -6 L6 -1 V5Z" style="fill:var(--bg);stroke:var(--ink);stroke-width:1.2"/>`;
   if(t==='zone') return `<path d="M-8 6 L0 -8 L8 6 Z" style="fill:var(--muted)"/>`;
@@ -5749,8 +5749,8 @@ function yuminMapMark(){
   }
   return `<g transform="translate(${x} ${y})" style="opacity:${dim?.8:1}"><circle r="6.5" style="fill:#b5518a;stroke:#fff;stroke-width:1.6"/>${svgText(0,3.6,'♪',9,'#fff',700,'middle',false)}</g>`+lab(x,y+17,label,10,'#b5518a',700,true);
 }
-/* 도시 그림: 외곽선·지명 좌표 위에 도로망과 건물 블록을 코드로 그림 (한 번 만들어 재사용) */
-/* 도시 그림: 단색 지도 — 외곽선·도로·저수지 (수몰 구역은 출석부를 해독한 뒤 나타남). 색은 테마 변수 */
+/* 지도 그림: 외곽선·지명 좌표 위에 도로망과 건물 블록을 코드로 그림 (한 번 만들어 재사용) */
+/* 지도 그림: 단색 지도 — 외곽선·도로·저수지 (수몰 구역은 출석부를 해독한 뒤 나타남). 색은 테마 변수 */
 const MAPART=(function(){
   let cache=null;
   return function(isl){
@@ -5765,7 +5765,7 @@ const MAPART=(function(){
     // 서쪽·동쪽 저수지(물): 점선 윤곽과 물결 — 수몰 구역은 그 안에 놓임
     const lake=(cx,cy,rx,ry)=>`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" style="fill:var(--map-land);fill-opacity:.35;stroke:var(--map-line);stroke-width:1.2;stroke-dasharray:4 3"/><path d="M${cx-rx*.5} ${cy-ry*.35}q${rx*.12} -3 ${rx*.25} 0t${rx*.25} 0M${cx-rx*.4} ${cy+ry*.3}q${rx*.12} -3 ${rx*.25} 0t${rx*.25} 0" style="fill:none;stroke:var(--map-line);stroke-width:.9;stroke-linecap:round"/>`;
     s+=lake(10,112,34,44)+lake(408,178,30,40);
-    // 한빛시 외곽선(직선 — 도시 구획)
+    // 한빛시 외곽선(직선 — 시가지 구획)
     s+=`<path d="${poly(C)}" style="fill:var(--map-land);stroke:var(--map-line);stroke-width:1.4;stroke-linejoin:round"/>`;
     // 도로망 (외곽선 안쪽만)
     let rd=''; for(let x=60;x<=380;x+=40) rd+=`M${x} ${VB.y}V${VB.y+VB.h}`; for(let y=40;y<=240;y+=34) rd+=`M${VB.x} ${y}H${VB.x+VB.w}`;
@@ -6301,7 +6301,7 @@ function openGuide(){
     ${h3('아지트 시설')}
     ${FAC.map(f=>row(`${f.n}<br><span class="muted">${f.desc}</span>`,costText(f.cost))).join('')}
     ${h3('아지트 꾸미기')}
-    ${row('아지트 그림','들인 시설 개수에 따라 아지트 그림이 4단계로 바뀜 (0~2 / 3~5 / 6~8 / 전부)')}
+    ${row('아지트 장면','이모지로 그린 아지트 장면이 들인 시설 개수에 따라 4단계로 바뀜 (0~2 / 3~5 / 6~8 / 전부)')}
     ${row('가구·장식','중앙 캠퍼스 지구 상점가(가구) · 지구 상점(그 지구 특산 장식)에서 사면 영구 보유. 아지트에서 🪴 아지트 장식을 열어 자유롭게 놓고 치울 수 있음 (끌어서 이동). 효과는 없고 외형만 바뀜')}
     ${row('유실물 진열','보유한 유실물 등급별로 진열대를 놓을 수 있음 (팔거나 쓰면 진열도 사라짐)')}
     ${h3('소문의 장소')}
