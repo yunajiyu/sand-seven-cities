@@ -4162,7 +4162,7 @@ function applyAppt(res,action){
   apptParse((action||'')+' '+String((res&&res.narration)||'')).forEach(f=>setAppt(f.name,f.place,f.when));
 }
 function apptArrive(a){
-  getRel(a.name).where=a.where;
+  getRel(a.name).where=a.where; getRel(a.name).whereKey=yKey();
   if(a.name==='유민'){ const m=a.where==='home'?'sofaroom':a.where==='hood:south'?'alley':a.where.slice(7); setYuminSpot(m) }
   addLog('sys',`📌 약속한 시간입니다. ${a.name}${josa(a.name,'이','가')} ${apptWhereName(a.where)}에서 기다리고 있을 것입니다.`);
 }
@@ -4195,9 +4195,44 @@ on('facts',79,o=>{
 /* 지금 이 자리에서 만날 수 있는가 (유민 / 다른 인물) */
 /* 인물은 마지막으로 만난 곳에 머묾: 'campus:상점가' 같은 중앙 캠퍼스 지구 장소 · 'home' · 'wild'(한빛시·구역에서 만남 — 다시 찾아갈 수 없음) */
 function placeKey(){ return G.loc==='campus'?'campus:'+curDistrict():G.loc==='home'?'home':G.loc==='hood'?'hood:'+G.hood:'wild' }
-function npcWhere(name){ return getRel(name).where||'campus:market' }   // 위치 기록이 없던 예전 인물은 상점가에 있는 것으로
-function npcWhereText(name){ const w=npcWhere(name); if(w.startsWith('hood:')) return (HOODS[w.slice(5)]||{n:'다른 지구'}).n; return w==='home'?`아지트 「${G.home.name||'폐 동아리실'}」`:w==='wild'?'한빛시 어딘가 (만난 곳에서 헤어짐)':`중앙 캠퍼스 지구의 「${(DISTRICTS[w.slice(5)]||DISTRICTS.market).n}」` }
-on('applied',65,e=>{ (Array.isArray(e.relations)?e.relations:[]).forEach(x=>{ const nm=x&&x.name&&String(x.name).trim().slice(0,30); if(nm&&nm!=='유민'&&G.rel[nm]) G.rel[nm].where=placeKey() }) });
+/* 인물의 위치: 방금 만난(또는 약속한) 칸에는 그 자리, 그 밖에는 역할에 맞는 일과를 따라 움직임.
+   한빛시·아지트·다른 지구에서 만난 인물은 그곳에 머묾. 정체를 모르는 존재는 위치를 알 수 없음 */
+const NPC_UNKNOWN=/후드|정체불명|그림자|괴이|목소리|사람인지|누군가|이름 모를|수상한|낯선/;
+const NPC_TEACHER=/선생님|교사|사감|담임|교장|교감/;
+function npcScheduleSpot(name){
+  const nm=String(name), h=yHash(yKey()+nm), pick=a=>a[h%a.length], i=slotIdx(), we=isWeekend();
+  if(NPC_UNKNOWN.test(nm)) return 'unknown';
+  if(NPC_TEACHER.test(nm)){
+    if(/사감/.test(nm)) return 'campus:dorm';
+    if(we||isDarkTime()) return 'unknown';
+    const room=/사서/.test(nm)?'library':/행정실/.test(nm)?'office':/보건/.test(nm)?'nurse':/체육/.test(nm)?'gym':/음악/.test(nm)?'music':/미술/.test(nm)?'art':/과학/.test(nm)?'science':/컴퓨터/.test(nm)?'computer':/가정|기술/.test(nm)?'homeec':/방송/.test(nm)?'broadcast':null;
+    if(G.time==='방과 후') return room?'campus:'+room:'campus:office';
+    if(room) return 'campus:'+room;
+    if(CLASS_SLOTS.includes(i)) return 'campus:classroom';
+    if(i===4) return 'campus:canteen';
+    return 'campus:office';
+  }
+  if(isDarkTime()) return 'campus:dorm';
+  if(G.time==='낮'){
+    if(!we){
+      if(CLASS_SLOTS.includes(i)||i===0||i===8) return 'campus:classroom';
+      if(i===4) return 'campus:canteen';
+      return 'campus:'+pick(['hall','snack','hall','snack','classroom']);
+    }
+    if(i===0||i===8) return 'campus:dorm';
+    if(i===4) return 'campus:canteen';
+    return 'campus:'+pick(['market','ground','library','music','roof','bank']);
+  }
+  return 'campus:'+pick(['market','bank','ground','library','hall','gate','canteen','music']);
+}
+function npcWhere(name){
+  const r=getRel(name), w=r.where;
+  if(w&&!w.startsWith('campus:')) return w;                       // 한빛시·아지트·다른 지구에서 만난 인물
+  if(w&&r.whereKey===yKey()) return w;                            // 방금 만난·약속한 칸에는 그 자리
+  return npcScheduleSpot(name);
+}
+function npcWhereText(name){ const w=npcWhere(name); if(w==='unknown') return '어디 있는지 알 수 없음'; if(w.startsWith('hood:')) return (HOODS[w.slice(5)]||{n:'다른 지구'}).n; return w==='home'?`아지트 「${G.home.name||'폐 동아리실'}」`:w==='wild'?'한빛시 어딘가 (만난 곳에서 헤어짐)':`중앙 캠퍼스 지구의 「${(DISTRICTS[w.slice(7)]||DISTRICTS.market).n}」` }
+on('applied',65,e=>{ (Array.isArray(e.relations)?e.relations:[]).forEach(x=>{ const nm=x&&x.name&&String(x.name).trim().slice(0,30); if(nm&&nm!=='유민'&&G.rel[nm]){ G.rel[nm].where=placeKey(); G.rel[nm].whereKey=yKey() } }) });
 on('facts',85,o=>{ const n=Object.keys(G.rel||{}).filter(n=>n!=='유민'&&G.rel[n].where).slice(-8); if(n.length) o.인물위치=n.map(k=>`${k}: ${npcWhereText(k)}`).join(' / ') });
 function canMeetHere(name){
   apptSync();
@@ -4883,7 +4918,7 @@ function openRel(){
     const allOk=c.every(x=>x[1]||/^이벤트:/.test(x[0]));
     let btns='';
     if(canMeetHere(n)&&!busy) btns+=`<button class="small" data-n="${esc(n)}" onclick="visitNPC(this.dataset.n)">${n==='유민'?'🎵 이야기하기':'찾아가기'}</button>`;
-    else if(n!=='유민'&&G.loc==='campus'&&npcWhere(n).startsWith('campus:')&&!busy){ const k=npcWhere(n).slice(5); btns+=`<button class="small" onclick="closeModal();goDistrict('${k}')">🚶 ${(DISTRICTS[k]||DISTRICTS.market).n}${josa((DISTRICTS[k]||DISTRICTS.market).n,'으로','로')} 가기</button>` }
+    else if(n!=='유민'&&G.loc==='campus'&&npcWhere(n).startsWith('campus:')&&!busy){ const k=npcWhere(n).slice(7); btns+=`<button class="small" onclick="closeModal();goDistrict('${k}')">🚶 ${(DISTRICTS[k]||DISTRICTS.market).n}${josa((DISTRICTS[k]||DISTRICTS.market).n,'으로','로')} 가기</button>` }
     if(nx&&nx.event==='propose'&&allOk&&canMeetHere(n)) btns+=`<button class="small primary" data-n="${esc(n)}" onclick="proposeTo(this.dataset.n)">🤝 우정의 약속하기</button>`;
     if(nx&&nx.event==='wedding'&&allOk&&isHood()) btns+=`<button class="small primary" data-n="${esc(n)}" onclick="weddingWith(this.dataset.n)">🤝 평생의 맹세하기</button>`;
     return `<div class="lex"><div class="h"><b>${r.stage>=3?'🤝 ':''}${esc(n)}</b><span class="cat">${st.n} · Lv.${relLv(n)}${G.relEvt&&G.relEvt.name===n?' · 이벤트 진행 중':''}</span></div>
