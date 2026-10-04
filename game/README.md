@@ -1,7 +1,7 @@
 # 모래 아래의 일곱 도시 (픽셀 RPG)
 
 ## 처음 한 번
-1. `assets/fantasy-tileset/` 에 The Fan-tasy Tileset (Free) 1.5.9 zip을 풀어 둡니다. (저장소에는 포함되지 않음)
+1. `assets/fantasy-tileset/` 에 The Fan-tasy Tileset (Free) 1.5.9 zip을 풀어 둡니다.
 2. `npm install`
 
 ## 실행
