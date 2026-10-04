@@ -1515,7 +1515,6 @@ function advanceTime(){
   const i=(Math.max(0,TIMES.indexOf(G.time))+1)%TIMES.length;
   G.time=TIMES[i]; if(i===0) G.day++;
   if(G.time==='야간'&&isWild()) addDemerit(1,'점호 누락');
-  if(G.time==='야간'&&G.loc==='campus'){ G.phoneSeized=G.day; addLog('sys','📵 점호에서 휴대폰을 제출했습니다. 내일 아침까지 쓸 수 없습니다.') }
 
 }
 
@@ -2916,7 +2915,7 @@ function waitRollCall(){
   let n=0; while(G.time==='방과 후'&&n++<10) tick();
   G.spot=null; G.district='dorm'; G.choices=[];
   addLog('sys',`🔔 점호 시간이 되었습니다. 기숙사로 돌아와 줄을 섭니다. (${G.day}일째 ${G.time})`);
-  aiTurn('점호 시간까지 기다린다','[점호] 방과 후 시간이 흘러 저녁 점호 시간이 되었다. 기숙사 복도에 줄을 서고 사감 선생님이 출석을 부르며 휴대폰을 걷는다. 학생들의 웅성거림과 점호가 끝난 뒤의 소등 분위기를 짧게. 방금 흘려보낸 방과 후 시간에 있었던 일상의 한두 장면을 가볍게 덧붙여도 좋다. 이후 밤에는 몰래 나가면 무단 외출이라는 긴장을 마지막 한 줄에.');
+  aiTurn('점호 시간까지 기다린다','[점호] 방과 후 시간이 흘러 저녁 점호 시간이 되었다. 기숙사 복도에 줄을 서고 사감 선생님이 출석을 부른다(휴대폰은 걷지 않는다). 학생들의 웅성거림과 점호가 끝난 뒤의 소등 분위기를 짧게. 방금 흘려보낸 방과 후 시간에 있었던 일상의 한두 장면을 가볍게 덧붙여도 좋다. 이후 밤에는 몰래 나가면 무단 외출이라는 긴장을 마지막 한 줄에.');
 }
 function homeroom(){
   if(busy||spotBlock()||slotIdx()!==0||!inClassroom()) return;
@@ -4154,7 +4153,7 @@ function apptMissed(a){
   G.missed=(G.missed||[]).filter(m=>m.name!==a.name); G.missed.push({name:a.name,day:G.day,text:`${apptWhenText(a.ord)} ${apptWhereName(a.where)}`});
   G.chronicle.push({day:G.day,text:`${a.name}와(과)의 약속을 지키지 못했다`});
   if(!Array.isArray(G.inbox)) G.inbox=[];
-  if(!G.inbox.some(m=>m.from===a.name)&&G.inbox.length<3){ G.inbox.push({from:a.name,topic:'missed',day:G.day}); if(!phoneSeized()){ try{ showPhoneBanner(a.name) }catch(e){} } }
+  if(!G.inbox.some(m=>m.from===a.name)&&G.inbox.length<3){ G.inbox.push({from:a.name,topic:'missed',day:G.day}); try{ showPhoneBanner(a.name) }catch(e){} }
 }
 function apptSync(){
   if(!G||!Array.isArray(G.appts)||!G.appts.length) return;
@@ -4217,7 +4216,6 @@ function yuminFindLabel(){
   return canMeetHere('유민')?`🎵 유민에게 가기 (${(YUMIN_SPOTS[G.comp.spot]||{n:'손님방'}).n})`:'🎵 유민 찾기 (지도에서 위치 확인)';
 }
 on('facts',82,o=>{
-  if(phoneSeized()) o.휴대폰='점호에서 사감에게 제출해 내일 아침까지 없음(문자·전화 불가, 쓰려는 행동은 막을 것)';
   const all=[]; Object.keys(G.chats||{}).forEach(n=>(G.chats[n]||[]).forEach(m=>{ if(m.n) all.push(m) }));
   all.sort((a,b)=>a.n-b.n); const r=all.slice(-6);
   if(r.length) o.최근문자=r.map(m=>`[${m.when}] ${m.f==='me'?'나':m.who}: ${m.t}`).join(' / ');
@@ -4233,7 +4231,6 @@ on('facts',80,o=>{ updateYuminSpot(); if(G.comp&&G.comp.met) o.유민위치=G.co
    ========================================================= */
 const PHONE_CATCH_P=0.3, PHONE_CATCH_WARN=0.15, PHONE_DEMERIT=1, MEET_OK_P=0.7;
 const PHONE_QUICK=['지금 어디야?','잠깐 얘기할 수 있어?','도와줄 수 있어?','오늘 뭐 해?','조심해, 이상한 일이 있었어'];
-function phoneSeized(){ return !!G&&G.phoneSeized===G.day&&isDarkTime() }
 function phoneRestricted(){
   if(!G||G.loc!=='campus') return false;
   if(isDarkTime()) return '소등 후';
@@ -4242,7 +4239,6 @@ function phoneRestricted(){
 }
 function phoneBlock(kind){
   if(!G) return '게임 중에만 쓸 수 있습니다';
-  if(phoneSeized()) return '휴대폰은 점호 때 사감 선생님께 맡겨 두었습니다 (내일 아침 조례 때 돌려받습니다)';
   if(G.phoneBan===G.day+':'+G.time) return '휴대폰을 압수당한 상태입니다 (이 시간대가 지나면 돌려받습니다)';
   if(G.battery<1) return '배터리가 없어 휴대폰을 쓸 수 없습니다 (충전하세요)';
   if(kind==='call'&&(G.site||G.loc==='site'||G.loc==='shelter')) return '구역 안에서는 전화가 터지지 않습니다. 문자만 보낼 수 있습니다';
@@ -4256,7 +4252,7 @@ const INCOMING_P=0.05, INBOX_MAX=2;
 function maybeIncoming(){
   if(!G||G.loc==='fight'||G.fight) return;
   if(!Array.isArray(G.inbox)) G.inbox=[];
-  if(G.inbox.length>=INBOX_MAX||Math.random()>=INCOMING_P||phoneSeized()) return;
+  if(G.inbox.length>=INBOX_MAX||Math.random()>=INCOMING_P) return;
   if(G.day<2&&G.time==='낮') return;                 // 전학 첫날 낮에는 아직 번호를 모름
   const names=relList().filter(n=>!G.inbox.some(m=>m.from===n)&&!(n==='유민'&&G.comp.joined)); if(!names.length) return;
   const from=(names.includes('유민')&&Math.random()<0.5)?'유민':rand(names);
