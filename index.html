@@ -1438,7 +1438,7 @@ const IX={
   SLEEP_NEG:/(않|못|말고|안\s*잔|안\s*쉰|아니)/,
   WAIT:/(하루|이틀|사흘|며칠|(\d+)\s*일)\s*(을|를|동안|간|만)?\s*(기다린|머무른|머문|머물|보낸|지낸|버틴|쉰다|묵는다|지새)/,
 };
-/* 다섯 지점(상점가·구내식당·기숙사·정문·오아시스) 중 한 곳으로 '간다'는 문장이면 그 지점 키, 아니면 null.
+/* 다섯 지점(상점가·구내식당·기숙사·정문·저수지 둑길) 중 한 곳으로 '간다'는 문장이면 그 지점 키, 아니면 null.
    장소 이름 바로 뒤에 이동 동사가 올 때만 (예: "상점가에서 구내식당으로 간다" → teahouse). 직접 입력·AI 선택지·임시 장소 판정이 함께 씀 */
 function districtMove(t){
   if(!G||G.loc!=='city') return null;
@@ -2189,7 +2189,7 @@ function homeRest(){
     aiTurn('아지트에서 하룻밤을 보낸다',relArmText('유민',0.6)+(G.relEvt?'':yuminArcArm(0.6))+`[아지트의 밤] ${G.comp.joined?'함께 이동 중인':'휴게 소파에 머무는'} 유민과 아지트에서 보내는 조용한 저녁과 아침. 집이라는 공간이 유민에게 어떤 감정을 건드리는지(오래 혼자였던 사람) 서술로만 살짝 비추고, 대사는 회피 패턴과 호감도 단계에 맞게. 체력 effects는 0.`,false);
   }else{ save(); render() }
 }
-/* 유실물 감정·판매: 아지트 작업실(정가) 또는 자르한 골동품상(20% 더) */
+/* 유실물 감정·판매: 아지트 작업실(정가) 또는 재개발지구 고물상(20% 더) */
 function relicPrice(g){ const m=(G.loc==='town'&&curTown().relicBuy||1)*(hasWest('swport')?1.25:1); return Math.round(RELIC_GRADES[g].p*m) }
 function appraise(){
   relicSync();
@@ -2252,7 +2252,7 @@ function storeHTML(){
         <button class="small" ${canOut?'':'disabled'} onclick="storeMove('${k}','out',1)">꺼냄 -1</button>
         <button class="small" ${canOut?'':'disabled'} onclick="storeMove('${k}','out',99)">가득</button></span></div>`;
   }).join('');
-  return `<p class="muted">아지트에 배터리·진정 음료·손전등을 맡겨 두었다가 조사 외출 전에 꺼낼 수 있습니다.${has('store2')?' (확장됨)':' 시설 짓기에서 큰 사물함로 확장할 수 있습니다.'}</p>${rows}
+  return `<p class="muted">아지트에 배터리·진정 음료·손전등을 맡겨 두었다가 조사 외출 전에 꺼낼 수 있습니다.${has('store2')?' (확장됨)':' 아지트 꾸미기에서 큰 사물함으로 확장할 수 있습니다.'}</p>${rows}
     <p class="muted" style="font-size:12px;margin-top:8px">조사 외출에는 공포와 배터리가 최소 1씩 필요하니 전부 맡기지 않도록 주의하세요.</p>`;
 }
 function openStore(){ if(has('store')) modal('📦 사물함',storeHTML()) }
@@ -4502,7 +4502,7 @@ on('context',93,()=>{
   return '';
 });
 
-/* ---------- 글로 쓴 이동 ("자르한으로 간다") ---------- */
+/* ---------- 글로 쓴 이동 ("고시촌으로 간다") ---------- */
 const TRAVEL_VERB='(으로|로|에|를|을)?\\s*(간다|가자|가기로|가려|떠난|떠나|향한|향해|돌아간|돌아가|이동|이동|출발)';
 const TRAVEL_NAMES=[['kasr',/중앙 캠퍼스 지구/],['east',/동부\s*저수지|저수지\s*공원|공원/],['south',/고시촌/],['north',/재개발|신시가/],['westport',/서쪽\s*(저수지\s*)?선착장/],['eastport',/동쪽\s*(배수지\s*)?선착장/],['iram',/라쿠나 구역/],
   ['cities',/(수몰\s*구역|배수\s*터널\s*구역|고지대\s*구역|안개\s*구역|출석부의\s*구역|보트로)/],
@@ -4571,7 +4571,7 @@ function relicSync(tot){
   for(let g=0;s>tot&&g<4;g++){ const x=Math.min(G.relicG[g],s-tot); G.relicG[g]-=x; s-=x }
 }
 function relicText(){ relicSync(); return RELIC_GRADES.map((r,g)=>G.relicG[g]?`${r.s} ${G.relicG[g]}`:'').filter(Boolean).join(' · ') }
-/* 방의 위험도가 높을수록, 자르한 근처 구역일수록 좋은 등급 */
+/* 방의 위험도가 높을수록, 재개발지구 근처 구역일수록 좋은 등급 */
 function relicRoll(){
   const r=curRoom(), odds=RELIC_ODDS[clamp(r?r.danger:1,0,3)];
   let x=Math.random()*100, g=0;
@@ -5022,7 +5022,7 @@ function rivalTick(){
 function rivalSteal(){ const R=G.rival; R.frags++; R.stolen=(R.stolen||0)+1 }
 function rivalReturn(n){ const R=G.rival; n=Math.max(0,Math.min(n,R.stolen||0,FRAG_GOAL-G.fragments)); R.frags-=n; R.stolen-=n; G.fragments+=n; return n }
 function rivalNews(text,chron){
-  const R=G.rival; R.news.push({day:G.day,text,heard:false}); R.news=R.news.slice(-8);
+  const R=G.rival; R.news.push({day:G.day,text,heard:false,f:R.a}); R.news=R.news.slice(-8);
   R.log.push({day:G.day,text}); R.log=R.log.slice(-20);
   if(chron) G.chronicle.push({day:G.day,text:chron});
 }
@@ -5062,7 +5062,7 @@ function rivalEvent(){
 function rivalRumorText(){
   if(!rivalOn()) return '';
   const R=G.rival, n=R.news.find(x=>!x.heard);
-  const f=rivalAct(); const first=!f.known; f.known=true; R.known=true;
+  const f=rivalAct(n&&n.f!=null?n.f:undefined); const first=!f.known; f.known=true; R.known=true;   // 소식을 낸 쪽이 말하게 함
   if(n) n.heard=true;
   const who=first?`처음 듣는 이름이다 — 「${R.name}」, 우두머리 ${R.leader}. 겉모습: ${R.look}. `:'';
   return ` [적대 세력 소문] ${who}${n?`최근 소식: ${n.text}.`:`「${R.name}」의 최근 동향(어디서 보였는지, 무엇을 사들였는지 등)을 짧게.`} 이들은 사람들이 꺼리고 두려워하는 무리다 — 소문을 전하는 이의 두려움이나 불만이 묻어나게. 숨은 목적은 직접 말하지 말고 엇갈린 추측 정도로만.`;
@@ -5481,7 +5481,7 @@ function openWest(){
       ${d?`<div style="font-size:13px;margin-top:4px">✨ ${W.eff}</div>`:`<div class="muted" style="font-size:12px;margin-top:4px">🎲 ${SK[W.skill]} · ${DCN[W.dc]} 판정으로 괴담을 쫓습니다</div>`}</div>`;
   }).join('');
   const n=westCount();
-  modal(`🗺 곁가지 수집품 ${n}/8`,`<p class="muted">곁가지 구역 여덟 곳에는 학원도시가 숨긴 것과는 무관한, 그 구역만의 괴담이 하나씩 있고 구역마다 서로 다른 보상이 있습니다. 그곳에 가서 📜 괴담 쫓기(하루 한 번)에 성공하면 보상을 얻습니다. 여덟 곳을 모두 모으면 칭호 「${WEST_ALL_REWARD}」를 얻습니다.${n===8?' <b>— 모두 모았습니다!</b>':''}</p>${rows}`);
+  modal(`🗺 곁가지 수집품 ${n}/8`,`<p class="muted">곁가지 구역 여덟 곳에는 학원도시가 숨긴 것과는 무관한, 그 구역만의 괴담이 하나씩 있고 구역마다 서로 다른 보상이 있습니다. 그곳에 가서 📜 괴담 쫓기(하루 한 번)에 성공하면 보상을 얻습니다. 여덟 곳을 모두 모으면 칭호 「${WEST_ALL_REWARD}」${josa(WEST_ALL_REWARD,'을','를')} 얻습니다.${n===8?' <b>— 모두 모았습니다!</b>':''}</p>${rows}`);
 }
 on('fixed',11,L=>{
   if(!G||G.act<3||!isTown()) return '';
@@ -5496,7 +5496,7 @@ on('fixed',11,L=>{
 on('context',92,()=>{
   if(!G||G.loc!=='town'||!WEST[G.town]) return '';
   const W=WEST[G.town];
-  return `\n[곁가지 구역] 지금 있는 곳은 곁가지 구역의 「${TOWNS[G.town].n}」이다. 중앙 캠퍼스 지구와 다른 분위기(오러리: 식물원·온실·천문대 / 코덱스: 본관 도서관·서고)로 그려라. 사람들은 외부 재원생을 경계하며 지켜본다. 이 구역에는 학원도시가 숨긴 것과 무관한 이 구역만의 괴담이 있다 — ${hasWest(G.town)?`플레이어는 이미 그 괴담을 쫓아 「${W.reward}」를 얻었다.`:'플레이어가 📜 버튼으로 쫓기 전에는 괴담의 끝이나 보상을 주지 말고, 소문으로만 흘려라.'}`;
+  return `\n[곁가지 구역] 지금 있는 곳은 곁가지 구역의 「${TOWNS[G.town].n}」이다. 중앙 캠퍼스 지구와 다른 분위기(오러리: 식물원·온실·천문대 / 코덱스: 본관 도서관·서고)로 그려라. 사람들은 외부 재원생을 경계하며 지켜본다. 이 구역에는 학원도시가 숨긴 것과 무관한 이 구역만의 괴담이 있다 — ${hasWest(G.town)?`플레이어는 이미 그 괴담을 쫓아 「${W.reward}」${josa(W.reward,'을','를')} 얻었다.`:'플레이어가 📜 버튼으로 쫓기 전에는 괴담의 끝이나 보상을 주지 말고, 소문으로만 흘려라.'}`;
 });
 
 /* =========================================================
@@ -6314,7 +6314,7 @@ function openGuide(){
    그림 파일이 없으면 이모지로 대신 보임. 파일은 images/home/ 에 넣고 아래 좌표·크기(%)는 그림에 맞게 조절
    ========================================================= */
 const HOME_IMG='images/home/';
-/* 시설 그림: 지은 시설이 정해진 자리에 나타남 (x,y=중심 위치 %, w=가로 폭 %). 깊은 티 코너·큰 사물함는 낮은 단계 그림을 대체 */
+/* 시설 그림: 지은 시설이 정해진 자리에 나타남 (x,y=중심 위치 %, w=가로 폭 %). 깊은 티 코너·큰 사물함은 낮은 단계 그림을 대체 */
 const FAC_SLOTS={
   well:{img:'fac_well',ic:'🫧',x:18,y:72,w:16.7},well2:{img:'fac_well2',ic:'🫧',x:18,y:72,w:20.8,rep:'well'},
   store:{img:'fac_store',ic:'📦',x:80,y:62,w:20.8},store2:{img:'fac_store2',ic:'📦',x:80,y:62,w:25,rep:'store'},
