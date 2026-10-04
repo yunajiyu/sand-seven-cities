@@ -25,3 +25,6 @@
 ## 내부 식별자 (옛 이름 → 새 이름)
 `KASR→CAMPUS_POS` · `IRAM_POS→LACUNA_POS` · `tablet→roster` · `G.dungeon→G.site` · `ruin→zone` · `town→hood` · `city(허브)→campus` · `cities→wards` · `west→branch` · `relic→keepsake` · `caravan→peddler` · `camp→shelter` · `MOUNTS→RIDES` · `water→calm`(공포 여유, 공포 = 한계 − calm) · `food→battery` · `gold→cash`. 시설 id: `well→tea`, `store→locker`, `stable→bikerack`, `workshop→workbench`, `garden→charger`, `guest→sofa`, `study→lab`, `land→clubroom`. 설정 저장 키(`sand7_settings` 등)는 API 키를 이어 쓰려고 그대로 둡니다.
 
+
+## 원작 보관
+- `sand_seven_cities.html` — 개변 전 원작 「모래 아래의 일곱 도시」 (`images/home/`의 그림을 사용). `index.html`(출석부에 없는 구역)과 따로 열 수 있고, 세이브 키가 달라(`sand7_save` / `hanbit_save_v1`) 서로 섞이지 않습니다. 설정·API 키는 공유합니다.
