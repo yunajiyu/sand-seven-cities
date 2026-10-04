@@ -2227,7 +2227,19 @@ function fragClue(){
    수업 듣기: 일정 확률로 단서(조사 보드·교표 조각 위치) / 땡땡이: 확률로 성공하면 몰래 쉬며 단서를 얻을 수도 있지만 들키면 벌점 */
 const CLASS_PERIODS=2, CLASS_CLUE_P=0.3;
 const SKIP_CATCH_P=0.35, SKIP_CATCH_STEP=0.1, SKIP_CATCH_WARN=0.15, SKIP_DEMERIT=2, SKIP_FIND_P=0.25;
-const SUBJECTS=['국어','수학','영어','과학','한국사','사회','음악','체육 이론','기술·가정'];
+/* 과목마다 단서의 성격(hint)과 교표 조각 위치 단서가 섞일 확률(frag)이 다름. 시간표는 날짜로 정해져 미리 알 수 있음 */
+const SUBJECTS=[
+  {n:'국어',hint:'기록·문서·글귀 쪽 — 교과서 지문, 시, 작문 과제, 낡은 명부나 안내문 속 문장이 출석부·교칙·사라진 사람의 기록과 이어진다',frag:0.3},
+  {n:'수학',hint:'숫자·규칙·좌표 쪽 — 칠판의 수식, 반 번호, 출석 번호의 빈자리, 도형이 구역의 번호·위치·순서와 이어진다',frag:0.7},
+  {n:'영어',hint:'낯선 단어·번역 쪽 — 외래어 구역 이름의 철자, 뒤집어 읽은 단어, 암호 같은 문장이 구역 이름의 유래와 이어진다',frag:0.3},
+  {n:'과학',hint:'환경·현상 쪽 — 수위, 소음, 안개, 배수, 전기 같은 현상의 원리가 구역의 유형·위험 요소와 이어진다',frag:0.5},
+  {n:'한국사',hint:'과거·연혁 쪽 — 학원도시의 개발과 폐쇄, 지워진 지도의 역사가 구역 연혁과 이어진다',frag:0.4},
+  {n:'사회',hint:'지도·지리 쪽 — 교과서 지도, 도시 계획, 행정 구역 이야기가 지워진 구역의 위치와 이어진다',frag:0.7},
+  {n:'음악',hint:'소리·방송 쪽 — 교내 방송의 잡음, 화음, 끊긴 노래가 방송실과 구역의 소리 단서와 이어진다',frag:0.3},
+  {n:'체육 이론',hint:'안전·움직임 쪽 — 위험을 피하는 요령, 안전 수칙의 빈 항목이 구역에서 지켜야 할 규칙과 이어진다',frag:0.3},
+  {n:'기술·가정',hint:'시설·구조 쪽 — 배선, 배관, 건물 도면이 구역 건물의 구조·숨은 통로와 이어진다',frag:0.5},
+];
+function subjectAt(n){ return SUBJECTS[(G.day*2+n)%SUBJECTS.length] }
 function clsSt(){ if(!G.cls||G.cls.day!==G.day) G.cls={day:G.day,n:0,skip:0,tot:(G.cls&&G.cls.tot)||0,sk:(G.cls&&G.cls.sk)||0}; return G.cls }
 function classBlock(){
   if(G.time!=='낮') return '수업은 낮에만 있습니다';
@@ -2237,7 +2249,9 @@ function classBlock(){
 function skipCatchP(){ return Math.min(0.85,SKIP_CATCH_P+SKIP_CATCH_STEP*clsSt().skip+((G.demerit||0)>=DEMERIT_WARN?SKIP_CATCH_WARN:0)) }
 function classHTML(){
   const c=clsSt(), why=classBlock();
-  return `<button class="primary" ${why?'disabled':''} onclick="attendClass()" title="${esc(why)}">📚 수업 듣기 (오늘 ${c.n}/${CLASS_PERIODS}교시 · 단서 ${Math.round(CLASS_CLUE_P*100)}%)</button>`
+  const tt=Array.from({length:CLASS_PERIODS},(_,i)=>`${i+1}교시 ${subjectAt(i).n}`).join(' · ');
+  return `<div class="muted" style="font-size:12px;width:100%">오늘 시간표: ${esc(tt)}</div>`
+    +`<button class="primary" ${why?'disabled':''} onclick="attendClass()" title="${esc(why)}">📚 ${why?'수업 듣기':esc(subjectAt(c.n).n)+' 수업 듣기'} (오늘 ${c.n}/${CLASS_PERIODS}교시 · 단서 ${Math.round(CLASS_CLUE_P*100)}%)</button>`
     +`<button ${why?'disabled':''} onclick="skipClass()" title="${esc(why)}">🏃 땡땡이치기 (들킬 확률 약 ${Math.round(skipCatchP()*100)}% · 들키면 벌점 +${SKIP_DEMERIT})</button>`
     +(why?`<div class="muted" style="font-size:12px">${esc(why)}</div>`:'');
 }
@@ -2245,12 +2259,12 @@ function attendClass(){
   if(busy||spotBlock()) return;
   const why=classBlock(); if(why) return toast(why);
   const c=clsSt(); c.n++; c.tot++; G._yuminHere=false;
-  const subj=rand(SUBJECTS);
+  const sb=subjectAt(c.n-1), subj=sb.n;
   let extra=`[수업 장면] 2학년 7반 ${subj} 수업. 오늘 ${c.n}교시. 선생님과 반 친구들, 칠판·필기·졸음 같은 짧은 일상 장면으로 쓰되 괴담의 기운이 살짝 스며도 좋다. 학생 인물 사이의 관계는 우정으로만.`;
   let clue='';
   if(Math.random()<CLASS_CLUE_P){
-    clue=G.fragments<FRAG_GOAL&&Math.random()<0.5?fragClue():'';
-    extra+=` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다: 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`;
+    clue=G.fragments<FRAG_GOAL&&Math.random()<sb.frag?fragClue():'';
+    extra+=` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다. ${subj} 수업답게 ${sb.hint}. 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`;
     if(clue) extra+=` 그 단서에는 다음 사실이 담긴다: ${clue}.`;
     G.chronicle.push({day:G.day,text:`${subj} 수업에서 단서를 얻었다${clue?`: ${clue}`:''}`});
     addLog('fx',`📚 수업 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
@@ -6277,7 +6291,7 @@ function openGuide(){
     ${row('하루',`${MOVE_STEPS.quarter*TIMES.length}걸음 (새벽이 지나 낮이 되면 +1일)`)}
     ${row('점호 누락·무단 외출','야간이 되었을 때 구역·뒷길에 있으면 벌점 +1(점호 누락). 야간·새벽에 구역 조사를 나가면 벌점 +1(무단 외출 — 외출 금지 경고 중이면 +2). 기숙사에서 하룻밤 쉬면 벌점 -1')}
     ${h3('수업과 땡땡이 (교실, 낮에만)')}
-    ${row('📚 수업 듣기',`하루 ${CLASS_PERIODS}교시까지. 한 교시는 행동 2번. 매 교시 ${Math.round(CLASS_CLUE_P*100)}% 확률로 단서(조사 보드, 가끔 교표 조각의 위치)를 얻고, 성장 경험치 +1`)}
+    ${row('📚 수업 듣기',`하루 ${CLASS_PERIODS}교시까지(시간표는 날짜로 정해져 미리 보임). 과목마다 단서의 성격이 다름 — 국어: 기록·문서, 수학: 숫자·좌표(조각 위치 단서가 잘 나옴), 영어: 구역 이름의 유래, 과학: 구역 환경, 한국사: 구역 연혁, 사회: 지도·위치(조각 위치 단서가 잘 나옴), 음악: 소리·방송, 체육 이론: 안전 수칙, 기술·가정: 건물 구조. 한 교시는 행동 2번. 매 교시 ${Math.round(CLASS_CLUE_P*100)}% 확률로 단서(조사 보드, 가끔 교표 조각의 위치)를 얻고, 성장 경험치 +1`)}
     ${row('🏃 땡땡이치기',`한 교시를 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}에 오늘 남은 수업 없음`)}
     ${h3('걸음에 따른 변화 (한빛시·구역에서만)')}
     ${row('😨 공포',`걸을 때 ${MOVE_STEPS.calm}걸음마다 +1 (하루 꼬박 움직이면 약 ${Math.round(MOVE_STEPS.quarter*TIMES.length/MOVE_STEPS.calm)}) · 이동·기다리기는 하루 +1 — 걸음에는 헤매는 몫까지 들어 있어 더 쌓입니다<br><span class="muted">"담력" 특성: ${MOVE_STEPS.calmFrugal}걸음마다 · 떠돌이 개(친근한 사이부터) +1걸음</span>`)}
