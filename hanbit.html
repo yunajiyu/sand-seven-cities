@@ -3785,6 +3785,77 @@ function yuminFindLabel(){
 on('facts',81,o=>{ if(G.comp&&G.comp.met&&(G.comp.items||[]).length) o.유민소지품=G.comp.items.slice(-8).map(x=>x.name).join(', ') });
 on('facts',80,o=>{ if(G.comp&&G.comp.met) o.유민위치=G.comp.joined?'플레이어와 동행 중':yuminWhereText() });
 
+/* =========================================================
+   휴대폰 — 아는 사람에게 전화·문자 (유민 포함)
+   - 전화는 배터리 1을 쓰고 시간이 한 칸 흐름. 문자는 배터리·시간 소모 없음
+   - 수업 중·소등 후에는 몰래 써야 하고 확률로 적발(벌점 +1, 그 시간대 휴대폰 압수). 수업 중 전화는 불가
+   - 구역 안에서는 전파가 잡히지 않음. 유민에게는 '만나자고 하기'도 가능
+   ========================================================= */
+const PHONE_CATCH_P=0.3, PHONE_CATCH_WARN=0.15, PHONE_DEMERIT=1, MEET_OK_P=0.7;
+const PHONE_QUICK=['지금 어디야?','잠깐 얘기할 수 있어?','도와줄 수 있어?','오늘 뭐 해?','조심해, 이상한 일이 있었어'];
+function phoneRestricted(){
+  if(!G||G.loc!=='campus') return false;
+  if(isDarkTime()) return '소등 후';
+  const i=slotIdx(); if(i>=0&&CLASS_SLOTS.includes(i)) return '수업 중';
+  return false;
+}
+function phoneBlock(kind){
+  if(!G) return '게임 중에만 쓸 수 있습니다';
+  if(G.site||G.loc==='site'||G.loc==='shelter') return '구역 안에서는 전파가 잡히지 않습니다';
+  if(G.phoneBan===G.day+':'+G.time) return '휴대폰을 압수당한 상태입니다 (이 시간대가 지나면 돌려받습니다)';
+  if(G.battery<1) return '배터리가 없어 휴대폰을 쓸 수 없습니다 (충전하세요)';
+  if(kind==='call'&&phoneRestricted()==='수업 중') return '수업 중에는 전화할 수 없습니다. 문자만 몰래 보낼 수 있습니다';
+  return '';
+}
+function phoneCatchP(){ return Math.min(0.85,PHONE_CATCH_P+((G.demerit||0)>=DEMERIT_WARN?PHONE_CATCH_WARN:0)) }
+function contactWhere(n){ return n==='유민'?(G.comp.joined?'지금 곁에 있음':yuminWhereText()):npcWhereText(n) }
+function openPhone(){
+  if(!G||busy) return;
+  const names=relList(), why=phoneBlock('text'), rs=phoneRestricted();
+  const chips=PHONE_QUICK.map(q=>`<button class="small" onclick="document.getElementById('phMsg').value=this.textContent">${esc(q)}</button>`).join('');
+  const rows=names.map(n=>{
+    const r=getRel(n), st=STAGES[r.stage];
+    const callWhy=phoneBlock('call');
+    return `<div class="lex"><div class="h"><b>${n==='유민'?'🎵 ':''}${esc(n)}</b><span class="cat">${st.n} · Lv.${relLv(n)}</span></div>
+      <div class="muted" style="font-size:12px">📍 ${esc(contactWhere(n))}</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">
+        <button class="small primary" data-n="${esc(n)}" onclick="phoneAct(this.dataset.n,'text')">💬 문자 보내기</button>
+        <button class="small" data-n="${esc(n)}" ${callWhy&&callWhy!==why?'disabled':''} onclick="phoneAct(this.dataset.n,'call')" title="${esc(callWhy)}">📞 전화하기 (배터리 −1)</button>
+        ${n==='유민'&&!G.comp.joined?`<button class="small" onclick="phoneAct('유민','meet')">📍 만나자고 하기</button>`:''}
+      </div></div>`;
+  }).join('')||'<p class="muted">아직 연락처에 저장된 사람이 없습니다. 이야기에서 만난 사람이 연락처에 추가됩니다.</p>';
+  modal('📱 휴대폰',`<p class="muted" style="font-size:13px">🔋 배터리 ${batteryPct()}%${why?` · <b>${esc(why)}</b>`:''}${!why&&rs?` · ⚠ ${rs}에는 몰래 써야 하고 들키면 벌점(적발 확률 약 ${Math.round(phoneCatchP()*100)}%)`:''}<br>문자는 시간이 흐르지 않고, 전화는 배터리 1을 쓰며 시간이 한 칸 흐릅니다.</p>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px">${chips}</div>
+    <textarea id="phMsg" rows="2" placeholder="보낼 말이나 통화 용건 (비워 두면 가볍게 안부를 묻습니다)" style="width:100%;margin-bottom:8px"></textarea>
+    ${rows}`);
+}
+function phoneAct(name,kind){
+  if(busy||!G) return;
+  const msg=((document.getElementById('phMsg')||{}).value||'').trim().slice(0,120);
+  const why=phoneBlock(kind==='call'?'call':'text'); if(why) return toast(why);
+  closeModal();
+  const rs=phoneRestricted();
+  let caught=false;
+  if(rs&&Math.random()<phoneCatchP()){
+    caught=true; addDemerit(PHONE_DEMERIT,`${rs} 휴대폰 사용 적발`); G.phoneBan=G.day+':'+G.time;
+    addLog('sys','📵 휴대폰을 몰래 쓰다 들켜 압수당했습니다. 이 시간대가 지나면 돌려받습니다.');
+  }
+  const where=contactWhere(name), isY=name==='유민';
+  if(caught){
+    return aiTurn(kind==='call'?`${name}에게 전화를 건다`:`${name}에게 문자를 보낸다`,`[휴대폰 압수] 플레이어가 ${rs}에 몰래 휴대폰을 꺼내다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 연락은 닿지 않았다. 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
+  }
+  if(kind==='call'){ G.battery=Math.max(0,G.battery-1); tick() }
+  G._yuminHere=false;
+  const secret=rs?` ${rs}이라 플레이어는 몰래 쓰는 중이다. 소리를 죽이고 속삭이듯.`:'';
+  const common=` ${name}은(는) 지금 이 자리에 없다(${where}). 상대의 위치·시간·성격에 맞게 반응하고(수업 중이면 답이 늦거나 짧게), 학생 인물 사이의 관계는 우정으로만. 억지로 새 사실을 만들지 말고 괴담 정보는 상대가 실제로 알 법한 만큼만. 이 장면은 짧게.`;
+  if(kind==='meet'){
+    const ok=!rs&&G.loc!=='road'&&Math.random()<MEET_OK_P;
+    if(ok){ G.comp.spot=nearPlayer(); G.comp.spotDay=G.day; addLog('sys','🎵 유민이 이쪽으로 오겠다고 합니다. 곧 만날 수 있습니다.') }
+    return aiTurn('유민에게 만나자고 연락한다',`[만나자는 연락] 플레이어가 유민에게 만나자고 연락한다${msg?`: "${msg}"`:''}.${secret}${common} `+(ok?'유민은 흔쾌히 곧 오겠다고 한다. 도착은 이번 장면에서 쓰지 말고 연락이 끝나는 데서 마칠 것.':'유민은 사정이 있어 지금은 오기 어렵다고 둘러대며 다른 때를 제안한다.'));
+  }
+  if(kind==='call') return aiTurn(`${name}에게 전화를 건다`,`[전화] 플레이어가 ${name}에게 전화를 건다${msg?` (용건: "${msg}")`:''}.${secret}${common} 통화 대사를 3~6줄의 대화체로 쓰고 통화가 끝나면 플레이어 주변으로 돌아온다.`);
+  return aiTurn(`${name}에게 문자를 보낸다`,`[문자] 플레이어가 ${name}에게 문자를 보낸다: "${msg||'뭐 해?'}".${secret}${common} 문자 화면을 말풍선 형식으로 보여 주되 플레이어 줄과 ${name}의 답장 줄을 구분하고(예: "나 > …", "${name} > …"), 이어서 플레이어 주변의 짧은 묘사로 마친다.`);
+}
 /* ---------- 만남 · 대화 · 동행 ---------- */
 async function meetYumin(place){
   G.comp.met=true; G._yuminHere=true; getRel('유민');
@@ -6121,7 +6192,8 @@ function fixedHTML(){
     mv=btn('breakCamp()','🌅 아침까지 쉬고 출발','primary');
     if(G.comp&&G.comp.joined) ac+=btn('talkYumin()','🎵 유민과 이야기');
   }
-  for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }   // 기능 모듈이 덧붙이는 버튼
+  for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }
+  ac+=btn('openPhone()','📱 휴대폰');   // 기능 모듈이 덧붙이는 버튼
   // 사건으로 생긴 버튼
   if(G.calmSrc&&!G.calmSrc.used) ac+=btn('fillCalmSrc()',`🫧 「${esc(G.calmSrc.name)}」에서 공포 가라앉히기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
   if(L!=='road'&&peddlerHere()) ac+=btn('openPeddler()',`🧭 ${esc(G.peddler.name)} (공포·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch})`,'','data-cv="1"');
@@ -6709,6 +6781,7 @@ function openGuide(){
     ${row('🔔 점호 시간까지 기다리기','종례가 끝난 방과 후에 캠퍼스에서 🔔 버튼(또는 "점호 시간까지 기다린다"라고 입력)을 누르면 야간이 될 때까지 시간을 보내고 기숙사 점호 장면으로 넘어갑니다. 낮(수업 중)에는 쓸 수 없습니다')}
     ${row('🌙 소등 후 외출','야간·새벽(소등 후)에 기숙사 밖으로 나가면 그날 밤 처음 한 번 '+Math.round(CURFEW_CATCH_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(CURFEW_CATCH_WARN*100)+'%)로 들켜 기숙사로 돌려보내지고 벌점 +'+CURFEW_DEMERIT+'. 들키지 않으면 그날 밤은 자유롭게 다닐 수 있습니다. 구역 조사를 나가는 무단 외출 벌점은 따로 붙습니다')}
     ${row('🍵 기숙사에서 공포 낮추기','기숙사에서는 휴게실 차 마시기(공포 −1, 하루 3번)와 따뜻한 샤워(공포 −2, 하루 1번)를 쓸 수 있고, 기숙사에서 쉬기(💳10)는 하룻밤을 보냅니다')}
+    ${row('📱 휴대폰','행동 버튼 줄의 📱 휴대폰에서 연락처(유민과 이야기에서 만난 사람들)에게 💬 문자나 📞 전화를 할 수 있습니다. 문자는 시간·배터리를 쓰지 않고 전화는 배터리 1과 시간 한 칸을 씁니다. 빠른 문구를 누르거나 직접 써서 보내면 상대가 답하고 이야기가 이어집니다. 유민에게는 📍 만나자고 하기(성공 '+Math.round(MEET_OK_P*100)+'%)도 있습니다. 수업 중(전화는 불가)과 소등 후에는 몰래 써야 하고 약 '+Math.round(PHONE_CATCH_P*100)+'% 확률로 들켜 벌점 +'+PHONE_DEMERIT+'과 그 시간대 압수. 구역 안에서는 전파가 잡히지 않습니다')}
     ${row('📋 전학 첫날','1일째 조례에서 「전학 인사하기」를 누르면 담임의 소개, 자기소개, 옆자리 유민과의 첫 만남이 이어집니다')}
     ${row('📚 수업 듣기',`시간표는 날짜로 정해져 미리 보입니다. 한 교시는 행동 ${CLASS_ACTIONS}번(수업 듣기 버튼이나, 수업 중 고른 선택지·입력 행동)이고 마지막 행동 뒤에 종이 울립니다. 교시마다 ${Math.round(CLASS_CLUE_P*100)}% 확률로 마지막 장면에서 단서(조사 보드, 가끔 교표 조각의 위치)를 얻고 성장 경험치 +1. 과목마다 단서의 성격이 다름 — 국어: 기록·문서, 수학: 숫자·좌표(조각 위치 단서가 잘 나옴), 영어: 구역 이름의 유래, 과학: 구역 환경, 한국사: 구역 연혁, 사회: 지도·위치(조각 위치 단서가 잘 나옴), 음악: 소리·방송, 체육 이론: 안전 수칙, 기술·가정: 건물 구조. 수업 칸에 수업을 듣지 않고 시간이 흐르는 다른 행동(둘러보기·거닐기·급식 등)을 하면 땡땡이로 처리되어 확률로 적발됩니다(칸당 한 번)`)}
     ${row('🏃 땡땡이치기',`수업 한 칸을 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}`)}
