@@ -1,6 +1,0 @@
-{
-  "_설명": "이벤트 플래그 정의. 값은 기본값(false/true/숫자). 대사 데이터의 if / ifNot / set에서 이 이름을 씀.",
-  "talked_hamid": false,
-  "talked_laila": false,
-  "talked_tariq": false
-}
