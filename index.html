@@ -3074,7 +3074,7 @@ function rollCaravan(reason){
   if(Math.random()>=p) return;
   const r=()=>Math.floor(Math.random()*3);
   G.caravan={here:true,loc:'road',day:G.day,name:rand(CARAVANS),stock:{water:4+r(),food:4+r(),torch:2+r()},talked:false};
-  addLog('sys',`🧭 먼지언덕 너머에서 「${G.caravan.name}」이(가) 다가와 잠시 쉬어 갑니다. (🧭 버튼으로 거래할 수 있습니다)`);
+  addLog('sys',`🧭 골목 저편에서 「${G.caravan.name}」이(가) 다가와 잠시 멈춰 섭니다. (🧭 버튼으로 거래할 수 있습니다)`);
 }
 function caravanHere(){ const c=G&&G.caravan; return !!(c&&c.here&&G.loc===(c.loc||'road')) }
 function openCaravan(){
@@ -3085,9 +3085,9 @@ function openCaravan(){
       <span style="display:flex;gap:6px"><button class="small" ${can>0?'':'disabled'} onclick="caravanBuy('${k}',1)">+1</button>
       <button class="small ${can>0?'primary':''}" ${can>0?'':'disabled'} onclick="caravanBuy('${k}',99)">살 수 있는 만큼${can>0?` (+${can} · 💳${can*PRICE_ROAD[k]})`:''}</button></span></div>`;
   }).join('');
-  modal('🧭 '+esc(c.name),`<p class="muted">한빛시 한가운데라 중앙 캠퍼스 지구보다 비쌉니다. 캐시 <b>${G.gold}</b></p>${rows}
-    <div class="row" style="margin-top:12px"><button class="small" ${c.talked||busy?'disabled':''} onclick="caravanTalk()">🗣 대상과 이야기 나누기 (1걸음 · 소문·길 정보)</button></div>
-    <p class="muted" style="font-size:12px;margin-top:8px">대상은 이 자리를 떠나면(구역에 들어가거나 길을 나서면) 함께 떠납니다.</p>`);
+  modal('🧭 '+esc(c.name),`<p class="muted">뒷길 행상이라 중앙 캠퍼스 지구보다 비쌉니다. 캐시 <b>${G.gold}</b></p>${rows}
+    <div class="row" style="margin-top:12px"><button class="small" ${c.talked||busy?'disabled':''} onclick="caravanTalk()">🗣 행상과 이야기 나누기 (1걸음 · 소문·길 정보)</button></div>
+    <p class="muted" style="font-size:12px;margin-top:8px">행상은 이 자리를 떠나면(구역에 들어가거나 길을 나서면) 함께 떠납니다.</p>`);
 }
 function caravanBuy(k,n){
   const c=G.caravan; if(busy||!caravanHere()) return;
@@ -3097,68 +3097,68 @@ function caravanBuy(k,n){
   const x=Math.min(n,rm,c.stock[k],Math.floor(G.gold/PRICE_ROAD[k]));
   if(x<=0) return toast('캐시가 부족합니다');
   G[k]+=x; c.stock[k]-=x; G.gold-=x*PRICE_ROAD[k];
-  addLog('fx',`🧭 대상에게서 ${NMI[k]} +${x} (캐시 -${x*PRICE_ROAD[k]})`);
+  addLog('fx',`🧭 행상에게서 ${NMI[k]} +${x} (캐시 -${x*PRICE_ROAD[k]})`);
   save(); render(); openCaravan();
 }
 function caravanTalk(){
   const c=G.caravan; if(busy||!c||!c.here||c.talked) return;
   c.talked=true; closeModal(); tick();
-  aiTurn(`「${c.name}」 사람들과 이야기를 나눈다`,`[대상과의 대화] 한빛시 뒷길에서 쉬어 가는 「${c.name}」 사람들과 이야기를 나눈다. 이들이 지나온 길의 소문(근처 구역의 위험, 다른 탐험대, 진에 관한 이야기, 라쿠나 구역에 관한 엇갈린 믿음 중 하나)을 들려준다. 물건 거래는 플레이어가 상인 버튼으로 하므로 이 장면에서는 effects의 공포·배터리·손전등·gold를 모두 0으로 둘 것.`+(rivalOn()&&Math.random()<0.6?rivalRumorText():''));
+  aiTurn(`「${c.name}」 사람들과 이야기를 나눈다`,`[행상과의 대화] 뒷길에 멈춰 선 「${c.name}」 사람들과 이야기를 나눈다. 이들이 지나온 길의 소문(근처 구역의 위험, 규율부·청소반의 움직임, 괴담, 지워진 구역에 관한 엇갈린 믿음 중 하나)을 들려준다. 물건 거래는 플레이어가 상인 버튼으로 하므로 이 장면에서는 effects의 공포·배터리·손전등·캐시를 모두 0으로 둘 것.`+(rivalOn()&&Math.random()<0.6?rivalRumorText():''));
 }
 /* AI가 낸 사건 → 버튼 */
 on('after',60,T=>{
   const ev=T.res&&T.res.event; if(!ev) return;
-  const townish=G.loc==='city'||G.loc==='town';   // 도시·마을의 공용 티 코너도 물 채우기 버튼으로 (하루 한 번)
+  const townish=G.loc==='city'||G.loc==='town';   // 지구의 공용 휴게 공간도 공포 가라앉히기 버튼으로 (하루 한 번)
   if(ev.type==='water_source'&&(isWild()||townish)){
-    G.waterSrc={name:ev.name||'물이 있는 곳',loc:G.loc,room:G.dungeon?G.dungeon.cur:null,dist:G.loc==='city'?G.district:null,town:G.loc==='town'?G.town:null,used:false};
-    addLog('sys',`💧 「${G.waterSrc.name}」 — 물을 채울 수 있습니다 (💧 버튼${townish?' · 하루 한 번':''})`);
+    G.waterSrc={name:ev.name||'마음이 놓이는 곳',loc:G.loc,room:G.dungeon?G.dungeon.cur:null,dist:G.loc==='city'?G.district:null,town:G.loc==='town'?G.town:null,used:false};
+    addLog('sys',`🫧 「${G.waterSrc.name}」 — 공포를 가라앉힐 수 있습니다 (🫧 버튼${townish?' · 하루 한 번':''})`);
   }
   if(!isWild()) return;
   if(ev.type==='merchant'&&!(G.caravan&&G.caravan.here)){
     const r=()=>Math.floor(Math.random()*3);
-    G.caravan={here:true,loc:G.loc==='camp'?'road':G.loc,room:G.dungeon&&G.loc==='dungeon'?G.dungeon.cur:null,day:G.day,name:ev.name||'떠돌이 상인',stock:{water:3+r(),food:3+r(),torch:1+r()},talked:true};
+    G.caravan={here:true,loc:G.loc==='camp'?'road':G.loc,room:G.dungeon&&G.loc==='dungeon'?G.dungeon.cur:null,day:G.day,name:ev.name||'이동 행상',stock:{water:3+r(),food:3+r(),torch:1+r()},talked:true};
     addLog('sys',`🧭 「${G.caravan.name}」과(와) 거래할 수 있습니다 (🧭 버튼 · 공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
   }
 });
 function fillWaterSrc(viaStory){
   const w=G.waterSrc; if(busy||!w||w.used) return false;
   const townish=!isWild();
-  if(townish&&G.cityWaterDay===G.day) return toast('오늘은 이미 공용 티 코너에서 물을 채웠습니다'), false;
-  const need=capW()-G.water; if(need<=0) return toast('물통이 이미 가득 찼습니다'), false;
+  if(townish&&G.cityWaterDay===G.day) return toast('오늘은 이미 공용 휴게 공간에서 공포를 가라앉혔습니다'), false;
+  const need=capW()-G.water; if(need<=0) return toast('공포가 이미 0입니다'), false;
   G.water=capW(); w.used=true; if(townish) G.cityWaterDay=G.day;
   if(viaStory!==true) tick();
-  addLog('fx',`💧 「${w.name}」에서 물을 길어 가득 채웠습니다 (+${need}${viaStory===true?'':', 1걸음'})`);
+  addLog('fx',`🫧 「${w.name}」에서 공포를 가라앉혔습니다 (−${need}${viaStory===true?'':', 1걸음'})`);
   if(viaStory!==true){ save(); render() }
   return true;
 }
-/* "물을 긷는다" 같은 글·선택지로 수원에서 물을 채우려 하면 실제로 물통을 채움 (수원이 지금 곁에 있을 때만) */
+/* "차를 따라 마신다"·"심호흡으로 마음을 가라앉힌다" 같은 글·선택지로 진정 장소에서 공포를 가라앉히려 하면 실제로 공포를 낮춤 (그 장소가 지금 곁에 있을 때만) */
 function waterFillIntent(t){
   t=String(t||'');
-  if(!G||RX.NEG.test(t)||!/물을?\s*(?:가득\s*|듬뿍\s*|한\s*가득\s*)?(긷|길어|퍼\s*올|채운|채워|담)/.test(t)) return false;
-  /* 아지트 티 코너(하루 3~6회)·와하 샘터(하루 1번)는 시설이 정한 무료 규칙을 그대로 따름 — 티 코너라는 말이 없어도 (아지트에서 "물을 채운다") */
+  if(!G||RX.NEG.test(t)||!/((?:따뜻한\s*)?(?:차|음료)[을를]?\s*(?:한\s*잔\s*)?(?:따른다|따라|받는다|받아|뽑는다|뽑아|우려)|(?:심호흡|숨)[을를]?\s*(?:고른다|가다듬|크게)|마음을\s*(?:가라앉|진정)|공포를\s*(?:가라앉|달랜|누그러))/.test(t)) return false;
+  /* 아지트 티 코너(하루 3~6회)·동부 저수지 공원 휴게 정자(하루 1번)는 시설이 정한 무료 규칙을 그대로 따름 — 티 코너라는 말이 없어도 (아지트에서 "차를 따라 마신다") */
   if(!BUY_VERB.test(t)&&((G.loc==='home'&&has('well'))||(G.loc==='town'&&curTown().spring))){
-    const home=G.loc==='home', refuse=m=>{ toast(m); pend(` [물 채움 불가] ${m} effects의 공포·배터리·캐시·체력은 0.`,{zeroSupply:true,noMoney:true}); return true };
-    if(home?wellLeft()<=0:G.townSpringDay===G.day) return refuse(home?`오늘은 티 코너를 ${wellMax()}번 다 썼습니다.`:'오늘은 이미 샘터에서 물을 채웠습니다.');
-    const need=capW()-G.water; if(need<=0) return refuse('물통이 이미 가득 차 있습니다.');
+    const home=G.loc==='home', refuse=m=>{ toast(m); pend(` [진정 불가] ${m} effects의 공포·배터리·캐시·체력은 0.`,{zeroSupply:true,noMoney:true}); return true };
+    if(home?wellLeft()<=0:G.townSpringDay===G.day) return refuse(home?`오늘은 티 코너를 ${wellMax()}번 다 썼습니다.`:'오늘은 이미 휴게 정자에서 쉬었습니다.');
+    const need=capW()-G.water; if(need<=0) return refuse('공포가 이미 0입니다.');
     G.water=capW(); if(home) G.home.wellN=(G.home.wellN||0)+1; else G.townSpringDay=G.day;
-    addLog('fx',home?`💧 티 코너에서 물을 길어 가득 채웠습니다 (+${need}, 무료 · 오늘 ${wellLeft()}회 남음)`:`💧 와하의 샘터에서 물을 가득 채웠습니다 (+${need}, 무료)`);
-    pend(' [물 채움 처리 완료] 코드가 이미 플레이어의 물통을 가득 채웠다(무료). 물 긷는 장면만 짧게 서술하고 effects의 water·gold·hp는 0.',{zeroSupply:true,noMoney:true});
+    addLog('fx',home?`🫧 티 코너에서 따뜻한 차를 마시며 공포를 가라앉혔습니다 (−${need}, 무료 · 오늘 ${wellLeft()}회 남음)`:`🫧 동부 저수지 공원의 휴게 정자에서 공포를 가라앉혔습니다 (−${need}, 무료)`);
+    pend(' [진정 처리 완료] 코드가 이미 플레이어의 공포를 가라앉혔다(무료). 마음이 가라앉는 장면만 짧게 서술하고 effects의 공포·캐시·체력은 0.',{zeroSupply:true,noMoney:true});
     return true;
   }
   clearStaleEvents();   // 다른 곳으로 옮긴 뒤 남은 낡은 수원은 먼저 지움
   const townish=G.loc==='city'||G.loc==='town';
-  // AI가 수원 사건을 내지 않았어도, 도시·마을에서 티 코너·샘에서 물을 채운다는 글이면 공용 티 코너로 처리 (산다·구입이 들어가면 구매)
+  // AI가 진정 장소 사건을 내지 않았어도, 지구에서 휴게 공간·티 코너에서 쉬며 공포를 가라앉힌다는 글이면 공용 휴게 공간으로 처리 (산다·구입이 들어가면 구매)
   if(!G.waterSrc&&townish&&NEED_RX.SOURCE.test(t)&&!BUY_VERB.test(t))
-    G.waterSrc={name:'공용 티 코너',loc:G.loc,room:null,dist:G.loc==='city'?G.district:null,town:G.loc==='town'?G.town:null,used:false};
+    G.waterSrc={name:'공용 휴게 공간',loc:G.loc,room:null,dist:G.loc==='city'?G.district:null,town:G.loc==='town'?G.town:null,used:false};
   if(!G.waterSrc||G.waterSrc.used) return false;
-  if(townish&&G.cityWaterDay===G.day){   // 오늘 이미 채웠으면 더 채우지 못하고, AI가 물을 주지도 못하게
-    toast('오늘은 이미 공용 티 코너에서 물을 채웠습니다');
-    pend(' [물 채움 불가] 플레이어는 오늘 이미 이 티 코너에서 물을 채웠다. 더 채우지 못한다. effects의 공포·배터리·캐시·체력은 0.',{zeroSupply:true,noMoney:true});
+  if(townish&&G.cityWaterDay===G.day){   // 오늘 이미 가라앉혔으면 더 못 하고, AI가 공포를 내려 주지도 못하게
+    toast('오늘은 이미 공용 휴게 공간에서 공포를 가라앉혔습니다');
+    pend(' [진정 불가] 플레이어는 오늘 이미 이 휴게 공간에서 공포를 가라앉혔다. 더 가라앉히지 못한다. effects의 공포·배터리·캐시·체력은 0.',{zeroSupply:true,noMoney:true});
     G.waterSrc=null;
     return true;
   }
   const ok=fillWaterSrc(true);
-  if(ok) pend(' [물 채움 처리 완료] 코드가 이미 플레이어의 물통을 가득 채웠다. 물 긷는 장면만 짧게 서술하고 effects의 water·hp는 0.',{zeroSupply:true});
+  if(ok) pend(' [진정 처리 완료] 코드가 이미 플레이어의 공포를 가라앉혔다. 마음이 가라앉는 장면만 짧게 서술하고 effects의 공포·체력은 0.',{zeroSupply:true});
   return ok;
 }
 /* 자리를 떠나면 사라지는 것들 (화면 그리기 전에 정리) */
