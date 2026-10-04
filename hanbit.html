@@ -1116,7 +1116,7 @@ effects 범위(한 장면): ${fxRangeText()}. 공포는 늘면 양수·가라앉
 공포: 괴이·교칙 위반·어둠·고립에서 오른다(+1~2). 진정되는 장소·동행·따뜻한 음료에서 내려간다(−1~−2). 서술의 공포 묘사와 수치를 맞춘다.
 벌점: 점호 누락·무단 외출·교칙(학원 규정) 위반이 실제로 적발됐을 때만 +1~+3. 코드가 점호 누락·무단 외출은 자동으로 처리하니 중복해서 넣지 말 것. 출입권한: 출입 카드·권한 상향을 서술상 분명히 얻었을 때만 +1(등급은 1~3, 코드가 상한을 지킨다).
 캐시 보상은 절제한다: 작은 발견 +5~15, 큰 발견 +20~40 정도이고, 구역 한 곳을 통틀어 얻는 캐시 합계가 ${ZONE_CASH_CAP} 이하가 되도록 조절한다. 재물을 얻은 장면이 아니면 캐시는 0.
-배터리·손전등·캐시·공포는 effects 수치로만 관리하고 items_add에 넣지 않는다(보조배터리·건전지·따뜻한 차 같은 소모품도 마찬가지). 소지품 목록에 있는 물건을 쓰거나 다른 것으로 바꾸거나 잃으면 반드시 items_remove에 소지품에 적힌 이름 그대로 넣는다.
+배터리·손전등·캐시·공포는 effects 수치로만 관리하고 items_add에 넣지 않는다(보조배터리·건전지·따뜻한 차 같은 소모품도 마찬가지). items_add의 항목은 {"name":"물건 이름","key":true 또는 false} 객체로 쓴다 — 이야기에 필요한 단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건이면 key:true(플레이어가 팔 수 없다), 이야기와 무관하게 값이 나가는 잡동사니면 key:false(팔 수 있다). 소지품 목록에 있는 물건을 쓰거나 다른 것으로 바꾸거나 잃으면 반드시 items_remove에 소지품에 적힌 이름 그대로 넣는다.
 companion_join은 유민이 지금 장면에 있고, 이야기 흐름 속에서 유민이 함께 가기로 분명히 정해진 순간에만 true. 유민호감은 유민과 실제로 교류한 장면에서만(범위 -5~+5).
 relations: 이번 장면에서 플레이어와 실제로 대화하거나 교류한 인물(유민 제외)마다 {"name":"사전에 쓴 것과 같은 이름","delta":호감 변화}. 교류가 없으면 빈 배열. 호감은 쉽게 오르지 않는다: 스쳐 가는 대화 0, 즐거운 대화 1, 도움이나 진심 2~3, 큰 은혜 4~5, 무례 -2~-5. 사람처럼 대화가 통하는 인물만 넣고 괴이·동물·사물은 넣지 말 것.
 relation_event: 진행 중인 인연 이벤트가 있을 때만 {"name":"..","result":"success|fail|pending"}, 없으면 null.
@@ -2122,6 +2122,19 @@ on('effects',60,e=>{
 /* 65: 이미 유실물을 가져간 방에서는 유실물을 또 주지 않음 */
 on('effects',65,e=>{ const r=G.loc==='site'?curRoom():null; if(r&&r.keepsakeTaken&&e.materials) e.materials=Object.assign({},e.materials,{keepsake:0}) });
 /* 70: 소모품 아이템은 수치로 (따뜻한 차 → 공포 진정, 보조배터리 → 배터리) */
+/* 소지품 구분: AI가 items_add에 {name,key}로 알려 줌 — key:true는 이야기에 필요한 물건(팔 수 없음), key:false는 값나가는 잡동사니(팔 수 있음).
+   표시가 없는 옛 물건은 이름으로 판단(KEY_RX), 애매하면 팔기 전에 확인을 받음 */
+const KEY_RX=/출석부|권한 카드|출입증|열쇠|카드키|USB|메모리|서류|문서|일기|편지|쪽지|메모|사진|녹음|테이프|증거|명찰|도면|지도|부적|표식|인장|교표|단서/;
+function itemFlag(it){ const m=(G.itemFlag||{})[it]; return m===true?'key':m===false?'goods':null }
+function isKeyItem(it){ const f=itemFlag(it); return f?f==='key':KEY_RX.test(String(it)) }
+on('effects',1,e=>{
+  if(!Array.isArray(e.items_add)) return;
+  G.itemFlag=G.itemFlag||{};
+  e.items_add=e.items_add.map(x=>{
+    if(x&&typeof x==='object'){ const n=String(x.name||'').trim(); if(!n) return null; if(typeof x.key==='boolean') G.itemFlag[n]=x.key; return n }
+    return x;
+  }).filter(Boolean);
+});
 on('effects',70,(e,ctx)=>{
   ctx.consAdd=[];
   if(Array.isArray(e.items_add)){
@@ -2255,6 +2268,7 @@ function useItem(i){
   save(); render(); if(document.querySelector('#modalRoot .modal')) openInv();
 }
 function itemChipHTML(it,i){
+  if(!SNACKS[it]&&!consKind(it)&&isKeyItem(it)) return `<span class="chip" title="이야기에 필요한 물건 — 팔 수 없습니다">🔒 ${esc(it)}</span>`;
   if(SNACKS[it]) return `<span class="chip">🍫 ${esc(it)} <a href="#" onclick="event.preventDefault();eatSnack(${i})" style="color:var(--accent2);text-decoration:none" title="공포 누적 ${SNACKS[it]}회 늦춤">먹기</a></span>`;
   const k=consKind(it);
   return `<span class="chip">${esc(it)}${k?` <a href="#" onclick="event.preventDefault();useItem(${i})" style="color:var(--accent2);text-decoration:none" title="${k==='calm'?'공포 가라앉히기':NM[k]+'(으)로 바꾸기'}">사용</a>`:''}</span>`;
@@ -2269,8 +2283,13 @@ function itemSellPrice(name){
 function sellItem(i){
   const it=G.items[i]; if(!it) return;
   if(consKind(it)||SNACKS[it]) return toast('소모품은 "사용"으로 수치에 더하세요');
-  if(/출석부|권한 카드/.test(it)) return toast('이 물건은 팔 수 없습니다');
+  if(isKeyItem(it)) return toast('이야기에 필요한 물건이라 팔 수 없습니다');
   const p=itemSellPrice(it);
+  if(itemFlag(it)!=='goods'){ askConfirm(`「${it}」을(를) 💳${p}에 팔까요?\n이야기에 쓰일 수도 있는 물건이라면 팔지 마세요.`,'팔기').then(ok=>{ if(ok) sellItemNow(G.items.indexOf(it),p) }); return }
+  sellItemNow(i,p);
+}
+function sellItemNow(i,p){
+  const it=G.items[i]; if(!it) return;
   G.items.splice(i,1); G.cash+=p;
   const nm=String(it).replace(/\(.*?\)|[x×]\s*\d+/g,'').trim(), before=G.lexicon.length;
   G.lexicon=G.lexicon.filter(e=>!(e.cat==='물건'&&nm.length>=2&&(e.name===it||e.name===nm||nm.includes(e.name)||e.name.includes(nm))));
@@ -2430,7 +2449,6 @@ function jobBlock(k){
     if(j.slots&&!j.slots.includes(i)) return '이 일은 점심시간이나 방과 후에만 할 수 있습니다';
   }else if(j.slots&&!j.slots.includes('after')) return '지금은 일할 수 없습니다';
   if(st.n>=JOB_DAILY_LIMIT) return `오늘은 일을 ${JOB_DAILY_LIMIT}번 다 했습니다`;
-  if(st.done[k]) return '이 일은 오늘 이미 했습니다';
   return '';
 }
 function jobHTML(k){
@@ -2660,7 +2678,7 @@ function openShop(){
     mt+=`<div class="shop-row"><span>🚲 ${esc(G.ride.name)} <span class="muted">(${d.n})</span></span><button class="small" onclick="sellMount()">팔기 💳${Math.floor(d.price/2)}</button></div><p class="muted">탈것은 하나만 둘 수 있습니다. 다른 것으로 바꾸려면 먼저 파세요.</p>`;
   }else if(!has('bikerack')) mt+=`<p class="muted">아지트에 <b>자전거 보관대</b>를 들여야 자전거나 전동 스쿠터를 둘 수 있습니다. (아지트 꾸미기 → 자전거 보관대)</p>`;
   else mt+=Object.entries(RIDES).filter(([k,d])=>!d.locked||hasBranch(d.locked)).map(([k,d])=>`<div class="shop-row" style="gap:10px;align-items:flex-start"><div><b>${d.n}</b><br><span class="muted">${d.desc}<br>충전: 조사 외출마다 배터리 ${d.feed}</span></div><button class="small ${G.cash>=ridePrice(k)?'primary':''}" onclick="buyMount('${k}')">캐시 ${ridePrice(k)}${ridePrice(k)<d.price?' (할인)':''}</button></div>`).join('');
-  const sells=G.items.map((it,i)=>(consKind(it)||/출석부|권한 카드/.test(it))?'':`<div class="shop-row"><span>${esc(it)}</span><button class="small" onclick="sellItem(${i})">팔기 💳${itemSellPrice(it)}</button></div>`).join('');
+  const sells=G.items.map((it,i)=>(consKind(it)||SNACKS[it])?'':isKeyItem(it)?`<div class="shop-row"><span>🔒 ${esc(it)} <span class="muted">(이야기 물건 · 팔 수 없음)</span></span></div>`:`<div class="shop-row"><span>${esc(it)}${itemFlag(it)==='goods'?'':' <span class="muted">(팔기 전에 확인)</span>'}</span><button class="small" onclick="sellItem(${i})">팔기 💳${itemSellPrice(it)}</button></div>`).join('');
   modal('상점가',`<p class="muted">캐시: <b id="shopCash">${G.cash}</b></p>${goods}
     <h4 style="margin:14px 0 4px">휴대 용량</h4>${capRow('w')}${capRow('f')}${capRow('t')}
     <p class="muted" style="font-size:12px">공포 한계·배터리·손전등은 용량까지만 유지되고 초과분은 사라집니다.${G.loc==='hood'?` ${curHood().n}: ${curHood().perk}.`:''} 가격(개당) — 중앙 캠퍼스 지구·아지트: 진정 음료 💳${PRICE_HOOD.calm} · 배터리 💳${PRICE_HOOD.battery} · 손전등 💳${PRICE_HOOD.torch}. 뒷길에서 가끔 만나는 이동 행상(🧭 버튼)이나 이야기 속 상인에게 사면 진정 음료·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch}.</p>
@@ -7041,6 +7059,7 @@ function openChar(){
 }
 function openInv(){
   modal('소지품',`<p>😨 공포 ${fearNow()}/${fearMax()} · 🔋 배터리 ${batteryPct()}% · 🔦 손전등 ${G.torch} · 💳 캐시 ${G.cash} · 📕 벌점 ${G.demerit||0} · 🪪 출입 권한 ${G.access||1}등급</p>
+    <p class="muted" style="font-size:12px">🔒 표시는 이야기에 필요한 물건이라 팔 수 없습니다.</p>
     <p>교표 조각: ${G.fragments}/${FRAG_GOAL}${G._wCredit>0?` · 🍫 공포 누적 늦춤 ${G._wCredit}회`:''}</p>
     <p>자재: ${MATS.map(m=>`${m.i} ${m.n} ${G.mat[m.k]}`).join(' · ')}</p>
     <ul>${G.ride?`<li><span class="chip">🚲 ${esc(G.ride.name)} (${RIDES[G.ride.type].n}${G._rideFed===false?' · 지침':''})</span></li>`:''}${G.items.map((i,n)=>`<li>${itemChipHTML(i,n)}</li>`).join('')||(G.ride?'':'<li class="muted">없음</li>')}</ul>`);
@@ -7193,9 +7212,10 @@ function openGuide(){
     ${row('🌙 소등 후 외출','야간·새벽(소등 후)에 기숙사 밖으로 나가면 그날 밤 처음 한 번 '+Math.round(CURFEW_CATCH_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(CURFEW_CATCH_WARN*100)+'%)로 들켜 기숙사로 돌려보내지고 벌점 +'+CURFEW_DEMERIT+'. 들키지 않으면 그날 밤은 자유롭게 다닐 수 있습니다. 구역 조사를 나가는 무단 외출 벌점은 따로 붙습니다')}
     ${row('🚪 소등 후 기숙사 출입 판정','야간·새벽(소등 후)에 기숙사로 들어가는 버튼·선택지·글·AI 서술의 이동을 하면 출입 판정을 합니다. 생존술 2d6 + 출입 권한 등급 보너스(2등급 +1, 3등급 +2)를 무작위 난이도와 겨루고, 성공하면 조용히 들어가고, 부분 성공이면 들어가지만 벌점 +1(늦은 귀가), 실패하면 문이 잠겨 못 들어가고 벌점 +1에 시간이 한 칸 흐릅니다(다시 시도 가능). 실패한 뒤에는 대안 버튼이 나옵니다 — 🙏 사감 선생님께 사정하기(매력 판정: 성공 시 벌점 없이 입장, 부분 성공 벌점 +1 입장, 실패 벌점 +1)와 📱 유민에게 몰래 문을 열어 달라고 문자(호감 레벨이 높을수록 성공 확률이 오르는 50~85%, 문자도 몰래 쓰는 것이라 적발될 수 있음). 이미 기숙사 안에 있을 때는 판정하지 않습니다. 출입 권한을 올리면 판정이 유리해집니다')}
     ${row('🍵 기숙사에서 공포 낮추기','기숙사에서는 휴게실 차 마시기(공포 −1, 하루 3번)와 따뜻한 샤워(공포 −2, 하루 1번)를 쓸 수 있고, 기숙사에서 쉬기(💳10)는 하룻밤을 보냅니다')}
-    ${row('💼 학교 안 아르바이트','쉬는 시간·점심시간·방과 후에 한 칸을 써서 캐시를 벌 수 있습니다(수업 중·조례·종례·소등 후는 불가). 매점 아르바이트(💳'+JOBS.snack.pay.join('~')+'), 배식 도우미(급식실, 점심시간·방과 후, 💳'+JOBS.canteen.pay.join('~')+'), 선생님 심부름(교무실, 💳'+JOBS.office.pay.join('~')+', 벌점이 있으면 가끔 −1), 도서관 정리(💳'+JOBS.library.pay.join('~')+'). 하루 '+JOB_DAILY_LIMIT+'번까지, 같은 일은 하루 한 번')}
+    ${row('💼 학교 안 아르바이트','쉬는 시간·점심시간·방과 후에 한 칸을 써서 캐시를 벌 수 있습니다(수업 중·조례·종례·소등 후는 불가). 매점 아르바이트(💳'+JOBS.snack.pay.join('~')+'), 배식 도우미(급식실, 점심시간·방과 후, 💳'+JOBS.canteen.pay.join('~')+'), 선생님 심부름(교무실, 💳'+JOBS.office.pay.join('~')+', 벌점이 있으면 가끔 −1), 도서관 정리(💳'+JOBS.library.pay.join('~')+'). 하루 '+JOB_DAILY_LIMIT+'번까지(같은 일을 반복해도 됨)')}
     ${row('📝 벌점 줄이기','교무실의 📝 반성문 쓰기(벌점 −2), 교실의 🧹 청소 봉사(벌점 −1)를 각각 하루 한 번, 한 칸을 써서 할 수 있습니다(수업 중·소등 후 불가, 벌점이 있어야 함). 평일에 네 교시를 모두 출석하고 땡땡이·결석이 없으면 종례에서 모범 출석으로 벌점 −1. 그 밖에 기숙사 하룻밤(−1), 선생님 심부름(25%로 −1)이 있습니다')}
     ${row('🎉 주말 전용','토·일 자유시간에는 🧑‍🤝‍🧑 주말 외출(유민이나 아는 사람 한 명과 상점가·운동장·도서관·저수지 둑길 중 한 곳, 💳5·두 칸, 하루 한 번 성사, 유민 외 인물은 호감에 따라 수락 60~90%), 상점가의 🎸 버스킹 구경(공포 −1, 하루 한 번), 정문의 📮 면회 시간(점심 이후, 용돈 💳10~20과 간식 하나, 하루 한 번)이 열립니다')}
+    ${row('🔒 이야기 물건 vs 팔 수 있는 물건','소지품은 두 종류입니다. AI가 물건을 줄 때 이야기에 필요한 것(단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건)에는 🔒를 붙여 팔 수 없게 하고, 값나가는 잡동사니는 바로 팔 수 있습니다. 표시가 없는 물건은 이름으로 판단하고(출석부·열쇠·서류·사진 등은 🔒), 애매하면 팔기 전에 확인 창이 뜹니다')}
     ${row('📱 휴대폰','행동 버튼 줄의 📱 휴대폰에서 연락처(유민과 이야기에서 만난 사람들)에게 💬 문자나 📞 전화를 할 수 있습니다. 문자는 시간·배터리를 쓰지 않고, 💬 문자를 누르면 **팝업 대화창(말풍선)**이 열려 주고받은 내용이 연락처마다 기록됩니다. 빠른 문구를 누르거나 직접 써서 보내면 상대가 곧바로 답장하고(AI), 가끔 단서가 조사 보드에 적히고 호감이 오릅니다(하루 한 번). 전화는 배터리 1과 시간 한 칸을 쓰며 이야기 본문으로 진행됩니다. 유민에게는 📍 만나자고 하기(성공 '+Math.round(MEET_OK_P*100)+'%)도 있습니다. 수업 중(전화는 불가)과 소등 후에는 몰래 써야 하고 약 '+Math.round(PHONE_CATCH_P*100)+'% 확률로 들켜 벌점 +'+PHONE_DEMERIT+'과 그 시간대 압수. 구역 안에서는 전화가 안 터지고 문자만 보낼 수 있습니다(신호가 약해 답이 끊겨 옵니다)')}
     ${row('📩 수신 문자','시간이 흐르다 보면 연락처 사람(유민 포함)이 먼저 문자를 보냅니다(한 번에 최대 '+INBOX_MAX+'통). 화면 오른쪽 위에 알림 팝업이 뜨고(누르면 읽기, 행동 버튼 줄의 📩 버튼으로도 가능) 대화창에서 소문·안부·초대·경고 같은 문자를 읽고 바로 답장할 수 있습니다. 수업 중·소등 후에 읽으면 몰래 읽는 것이라 적발될 수 있습니다')}
     ${row('🍫 공포를 늦추는 간식','상점·매점에서 초코바(💳4, 공포 누적 2회 늦춤), 캐러멜 사탕(💳2, 1회), 에너지 젤리(💳6, 3회)를 살 수 있습니다. 소지품에서 「먹기」(또는 "초코바를 먹는다"라고 입력)하면 다음 공포 누적을 건너뜁니다. 구역·뒷길처럼 걸을 때 공포가 오르는 곳에서 효과가 있고, 이미 오른 공포를 내리지는 않습니다')}
