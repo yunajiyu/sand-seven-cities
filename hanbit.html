@@ -1596,6 +1596,31 @@ function curfewMove(k){
   addLog('sys','🌙 소등 후 몰래 기숙사를 빠져나왔습니다. 오늘 밤은 들키지 않고 다닐 수 있습니다.');
   return k;
 }
+/* 소등 후(야간·새벽) 기숙사로 들어갈 때의 출입 판정: 생존술 2d6 + 출입 권한 등급 보너스 vs 무작위 난이도
+   성공: 조용히 들어감 / 부분 성공: 들어가지만 늦은 귀가로 벌점 +1 / 실패: 문이 잠겨 못 들어가고 벌점 +1(시간이 한 칸 흐름) */
+function dormEntry(){
+  const dc=randDc();
+  addLog('fx',`🎯 소등 후 기숙사 출입 판정 — ${DCN[dc]} 난이도입니다 (${DCV[dc]})`);
+  const note=rollCheck('sur',dc,'소등 후 기숙사 출입');
+  const res=rollCheck.last;
+  if(res==='fail'){
+    addDemerit(1,'기숙사 문 앞 적발'); tick();
+    addLog('sys','🚪 기숙사 문이 잠겨 있고 사감 선생님에게 들켰습니다. 들어가지 못했습니다. (잠시 뒤 다시 시도할 수 있습니다)');
+    pend(note+' 플레이어는 기숙사에 들어가지 못하고 문 앞에서 사감 선생님에게 들켰다(벌점은 이미 반영되었으니 effects.벌점은 0). 가벼운 꾸중으로 짧게.');
+    toast('🚪 기숙사 문이 잠겨 들어가지 못했습니다');
+    return false;
+  }
+  if(res==='partial'){
+    addDemerit(1,'소등 후 늦은 귀가');
+    addLog('sys','🌙 기숙사에는 들어왔지만 늦은 귀가가 사감 선생님 눈에 띄었습니다.');
+    pend(note+' 플레이어는 가까스로 기숙사에 들어왔지만 사감 선생님에게 늦은 귀가를 들켜 꾸중을 들었다(벌점은 이미 반영되었으니 effects.벌점은 0).');
+  }else{
+    addLog('sys','🌙 들키지 않고 조용히 기숙사로 들어왔습니다.');
+    pend(note);
+  }
+  return true;
+}
+function needDormCheck(k){ return !!G&&G.loc==='campus'&&k==='dorm'&&isDarkTime()&&curDistrict()!=='dorm' }
 function classLeaveEffect(toKey){
   const i=slotIdx();
   if(i<0||!CLASS_SLOTS.includes(i)||G.loc!=='campus'||curDistrict()!=='classroom'||spotOn()||toKey==='classroom') return;
@@ -1613,6 +1638,7 @@ function applyPlace(res){
     if(k===curDistrict()&&!spotOn()) return;
     classLeaveEffect(k);
     const k0=k, kk=curfewMove(k0); if(kk!==k0){ G.spot=null; G.district=kk; G._yuminHere=false; return }
+    if(needDormCheck(k0)&&!dormEntry()) return;
     G.spot=null; G.district=k; G._yuminHere=false;
     addLog('sys',`${DISTRICTS[k].ic} ${DISTRICTS[k].n}${josa(DISTRICTS[k].n,'으로','로')} 이동했습니다.`);
     if(G.comp&&G.comp.met&&!G.comp.joined&&G.comp.spot===k) addLog('sys','🎵 이곳에서 유민의 모습이 보입니다.');
@@ -1841,6 +1867,7 @@ function checkBonus(skill,text){
   const parts=[]; let b=0; const t=String(text||'');
   const add=(v,why)=>{ b+=v; parts.push(`${why} ${v>0?'+':''}${v}`) };
   if(hasTrait('옛 서류 해독')&&skill==='wis'&&/(문자|비문|글씨|글자|해독|기록|두루마리|출석부|문양|명문)/.test(t)) add(2,'옛 서류 해독');
+  if(/기숙사 출입/.test(t)&&(G.access||1)>1) add((G.access||1)-1,`출입 권한 ${G.access}등급`);
   if(hasTrait('말발')&&skill==='cha') add(2,'말발');
   if(hasTrait('싸움 경험')&&skill==='str'&&/(싸|공격|베|휘두|막아|맞서|찌르|때리|제압)/.test(t)) add(2,'싸움 경험');
   if(hasTrait('동물 친화')&&/(전동 스쿠터|자전거|동물|짐승|말을|가축)/.test(t)) add(2,'동물 친화');
@@ -2224,6 +2251,7 @@ function enterCampus(first){
 function goDistrict(k){
   if(busy||!G||G.loc!=='campus'||!DISTRICTS[k]||(curDistrict()===k&&!G.spot)) return;
   k=curfewMove(k);
+  if(needDormCheck(k)&&!dormEntry()){ save(); render(); return }
   G.spot=null; G.district=k; G._yuminHere=false; G.choices=[];
   addLog('sys',`${DISTRICTS[k].ic} ${DISTRICTS[k].n}${josa(DISTRICTS[k].n,'으로','로')} 이동했습니다.`);
   if(G.comp&&G.comp.met&&!G.comp.joined&&G.comp.spot===k) addLog('sys','🎵 이곳에서 유민의 모습이 보입니다.');
@@ -6867,6 +6895,7 @@ function openGuide(){
     ${row('🔔 칸이 끝날 때','수업·쉬는 시간 같은 칸이 끝나면 서술 뒤에 "🔔 1교시 수업이 끝났습니다 → 쉬는 시간"처럼 알림이 뜹니다')}
     ${row('🔔 점호 시간까지 기다리기','종례가 끝난 방과 후에 캠퍼스에서 🔔 버튼(또는 "점호 시간까지 기다린다"라고 입력)을 누르면 야간이 될 때까지 시간을 보내고 기숙사 점호 장면으로 넘어갑니다. 낮(수업 중)에는 쓸 수 없습니다')}
     ${row('🌙 소등 후 외출','야간·새벽(소등 후)에 기숙사 밖으로 나가면 그날 밤 처음 한 번 '+Math.round(CURFEW_CATCH_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(CURFEW_CATCH_WARN*100)+'%)로 들켜 기숙사로 돌려보내지고 벌점 +'+CURFEW_DEMERIT+'. 들키지 않으면 그날 밤은 자유롭게 다닐 수 있습니다. 구역 조사를 나가는 무단 외출 벌점은 따로 붙습니다')}
+    ${row('🚪 소등 후 기숙사 출입 판정','야간·새벽(소등 후)에 기숙사로 들어가는 버튼·선택지·글·AI 서술의 이동을 하면 출입 판정을 합니다. 생존술 2d6 + 출입 권한 등급 보너스(2등급 +1, 3등급 +2)를 무작위 난이도와 겨루고, 성공하면 조용히 들어가고, 부분 성공이면 들어가지만 벌점 +1(늦은 귀가), 실패하면 문이 잠겨 못 들어가고 벌점 +1에 시간이 한 칸 흐릅니다(다시 시도 가능). 이미 기숙사 안에 있을 때는 판정하지 않습니다. 출입 권한을 올리면 판정이 유리해집니다')}
     ${row('🍵 기숙사에서 공포 낮추기','기숙사에서는 휴게실 차 마시기(공포 −1, 하루 3번)와 따뜻한 샤워(공포 −2, 하루 1번)를 쓸 수 있고, 기숙사에서 쉬기(💳10)는 하룻밤을 보냅니다')}
     ${row('💼 학교 안 아르바이트','쉬는 시간·점심시간·방과 후에 한 칸을 써서 캐시를 벌 수 있습니다(수업 중·조례·종례·소등 후는 불가). 매점 아르바이트(💳'+JOBS.snack.pay.join('~')+'), 배식 도우미(급식실, 점심시간·방과 후, 💳'+JOBS.canteen.pay.join('~')+'), 선생님 심부름(교무실, 💳'+JOBS.office.pay.join('~')+', 벌점이 있으면 가끔 −1), 도서관 정리(💳'+JOBS.library.pay.join('~')+'). 하루 '+JOB_DAILY_LIMIT+'번까지, 같은 일은 하루 한 번')}
     ${row('📱 휴대폰','행동 버튼 줄의 📱 휴대폰에서 연락처(유민과 이야기에서 만난 사람들)에게 💬 문자나 📞 전화를 할 수 있습니다. 문자는 시간·배터리를 쓰지 않고 전화는 배터리 1과 시간 한 칸을 씁니다. 빠른 문구를 누르거나 직접 써서 보내면 상대가 답하고 이야기가 이어집니다. 유민에게는 📍 만나자고 하기(성공 '+Math.round(MEET_OK_P*100)+'%)도 있습니다. 수업 중(전화는 불가)과 소등 후에는 몰래 써야 하고 약 '+Math.round(PHONE_CATCH_P*100)+'% 확률로 들켜 벌점 +'+PHONE_DEMERIT+'과 그 시간대 압수. 구역 안에서는 전화가 안 터지고 문자만 보낼 수 있습니다(신호가 약해 답이 끊겨 옵니다)')}
