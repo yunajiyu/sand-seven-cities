@@ -1684,7 +1684,7 @@ function dormAskYumin(){
   if(Math.random()<phoneCatchP()){
     addDemerit(PHONE_DEMERIT,`${rs} 휴대폰 사용 적발`); G.phoneBan=G.day+':'+G.time;
     addLog('sys','📵 휴대폰을 몰래 쓰다 들켜 압수당했습니다.');
-    return aiTurn('유민에게 몰래 문자를 보낸다',`[휴대폰 압수] 플레이어가 문 앞에서 몰래 휴대폰을 꺼내다 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 사감의 가벼운 꾸중으로 짧게.`);
+    return aiTurn('유민에게 몰래 문자를 보낸다',`[휴대폰 압수]${phoneSceneNote()} 플레이어가 문 앞에서 몰래 휴대폰을 꺼내다 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 사감의 가벼운 꾸중으로 짧게.`);
   }
   const p=Math.min(0.85,0.5+yuminLv()*0.01), ok=Math.random()<p;
   let extra=`[문을 열어 달라는 문자] 소등 후 기숙사 문이 잠겨 들어가지 못한 플레이어가 유민에게 몰래 문자를 보내 뒷문이나 창문을 열어 달라고 부탁한다. 문자 화면을 말풍선 형식으로 보여 주고(예: "나 > …", "유민 > …"), 유민은 장난스럽지만 실제로 도와줄 수 있다. `;
@@ -4245,10 +4245,12 @@ on('facts',80,o=>{ updateYuminSpot(); if(G.comp&&G.comp.met) o.유민위치=G.co
    ========================================================= */
 const PHONE_CATCH_P=0.3, PHONE_CATCH_WARN=0.15, PHONE_DEMERIT=1, MEET_OK_P=0.7;
 const PHONE_QUICK=['지금 어디야?','잠깐 얘기할 수 있어?','도와줄 수 있어?','오늘 뭐 해?','조심해, 이상한 일이 있었어'];
+/* 압수 장면을 쓸 때 AI가 시간·장소를 지어내지 않도록 지금 상황을 알려 줌 */
+function phoneSceneNote(){ return ` 지금은 ${G.day}일째 ${G.time==='낮'&&slotIdx()>=0?slotLabel():G.time}이고 장소는 ${G.loc==='campus'?DISTRICTS[curDistrict()].n:G.loc}이다. 이 시간과 장소 그대로 쓰고 다른 교시나 점심시간으로 바꾸지 말 것.` }
 function phoneRestricted(){
   if(!G||G.loc!=='campus') return false;
   if(isDarkTime()) return '소등 후';
-  const i=slotIdx(); if(i>=0&&CLASS_SLOTS.includes(i)) return '수업 중';
+  const i=slotIdx(); if(i>=0&&CLASS_SLOTS.includes(i)&&curDistrict()==='classroom'&&!spotOn()) return '수업 중';   // 교실 밖(땡땡이 중)이면 지켜보는 선생님이 없어 제한 없음
   return false;
 }
 function phoneBlock(kind){
@@ -4356,7 +4358,7 @@ async function sendChat(){
   if(rs&&Math.random()<phoneCatchP()){
     closeModal(); addDemerit(PHONE_DEMERIT,`${rs} 휴대폰 사용 적발`); G.phoneBan=G.day+':'+G.time;
     addLog('sys','📵 휴대폰을 몰래 쓰다 들켜 압수당했습니다. 이 시간대가 지나면 돌려받습니다.');
-    return aiTurn('몰래 문자를 보낸다',`[휴대폰 압수] 플레이어가 ${rs}에 몰래 휴대폰을 꺼내다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
+    return aiTurn('몰래 문자를 보낸다',`[휴대폰 압수]${phoneSceneNote()} 플레이어가 ${rs}에 몰래 휴대폰을 꺼내다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
   }
   inp.value=''; chatPush(name,'me',msg); renderChat(name);
   const log=document.getElementById('chatLog'); log.insertAdjacentHTML('beforeend','<div class="bub them typing" id="chatTyping">…</div>'); log.scrollTop=log.scrollHeight;
@@ -4386,7 +4388,7 @@ function readMessage(i){
   if(rs&&Math.random()<phoneCatchP()){
     G.inbox.splice(i,1); addDemerit(PHONE_DEMERIT,`${rs} 휴대폰 사용 적발`); G.phoneBan=G.day+':'+G.time;
     addLog('sys','📵 문자를 몰래 읽다 들켜 휴대폰을 압수당했습니다.');
-    return aiTurn('몰래 문자를 확인한다',`[휴대폰 압수] 플레이어가 ${rs}에 몰래 문자를 확인하다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
+    return aiTurn('몰래 문자를 확인한다',`[휴대폰 압수]${phoneSceneNote()} 플레이어가 ${rs}에 몰래 문자를 확인하다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
   }
   G.inbox.splice(i,1);
   const pb=document.getElementById('phoneBanner'); if(pb) pb.remove();
@@ -4427,7 +4429,7 @@ function phoneAct(name,kind){
   }
   const where=contactWhere(name), isY=name==='유민';
   if(caught){
-    return aiTurn(kind==='call'?`${name}에게 전화를 건다`:`${name}에게 문자를 보낸다`,`[휴대폰 압수] 플레이어가 ${rs}에 몰래 휴대폰을 꺼내다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 연락은 닿지 않았다. 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
+    return aiTurn(kind==='call'?`${name}에게 전화를 건다`:`${name}에게 문자를 보낸다`,`[휴대폰 압수]${phoneSceneNote()} 플레이어가 ${rs}에 몰래 휴대폰을 꺼내다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 연락은 닿지 않았다. 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
   }
   if(kind==='call'){ G.battery=Math.max(0,G.battery-1); tick() }
   G._yuminHere=false;
