@@ -788,6 +788,7 @@ function migrate(){
     if(!freshAff){ const tb=G._affLv===true?AFF_MIG.v1:AFF_MIG.raw; G.comp.aff=remapAff(G.comp.aff,tb); Object.keys(G.rel||{}).forEach(n=>{ G.rel[n].aff=remapAff(G.rel[n].aff,tb) }) }
     G._affLv=2;
   }
+  if(G.rival) rivalWire(G.rival);
   if(G.rival&&G.rival.lastDay==null) G.rival.lastDay=G.day;
   if(G.rival){ if(G.rival.stolen==null) G.rival.stolen=0; if(!G.rival.leader_st) G.rival.leader_st='well'; if(G.rival.campWins==null) G.rival.campWins=0 }
   if(G.xp==null){ G.xp=0; G.growth=0 }
@@ -4472,7 +4473,7 @@ function tripEvent(force){
     return aiTurn('한빛시 뒷길을 걷는다',`[길 위의 만남] ${where}에서 「${G.caravan.name}」이(가) 쉬어 가고 있다. 그들의 모습과 짧은 대화. 거래는 플레이어가 버튼으로 한다. effects는 0.`,false);
   }
   if(k==='rival'){
-    const R=G.rival, first=!R.known; R.known=true;
+    const R=G.rival, f0=rivalAct(), first=!f0.known; f0.known=true; R.known=true;
     addLog('sys',`🏴 길 위에서 적대 세력 「${R.name}」과(와) 마주쳤습니다`);
     fightStart('road');
     return aiTurn('한빛시 뒷길을 걷는다',`[길 위의 마주침 — 적대 세력] ${where}에서 「${R.name}」의 무리와 마주친다. ${first?`처음 보는 무리다. 우두머리는 ${R.leader}. 겉모습: ${R.look}.`:'전에 소문으로 들은 그 무리다.'} ${fragAtRisk()?'그들은 교표 조각을 빼앗으려는 악한 적대 세력이다. 플레이어가 가진 조각을 내놓으라고 협박하며 길을 막아서는 장면.':'그들은 라쿠나 구역과 학원도시가 숨긴 것을 노리는 악한 적대 세력이다. 교표는 이미 완성되었으므로 조각을 내놓으라는 요구는 하지 말고, 길을 막고 위협하며 시비를 거는 장면.'} 싸움이 막 벌어지려는 순간에서 멈추고 결말은 쓰지 말 것 — 대응(${fragAtRisk()?'싸우기·도망·흥정·조각 내주기':'싸우기·도망·흥정'})은 플레이어가 버튼으로 고른다. choices는 빈 배열 []. 그들의 숨은 목적(${R.motive})은 직접 말하지 말고 섬뜩한 말끝에 살짝 비치게만. 그들 가운데 이름 있는 인물이 플레이어와 말을 섞으면 relations에 넣어라. 공포·배터리·캐시 effects는 0.`,false);
@@ -4792,11 +4793,13 @@ on('fixed',10,L=>{
 function openHeart(){
   const d=G.dungeon, r=curRoom(); if(busy||!d||!d.big||!r||!r.heart||d.done) return;
   const hc=(G.cities||[]).find(x=>x.id===d.key);
-  if(hc&&!hc.found&&rivalOn()&&G.cities.filter(x=>!x.found).length===1){   // 마지막 도시 — 우두머리 결전
+  if(hc&&!hc.found&&rivalOn()&&G.cities.filter(x=>!x.found).length===1){   // 마지막 구역 — 우두머리 결전
+    rivalAct(G.rival.boss);
     fightStart('boss');
     return aiTurn('마지막 심장 앞으로 나아간다',`[결전 — 마지막 구역의 심장 앞] 「${d.name}」의 심장 앞에서 적대 세력 「${G.rival.name}」의 우두머리 ${G.rival.leader}이(가) 친위대와 함께 기다리고 있다${G.rival.leader_st==='hurt'?'(전에 입은 상처가 아직 낫지 않았다)':''}. 지금까지의 악연을 짚는 짧은 대치와, 그가 「${INTENTS_F[G.fight.intent].n}」 기색을 보이며 무기를 드는 순간에서 멈춰라 — 결말은 쓰지 말 것. choices는 빈 배열 [].`,false);
   }
   if(hc&&hc.rival&&rivalOn()){
+    rivalAct(hc.rivalF||0);
     fightStart('heart');
     return aiTurn('심장 앞으로 나아간다',`[전투 시작 — 심장 앞] 「${d.name}」의 심장 앞에 적대 세력 「${G.rival.name}」의 무리가 먼저 진을 치고 있다. 우두머리 ${G.rival.leader}의 수하들이 심장을 억지로 열려던 참이다. 그들이 플레이어를 발견하고 무기를 드는 순간에서 멈춰라 — 결말은 쓰지 말 것. choices는 빈 배열 [].`,false);
   }
@@ -4987,35 +4990,50 @@ function openCities(){
    - 소식은 구내식당·대상·유민의 노래로 들려옴
    ========================================================= */
 const RIVAL_START_DAY=3, RIVAL_PACE=[3,6], RIVAL_STEP=20, RIVAL_CITY_STEP=25, RIVAL_RACE_P=0.35, RIVAL_RACE_TURNS=12, RIVAL_FRAG_CAP=6;
-const RIVAL_FALLBACK=[
-  {name:'검은 낫의 교단',leader:'대사제 아즈라크',look:'검은 낫 문양을 이마에 새긴 사제들과 눈빛이 텅 빈 호위병들',motive:'학원도시가 숨긴 것으로 잠든 진을 깨워 한빛시 전체를 자기들의 신 앞에 엎드리게 하려 한다'},
-  {name:'재의 손',leader:'화상 자국의 카디르',look:'손에 잿빛 문신을 한 도굴꾼과 용병 무리. 지나간 자리에 불탄 흔적을 남긴다',motive:'자르한 왕조를 무너뜨린 자들의 후예로, 보물을 손에 넣어 한빛시의 도시들을 다시 불태우려 한다'},
-  {name:'먼지뱀 결사',leader:'가면의 여주인 샤라',look:'뱀 비늘 무늬 가면을 쓴 암살자와 밀수꾼들',motive:'교표 조각을 모두 빼앗아 보물의 길을 독점하고, 그 힘으로 대상로의 왕이 되려 한다'},
-];
-function rivalOn(){ return !!(G&&G.rival&&G.rival.name&&!G.rival.defeated) }
+/* 적대 세력은 둘: ① 재원생 자치위원회 규율부(학생 쪽) ② 시설관리공단 특수관리팀 '청소반'(어른 쪽).
+   진행도·소문·조각 수는 하나로 묶어 관리하고, 사건·마주침·전투마다 한쪽이 나선다.
+   G.rival.name / leader / look / motive 는 '지금 나선 쪽'(G.rival.a)을 가리킴 — rivalAct()로 정함 */
+const RIVAL_FACTIONS=[{k:'disc',name:'재원생 자치위원회 규율부'},{k:'clean',name:'시설관리공단 특수관리팀(청소반)'}];
+const RIVAL_FALLBACK={
+  disc:{leader:'규율부장',look:'완장을 찬 재원생들과 점호 명부를 든 감독 담당들',motive:'겉으로는 학원의 질서와 안전을 내세운다. 진짜 목적은 서서히 드러난다.'},
+  clean:{leader:'청소반장',look:'회색 작업복에 방호 마스크를 쓴 직원들과 무전기, 약품 냄새',motive:'겉으로는 노후 시설 정비를 내세운다. 진짜 목적은 서서히 드러난다.'},
+};
+function rivalAct(k){
+  const R=G&&G.rival; if(!R||!Array.isArray(R.factions)) return null;
+  if(k==null) k=Math.random()<0.5?0:1;
+  if(typeof k==='string') k=R.factions.findIndex(f=>f.k===k);
+  R.a=clamp(k<0?0:k,0,R.factions.length-1); return R.factions[R.a];
+}
+function rivalWire(R){   // name·leader·look·motive를 '지금 나선 쪽'으로 읽게 함 (저장되지 않으므로 불러올 때마다 다시 이음)
+  if(!R||!Array.isArray(R.factions)) return;
+  const d=Object.getOwnPropertyDescriptor(R,'name'); if(d&&d.get) return;
+  ['name','leader','look','motive'].forEach(p=>Object.defineProperty(R,p,{configurable:true,enumerable:false,get(){ const f=R.factions[R.a||0]||R.factions[0]; return f&&f[p] }}));
+}
+function rivalOn(){ return !!(G&&G.rival&&Array.isArray(G.rival.factions)&&!G.rival.defeated) }
 let rivalGenBusy=false;
 async function rivalEnsure(){
   if(!G||G.rival||rivalGenBusy) return;
   rivalGenBusy=true; const g=G;
-  const fb=rand(RIVAL_FALLBACK);
   let r=null;
   try{
     r=parseJSON(await callAI('너는 텍스트 탐험 게임의 세계관 설계자다. JSON만 출력한다.',
-`이 세계에서 플레이어보다 먼저 교표 조각을 탈취하고 라쿠나 구역과 학원도시가 숨긴 것을 차지하려는 악한 적대 세력 하나를 정하라. 목적을 위해 도굴·약탈·협박·살인도 서슴지 않는 위협적인 무리다(교단, 결사, 도굴꾼 군단 등). 이들은 앞으로 소문, 길 위의 마주침, 털린 구역으로 등장한다.
-숨겨진 진실(보물의 정체 — 탐험대가 정답을 알 필요는 없다): ${g.secret?.truth||''} / ${g.secret?.detail||''}
-구역 연혁: ${(g.ancient||ERA_FALLBACK).map(e=>`${e.name}(${e.fig})`).join(', ')}
-요구: 위협적으로 들리는 이름(10자 이내), 우두머리(호칭+이름), 섬뜩한 겉모습 한 문장, 숨은 동기 한 문장(보물로 이루려는 악한 목적 — 세계에 해가 되는 것). 플레이어 캐릭터·유민과 직접 엮지는 말 것.
-JSON만: {"name":"","leader":"","look":"","motive":""}`,500,'world'));
+`이 세계에서 플레이어보다 먼저 교표 조각을 손에 넣고 지워진 구역과 학원도시가 숨긴 것을 차지하려는 적대 세력은 둘이다: ① 재원생 자치위원회 규율부(학생 쪽 — 점호 단속과 벌점을 무기로 쓴다) ② 시설관리공단 특수관리팀, 통칭 '청소반'(어른 쪽 — 지워진 구역의 흔적을 지우고 조각을 회수한다). 이들은 앞으로 소문, 길 위의 마주침, 털린 구역으로 등장한다.
+숨겨진 진실(학원도시가 숨긴 것의 정체 — 두 세력이 정답을 알 필요는 없다): ${g.secret?.truth||'미정'} / ${g.secret?.detail||''}
+구역 연혁: ${(g.ancient||ERA_FALLBACK).map(e=>`${e.name}${e.fig?`(${e.fig})`:''}`).join(', ')}
+요구: 세력마다 우두머리(호칭+이름, 20세 이상 성인), 섬뜩하거나 위압적인 겉모습 한 문장, 동기 한 문장(겉으로 내세우는 명분과 진짜 의도가 엇갈려도 좋다 — 두 세력의 진짜 목적과 관계는 서서히 드러날 것이므로 여기서 다 밝히지 말 것). 플레이어 캐릭터·유민과 직접 엮지는 말 것.
+JSON만: {"disc":{"leader":"","look":"","motive":""},"clean":{"leader":"","look":"","motive":""}}`,700,'world'));
   }catch(e){}
   if(G!==g) { rivalGenBusy=false; return }
-  const x=(r&&r.name&&r.leader)?r:fb;
-  g.rival={name:String(x.name).slice(0,14),leader:String(x.leader||fb.leader).slice(0,20),look:String(x.look||fb.look),motive:String(x.motive||fb.motive),
+  const mk=(F)=>{ const fb=RIVAL_FALLBACK[F.k], x=(r&&r[F.k])||{}; return {k:F.k,name:F.name,leader:String(x.leader||fb.leader).slice(0,24),look:String(x.look||fb.look),motive:String(x.motive||fb.motive),known:false} };
+  g.rival={factions:RIVAL_FACTIONS.map(mk),a:0,boss:Math.random()<0.5?0:1,
     prog:0,lastDay:g.day,frags:0,stolen:0,cities:0,known:false,news:[],log:[],hostile:true,leader_st:'well',campWins:0};
+  rivalWire(g.rival);
   rivalGenBusy=false; save(); render();
 }
 /* 하루가 지날 때마다 (화면을 그릴 때 확인 — 여러 번 불려도 결과가 같음) */
 function rivalTick(){
   if(!G||!G.char) return;
+  if(G.rival) rivalWire(G.rival);
   if(!G.rival){ if(G.day>=RIVAL_START_DAY) rivalEnsure(); return }
   const R=G.rival; if(R.lastDay==null) R.lastDay=G.day;
   if(G.act>=4||R.defeated){ R.lastDay=G.day; return }
@@ -5036,10 +5054,10 @@ function rivalNews(text,chron){
   if(chron) G.chronicle.push({day:G.day,text:chron});
 }
 function rivalEvent(){
-  const R=G.rival;
+  const R=G.rival; rivalAct();
   if(G.act>=3&&G.cities){   // 3막: 아직 못 찾은 도시 하나에 먼저 닿음
     const c=G.cities.filter(x=>!x.found&&!x.rival); if(!c.length) return;
-    const t=rand(c); t.rival=G.day; R.cities++;
+    const t=rand(c); t.rival=G.day; t.rivalF=R.a; R.cities++;
     rivalNews(`「${R.name}」이(가) ${CITY_TYPES[t.terrain].n} 쪽으로 먼저 떠났다는 소문 — 출석부의 한 줄 "${t.riddle}"이 가리키는 곳`,`「${R.name}」이(가) ${CITY_TYPES[t.terrain].n}에 먼저 닿았다는 소문이 돌았다`);
     return;
   }
@@ -5061,38 +5079,39 @@ function rivalEvent(){
   }
   if(fragAtRisk()&&R.frags-(R.stolen||0)<RIVAL_FRAG_CAP&&Math.random()<0.5){
     R.frags++;   // 스스로 찾은 조각 (습격으로 되찾을 수 없음)
-    rivalNews(`「${R.name}」이(가) 어느 구역에서 푸른 별자리가 그려진 점토 조각을 손에 넣었다는 소문`,null);
+    rivalNews(`「${R.name}」이(가) 어느 구역에서 교표 조각을 손에 넣었다는 소문`,null);
     return;
   }
-  const near=rand(['중앙 캠퍼스 지구 남쪽','와하로 가는 길목','자르한 폐허 근처','먼지언덕 너머']);
-  rivalNews(`「${R.name}」이(가) ${near}의 작은 구역을 도굴하고 지나갔다`,null);
+  const near=rand(['중앙 캠퍼스 지구 남쪽','동부 저수지 공원 쪽 길목','재개발지구 폐건물 근처','고시촌 골목 너머']);
+  rivalNews(`「${R.name}」이(가) ${near}의 작은 구역을 뒤지고 지나갔다`,null);
 }
 /* 소식 전달: 구내식당·대상·유민 — 아직 안 들은 소식 하나를 이야기에 실음 */
 function rivalRumorText(){
   if(!rivalOn()) return '';
   const R=G.rival, n=R.news.find(x=>!x.heard);
-  const first=!R.known; R.known=true;
+  const f=rivalAct(); const first=!f.known; f.known=true; R.known=true;
   if(n) n.heard=true;
   const who=first?`처음 듣는 이름이다 — 「${R.name}」, 우두머리 ${R.leader}. 겉모습: ${R.look}. `:'';
-  return ` [적대 세력 소문] ${who}${n?`최근 소식: ${n.text}.`:`「${R.name}」의 최근 동향(어디서 보였는지, 무엇을 사들였는지 등)을 짧게.`} 이들은 사람들이 두려워하는 악한 무리다 — 소문을 전하는 이의 두려움이나 분노가 묻어나게. 숨은 목적은 직접 말하지 말고 엇갈린 추측 정도로만.`;
+  return ` [적대 세력 소문] ${who}${n?`최근 소식: ${n.text}.`:`「${R.name}」의 최근 동향(어디서 보였는지, 무엇을 사들였는지 등)을 짧게.`} 이들은 사람들이 꺼리고 두려워하는 무리다 — 소문을 전하는 이의 두려움이나 불만이 묻어나게. 숨은 목적은 직접 말하지 말고 엇갈린 추측 정도로만.`;
 }
 /* 교표 조각이 있는 새 구역에서 가끔 '경주' */
 function rivalRaceSetup(d){
   if(!rivalOn()||G.act>=2||!d||!d.rooms.some(r=>r.fragment)||Math.random()>=RIVAL_RACE_P) return;
-  d.rival={left:RIVAL_RACE_TURNS};
-  addLog('sys',`🏴 구역 입구에 부서진 봉인과 낯선 무리의 발자국이 있습니다. 적대 세력 「${G.rival.name}」이(가) 교표 조각을 노리고 와 있습니다 — 서두르세요`);
+  d.rival={left:RIVAL_RACE_TURNS,f:rivalAct().k};
+  addLog('sys',`🏴 구역 입구에 뜯긴 봉쇄 테이프와 낯선 무리의 발자국이 있습니다. 「${G.rival.name}」이(가) 교표 조각을 노리고 와 있습니다 — 서두르세요`);
 }
 on('before',26,T=>{
   const d=G.dungeon; if(!d||!d.rival||d.rival.done||G.loc!=='dungeon'||G.fight) return;   // 싸우는 동안은 경주 시계를 멈춤
+  rivalAct(d.rival.f);
   d.rival.left--;
-  if(d.rival.left===4) addLog('sys','🏴 깊은 곳에서 남의 발소리와 곡괭이 소리가 들립니다');
+  if(d.rival.left===4) addLog('sys','🏴 깊은 곳에서 남의 발소리와 공구 소리가 들립니다');
   if(d.rival.left<=0){
     d.rival.done=true;
     const real=d.rooms.find(r=>r.fragment&&!r.fragTaken);
     if(real){
       real.fragment=false; rivalSteal();
-      addLog('sys',`🏴 적대 세력 「${G.rival.name}」이(가) 이 구역의 교표 조각을 탈취해 갔습니다`);
-      G.chronicle.push({day:G.day,text:`「${d.name}」에서 적대 세력 「${G.rival.name}」에게 교표 조각을 빼앗겼다`});
+      addLog('sys',`🏴 「${G.rival.name}」이(가) 이 구역의 교표 조각을 탈취해 갔습니다`);
+      G.chronicle.push({day:G.day,text:`「${d.name}」에서 「${G.rival.name}」에게 교표 조각을 빼앗겼다`});
       T.extra+=`\n[적대 세력] 바로 지금, 「${G.rival.name}」의 무리가 이 구역 깊은 곳의 교표 조각을 탈취해 빠져나가는 기척이 있다. 플레이어가 그들을 얼핏 보게 하라(우두머리 ${G.rival.leader}일 수도 있다). 조각은 이미 그들 손에 있다 — effects의 교표조각은 false.`;
     }
   }
@@ -5100,18 +5119,18 @@ on('before',26,T=>{
 on('context',54,()=>{
   const d=G.dungeon; let s='';
   if(d&&(G.loc==='dungeon'||G.loc==='camp')){
-    if(d.rival&&!d.rival.done) s+=`\n[적대 세력] 「${G.rival.name}」이(가) 교표 조각을 노리고 이 구역 어딘가에 들어와 있다. 발자국, 억지로 부순 봉인, 쓰러진 짐꾼, 멀리서 들리는 목소리로 위협과 긴장을 주되 아직 정면으로 마주치지는 않는다.`;
+    if(d.rival) rivalAct(d.rival.f);
+    if(d.rival&&!d.rival.done) s+=`\n[적대 세력] 「${G.rival.name}」이(가) 교표 조각을 노리고 이 구역 어딘가에 들어와 있다. 발자국, 억지로 뜯은 봉쇄 테이프, 쓰러진 짐꾼, 멀리서 들리는 목소리로 위협과 긴장을 주되 아직 정면으로 마주치지는 않는다.`;
     if(d.raided) s+=`\n[털린 구역] 플레이어가 자리를 비운 사이 누군가 이 구역을 털어 갔다. 부서진 봉인, 흩어진 발자국, 비어 있는 받침대로 보여 줘라. 남은 유실물은 없다(materials.relic 0).`;
     const c=d.big&&(G.cities||[]).find(x=>x.id===d.key);
-    if(c&&c.rival) s+=`\n[적대 세력] 「${G.rival.name}」이(가) 이 도시에 먼저 들어와 있다. 그들이 마구 부수고 지나가며 깨운 함정과 수호자 때문에 곳곳이 더 위험하다. 그들의 임시 쉼터 흔적이나 낙오자를 등장시켜도 좋다. 심장은 아직 열리지 않았다.`;
+    if(c&&c.rival){ rivalAct(c.rivalF||0) } if(c&&c.rival) s+=`\n[적대 세력] 「${G.rival.name}」이(가) 이 구역에 먼저 들어와 있다. 그들이 마구 부수고 지나가며 깨운 함정과 수호자 때문에 곳곳이 더 위험하다. 그들의 임시 거처 흔적이나 낙오자를 등장시켜도 좋다. 심장은 아직 열리지 않았다.`;
   }
   return s;
 });
 on('facts',87,o=>{
   if(!rivalOn()||!G.rival.known) return;
-  const R=G.rival;
-  o.적대세력=`「${R.name}」 (우두머리 ${R.leader} — ${({well:'건재',hurt:'다친 상태',down:'쓰러짐'})[R.leader_st||'well']}. 우두머리는 결전 전까지 죽거나 붙잡히지 않는다 — 싸움에서 이겨도 그 자리에 없었거나 달아난다) — ${R.look}. 숨은 동기(직접 밝히지 말 것): ${R.motive}. 지금까지 알려진 것: ${R.log.slice(-3).map(x=>x.text).join(' / ')||'소문뿐'}`;
-});
+  const R=G.rival, st=({well:'건재',hurt:'다친 상태',down:'쓰러짐'})[R.leader_st||'well'];
+  o.적대세력=R.factions.map((f,i)=>`「${f.name}」${f.known?'':'(아직 플레이어는 모름)'} — 우두머리 ${f.leader}${i===R.boss?` (${st}. 결전 전까지 죽거나 붙잡히지 않는다 — 싸움에서 이겨도 그 자리에 없었거나 달아난다)`:''}. ${f.look}. 동기(직접 밝히지 말 것): ${f.motive}`).join(' / ')+` / 지금까지 알려진 것: ${R.log.slice(-3).map(x=>x.text).join(' / ')||'소문뿐'}. 두 세력의 진짜 목적과 관계는 서서히 드러낸다.`;
 
 /* ---------- 적대 세력과의 전투 ----------
    G.fight = {kind, foe, morale(적의 기세), max, danger(실패 시 피해), dc, intent(적의 다음 행동), yumin(노래를 썼나)}
@@ -5308,11 +5327,13 @@ on('fixed',12,L=>{
 });
 function fightRuin(){
   const d=G.dungeon; if(busy||!ruinFightReady()) return;
+  rivalAct(d.rival.f);
   fightStart('ruin'); tick();
   aiTurn(`「${G.rival.name}」의 발자국을 쫓는다`,`[전투 시작 — 구역 안] 플레이어가 발자국과 소리를 쫓아 「${G.rival.name}」의 무리를 따라잡는다. 그들이 교표 조각이 있는 깊은 곳으로 향하던 길목에서 마주 선다. 그들이 「${INTENTS_F[G.fight.intent].n}」 기색을 보이며 무기를 드는 순간에서 멈추고 결말은 쓰지 말 것. choices는 빈 배열 [].`,false);
 }
 async function raidCamp(){
   if(busy||!isTown()||!rivalOn()) return;
+  rivalAct();
   const n=travelNeed(FIGHT_CAMP_DAYS);
   if(!(await askConfirm(`「${G.rival.name}」의 임시 쉼터를 습격하러 갈까요?\n(가는 데 ${needText(n)} · 돌아오는 데도 ${FIGHT_CAMP_DAYS}일 · 어려운 싸움입니다)`,'습격한다'))) return;
   closeModal();
