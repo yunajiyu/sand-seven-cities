@@ -551,7 +551,7 @@ const STORE_CAPS={base:{food:15,water:10,torch:6},big:{food:25,water:16,torch:10
 
 /* ---------- 상점·가격 ---------- */
 const PRICE_TOWN={water:2,food:3,torch:5};       // 중앙 캠퍼스 지구·아지트
-const PRICE_ROAD={water:4,food:4,torch:7};       // 한빛시 뒷길·임시 쉼터·구역 (대상 상인)
+const PRICE_ROAD={water:4,food:4,torch:7};       // 한빛시 뒷길·임시 쉼터·구역 (이동 행상)
 const SHOP_GOODS=[['따뜻한 차 (공포 −1)','water',2],['보조배터리 충전 (배터리 +1)','food',3],['손전등 건전지','torch',5],['철제 부품','m_stone',10],['합판','m_wood',6],['전선 한 롤','m_cloth',6],['은반지 (선물용)','i_은반지',40]];
 const CAP_BASE=6, CAP_STEP=2;
 const CAP_PRICE={w:[30,60,100,150],f:[30,60,100,150],t:[30,60,100]};
@@ -1527,7 +1527,7 @@ const INTENTS=[
      let note=`${n}일이 지났다`;
      if(isWild()){
        for(let i=0;i<n;i++){
-         if(!mountNoWater()||i%2===1){ if(G.water>0) G.water--; else G.hp=Math.max(1,G.hp-1) }   // 먹인 전동 스쿠터: 물 절반 (이동과 같음)
+         if(!mountNoWater()||i%2===1){ if(G.water>0) G.water--; else G.hp=Math.max(1,G.hp-1) }   // 충전한 전동 스쿠터: 공포 누적 절반 (이동과 같음)
          if(G.food>0) G.food--; else G.hp=Math.max(1,G.hp-1);
        }
        note+=mountNoWater()?` (공포 +${Math.floor(n/2)} · 배터리 -${n})`:` (공포 +${n} · 배터리 -${n})`;
@@ -3035,7 +3035,7 @@ function openRuinJournal(){
 
 
 /* =========================================================
-   17. 한빛시의 상인 · 물이 있는 곳 (AI 서술의 사건 → 버튼)
+   17. 이동 행상 · 마음이 놓이는 곳 (AI 서술의 사건 → 버튼)
    ========================================================= */
 function rollCaravan(reason){
   if(!G||G.loc!=='road') return;
@@ -3501,7 +3501,7 @@ function yuminArcArm(prob){
   if(!nx||a.active||G.day<(a.cool||0)||yuminLv()<nx.lv||Math.random()>prob) return '';
   a.active={ch:a.ch,turns:0,setup:true};
   addLog('sys',`📖 유민의 사연 — 「${nx.n}」`);
-  return ` [유민의 사연 ${a.ch+1}장 「${nx.n}」 — 시작] ${nx.frame} 구체적인 사람·이름·장소·사건은 네가 정하되, 이미 밝혀진 유민의 과거와 프로필(할아버지는 이름이 크게 알려지지 않은 모험가, 나라의 배신, 16세부터 혼자)에 모순되지 않게. 본편(라쿠나 구역·보물·구역 연혁·적대 세력)과는 엮지 말 것 — 이것은 유민 개인의 이야기다. 이번 장면에서는 결말을 내지 말고 플레이어의 반응을 기다려라(effects.yumin_arc.result는 "pending"). 이번에 새로 드러난 과거 사실이 있으면 effects.yumin_arc.canon에 적어라. 선택지에 다가가는 말, 지켜보는 행동, 가볍게 넘기는 말을 섞어라.`;
+  return ` [유민의 사연 ${a.ch+1}장 「${nx.n}」 — 시작] ${nx.frame} 구체적인 사람·이름·장소·사건은 네가 정하되, 이미 밝혀진 유민의 과거와 프로필(할아버지는 이름이 크게 알려지지 않은 모험가, 당국의 배신, 16세부터 혼자)에 모순되지 않게. 본편(라쿠나 구역·보물·구역 연혁·적대 세력)과는 엮지 말 것 — 이것은 유민 개인의 이야기다. 이번 장면에서는 결말을 내지 말고 플레이어의 반응을 기다려라(effects.yumin_arc.result는 "pending"). 이번에 새로 드러난 과거 사실이 있으면 effects.yumin_arc.canon에 적어라. 선택지에 다가가는 말, 지켜보는 행동, 가볍게 넘기는 말을 섞어라.`;
 }
 function yuminArcText(){
   const a=G.comp&&G.comp.arc; if(!a||!a.active||a.active.setup) return '';
@@ -4202,7 +4202,7 @@ JSON만 출력: {"narration":"고쳐 쓴 서술","choices":["선택적"]}`,c.tok
 async function oocAsk(q){
   const g=G; busy=true; render();
   let out='';
-  try{ out=await callAI('너는 게임 「출석부에 없는 구역」의 이야기꾼이다. 지금은 게임 밖에서 플레이어(작가)의 질문에 답한다. 한국어로 간결하게(최대 6문장) 답하고, 이야기 속 비밀(보물의 정체 등)은 아직 모르는 사실로 두며, 확정 사실에 없는 것을 단정하지 말고 모르면 모른다고 한다.',`${oocContext()}\n\n[질문]\n${q}`,700,'story') }
+  try{ out=await callAI('너는 게임 「출석부에 없는 구역」의 이야기꾼이다. 지금은 게임 밖에서 플레이어(작가)의 질문에 답한다. 한국어로 간결하게(최대 6문장) 답하고, 이야기 속 비밀(학원도시가 숨긴 것의 정체 등)은 아직 모르는 사실로 두며, 확정 사실에 없는 것을 단정하지 말고 모르면 모른다고 한다.',`${oocContext()}\n\n[질문]\n${q}`,700,'story') }
   catch(e){ if(G===g) addLog('sys','OOC 답변 실패: '+(e&&e.message||e)) }
   if(G!==g){ busy=false; return }
   busy=false;
@@ -4292,7 +4292,7 @@ on('before',-10,T=>{
 });
 
 /* =========================================================
-   30. 중앙 캠퍼스 지구 밖의 지구 — 와하 · 천막들 · 자르한
+   30. 중앙 캠퍼스 지구 밖의 지구 — 동부 저수지 공원 · 고시촌 골목 · 재개발지구
    중앙 캠퍼스 지구 정문에서 '먼 이동하기'. 지구에서도 구역 조사를 떠날 수 있고, 조사 외출을 마치면 그 지구로 돌아옴
    ========================================================= */
 function curTown(){ return TOWNS[G.town]||TOWNS.east }
@@ -4310,8 +4310,8 @@ function returnBase(){
 /* =========================================================
    33. 이동 — 중앙 캠퍼스 지구 · 지구 · 선착장 · 라쿠나 구역 · 출석부가 가리키는 구역 사이의 모든 이동
    - 일수 = 지도 거리 ÷ DAY_DIST (반올림, 최소 1일)
-   - 하루마다 공포 +1·배터리 −1 (충전을 먹은 전동 스쿠터가 있으면 물은 절반) + 출발 때 탈것 충전 1회
-   - 이틀 이상 걸리는 육로에서는 가끔 길 위의 사건(대상 상인 · 유민 · 불량배) — 길 한가운데서 멈춤
+   - 하루마다 공포 +1·배터리 −1 (충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반) + 출발 때 탈것 충전 1회
+   - 이틀 이상 걸리는 육로에서는 가끔 길 위의 사건(이동 행상 · 유민 · 불량배) — 길 한가운데서 멈춤
    ========================================================= */
 function curPos(){ return G.loc==='town'?townPos(G.town):G.loc==='home'?HOME_POS:KASR }
 function curPlaceName(){ return G.loc==='town'?curTown().n:G.loc==='home'?(G.home.name||'아지트'):'중앙 캠퍼스 지구' }
@@ -4588,8 +4588,8 @@ on('applied',15,(e,{snap})=>{
    32. 2막 라쿠나 구역 · 3막 지워진 구역들
    1막: 교표 조각 FRAG_GOAL(8)개 → 라쿠나 구역 입구가 지도에
    2막: 라쿠나 구역(큰 구역) — 가장 깊은 「출석부 보관실」에서 출석부 해독(🎲 지혜)
-        → 나머지 여섯 도시의 자리가 지도에 ???로 (이름·사연은 그 순간 AI가 정함)
-   3막: 도시마다 지형에 맞는 준비를 하고 찾아가 「심장」을 열면 그 도시를 찾은 것
+        → 나머지 여섯 구역의 자리가 지도에 ???로 (이름·사연은 그 순간 AI가 정함)
+   3막: 구역마다 유형에 맞는 준비를 하고 찾아가 「심장」을 열면 그 구역을 찾은 것
         여섯 곳을 모두 찾으면 결말 장면
    ========================================================= */
 const VB={x:-40,y:-27,w:480,h:320};      // 지도에 보이는 범위 (바깥 외곽·저수지까지)
@@ -4732,7 +4732,7 @@ JSON만 출력:
   }
   const rooms=normRooms(d.rooms,12), start=rooms[0];
   const heart=[...rooms].sort((a,b)=>(b.lv||0)-(a.lv||0)||b.danger-a.danger)[0];
-  if(c&&c.rival) rooms.forEach(r=>{ if(r.lv>0) r.danger=Math.min(3,r.danger+1) });   // 적대 세력이 먼저 건드린 도시
+  if(c&&c.rival) rooms.forEach(r=>{ if(r.lv>0) r.danger=Math.min(3,r.danger+1) });   // 적대 세력이 먼저 건드린 구역
   heart.heart=true; heart.danger=Math.max(2,heart.danger);
   if(iram&&!/출석부/.test(heart.name)) heart.name='출석부 보관실';
   G.dungeon={big:true,key:sp.key,terrain:sp.terrain,name:iram?'라쿠나 구역':c.name,theme:d.theme||'',rooms,cur:start.id,depth:0,pos:sp.pos};
@@ -4956,8 +4956,8 @@ function openCities(){
    34. 적대 세력 — 날짜가 흐를수록 앞서 나가며 교표 조각을 탈취하려는 악한 무리
    - 정체·동기는 AI가 한 번 정함(플레이어에게는 소문으로만). 진행도는 코드가 관리
    - 하루가 지날 때마다 진행도 +RIVAL_PACE · RIVAL_STEP마다 사건 하나
-       1~2막: 중단한 구역을 털어 감(교표 조각·유실물) / 조각을 모아 감 / 근처 구역 도굴
-       3막:   출석부가 가리키는 구역 하나에 먼저 닿음 → 그 도시는 위험도 +1, 이야기에 그들이 등장
+       1~2막: 중단한 구역을 털어 감(교표 조각·유실물) / 조각을 모아 감 / 근처 폐구역을 뒤짐
+       3막:   출석부가 가리키는 구역 하나에 먼저 닿음 → 그 구역은 위험도 +1, 이야기에 그들이 등장
    - 교표 조각이 있는 새 구역에서는 가끔 그들과 '경주' — 늑장 부리면 조각을 빼앗김
    - 소식은 구내식당·대상·유민의 노래로 들려옴
    ========================================================= */
@@ -5027,7 +5027,7 @@ function rivalNews(text,chron){
 }
 function rivalEvent(){
   const R=G.rival; rivalAct();
-  if(G.act>=3&&G.cities){   // 3막: 아직 못 찾은 도시 하나에 먼저 닿음
+  if(G.act>=3&&G.cities){   // 3막: 아직 못 찾은 구역 하나에 먼저 닿음
     const c=G.cities.filter(x=>!x.found&&!x.rival); if(!c.length) return;
     const t=rand(c); t.rival=G.day; t.rivalF=R.a; R.cities++;
     rivalNews(`「${R.name}」이(가) ${CITY_TYPES[t.terrain].n} 쪽으로 먼저 떠났다는 소문 — 출석부의 한 줄 "${t.riddle}"이 가리키는 곳`,`「${R.name}」이(가) ${CITY_TYPES[t.terrain].n}에 먼저 닿았다는 소문이 돌았다`);
@@ -5107,7 +5107,7 @@ on('facts',87,o=>{
 
 /* ---------- 적대 세력과의 전투 ----------
    G.fight = {kind, foe, morale(적의 기세), max, danger(실패 시 피해), dc, intent(적의 다음 행동), yumin(노래를 썼나)}
-   kind: road(길 위) · ruin(구역 경주 중 막아서기) · camp(임시 쉼터 습격) · heart(3막 도시의 심장 앞) · boss(우두머리 결전)
+   kind: road(길 위) · ruin(구역 경주 중 막아서기) · camp(임시 쉼터 습격) · heart(3막 구역의 심장 앞) · boss(우두머리 결전)
    한 번의 버튼 = 한 합. 판정은 rollCheck(2d6+능력치) — 기본 피해는 rollCheck가 fight.danger로 계산
    - 부분 성공은 '서로 맞음': 기세 -1과 함께 반드시 다침
    - 적은 합마다 의도를 드러냄: 유리한 행동은 난이도 한 단계 쉬움, 불리한 행동은 성공하지 못하면 추가 피해
@@ -5294,7 +5294,7 @@ on('fixed',12,L=>{
   if(L==='dungeon'&&d&&d.rival&&!d.rival.done) return ruinFightReady()?`<button class="primary" onclick="fightRuin()">🏴 「${esc(G.rival.name)}」을(를) 막아선다</button>`:`<button disabled title="교표 조각이 있는 깊은 곳 가까이 가야 그들을 따라잡을 수 있습니다">🏴 그들의 발소리가 아직 멀다 (더 깊이 들어가야 함)</button>`;
   if(isTown()&&G.rival.known&&fragAtRisk()&&(G.rival.stolen||0)>0&&G.day>=(G.rival.raidCool||0)){
     const n=travelNeed(FIGHT_CAMP_DAYS);
-    return `<button onclick="raidCamp()">🏴 적대 세력 임시 쉼터 습격 (빼앗긴 조각 ${G.rival.stolen}개 · ${FIGHT_CAMP_DAYS}일 · 물 -${n.water} · 배터리 -${n.food})</button>`;
+    return `<button onclick="raidCamp()">🏴 적대 세력 임시 쉼터 습격 (빼앗긴 조각 ${G.rival.stolen}개 · ${FIGHT_CAMP_DAYS}일 · 공포 +${n.water} · 배터리 -${n.food})</button>`;
   }
   return '';
 });
@@ -5339,7 +5339,7 @@ on('effects',5,e=>{ if(!G.fight) return; ['hp','water','food','torch','gold'].fo
 on('context',55,()=>G.fight?`\n[전투 중] ${G.fight.foe}와(과) 싸우는 중이다(적의 기세 ${G.fight.morale}/${G.fight.max} · 적의 다음 의도: ${INTENTS_F[G.fight.intent].n}). 장소 이동·휴식·거래 서술 금지. 싸움의 결말은 코드가 정하므로 먼저 쓰지 말 것.`:'');
 
 /* ---------- 성장 — 경험을 쌓아 최대 체력·능력치를 올림 ----------
-   경험: 교표 조각(새로 얻을 때) +1 · 구역 끝까지 조사 +3 · 구역 사연을 다 밝힘 +1 · 전투 승리 +2~3(결전 +6) · 출석부 해독·도시의 심장 +4
+   경험: 교표 조각(새로 얻을 때) +1 · 구역 끝까지 조사 +3 · 구역 사연을 다 밝힘 +1 · 전투 승리 +2~3(결전 +6) · 출석부 해독·구역의 심장 +4
    GROW_XP마다 성장 포인트 1 → 최대 체력 +HP_GROW(1점) 또는 능력치 +1(STAT_GROW_COST점, 최대 STAT_MAX)
    능력치 '체력'을 올리면 최대 체력도 +2 (캐릭터를 만들 때의 규칙과 같음) */
 const GROW_XP=6, HP_GROW=3, STAT_GROW_COST=2, STAT_MAX=6;
@@ -5384,9 +5384,9 @@ function rivalSideHTML(){
 }
 
 /* =========================================================
-   36. 서쪽 땅 (3막부터 곁가지)
-   - 출석부를 해독하면(3막) 서쪽 먼 땅 8곳으로 가는 길이 열림. 이동은 다른 지구와 같은 규칙
-   - 땅마다 학원도시가 숨긴 것과 무관한 '그 땅만의 괴담'이 하나 — 🎲 판정으로 쫓고(하루 한 번), 성공하면 보상
+   36. 곁가지 구역 — 오러리 · 코덱스 (3막부터)
+   - 출석부를 해독하면(3막) 곁가지 구역(오러리·코덱스) 8곳으로 가는 길이 열림. 이동은 다른 지구와 같은 규칙
+   - 곳마다 학원도시가 숨긴 것과 무관한 '그 구역만의 괴담'이 하나 — 🎲 판정으로 쫓고(하루 한 번), 성공하면 보상
    - 보상 종류는 땅마다 다름: 고유 물건 · 칭호 · 탈것 · 동물 친구 · 아지트 장식. 모두 「곁가지 수집품」에 기록
    - 괴담의 내용·인물은 AI가 정함. 코드는 보상의 이름과 효과만 정함
    ========================================================= */
@@ -5667,7 +5667,7 @@ function renderNeed(){
   if(m&&G.mount){
     const tired=G._mountFed===false;
     const fx=tired?['지쳐서 효과 없음']:(m.noWater?['공포 누적 크게 느려짐 · 이동·귀환 때 공포 절반','쓰러져도 손실 감소','짐 운반',`휴대 용량 +${mountCap()}`]:['공포 누적 느려짐','짐 운반',`휴대 용량 +${mountCap()}`]);
-    h+=`<span class="nb" title="${tired?'다음 조사 외출에서 충전을 주면 회복':'탈것 보유 효과'}">🔦 <span class="${tired?'warn':'ok'}">${esc(G.mount.name)}: ${fx.join(' · ')}</span></span>`;
+    h+=`<span class="nb" title="${tired?'다음 조사 외출에서 충전을 주면 회복':'탈것 보유 효과'}">🚲 <span class="${tired?'warn':'ok'}">${esc(G.mount.name)}: ${fx.join(' · ')}</span></span>`;
   }
   el.innerHTML=h;
 }
@@ -6059,17 +6059,17 @@ function closeModal(){ document.getElementById('modalRoot').innerHTML=''; if(G) 
 function openChar(){
   const c=G.char;
   modal('캐릭터',`<h3 class="serif" style="margin-top:0">${esc(c.name)}</h3>
-    <p>${esc(c.origin)} · 고향 ${esc(c.region)}</p>
+    <p>${esc(c.origin)} · ${c.age||20}세${c.reason?` · 입소 이유 ${esc(c.reason)}`:''}</p>
     <p>체력 ${c.stats.str} · 지혜 ${c.stats.wis} · 매력 ${c.stats.cha} · 생존술 ${c.stats.sur}</p>
     <p>특성: ${c.traits.map(esc).join(', ')||'없음'}</p>
     <label>배경 이야기</label><textarea id="bioEdit" rows="4">${esc(c.bio)}</textarea>
     <div class="row" style="margin-top:8px"><button class="small" onclick="G.char.bio=document.getElementById('bioEdit').value;save();toast('저장했습니다')">배경 저장</button></div>`);
 }
 function openInv(){
-  modal('소지품',`<p>💧 물 ${G.water} · 🍞 배터리 ${G.food} · 🔥 손전등 ${G.torch} · 💳 캐시 ${G.gold}</p>
+  modal('소지품',`<p>😨 공포 ${fearNow()}/${fearMax()} · 🔋 배터리 ${batteryPct()}% · 🔦 손전등 ${G.torch} · 💳 캐시 ${G.gold} · 📕 벌점 ${G.demerit||0} · 🪪 출입 권한 ${G.access||1}등급</p>
     <p>교표 조각: ${G.fragments}/${FRAG_GOAL}</p>
     <p>자재: ${MATS.map(m=>`${m.i} ${m.n} ${G.mat[m.k]}`).join(' · ')}</p>
-    <ul>${G.mount?`<li><span class="chip">🔦 ${esc(G.mount.name)} (${MOUNTS[G.mount.type].n}${G._mountFed===false?' · 지침':''})</span></li>`:''}${G.items.map((i,n)=>`<li>${itemChipHTML(i,n)}</li>`).join('')||(G.mount?'':'<li class="muted">없음</li>')}</ul>`);
+    <ul>${G.mount?`<li><span class="chip">🚲 ${esc(G.mount.name)} (${MOUNTS[G.mount.type].n}${G._mountFed===false?' · 지침':''})</span></li>`:''}${G.items.map((i,n)=>`<li>${itemChipHTML(i,n)}</li>`).join('')||(G.mount?'':'<li class="muted">없음</li>')}</ul>`);
 }
 function openChron(){
   modal('연대기',`<p class="muted">중요한 사건 기록입니다. 하루가 지나면 그날의 기록이 한 줄 요약으로, 한 주·한 달이 지나면 더 크게 합쳐집니다. AI가 매번 이 기록을 참고합니다. 틀린 내용은 직접 고칠 수 있습니다.</p>
