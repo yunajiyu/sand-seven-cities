@@ -1578,6 +1578,23 @@ function destKey(n){
 }
 function validSpotName(n){ n=String(n||'').trim(); return n.length>=2&&n.length<=16&&!SPOT_STOP.test(n)&&!/(구역|라쿠나|한빛시|조사 외출|캠퍼스|아지트|선착장|공원|학원가|재개발)/.test(n) }
 /* 수업 칸에 교실을 벗어나면 땡땡이: 그 칸이 흘러가고 확률로 적발(벌점) */
+/* 소등 후(야간·새벽) 기숙사 밖으로 나가면 무단 이동: 그날 밤 처음 나갈 때 확률로 적발되어 기숙사로 돌려보내지고 벌점.
+   들키지 않으면 그날 밤은 자유롭게 다닐 수 있음 */
+const CURFEW_CATCH_P=0.4, CURFEW_CATCH_WARN=0.15, CURFEW_DEMERIT=2;
+function curfewCatchP(){ return Math.min(0.85,CURFEW_CATCH_P+((G.demerit||0)>=DEMERIT_WARN?CURFEW_CATCH_WARN:0)) }
+function curfewMove(k){
+  if(!G||G.loc!=='campus'||!isDarkTime()||k==='dorm'||G.sneakDay===G.day) return k;
+  const p=curfewCatchP();
+  if(Math.random()<p){
+    addDemerit(CURFEW_DEMERIT,'소등 후 무단 이동 적발');
+    addLog('sys','🌙 소등 후 기숙사를 빠져나가다 사감 선생님(또는 규율부 학생)에게 들켜 기숙사로 돌려보내졌습니다.');
+    pend(' [적발] 소등 후 몰래 나가다가 들켜 기숙사로 돌려보내졌고 벌점이 붙었다(벌점은 이미 반영되었으니 effects.벌점은 0). 사감 선생님의 꾸중으로 짧게 언급하라.');
+    return 'dorm';
+  }
+  G.sneakDay=G.day;
+  addLog('sys','🌙 소등 후 몰래 기숙사를 빠져나왔습니다. 오늘 밤은 들키지 않고 다닐 수 있습니다.');
+  return k;
+}
 function classLeaveEffect(toKey){
   const i=slotIdx();
   if(i<0||!CLASS_SLOTS.includes(i)||G.loc!=='campus'||curDistrict()!=='classroom'||spotOn()||toKey==='classroom') return;
@@ -1594,6 +1611,7 @@ function applyPlace(res){
   if(k){
     if(k===curDistrict()&&!spotOn()) return;
     classLeaveEffect(k);
+    const k0=k, kk=curfewMove(k0); if(kk!==k0){ G.spot=null; G.district=kk; G._yuminHere=false; return }
     G.spot=null; G.district=k; G._yuminHere=false;
     addLog('sys',`${DISTRICTS[k].ic} ${DISTRICTS[k].n}${josa(DISTRICTS[k].n,'으로','로')} 이동했습니다.`);
     if(G.comp&&G.comp.met&&!G.comp.joined&&G.comp.spot===k) addLog('sys','🎵 이곳에서 유민의 모습이 보입니다.');
@@ -1649,6 +1667,8 @@ const INTENTS=[
   {id:'sleep',confirm:true,label:sleepLabel,
    when:t=>IX.SLEEP.test(t)&&!IX.SLEEP_NEG.test(t)&&['campus','hood','home','road','site','shelter'].includes(G.loc)&&!(G.loc==='campus'&&G.time==='낮'),
    run:t=>{ addLog('action',t); addLog('sys','🌙 밤을 보내는 행동은 게임의 휴식 기능으로 처리되어 시간이 흐릅니다.'); G.choices=[]; sleepHere(); save(); render() }},
+  {id:'rollcall',when:t=>/점호(\s*시간)?(까지|이\s*될\s*때까지|를\s*기다|를\s*맞|가\s*될\s*때까지)/.test(t)&&G.loc==='campus'&&!RX.NEG.test(t),
+   run:t=>{ addLog('action',t); const why=rollCallBlock(); if(why) return toast(why); waitRollCall() }},
   {id:'wait',confirm:true,label:()=>'⏳ 시간 보내기 (날짜·공포·배터리가 계산됨)',
    when:t=>IX.WAIT.test(t),
    run:t=>{   // 시간만 처리하고 장면은 이야기로 계속
@@ -2191,6 +2211,7 @@ function enterCampus(first){
 }
 function goDistrict(k){
   if(busy||!G||G.loc!=='campus'||!DISTRICTS[k]||(curDistrict()===k&&!G.spot)) return;
+  k=curfewMove(k);
   G.spot=null; G.district=k; G._yuminHere=false; G.choices=[];
   addLog('sys',`${DISTRICTS[k].ic} ${DISTRICTS[k].n}${josa(DISTRICTS[k].n,'으로','로')} 이동했습니다.`);
   if(G.comp&&G.comp.met&&!G.comp.joined&&G.comp.spot===k) addLog('sys','🎵 이곳에서 유민의 모습이 보입니다.');
@@ -2212,9 +2233,10 @@ function campusFixedHTML(){
   else if(d==='office') a=`<button onclick="officeTalk()">🏢 담임 선생님과 면담</button>`;
   else if(d==='market') a=`<button onclick="openShop()">🛒 상점 (진정 음료·배터리·부품)</button><button onclick="strollMarket()">🚶 상점가 거닐기</button>`;
   else if(d==='canteen') a=`<button onclick="campusRumor()">🍚 식사하며 소문 듣기 (5)</button>`;
-  else if(d==='dorm') a=`<button onclick="campusRest()">🛏 기숙사에서 쉬기 (10)</button>`;
+  else if(d==='dorm') a=`<button onclick="dormTea()">🍵 휴게실에서 차 마시기 (공포 −1 · 오늘 ${3-dormSt().tea}번 남음)</button><button onclick="dormShower()">🚿 따뜻한 샤워 (공포 −2 · ${dormSt().shower?'오늘 사용함':'하루 1번'})</button><button onclick="campusRest()">🛏 기숙사에서 쉬기 (10)</button>`;
   else if(d==='gate') a=`<button class="primary" onclick="startExpedition()">🔦 구역 조사 떠나기</button><button onclick="openTravel()">🧭 다른 지구로 이동하기 (공원·학원가·재개발지구)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
   else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>` }
+  if(!sp&&G.time==='방과 후') a+=`<button class="primary" onclick="waitRollCall()">🔔 점호 시간까지 기다리기</button>`;
   a+=`<button onclick="openSchoolMap()">🏫 학교 지도</button><button onclick="openRel()">👥 인연</button>`;
   if(G.comp.met){
     if(G.comp.joined) a+=`<button onclick="talkYumin()">🎵 유민과 이야기</button>`;
@@ -2244,6 +2266,24 @@ function campusRumor(free){
   }else extra='[특별 지시] 급식실에서 근처 구역이나 위험, 규율부·청소반의 움직임, 수상한 인물에 대한 새로운 이야기를 듣는다.';
   if(rivalOn()&&(!unheard.length||G.rival.news.some(x=>!x.heard))) extra+=rivalRumorText();
   tick(); aiTurn(free?'급식실에서 점심 급식을 받아 자리에 앉는다':'급식실에서 식판을 들고 앉아 소문에 귀를 기울인다 (캐시 -5)',extra);
+}
+/* 기숙사 휴게실: 차 마시기(하루 3번, 공포 −1)·따뜻한 샤워(하루 1번, 공포 −2) */
+function dormSt(){ if(!G.dormDay||G.dormDay.day!==G.day) G.dormDay={day:G.day,tea:0,shower:0}; return G.dormDay }
+function dormTea(){
+  if(busy||spotBlock()) return;
+  const d=dormSt(); if(d.tea>=3) return toast('오늘은 휴게실 차를 3번 다 마셨습니다');
+  if(fearNow()<=0) return toast('공포가 이미 0입니다');
+  d.tea++; G.calm=Math.min(capW(),G.calm+1); G._yuminHere=false;
+  addLog('fx',`🍵 기숙사 휴게실에서 따뜻한 차를 마셨습니다 (공포 −1 → ${fearNow()} · 오늘 ${3-d.tea}번 남음)`);
+  tick(); aiTurn('기숙사 휴게실에서 차를 마신다','[휴게실 차] 기숙사 휴게실의 정수기와 티백, 김이 오르는 종이컵. 룸메이트나 다른 학생이 있어도 좋다. 짧고 따뜻한 장면. 공포 수치는 코드가 이미 반영했으니 effects는 0.');
+}
+function dormShower(){
+  if(busy||spotBlock()) return;
+  const d=dormSt(); if(d.shower>=1) return toast('오늘은 이미 샤워를 했습니다');
+  if(fearNow()<=0) return toast('공포가 이미 0입니다');
+  d.shower++; const v=Math.min(2,fearNow()); G.calm=Math.min(capW(),G.calm+v); G._yuminHere=false;
+  addLog('fx',`🚿 따뜻한 물로 샤워하며 마음을 가라앉혔습니다 (공포 −${v} → ${fearNow()})`);
+  tick(); aiTurn('기숙사 샤워실에서 씻는다','[샤워] 김 서린 샤워실, 쏟아지는 따뜻한 물, 하루의 긴장이 풀리는 느낌. 짧은 장면. 공포 수치는 코드가 이미 반영했으니 effects는 0.');
 }
 function campusRest(){
   if(busy||spotBlock()) return;
@@ -2532,6 +2572,22 @@ function schoolInfo(){
   const c=clsSt(), nx=SCHOOL[i+1]||'방과 후';
   const tt=CLASS_SLOTS.map((_,j)=>`${j+1}교시 ${subjectAt(j).n}`).join(' · ');
   return `🔔 지금: <b>${esc(slotLabel())}</b>${classActive()?` · 📚 수업 진행 ${classActive().n}/${CLASS_ACTIONS} (선택지·입력도 수업 행동으로 셈)`:''} · 다음: ${esc(nx)} · 오늘 시간표 ${esc(tt)} (출석 ${c.n}회${c.skip?` · 땡땡이 ${c.skip}회`:''}${c.absent?` · 결석 ${c.absent}회`:''})`;
+}
+/* 점호 시간까지 기다리기: 방과 후(수업이 끝난 뒤)에 야간(점호)이 될 때까지 시간을 보내고 기숙사 점호 장면으로 */
+function rollCallBlock(){
+  if(!G||G.loc!=='campus') return '점호 시간까지 기다리기는 학교(캠퍼스)에서만 할 수 있습니다';
+  if(G.time==='낮') return '수업 중에는 기다릴 수 없습니다. 종례가 끝난 뒤(방과 후)부터 가능합니다';
+  if(G.time!=='방과 후') return '이미 점호 시간이 지났습니다';
+  return '';
+}
+function waitRollCall(){
+  if(busy||spotBlock()) return;
+  const why=rollCallBlock(); if(why) return toast(why);
+  G._yuminHere=false;
+  let n=0; while(G.time==='방과 후'&&n++<10) tick();
+  G.spot=null; G.district='dorm'; G.choices=[];
+  addLog('sys',`🔔 점호 시간이 되었습니다. 기숙사로 돌아와 줄을 섭니다. (${G.day}일째 ${G.time})`);
+  aiTurn('점호 시간까지 기다린다','[점호] 방과 후 시간이 흘러 저녁 점호 시간이 되었다. 기숙사 복도에 줄을 서고 사감 선생님이 출석을 부르며 휴대폰을 걷는다. 학생들의 웅성거림과 점호가 끝난 뒤의 소등 분위기를 짧게. 방금 흘려보낸 방과 후 시간에 있었던 일상의 한두 장면을 가볍게 덧붙여도 좋다. 이후 밤에는 몰래 나가면 무단 외출이라는 긴장을 마지막 한 줄에.');
 }
 function homeroom(){
   if(busy||spotBlock()||slotIdx()!==0||!inClassroom()) return;
@@ -6650,6 +6706,9 @@ function openGuide(){
     ${row('🔎 특별실 둘러보기','도서관·음악실·가사실·과학실·방송실·미술실·자습실·컴퓨터실·옥상·운동장·체육관에서는 🔎 둘러보기로 곳곳을 살펴 단서(조사 보드, 가끔 교표 조각의 위치)를 얻을 수 있습니다(곳마다 확률이 다르고 하루 단서는 '+BROWSE_CLUE_LIMIT+'번까지). 🩹 보건실은 하루 한 번 체력 +2·공포 −1')}
     ${row('🔗 서술과 일과 맞추기','시간의 기준은 게임이고, 서술이 종소리로 수업 끝을 알리면(AI가 "칸종료"를 알리거나 서술에 수업 끝 종소리가 있으면) 게임도 수업을 끝내고 다음 칸으로 넘깁니다. 수업 시작 종소리 같은 표현은 끝으로 보지 않습니다')}
     ${row('🔔 칸이 끝날 때','수업·쉬는 시간 같은 칸이 끝나면 서술 뒤에 "🔔 1교시 수업이 끝났습니다 → 쉬는 시간"처럼 알림이 뜹니다')}
+    ${row('🔔 점호 시간까지 기다리기','종례가 끝난 방과 후에 캠퍼스에서 🔔 버튼(또는 "점호 시간까지 기다린다"라고 입력)을 누르면 야간이 될 때까지 시간을 보내고 기숙사 점호 장면으로 넘어갑니다. 낮(수업 중)에는 쓸 수 없습니다')}
+    ${row('🌙 소등 후 외출','야간·새벽(소등 후)에 기숙사 밖으로 나가면 그날 밤 처음 한 번 '+Math.round(CURFEW_CATCH_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(CURFEW_CATCH_WARN*100)+'%)로 들켜 기숙사로 돌려보내지고 벌점 +'+CURFEW_DEMERIT+'. 들키지 않으면 그날 밤은 자유롭게 다닐 수 있습니다. 구역 조사를 나가는 무단 외출 벌점은 따로 붙습니다')}
+    ${row('🍵 기숙사에서 공포 낮추기','기숙사에서는 휴게실 차 마시기(공포 −1, 하루 3번)와 따뜻한 샤워(공포 −2, 하루 1번)를 쓸 수 있고, 기숙사에서 쉬기(💳10)는 하룻밤을 보냅니다')}
     ${row('📋 전학 첫날','1일째 조례에서 「전학 인사하기」를 누르면 담임의 소개, 자기소개, 옆자리 유민과의 첫 만남이 이어집니다')}
     ${row('📚 수업 듣기',`시간표는 날짜로 정해져 미리 보입니다. 한 교시는 행동 ${CLASS_ACTIONS}번(수업 듣기 버튼이나, 수업 중 고른 선택지·입력 행동)이고 마지막 행동 뒤에 종이 울립니다. 교시마다 ${Math.round(CLASS_CLUE_P*100)}% 확률로 마지막 장면에서 단서(조사 보드, 가끔 교표 조각의 위치)를 얻고 성장 경험치 +1. 과목마다 단서의 성격이 다름 — 국어: 기록·문서, 수학: 숫자·좌표(조각 위치 단서가 잘 나옴), 영어: 구역 이름의 유래, 과학: 구역 환경, 한국사: 구역 연혁, 사회: 지도·위치(조각 위치 단서가 잘 나옴), 음악: 소리·방송, 체육 이론: 안전 수칙, 기술·가정: 건물 구조. 수업 칸에 수업을 듣지 않고 시간이 흐르는 다른 행동(둘러보기·거닐기·급식 등)을 하면 땡땡이로 처리되어 확률로 적발됩니다(칸당 한 번)`)}
     ${row('🏃 땡땡이치기',`수업 한 칸을 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}`)}
