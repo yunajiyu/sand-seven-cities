@@ -4338,7 +4338,7 @@ function returnBase(){
    33. 이동 — 중앙 캠퍼스 지구 · 마을 · 항구 · 라쿠나 구역 · 출석부가 가리키는 구역 사이의 모든 이동
    - 일수 = 지도 거리 ÷ DAY_DIST (반올림, 최소 1일)
    - 하루마다 공포 +1·배터리 −1 (충전을 먹은 전동 스쿠터가 있으면 물은 절반) + 출발 때 탈것 충전 1회
-   - 이틀 이상 걸리는 육로에서는 가끔 길 위의 사건(대상 상인 · 유민 · 도적) — 길 한가운데서 멈춤
+   - 이틀 이상 걸리는 육로에서는 가끔 길 위의 사건(대상 상인 · 유민 · 불량배) — 길 한가운데서 멈춤
    ========================================================= */
 function curPos(){ return G.loc==='town'?townPos(G.town):G.loc==='home'?HOME_POS:KASR }
 function curPlaceName(){ return G.loc==='town'?curTown().n:G.loc==='home'?(G.home.name||'아지트'):'중앙 캠퍼스 지구' }
@@ -4352,24 +4352,24 @@ function travelNeed(days){
 }
 /* 이동 도중·귀환길: 탈것은 떠날 때 이미 먹였음 — 충전 없이, 먹인 전동 스쿠터면 물 절반 */
 function travelNeedFed(days){ return {days,water:mountNoWater()?Math.floor(days/2):days,food:days,feed:0} }
-function needText(n){ return `${n.days}일 · 물 -${n.water} · 배터리 -${n.food}${n.feed?` · 충전 -${n.feed}`:''}` }
+function needText(n){ return `${n.days}일 · 공포 +${n.water} · 배터리 -${n.food}${n.feed?` · 충전 -${n.feed}`:''}` }
 /* 걸린 날만큼 소비. keepFed: 이동 도중(두 번째 구간)이라 탈것은 이미 먹였음. 모자라면 그만큼 체력 */
 function travelPay(n,keepFed){
   const m=mountDef();
   if(!keepFed){ G._mountFed=false; if(m&&n.feed){ G.food-=n.feed; G._mountFed=true } }
   const lack=Math.max(0,n.water-G.water)+Math.max(0,n.food-G.food);
   G.water=Math.max(0,G.water-n.water); G.food=Math.max(0,G.food-n.food);
-  if(lack){ G.hp=Math.max(1,G.hp-lack); addLog('fx',`목마름과 허기 속에 걸었습니다 (체력 -${lack})`) }
+  if(lack){ G.hp=Math.max(1,G.hp-lack); addLog('fx',`공포와 방전 속에 걸었습니다 (체력 -${lack})`) }
   G.day+=n.days; G.time='낮'; G.dayStep=0;
   G.dungeon=null; G._yuminHere=false; G.choices=[]; G.base=null;
-  return `물 -${n.water}, 배터리 -${n.food}${n.feed?`, 충전 -${n.feed}`:''}`;
+  return `공포 +${n.water}, 배터리 -${n.food}${n.feed?`, 충전 -${n.feed}`:''}`;
 }
 /* 지금 있는 곳에서 갈 수 있는 곳 */
 function tripDests(){
   const here=G.loc==='town'?G.town:G.loc==='city'||G.loc==='home'?'kasr':null, out=[];
-  if(here!=='kasr') out.push({kind:'kasr',key:'kasr',name:'중앙 캠퍼스 지구',ic:'🏙',pos:KASR,desc:'한빛시 교역로가 만나는 도시. 아지트가 가까이 있다.'});
+  if(here!=='kasr') out.push({kind:'kasr',key:'kasr',name:'중앙 캠퍼스 지구',ic:'🏙',pos:KASR,desc:'한빛 기숙학원과 상점가가 있는 생활 지구. 아지트가 가까이 있다.'});
   Object.entries(TOWNS).forEach(([id,t])=>{ if(id!==here&&townOpen(id)) out.push({kind:'town',key:id,name:t.n,ic:t.ic,pos:townPos(id),desc:t.desc,perk:t.perk}) });
-  if(G.actDone&&G.act<3) out.push({kind:'big',key:'iram',name:'라쿠나 구역',ic:'✨',pos:IRAM_POS,desc:'교표가 가리킨 괴담의 황금 도시. 큰 구역이다.'});
+  if(G.actDone&&G.act<3) out.push({kind:'big',key:'iram',name:'라쿠나 구역',ic:'✨',pos:IRAM_POS,desc:'출석부가 처음 가리킨, 저수지 아래 잠겼다 드러나는 지워진 구역. 큰 구역이다.'});
   return out;
 }
 function openTravel(){
@@ -4381,7 +4381,7 @@ function openTravel(){
       <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted">${needText(n)}${G.water<n.water||G.food<n.food+n.feed?' <b style="color:var(--danger)">· 모자람 (모자란 만큼 체력 감소)</b>':''}</span>
       <button class="small primary" ${busy?'disabled':''} onclick="${d.kind==='big'?`startBig('${d.key}')`:d.kind==='kasr'?'travelBack(true)':`travelTo('${d.key}')`}">떠나기</button></div></div>`;
   }).join('');
-  modal('🧭 이동하기',`<p class="muted">지금 있는 곳: <b>${curPlaceName()}</b>. 이동 일수는 지도 거리로 정해지고, 하루마다 공포가 1 쌓이고 배터리가 1 닳습니다(충전을 먹은 전동 스쿠터가 있으면 물은 절반). 이틀 이상 걸리는 길에서는 대상 상인·유민·도적을 만날 수도 있습니다. 아지트는 중앙 캠퍼스 지구 바로 옆입니다.</p>${rows}${G.act>=3?`<div class="row" style="margin-top:8px"><button class="small" onclick="openCities()">🗺 출석부가 가리키는 구역들 보기</button></div>`:''}`);
+  modal('🧭 이동하기',`<p class="muted">지금 있는 곳: <b>${curPlaceName()}</b>. 이동 일수는 지도 거리로 정해지고, 하루마다 공포가 1 쌓이고 배터리가 1 닳습니다(충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반). 이틀 이상 걸리는 길에서는 이동 행상·유민·불량배를 만날 수도 있습니다. 아지트는 중앙 캠퍼스 지구 바로 옆입니다.</p>${rows}${G.act>=3?`<div class="row" style="margin-top:8px"><button class="small" onclick="openCities()">🗺 출석부가 가리키는 구역들 보기</button></div>`:''}`);
 }
 /* 이동 시작: 사건이 생기면 길 한가운데(한빛시 뒷길)에서 멈추고, 아니면 바로 도착
    dest.kind: kasr · town · big · ruin(구역 조사)   dest.ret: 구역에서 돌아가는 길(조용히 도착)
@@ -4397,7 +4397,7 @@ function beginTrip(dest,days,opt){
   dest.base=dest.base!==undefined?dest.base:base;
   const cost=travelPay(n1,opt.keepFed);
   G.base=dest.kind==='ruin'?dest.base:dest.ret&&dest.kind==='town'?dest.key:null;   // 길에서 쓰러지면 돌아갈 곳
-  const how=dest.sea?'⛵ 바닷길로':'🔦 한빛시를 건너';
+  const how=dest.sea?'🚤 수로로':'🔦 뒷길을 건너';
   if(!ev){ addLog('sys',`${how} ${n.days}일 만에 ${dest.name}${dest.ret?josa(dest.name,'으로','로')+' 돌아왔습니다':'에 도착했습니다'}. (${cost})`); return arriveDest(dest) }
   G.trip={dest,left:n.days-first,water:n.water-n1.water,from,fromPos};
   G.loc='road'; G.nextPos=dest.ret?null:dest.pos;
@@ -4432,8 +4432,8 @@ function arriveTown(id){
   const first=!G.townVisited.includes(id); if(first) G.townVisited.push(id);
   if(first) G.chronicle.push({day:G.day,text:`처음으로 ${t.n}에 발을 들였다`});
   const reg=(MAP_PLACES.find(p=>p.id===id)||{}).region, r=G.rumors.find(x=>x.region===reg);
-  let extra=`[도착 장면] ${t.n}에 ${first?'처음 ':''}도착했다. ${t.desc} 이곳의 풍경·냄새·사람들을 그려라. 사람들의 말투와 풍습을 중앙 캠퍼스 지구와 다르게. 숫자 effects는 0.`;
-  if(r&&!G.heardRumors.includes(reg)){ G.heardRumors.push(reg); extra+=` 이곳 사람들이 믿는 보물 소문: "${r.belief}" — 누군가의 말로 자연스럽게 들려줘라.` }
+  let extra=`[도착 장면] ${t.n}에 ${first?'처음 ':''}도착했다. ${t.desc} 이곳의 풍경·소리·사람들을 그려라. 중앙 캠퍼스 지구와 분위기를 다르게. 숫자 effects는 0.`;
+  if(r&&!G.heardRumors.includes(reg)){ G.heardRumors.push(reg); extra+=` 이곳 사람들 사이에 도는 소문: "${r.belief}" — 누군가의 말로 자연스럽게 들려줘라.` }
   aiTurn(`${t.n}에 도착한다`,extra,false);
 }
 async function travelTo(id,skipConfirm){
@@ -4484,29 +4484,29 @@ function tripEvent(force){
     return aiTurn('한빛시 뒷길을 걷는다',`[길 위의 만남] ${where}에서 유민과 우연히 마주친다. 유민은 어디론가 가는 길이었다며 농담을 건넨다. 호감도 단계에 맞게.`,false);
   }
   t.bandit=true; sfx('bandit');
-  addLog('sys','🗡 도적 무리가 길을 막아섭니다! (아래 버튼으로 대응하세요)');
-  return aiTurn('한빛시 뒷길을 걷는다',`[도적] ${where}에서 도적 무리가 길을 막고 통행세를 요구한다. 위협적이지만 아직 싸움은 시작되지 않았다. 대응은 플레이어가 버튼으로 고른다(통행세 · 맞서기 · 따돌리기) — 결말을 쓰지 말고, choices는 빈 배열 []. effects는 0.`,false);
+  addLog('sys','🗡 불량배 무리가 길을 막아섭니다! (아래 버튼으로 대응하세요)');
+  return aiTurn('한빛시 뒷길을 걷는다',`[불량배] ${where}에서 불량배 무리가 길을 막고 통행세를 요구한다. 위협적이지만 아직 싸움은 시작되지 않았다. 대응은 플레이어가 버튼으로 고른다(통행세 · 맞서기 · 따돌리기) — 결말을 쓰지 말고, choices는 빈 배열 []. effects는 0.`,false);
 }
 function banditFee(){ return hasWest('westfort')?0:Math.max(10,Math.ceil(G.gold*0.2)) }
 function banditPay(){
   const t=G.trip; if(busy||!t||!t.bandit) return;
   const paid=Math.min(G.gold,banditFee()); G.gold-=paid; t.bandit=false;
-  if(hasWest('westfort')) return story('성채의 통행패를 내보인다',{storyOnly:true,extra:`\n[도적 — 통행패] 플레이어가 서쪽 성채의 통행패를 내보였다. 도적들은 성채와 얽히기 싫어 길을 비켜 준다(코드가 이미 처리). effects는 0.`});
-  addLog('fx',`💳 도적에게 통행세 -${paid}`);
-  story('도적에게 통행세를 내고 지나간다',{storyOnly:true,extra:`\n[도적 — 통행세] 플레이어가 캐시 ${paid}을 내주었다(코드가 이미 반영). 도적은 길을 비켜 준다. effects는 0.`});
+  if(hasWest('westfort')) return story('성채의 통행패를 내보인다',{storyOnly:true,extra:`\n[불량배 — 통행패] 플레이어가 서쪽 성채의 통행패를 내보였다. 불량배들은 성채와 얽히기 싫어 길을 비켜 준다(코드가 이미 처리). effects는 0.`});
+  addLog('fx',`💳 불량배에게 통행세 -${paid}`);
+  story('불량배에게 통행세를 내고 지나간다',{storyOnly:true,extra:`\n[불량배 — 통행세] 플레이어가 캐시 ${paid}을 내주었다(코드가 이미 반영). 불량배는 길을 비켜 준다. effects는 0.`});
 }
 function banditCheck(skill){
   const t=G.trip; if(busy||!t||!t.bandit) return;
-  const text=skill==='str'?'도적에게 맞서 싸운다':'도적을 따돌리고 먼지언덕 사이로 빠져나간다';
+  const text=skill==='str'?'불량배에게 맞서 싸운다':'불량배를 따돌리고 골목 사이로 빠져나간다';
   addLog('action',text);
   const note=rollCheck(skill,'normal',text), res=rollCheck.last;
   t.bandit=false;
-  let out=skill==='str'?'도적을 물리쳤다':'도적을 따돌렸다';
+  let out=skill==='str'?'불량배를 물리쳤다':'불량배를 따돌렸다';
   if(res==='fail'){
     if(skill==='str'){ const l=Math.ceil(G.gold*0.3); G.gold-=l; out=`싸움에 져서 캐시 ${l}을 빼앗겼다`; addLog('fx',`💳 빼앗김 -${l}`) }
-    else { G.water=Math.max(0,G.water-1); G.food=Math.max(0,G.food-1); t.left+=1; out='쫓기다 길을 잃어 하루가 더 걸리게 되었고 공포·배터리 1을 잃었다'; addLog('fx','길을 잃음: 물 -1 · 배터리 -1 · 하루 더') }
+    else { G.water=Math.max(0,G.water-1); G.food=Math.max(0,G.food-1); t.left+=1; out='쫓기다 길을 잃어 하루가 더 걸리게 되었고 공포가 1 쌓이고 배터리 1이 닳았다'; addLog('fx','길을 잃음: 공포 +1 · 배터리 -1 · 하루 더') }
   }
-  story(text,{storyOnly:true,checkHP:true,noActionLog:true,extra:note+` [도적 결과 — 코드가 이미 처리] ${out}. effects는 0.`});
+  story(text,{storyOnly:true,checkHP:true,noActionLog:true,extra:note+` [불량배 결과 — 코드가 이미 처리] ${out}. effects는 0.`});
 }
 function tripFixedHTML(){
   const t=G.trip, b=(on,txt,cls,dis)=>`<button ${cls?`class="${cls}"`:''} ${dis?'disabled':''} onclick="${on}">${txt}</button>`;
@@ -4517,23 +4517,23 @@ function tripFixedHTML(){
       +b("banditCheck('sur')",`🏃 따돌린다 <span class="cbadge ck">🎲 생존술 · 보통 · ${checkChance('sur','normal','')}%</span>`),mvLbl,ac:'',acLbl:''};
   }
   let ac='';
-  if(caravanHere()) ac+=b('openCaravan()',`🧭 대상 상인 (공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
+  if(caravanHere()) ac+=b('openCaravan()',`🧭 이동 행상 (진정 음료·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
   ac+=b('campHere()','⛺ 임시 쉼터');
   if(G.comp&&G.comp.met&&!G.comp.joined&&G._yuminHere) ac+=b('talkYumin()','🎵 유민에게 말 걸기');
   return {mv:b('continueTrip()',`🔦 ${t.dest.name}${josa(t.dest.name,'으로','로')} 계속 가기 (${t.left}일)`,'primary'),mvLbl,ac,acLbl:'🧭 행동'};
 }
 on('context',93,()=>{
-  if(G.trip) return `\n[이동 중] ${G.trip.from}에서 ${G.trip.dest.name}(으)로 가는 한빛시 뒷길 (남은 ${G.trip.left}일). 목적지에 도착하는 서술은 하지 말 것(계속 가는 것은 버튼으로).${G.trip.bandit?' 도적이 길을 막고 있다 — 대응은 플레이어가 버튼으로 한다.':''}`;
-  if(isTown()) return '\n[이동 규칙] 다른 도시·마을로 떠나거나 그곳에 도착하는 서술은 하지 말 것(이동은 게임이 처리한다).';
+  if(G.trip) return `\n[이동 중] ${G.trip.from}에서 ${G.trip.dest.name}(으)로 가는 한빛시 뒷길 (남은 ${G.trip.left}일). 목적지에 도착하는 서술은 하지 말 것(계속 가는 것은 버튼으로).${G.trip.bandit?' 불량배가 길을 막고 있다 — 대응은 플레이어가 버튼으로 한다.':''}`;
+  if(isTown()) return '\n[이동 규칙] 다른 지구로 떠나거나 그곳에 도착하는 서술은 하지 말 것(이동은 게임이 처리한다).';
   return '';
 });
 
 /* ---------- 글로 쓴 이동 ("자르한으로 간다") ---------- */
 const TRAVEL_VERB='(으로|로|에|를|을)?\\s*(간다|가자|가기로|가려|떠난|떠나|향한|향해|돌아간|돌아가|이동|이동|출발)';
-const TRAVEL_NAMES=[['kasr',/중앙 캠퍼스 지구/],['east',/와하/],['south',/천막/],['north',/자르한/],['westport',/서쪽\s*(만의\s*)?나루|서쪽\s*항구/],['eastport',/동쪽\s*(해안의\s*)?나루|동쪽\s*항구/],['iram',/라쿠나 구역/],
-  ['cities',/(섬의\s*도시|지하\s*도시|바위산\s*도시|마른\s*호수|출석부의\s*도시|섬으로)/],
-  ['hillcastle',/하르다|숲속\s*성/],['lighthouse',/등대/],['port',/푸른\s*만|포구/],['westfort',/서쪽\s*성채|성채\s*마을/],['woodvil',/숲길\s*마을/],['cliff',/절벽/],['swport',/남서\s*항구/],['palmgate',/야자\s*숲|돌문/],
-  ['far',/(서쪽\s*땅)/]];
+const TRAVEL_NAMES=[['kasr',/중앙 캠퍼스 지구/],['east',/동부\s*저수지|저수지\s*공원|공원/],['south',/고시촌/],['north',/재개발|신시가/],['westport',/서쪽\s*(저수지\s*)?선착장/],['eastport',/동쪽\s*(배수지\s*)?선착장/],['iram',/라쿠나 구역/],
+  ['cities',/(수몰\s*구역|배수\s*터널\s*구역|고지대\s*구역|안개\s*구역|출석부의\s*구역|보트로)/],
+  ['hillcastle',/대열람실/],['lighthouse',/천문대/],['port',/온실\s*정원/],['westfort',/서고\s*검문소|검문소/],['woodvil',/약초원/],['cliff',/옥상\s*서고/],['swport',/지하\s*반입구|반입구/],['palmgate',/온실\s*철문|철문/],
+  ['far',/(곁가지\s*구역|오러리|코덱스)/]];
 function travelTarget(t){
   const hit=([k,re])=>new RegExp(re.source+'[가-힣\\s]{0,8}'+TRAVEL_VERB).test(t);
   const found=(G.cities||[]).find(c=>c.found&&new RegExp(c.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'[가-힣\\s]{0,8}'+TRAVEL_VERB).test(t));
@@ -5391,7 +5391,7 @@ const WEST={
   hillcastle:{ic:'🏰',price:{water:3,food:3,torch:5},skill:'str',dc:'hard',act:'성의 기사들이 여는 시험에 나선다',
     kind:'칭호',reward:'먼지의 기사',ric:'🛡',eff:'최대 체력 +2'},
   westfort:{ic:'🏯',price:{water:2,food:3,torch:5},skill:'sur',dc:'normal',act:'성채 바깥 경계선의 옛 이야기를 쫓아 순찰에 따라나선다',
-    kind:'고유 물건',reward:'성채의 통행패',ric:'📜',eff:'길 위에서 도적을 만나면 통행패를 보여 통행세 없이 지나감'},
+    kind:'고유 물건',reward:'성채의 통행패',ric:'📜',eff:'길 위에서 불량배를 만나면 통행패를 보여 통행세 없이 지나감'},
   woodvil:{ic:'🌲',price:{water:2,food:2,torch:4},skill:'sur',dc:'normal',act:'나무꾼과 약초꾼이 피하는 깊은 숲길로 들어가 본다',
     kind:'탈것',reward:'숲의 말',ric:'🐎',eff:'자전거 보관대가 있으면 상점가에서 숲의 말을 들일 수 있음 — 이동 일수가 줄어듦'},
   cliff:{ic:'🗻',price:{water:3,food:3,torch:5},skill:'str',dc:'hard',act:'바다 절벽을 타고 요새의 무너진 아랫단으로 내려간다',
@@ -5460,7 +5460,7 @@ function westGrant(id){
 function westBonus(skill,text,add){
   if(!G||!G.west) return;
   if(hasWest('lighthouse')&&G.loc==='dungeon'&&G.torch<=0&&!hasTrait('밤눈')&&skill!=='cha') add(1,'등대지기의 렌즈');
-  if(hasWest('cliff')&&skill==='str'&&(G.fight||/(싸|공격|베|휘두|막아|맞서|찌르|때리|제압|도적)/.test(String(text||'')))) add(1,'한빛시 왕의 인장');
+  if(hasWest('cliff')&&skill==='str'&&(G.fight||/(싸|공격|베|휘두|막아|맞서|찌르|때리|제압|불량배)/.test(String(text||'')))) add(1,'한빛시 왕의 인장');
   if(skill==='cha'&&(G.pets||[]).some(p=>p.kind==='parrot'&&p.aff>=45)) add(1,'앵무새');
 }
 function seaFee(){ return hasWest('port')?Math.ceil(SEA_FEE/2):SEA_FEE }
@@ -5598,7 +5598,7 @@ function fixedHTML(){
     mvLbl='🧭 이동 (시간·자원이 정확히 계산됩니다)';
     mv=d?btn('reenterRuin()',`🏚 「${esc(d.name)}」 안으로 다시 들어가기`,'primary'):btn('continueRoad()','🔦 구역으로 계속 가기','primary');
     if(d) mv+=btn('returnToCity()',`↩ ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${returnRoute().days}일)`);
-    if(caravanHere()) ac+=btn('openCaravan()',`🧭 대상 상인 (공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
+    if(caravanHere()) ac+=btn('openCaravan()',`🧭 이동 행상 (진정 음료·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`);
     ac+=btn('campHere()','⛺ 임시 쉼터');
     if(G.comp&&G.comp.met&&!G.comp.joined&&G._yuminHere) ac+=btn('talkYumin()','🎵 유민에게 말 걸기');
   }else if(L==='camp'){
@@ -6202,7 +6202,7 @@ function openGuide(){
     ${h3('중앙 캠퍼스 지구 밖의 마을 (중앙 캠퍼스 지구 정문 → 🧭 먼 이동하기)')}
     ${Object.entries(TOWNS).filter(([id])=>townOpen(id)).map(([id,t])=>row(`${t.ic} ${t.n} <span class="muted">(중앙 캠퍼스 지구에서 ${townDays(id)}일)</span>`,`${t.perk}<br><span class="muted">물 💳${t.price.water} · 배터리 💳${t.price.food} · 손전등 💳${t.price.torch}</span>`)).join('')}
     ${row('가는 길',`일수는 지도 거리로 자동 계산(약 ${DAY_DIST}칸에 1일) · 하루마다 공포 +1·배터리 −1 (충전을 먹은 전동 스쿠터가 있으면 물은 절반, 모자라면 그만큼 체력 감소) · 마을끼리도 바로 오감 · 마을에서 떠난 조사 외출은 그 마을로 돌아옴 · 아지트는 중앙 캠퍼스 지구 바로 옆`)}
-    ${row('길 위의 사건',`이틀 이상 걸리는 육로에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🧭 대상 상인(거래) · 🎵 유민 · 🗡 도적(통행세 20% / ⚔ 체력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 하루 더·공포·배터리 -1)`)}
+    ${row('길 위의 사건',`이틀 이상 걸리는 육로에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🧭 대상 상인(거래) · 🎵 유민 · 🗡 불량배(통행세 20% / ⚔ 체력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 하루 더·공포·배터리 -1)`)}
     ${(G&&G.act>=3?row('서쪽 땅 🌲','3막부터 서쪽 땅 여덟 곳으로 이동할 수 있음(🧭 이동하기). 땅마다 📜 괴담 쫓기 — 하루 한 번 판정, 성공·부분 성공이면 보상(고유 물건·칭호·탈것·동물 친구·아지트 장식). 🗺 서쪽 수집품에 기록되고, 여덟 곳을 모두 모으면 칭호와 최대 체력 +1. 서쪽 땅에는 조사할 구역이 없어 구역 조사 버튼이 나타나지 않음'):'')}
     ${(G&&G.act>=3?row('항구 ⚓','출석부가 바다의 도시를 가리킨 뒤(3막) 서쪽 만·동쪽 해안 두 곳이 지도에 나타남. 섬으로 가는 배(💳'+seaFee()+')는 가까운 나루에서만'):'')}
     ${row('글로 쓴 이동','「자르한으로 간다」처럼 쓰면 이동 비용이 적힌 확인 칩이 뜸 · 아직 소문으로만 아는 곳은 갈 수 없음')}
@@ -6272,7 +6272,7 @@ function openGuide(){
     ${h3('소문의 장소')}
     ${row('📍 소문의 장소','이야기 속에서 새 장소와 가는 길을 알게 되면 지도에 ◇ 표식으로 나타나고 📍 소문의 장소 목록에 기록됩니다(최대 '+LEAD_MAX+'곳). 중앙 캠퍼스 지구 정문이나 마을에서 일반 조사 외출과 같은 비용으로 찾아가면 그 이름의 구역이 열립니다. 지도에 안 뜬 장소는 이름을 직접 적어 추가할 수 있고, "통곡의 회랑으로 간다"처럼 글로 써도 됩니다')}
     ${h3('효과음')}
-    ${row('🔊 효과음','버튼 누르기·판정(주사위와 결과)·구매와 판매·피해와 회복·교표 조각과 유실물 획득·성장·이동 출발과 도착·건설·전투 시작·승패·쓰러짐·임시 쉼터·식사·출석부 해독·도적 조우·결말·하루가 바뀔 때 짧은 소리가 남. 한 순간에 여러 소리가 겹치면 중요한 것 하나나 둘만 남. 상단의 🔊 버튼으로 끔 → 작게 → 보통 → 크게 (브라우저에 저장). 브라우저 규칙상 화면을 한 번 누르기 전에는 소리가 나지 않음')}`);
+    ${row('🔊 효과음','버튼 누르기·판정(주사위와 결과)·구매와 판매·피해와 회복·교표 조각과 유실물 획득·성장·이동 출발과 도착·건설·전투 시작·승패·쓰러짐·임시 쉼터·식사·출석부 해독·불량배 조우·결말·하루가 바뀔 때 짧은 소리가 남. 한 순간에 여러 소리가 겹치면 중요한 것 하나나 둘만 남. 상단의 🔊 버튼으로 끔 → 작게 → 보통 → 크게 (브라우저에 저장). 브라우저 규칙상 화면을 한 번 누르기 전에는 소리가 나지 않음')}`);
 }
 
 
