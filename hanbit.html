@@ -733,6 +733,8 @@ function placeNames(){ return Object.values(PLACES).map(p=>p.n).join('·') }
 const SK={str:'체력',wis:'지혜',cha:'매력',sur:'생존술'};
 const DCV={easy:7,normal:9,hard:11};
 const DCN={easy:'쉬움',normal:'보통',hard:'어려움'};
+/* 능력치가 높을수록 난이도 숫자도 오름: 능력치 7~8은 +1, 9~10은 +2 (기본 능력치는 6까지는 그대로) */
+const dcVal=(dc,skill)=>{ const st=(G&&G.char&&G.char.stats&&G.char.stats[skill])||0; return DCV[dc]+(st>6?Math.ceil((st-6)/2):0) };
 const CHOICE_TYPES=['story','check','rest','shelter','return','exit','trade'];
 
 /* ---------- 이동 행상 (한빛시 뒷길에서 가끔 만나는 상인) ---------- */
@@ -1628,7 +1630,7 @@ function curfewMove(k){
    성공: 조용히 들어감 / 부분 성공: 들어가지만 늦은 귀가로 벌점 +1 / 실패: 문이 잠겨 못 들어가고 벌점 +1(시간이 한 칸 흐름) */
 function dormEntry(){
   const dc=randDc();
-  addLog('fx',`🎯 소등 후 기숙사 출입 판정 — ${DCN[dc]} 난이도입니다 (${DCV[dc]})`);
+  addLog('fx',`🎯 소등 후 기숙사 출입 판정 — ${DCN[dc]} 난이도입니다 (${dcVal(dc,'sur')})`);
   const note=rollCheck('sur',dc,'소등 후 기숙사 출입');
   const res=rollCheck.last;
   if(res==='fail'){
@@ -1655,7 +1657,7 @@ function enterDormQuiet(){ G.spot=null; G.district='dorm'; G.dormLock=null; G._y
 function dormPlead(){
   if(busy||!dormLocked()) return;
   const dc=randDc();
-  addLog('fx',`🎯 사감 선생님께 사정하기 — ${DCN[dc]} 난이도입니다 (${DCV[dc]})`);
+  addLog('fx',`🎯 사감 선생님께 사정하기 — ${DCN[dc]} 난이도입니다 (${dcVal(dc,'cha')})`);
   const note=rollCheck('cha',dc,'사감 선생님께 소등 후 기숙사 출입을 사정한다'), res=rollCheck.last;
   let extra=note;
   if(res==='fail'){
@@ -1816,7 +1818,7 @@ function diceChance(){
   const sk=(document.getElementById('fdSkill')||{}).value||'', p=document.getElementById('fdP'); if(!p) return;
   if(!SK[sk]){ p.textContent=sk==='none'?'판정 없이 이야기로 진행':'행동에 따라 자동으로 판정을 제안합니다'; return }
   const t=(document.getElementById('freeInput')||{}).value||'', dc=curDc();
-  p.textContent=`🎯 이번 판정은 ${DCN[dc]} 난이도입니다 (${DCV[dc]}) — 성공 확률 약 ${checkChance(sk,dc,t)}%`;
+  p.textContent=`🎯 이번 판정은 ${DCN[dc]} 난이도입니다 (${dcVal(dc,sk)}) — 성공 확률 약 ${checkChance(sk,dc,t)}%`;
 }
 on('render',50,()=>renderDice());
 function pickChoice(i){
@@ -1908,7 +1910,7 @@ function showCheckChip(t,ck){
     <button class="small primary" onclick="intentCheck()">🎲 판정하고 진행</button>
     <button class="small" onclick="intentRun()">판정 없이 진행</button>
     <button class="small" onclick="intentCancel()">취소</button>`);
-  const upd=()=>{ const p=document.getElementById('ckP'); if(!p) return; const k=document.getElementById('ckS').value, dc=curDc(); p.textContent=`🎯 이번 판정은 ${DCN[dc]} 난이도입니다 (${DCV[dc]}) — 성공 확률 약 ${checkChance(k,dc,t)}%` };
+  const upd=()=>{ const p=document.getElementById('ckP'); if(!p) return; const k=document.getElementById('ckS').value, dc=curDc(); p.textContent=`🎯 이번 판정은 ${DCN[dc]} 난이도입니다 (${dcVal(dc,k)}) — 성공 확률 약 ${checkChance(k,dc,t)}%` };
   if(d){ d.querySelectorAll('select').forEach(s=>s.onchange=upd); upd() }
 }
 function intentRun(){ const t=chipText; hideChip(); chipText=''; if(t) act(t,{src:'free',confirmed:true}) }
@@ -1952,13 +1954,13 @@ function checkBonus(skill,text){
   return {b,parts};
 }
 function checkChance(skill,dc,text){
-  const need=DCV[dc]-(G.char.stats[skill]||0)-checkBonus(skill,text).b; let n=0;
+  const need=dcVal(dc,skill)-(G.char.stats[skill]||0)-checkBonus(skill,text).b; let n=0;
   for(let a=1;a<=6;a++) for(let c=1;c<=6;c++) if(a+c>=need) n++;
   return Math.round(n/36*100);
 }
 function rollCheck(skill,dc,text){
   const d=()=>1+Math.floor(Math.random()*6);
-  const st=G.char.stats[skill]||0, bo=checkBonus(skill,text), DC=DCV[dc];
+  const st=G.char.stats[skill]||0, bo=checkBonus(skill,text), DC=dcVal(dc,skill);
   let a=d(), c=d(), tot=a+c+st+bo.b, rr='';
   if(tot<DC-2&&hasTrait('묘한 운')&&G._jinDay!==G.day){ G._jinDay=G.day; const a2=d(),c2=d(); rr=` → ✨ 묘한 운로 다시 굴림 ${a2}+${c2}`; a=a2; c=c2; tot=a+c+st+bo.b }
   const res=tot>=DC?'success':tot>=DC-2?'partial':'fail';
@@ -1993,7 +1995,7 @@ function curDc(){ if(!_pendDc) _pendDc=randDc(); return _pendDc }
 function doCheck(text,skill,dc,src){
   if(busy||!G) return;
   dc=(src==='free'&&_pendDc)?_pendDc:randDc(); _pendDc=null;
-  addLog('fx',`🎯 이번 판정은 ${DCN[dc]} 난이도입니다 (${DCV[dc]})`);
+  addLog('fx',`🎯 이번 판정은 ${DCN[dc]} 난이도입니다 (${dcVal(dc,skill)})`);
   addLog('action',text);
   story(text,{src:src||'free',extra:rollCheck(skill,dc,text),checkHP:true,noActionLog:true});
 }
@@ -6473,7 +6475,7 @@ on('context',55,()=>G.fight?`\n[전투 중] ${G.fight.foe}와(과) 싸우는 중
    경험: 교표 조각(새로 얻을 때) +1 · 구역 끝까지 조사 +3 · 구역 사연을 다 밝힘 +1 · 전투 승리 +2~3(결전 +6) · 출석부 해독·구역의 심장 +4
    GROW_XP마다 성장 포인트 1 → 최대 체력 +HP_GROW(1점) 또는 능력치 +1(STAT_GROW_COST점, 최대 STAT_MAX)
    능력치 '체력'을 올리면 최대 체력도 +2 (캐릭터를 만들 때의 규칙과 같음) */
-const GROW_XP=6, HP_GROW=3, STAT_GROW_COST=2, STAT_MAX=6;
+const GROW_XP=6, HP_GROW=3, STAT_GROW_COST=2, STAT_MAX=10;
 function gainXp(n,why){
   if(!G||n<=0) return;
   const before=Math.floor((G.xp||0)/GROW_XP);
@@ -7406,7 +7408,7 @@ function openGuide(){
     ${row('소식','급식실 소문 · 행상과의 대화 · 유민의 노래 · 길 위의 만남')}
     ${h3('성장')}
     ${row('🌟 경험',`교표 조각을 새로 얻을 때 +1 · 구역 끝까지 조사 +3 · 구역의 사연을 다 밝힘 +1 · 전투 승리 +2~3 (결전 +6) · 출석부 해독·구역의 심장 +4`)}
-    ${row('성장 포인트',`경험 ${GROW_XP}마다 1점 → 최대 체력 +${HP_GROW} (1점) 또는 능력치 +1 (${STAT_GROW_COST}점, 최대 ${STAT_MAX}). 능력치 '체력'을 올리면 최대 체력도 +2`)}
+    ${row('성장 포인트',`경험 ${GROW_XP}마다 1점 → 최대 체력 +${HP_GROW} (1점) 또는 능력치 +1 (${STAT_GROW_COST}점, 최대 ${STAT_MAX}). 능력치 '체력'을 올리면 최대 체력도 +2. 능력치가 7 이상이면 그 능력치로 하는 판정의 난이도 숫자가 올라갑니다(7~8은 +1, 9~10은 +2)`)}
     ${h3('적대 세력과의 전투')}
     ${row('한 합씩',`버튼으로 한 번씩 맞섭니다. 적의 기세가 0이 되면 이기고, 내 체력이 0이 되면 집니다. 싸우는 동안은 되돌리기를 쓸 수 없습니다`)}
     ${row('적의 의도',`합마다 적이 다음 행동을 드러냅니다 — 👍 유리한 행동은 난이도가 한 단계 쉬워지고, ⚠ 불리한 행동은 성공하지 못하면 체력 -${FIGHT_PUNISH}. 「💎 조각을 노린다」일 때 밀어내지 못하면 조각 하나를 빼앗깁니다`)}
