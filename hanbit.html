@@ -4109,14 +4109,14 @@ function apptWhen(t){
   t=String(t||''); const o=apptOrd(), d=G.day, tom=/내일|다음\s*날|이튿날/.test(t);
   const base=tom?(d+1)*20:d*20;
   let x=null;
-  if(/점심|급식/.test(t)) x=base+4;
+  if(/점심/.test(t)) x=base+4;   // '급식실' 같은 장소 이름은 때로 보지 않음
   else if(/쉬는\s*시간|쉬는시간/.test(t)) x=tom?base+2:(G.time==='낮'&&slotIdx()<2?d*20+2:d*20+6);
   else if(/조례|아침|등교/.test(t)) x=tom||(G.time!=='낮')?(tom?base:(d+1)*20):null;
   else if(/방과\s*후|종례|수업\s*(?:끝|마치)|끝나고|하교/.test(t)) x=base+10;
   else if(/저녁|밤|야간|소등|점호/.test(t)) x=base+11;
   else if(/새벽/.test(t)) x=base+12;
   else if(tom) x=base+10;
-  if(x==null||x<=o) x=apptNextOrd();   // 이따·곧·때 불명 → 다음 시간 칸
+  if(x==null||x<o) x=apptNextOrd();   // 이따·곧·때 불명, 이미 지난 때 → 다음 시간 칸. 지금 칸을 말하면(방과 후에 '방과 후에 보자') 바로 그 칸
   return x;
 }
 function apptWhenText(x){ const d=Math.floor(x/20), r=x%20; const dd=d===G.day?'':(d===G.day+1?'내일 ':d+'일째 '); return dd+(r<=8?SCHOOL[r]:r===10?'방과 후':r===11?'야간':'새벽') }
@@ -4137,21 +4137,23 @@ function setAppt(name,place,whenT,silent){
   if(!G||!name||!apptKnown(name)||(name==='유민'&&G.comp.joined)) return false;
   const w=apptPlaceKey(place); if(!w||!apptRunnable(name,w)) return false;
   if(!Array.isArray(G.appts)) G.appts=[];
+  const ord=apptWhen(whenT), old=G.appts.find(a=>a.name===name);
+  if(old&&old.where===w&&old.ord===ord) return true;   // 같은 약속을 다시 인식해도 새로 만들지 않음(로그 중복 방지)
   G.appts=G.appts.filter(a=>a.name!==name);
-  const a={name,where:w,ord:apptWhen(whenT),arrived:false,met:false}; G.appts.push(a);
+  const a={name,where:w,ord,arrived:false,met:false}; G.appts.push(a);
   if(!silent) addLog('sys',`📌 약속: ${apptText(a)}`);
   return true;
 }
 function apptNames(t){ return relList().filter(n=>n.length>=2&&t.includes(n)).slice(0,2) }
 /* 글에서 약속 찾기(AI 필드가 없을 때의 보조): 한 문장 안에 사람 이름 + 장소 + 만나자는 표현 + 때가 모두 있어야 함 */
 const APPT_CUE=/(보자|만나자|만나기로|만나요|만날까|만나러|기다릴게|기다릴 테니|모이자|모일게)/, APPT_TIME=/(방과\s*후|종례|점심|쉬는\s*시간|저녁|밤|아침|조례|내일|이따|나중에|수업\s*끝)/;
-function apptParse(t){
+function apptParse(t,force){
   t=String(t||''); const out=[];
   const ss=t.split(/[.!?。\n]+|["”“]/).map(x=>x.trim()).filter(Boolean);
   ss.forEach((sen,i)=>{
     if(!APPT_CUE.test(sen)||!APPT_TIME.test(sen)||!apptPlaceKey(sen)) return;
     const ctx=(i>0?ss[i-1]+' ':'')+sen;   // 대사는 앞 문장에 누가 말하는지가 나옴
-    apptNames(ctx).forEach(n=>out.push({name:n,place:sen,when:sen}));
+    (force?[force]:apptNames(ctx)).forEach(n=>out.push({name:n,place:sen,when:sen}));
   });
   return out;
 }
@@ -4355,7 +4357,7 @@ async function chatAI(name,incomingTopic,rumor){
 function chatAppt(name,msg,o){
   if(!G||!G.comp) return;
   if(o.appt&&o.appt.place&&setAppt(name,o.appt.place,o.appt.when)) return;
-  apptParse(name+' '+msg+' '+o.reply).forEach(f=>{ if(f.name===name) setAppt(name,f.place,f.when) });
+  apptParse(msg+'. '+o.reply,name).forEach(f=>setAppt(name,f.place,f.when));   // 문자 상대가 곧 약속 상대
 }
 function renderChat(name){
   const log=document.getElementById('chatLog'); if(!log) return;
