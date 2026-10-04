@@ -5320,7 +5320,7 @@ function oocBlock(){
   return s;
 }
 on('after',95,()=>{ if(G.oocOnce&&G.oocOnce.length){ G.oocOnce=[]; oocRefresh() } });
-function oocLastScene(){ for(let i=G.log.length-1;i>=0;i--) if(G.log[i].type==='scene') return {i,text:G.log[i].text}; return null }
+function oocLastScene(){ for(let i=G.log.length-1;i>=0;i--) if(G.log[i].type==='scene') return {i,entry:G.log[i],text:G.log[i].text}; return null }   // 로그가 120줄로 잘려 번호가 밀려도 되도록 항목 자체를 잡아 둠
 function oocContext(){
   return `[확정 사실]\n${JSON.stringify(stateFacts(),null,1)}\n\n[줄거리 요약]\n${G.summary||'(없음)'}\n\n[최근 장면]\n${G.recent.slice(-4).map(r=>(r.role==='action'?'플레이어: ':'서술: ')+r.text).join('\n')||'(없음)'}\n\n[현재 상황]\n${sceneContext()}`;
 }
@@ -5348,17 +5348,19 @@ JSON만 출력: {"narration":"고쳐 쓴 서술","choices":["선택적"]}`,c.tok
     res=parseJSON(raw);
   }catch(e){ if(G===g) addLog('sys','OOC 수정 실패: '+(e&&e.message||e)) }
   if(G!==g){ busy=false; return }
-  let text=res&&res.narration?fixCalling(String(res.narration).trim()):'';
-  if(!text&&raw&&!/^\s*[{\[]/.test(raw)) text=raw.trim();
-  G.log=G.log.filter(l=>!(l.type==='sys'&&/작가 지시로 방금 장면을 고쳐 쓰는 중/.test(l.text)));
-  if(!text){ busy=false; addLog('sys','수정본을 받지 못해 원래 장면을 그대로 둡니다.'); renderLogAll(); save(); render(); return }
-  undoSnap=stableSnap||snapG(); undoLabel='OOC 장면 수정'; persistUndo();
-  G.log[last.i].text=text;
-  for(let i=G.recent.length-1;i>=0;i--) if(G.recent[i].role==='scene'){ G.recent[i].text=text; break }
-  if(Array.isArray(res&&res.choices)&&res.choices.length){ G.choices=res.choices.map(c=>typeof c==='string'?c:String(c&&c.text||'')).filter(Boolean).slice(0,4); G.choiceMeta={} }
-  addLog('sys','✍ 방금 장면을 작가 지시에 맞게 고쳐 썼습니다. (되돌리기 ↩ 가능)');
-  renderLogAll();
-  busy=false; save(); render();
+  try{
+    let text=res&&res.narration?fixCalling(String(res.narration).trim()):'';
+    if(!text&&raw&&!/^\s*[{\[]/.test(raw)) text=raw.trim();
+    G.log=G.log.filter(l=>!(l.type==='sys'&&/작가 지시로 방금 장면을 고쳐 쓰는 중/.test(l.text)));
+    if(!text){ addLog('sys','수정본을 받지 못해 원래 장면을 그대로 둡니다.'); renderLogAll(); return }
+    undoSnap=stableSnap||snapG(); undoLabel='OOC 장면 수정'; persistUndo();
+    last.entry.text=text;
+    for(let i=G.recent.length-1;i>=0;i--) if(G.recent[i].role==='scene'){ G.recent[i].text=text; break }
+    if(Array.isArray(res&&res.choices)&&res.choices.length){ G.choices=res.choices.map(c=>typeof c==='string'?c:String(c&&c.text||'')).filter(Boolean).slice(0,4); G.choiceMeta={} }
+    addLog('sys','✍ 방금 장면을 작가 지시에 맞게 고쳐 썼습니다. (되돌리기 ↩ 가능)');
+    renderLogAll();
+  }catch(e){ console.warn(e); try{ addLog('sys','OOC 수정 중 오류가 나서 원래 장면을 그대로 둡니다: '+(e&&e.message||e)) }catch(_){} }
+  finally{ busy=false; save(); render() }
 }
 async function oocAsk(q){
   const g=G; busy=true; render();
@@ -5367,7 +5369,7 @@ async function oocAsk(q){
   catch(e){ if(G===g) addLog('sys','OOC 답변 실패: '+(e&&e.message||e)) }
   if(G!==g){ busy=false; return }
   busy=false;
-  if(out&&out.trim()) addLog('sys','💬 OOC 답변: '+out.trim());
+  try{ if(out&&out.trim()) addLog('sys','💬 OOC 답변: '+out.trim()) }catch(e){ console.warn(e) }
   save(); render();
 }
 function oocSend(){
