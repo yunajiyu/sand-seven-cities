@@ -2397,6 +2397,7 @@ function campusFixedHTML(){
   if(dormLocked()) a=`<button class="primary" onclick="dormPlead()">🙏 사감 선생님께 사정하기 (매력 판정)</button>`+(G.comp.met&&!G.comp.joined?`<button class="primary" onclick="dormAskYumin()">📱 유민에게 몰래 문을 열어 달라고 문자</button>`:'')+a;
   if(!sp&&G.time==='방과 후') a+=`<button class="primary" onclick="waitRollCall()">🔔 점호 시간까지 기다리기</button>`;
   if(G.time!=='낮'&&(sp||d!=='dorm')&&!dormLocked()) a+=`<button class="primary" onclick="sleepAtDorm()">🛏 ${isDarkTime()?'기숙사로 돌아가 잠들기':'기숙사로 가서 잠들기'} (💳10 · 하루 경과)</button>`;
+  if(G.time!=='낮'&&has('clubroom')) a+=`<button onclick="sleepAtHome()">🏠 아지트로 가서 잠들기 (무료 · 하루 경과 · 공포 회복)</button>`;
   a+=`<button onclick="openSchoolMap()">🏫 학교 지도</button><button onclick="openRel()">👥 인연</button>`;
   if(G.comp.met){
     if(G.comp.joined) a+=`<button onclick="talkYumin()">🎵 유민과 이야기</button>`;
@@ -2450,6 +2451,12 @@ function sleepAtDorm(){
   if(busy||!G||G.loc!=='campus'||G.time==='낮') return;
   if(curDistrict()!=='dorm'||spotOn()){ goDistrict('dorm'); if(curDistrict()!=='dorm'||spotOn()) return }
   campusRest();
+}
+/* 기숙사 대신 아지트에서 잠들기: 소등 후엔 몰래 나가는 것이라 적발될 수 있음(기숙사 문이 잠겨 이미 밖에 있으면 그대로 감). 점호 통과 벌점 감소는 없음 */
+function sleepAtHome(){
+  if(busy||!G||G.loc!=='campus'||G.time==='낮'||!has('clubroom')||spotBlock()) return;
+  if(isDarkTime()&&!dormLocked()&&curfewMove('bank')!=='bank'){ G.spot=null; G.district='dorm'; G._yuminHere=false; G.choices=[]; save(); render(); return }
+  goHome(); if(G.loc==='home') homeRest();
 }
 function campusRest(){
   if(busy||spotBlock()) return;
@@ -7402,6 +7409,7 @@ function openGuide(){
     ${row('구역 조사 출발','떠난 곳에서 구역까지 지도 거리만큼 (대부분 1~2일) — 하루마다 공포 +1·배터리 −1, 탈것 충전 1회. 이틀 이상이면 길 위의 사건이 생길 수 있음 (아지트 시설 보급이 있으면 더해짐). 공포 여유와 배터리가 최소 1씩 필요')}
     ${row('귀환','떠나온 지구(없으면 중앙 캠퍼스 지구)까지 지도 거리만큼 — 하루마다 공포 +1·배터리 −1 (모자라면 체력), 충전은 없음. 이틀 이상이면 길 위의 사건. 수몰 구역은 보트로 선착장까지(대여료는 왕복 요금에 포함). 자재: 철제 부품 +(방문한 공간 수 ÷ 2, 올림 — 이어 조사한 구역은 새로 본 공간만큼만), 합판은 50% 확률로 +1')}
     ${row('임시 쉼터','공포 +1, 배터리 -1, 체력 40% 회복 (공포 여유·배터리가 없으면 거의 회복 못함). 아침이 되면 하루 경과하고 임시 쉼터를 시작한 곳으로. 야간 전에 밖에서 쉬면 점호 누락')}
+    ${row('🏠 아지트에서 잠들기','아지트를 마련했다면 방과 후 이후 학교 안 어느 곳에서든 「아지트로 가서 잠들기」를 쓸 수 있습니다. 무료이고 체력과 공포가 회복되며 하루가 지납니다. 소등 후에는 몰래 나가는 것이라 적발될 수 있고(기숙사 문이 잠겨 이미 밖에 있다면 바로 갈 수 있음), 기숙사의 점호 벌점 감소는 없습니다')}
     ${row('🛏 잠들기','기숙사의 「잠들기」 버튼(학교 안 어느 지점에서든 방과 후 이후에 보입니다): 💳10, 체력 전부 회복, 하루 경과, 벌점 -1. 소등 후에는 기숙사 출입 판정을 거칩니다')}
     ${row('급식실','💳5, 식사하며 소문 듣기 (1걸음)')}
     ${row('아지트에서 쉬기',`무료, 체력 전부 회복, 공포 −${HOME_FEAR_RECOVER}, 하루 경과 (충전 거치대가 있으면 하루 첫 휴식에 배터리 +2). 유민은 휴게 소파에 실제로 머물 때만 함께 쉼`)}
