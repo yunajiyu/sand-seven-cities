@@ -11,7 +11,7 @@ new Phaser.Game({
   pixelArt: true,
   roundPixels: true,
   antialias: false,
-  scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight },
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1000, height: 1000 }, // 1000×1000 고정, 창이 더 작으면 같은 비율로 줄어듦
   physics: { default: 'arcade', arcade: { debug: new URLSearchParams(location.search).has('debug') } },
   scene: [BootScene, TownScene, UIScene],
 });

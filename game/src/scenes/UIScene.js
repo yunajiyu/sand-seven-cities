@@ -10,7 +10,7 @@ export class UIScene extends Phaser.Scene {
     this.hint = null;
   }
 
-  get unit() { return Math.max(1, Math.floor(this.scale.height / 300)); }
+  get unit() { return Math.max(1, Math.floor(this.scale.height / 400)); }
 
   /** 대화 시작. lines: 문자열 배열, onDone: 마지막 줄을 넘긴 뒤 호출 */
   open(name, lines, onDone) {

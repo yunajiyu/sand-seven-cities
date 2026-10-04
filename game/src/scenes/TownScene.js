@@ -5,6 +5,7 @@ import { flags } from '../systems/flags.js';
 
 const TS = hailMap.tilewidth;
 const MAP_W = hailMap.width * TS, MAP_H = hailMap.height * TS;
+const ZOOM = 3;
 const SPEED = 70;
 const TALK_RANGE = 26;
 const FEET_Y = 41; // 프레임(48px) 안에서 발바닥 높이
@@ -15,7 +16,7 @@ const SPAWN = { x: 330, y: 238 };
 // 하일 마을 NPC: 스프라이트 색(palettes.json의 인물 이름), 위치, 보는 방향
 const NPCS = [
   { id: 'hamid', x: 372, y: 222, face: 'down' },
-  { id: 'laila', x: 236, y: 336, face: 'right' },
+  { id: 'laila', x: 236, y: 336, face: 'down' },
   { id: 'tariq', x: 330, y: 190, face: 'down' },
 ];
 
@@ -52,10 +53,9 @@ export class TownScene extends Phaser.Scene {
     if (DEBUG) this.debugOverlay();
   }
 
-  // 정수 배율로 확대: 화면에 대략 352×220 픽셀 이상 보이도록 가장 큰 정수 배율을 고른다.
+  // 게임 화면은 1000×1000 고정. 정수 3배로 확대해 약 333×333 픽셀 범위를 보여 준다.
   fitCamera() {
-    const { width, height } = this.scale;
-    this.cameras.main.setZoom(Math.max(1, Math.floor(Math.min(width / 352, height / 220))));
+    this.cameras.main.setZoom(ZOOM);
   }
 
   // ---------- 맵 ----------
@@ -137,7 +137,6 @@ export class TownScene extends Phaser.Scene {
     this.npcs = NPCS.map((n) => {
       const s = this.makeActor(n.id, n.x, n.y);
       s.play(`${n.id}:idle:${n.face}`);
-      s.home = n.face;
       this.npcGroup.add(s);
       s.body.updateFromGameObject();
       return s;
@@ -181,11 +180,8 @@ export class TownScene extends Phaser.Scene {
     const data = dialogue[npc.actorId];
     const talk = data.talks.find((t) => (t.if ?? []).every((f) => flags.get(f)) && (t.ifNot ?? []).every((f) => !flags.get(f)));
     if (!talk) return;
-    const toPlayer = Math.abs(this.player.x - npc.x) > Math.abs(this.player.y - npc.y) ? (this.player.x < npc.x ? 'left' : 'right') : (this.player.y < npc.y ? 'up' : 'down');
-    npc.play(`${npc.actorId}:idle:${toPlayer}`);
     this.scene.get('UI').open(data.name, talk.lines, () => {
       (talk.set ?? []).forEach((f) => flags.set(f, true));
-      npc.play(`${npc.actorId}:idle:${npc.home}`);
     });
   }
 
