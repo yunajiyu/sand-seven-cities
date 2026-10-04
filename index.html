@@ -1096,7 +1096,7 @@ function toneHint(){
 function stateFacts(){
   const c=G.char;
   const o={
-    캐릭터:{이름:c.name,나이:c.age||20,신분:c.origin,입소이유:c.reason||'(미정 — AI가 정해 서서히 드러낼 것)',능력치:{체력:c.stats.str,지혜:c.stats.wis,매력:c.stats.cha,생존술:c.stats.sur},특성:c.traits,배경:c.bio||'(없음)'},
+    캐릭터:{이름:c.name,나이:c.age||20,신분:c.origin,입소이유:c.reason||c.reasonAI||'(미정 — AI가 정해 서서히 드러낼 것)',능력치:{체력:c.stats.str,지혜:c.stats.wis,매력:c.stats.cha,생존술:c.stats.sur},특성:c.traits,배경:c.bio||'(없음)'},
     상태:{체력:`${G.hp}/${G.maxhp}`,공포:`${fearNow()}/${fearMax()} (높을수록 위험)`,배터리:`${batteryPct()}%`,손전등:`${G.torch}/${capT()}`,캐시:G.gold,벌점:`${G.demerit||0} (${DEMERIT_WARN} 이상이면 외출 금지 경고)`,출입권한:`${G.access||1}등급 (1~${ACCESS_MAX})`,소지품:G.items,교표조각:`${G.fragments}/${FRAG_GOAL}`},
     날짜:`${G.day}일째 ${G.time}`,
     알려진지명:MAP_PLACES.filter(p=>p.far&&G.discovered.includes(p.id)).map(p=>`${p.n}(${p.lore||''} 소문으로만 아는 곁가지 구역)`).join(' / ')||'없음',
@@ -1142,6 +1142,9 @@ function buildPrompt(action,extra=''){
   const met=!!(G.comp&&G.comp.met), yn=met&&yuminNeeded(allText);
   const stable=`${G.act>=4?'[숨겨진 진실 — 결말: 지워진 일곱 구역을 모두 찾았으므로 이제 밝혀도 된다. 정체와 엔딩은 네가 정해 온 사실과 단서에 맞춘다]':'[숨겨진 진실 — 플레이어에게 절대 직접 밝히지 말 것]'}
 학원도시가 숨긴 것의 정체(네가 정한 사실): ${G.secret?.truth||'미정 — 단서가 필요해질 때 네가 일관되게 정하고 떡밥 장부에 기록하라'} / ${G.secret?.detail||''}
+
+[떡밥 장부 — 네가 정한 사실(교칙·정체·약속 등). 이와 모순되게 쓰지 말 것]
+${(G.ledger||[]).join('\n')||'(아직 없음)'}
 
 [지금까지의 줄거리 요약]
 ${G.summary||'(이제 막 시작)'}
@@ -1996,6 +1999,7 @@ function itemSellPrice(name){
 function sellItem(i){
   const it=G.items[i]; if(!it) return;
   if(consKind(it)) return toast('소모품은 "사용"으로 수치에 더하세요');
+  if(/출석부|권한 카드/.test(it)) return toast('이 물건은 팔 수 없습니다');
   const p=itemSellPrice(it);
   G.items.splice(i,1); G.gold+=p;
   const nm=String(it).replace(/\(.*?\)|[x×]\s*\d+/g,'').trim(), before=G.lexicon.length;
@@ -2152,7 +2156,7 @@ function openShop(){
     mt+=`<div class="shop-row"><span>🚲 ${esc(G.mount.name)} <span class="muted">(${d.n})</span></span><button class="small" onclick="sellMount()">팔기 💳${Math.floor(d.price/2)}</button></div><p class="muted">탈것은 하나만 둘 수 있습니다. 다른 것으로 바꾸려면 먼저 파세요.</p>`;
   }else if(!has('stable')) mt+=`<p class="muted">아지트에 <b>자전거 보관대</b>를 들여야 자전거나 전동 스쿠터를 둘 수 있습니다. (아지트 꾸미기 → 자전거 보관대)</p>`;
   else mt+=Object.entries(MOUNTS).filter(([k,d])=>!d.locked||hasWest(d.locked)).map(([k,d])=>`<div class="shop-row" style="gap:10px;align-items:flex-start"><div><b>${d.n}</b><br><span class="muted">${d.desc}<br>충전: 조사 외출마다 배터리 ${d.feed}</span></div><button class="small ${G.gold>=mountPrice(k)?'primary':''}" onclick="buyMount('${k}')">캐시 ${mountPrice(k)}${mountPrice(k)<d.price?' (할인)':''}</button></div>`).join('');
-  const sells=G.items.map((it,i)=>consKind(it)?'':`<div class="shop-row"><span>${esc(it)}</span><button class="small" onclick="sellItem(${i})">팔기 💳${itemSellPrice(it)}</button></div>`).join('');
+  const sells=G.items.map((it,i)=>(consKind(it)||/출석부|권한 카드/.test(it))?'':`<div class="shop-row"><span>${esc(it)}</span><button class="small" onclick="sellItem(${i})">팔기 💳${itemSellPrice(it)}</button></div>`).join('');
   modal('상점가',`<p class="muted">캐시: <b id="shopGold">${G.gold}</b></p>${goods}
     <h4 style="margin:14px 0 4px">휴대 용량</h4>${capRow('w')}${capRow('f')}${capRow('t')}
     <p class="muted" style="font-size:12px">공포 한계·배터리·손전등은 용량까지만 유지되고 초과분은 사라집니다.${G.loc==='town'?` ${curTown().n}: ${curTown().perk}.`:''} 가격(개당) — 중앙 캠퍼스 지구·아지트: 진정 음료 💳${PRICE_TOWN.water} · 배터리 💳${PRICE_TOWN.food} · 손전등 💳${PRICE_TOWN.torch}. 뒷길에서 가끔 만나는 이동 행상(🧭 버튼)이나 이야기 속 상인에게 사면 진정 음료·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch}.</p>
@@ -5563,16 +5567,19 @@ function render(){
   const low=(v,t)=>v<=t?'low':'';
   document.getElementById('stats').innerHTML=
     `<span class="st ${low(G.hp,3)}">❤ ${G.hp}/${G.maxhp}</span>
-     <span class="st ${low(G.water,1)}">💧 ${G.water}/${capW()}</span>
-     <span class="st ${low(G.food,1)}">🍞 ${G.food}/${capF()}</span>
-     <span class="st ${low(G.torch,0)}">🔥 ${G.torch}/${capT()}</span>
+     <span class="st ${fearRatio()>=FEAR_RED?'low':''}" title="공포 — 높을수록 위험합니다. 한계에 닿으면 체력이 줄고, 아지트에서 쉬면 가라앉습니다">😨 공포 ${fearNow()}/${fearMax()}</span>
+     <span class="st ${low(G.food,1)}" title="휴대폰 배터리">🔋 배터리 ${batteryPct()}%</span>
+     <span class="st ${low(G.torch,0)}" title="손전등 건전지">🔦 ${G.torch}/${capT()}</span>
      <span class="st">💳 ${G.gold}</span>
-     <span class="st" title="교표 조각">★ ${G.fragments}/${FRAG_GOAL}</span>
-     <span class="st dup" title="돌 · 목재 · 천 · 유실물">${MATS.map(m=>m.i+G.mat[m.k]).join(' ')}</span>
-     <span class="st">${G.day}일째 ${G.time==='낮'?'☀':'🌙'}</span>
+     <span class="st ${(G.demerit||0)>=DEMERIT_WARN?'low':''}" title="벌점 — 점호 누락·무단 외출로 늘어납니다. ${DEMERIT_WARN}점 이상이면 외출 금지 경고">📕 벌점 ${G.demerit||0}</span>
+     <span class="st" title="출입 권한 등급 (1~${ACCESS_MAX})">🪪 권한 ${G.access||1}등급</span>
+     <span class="st" title="교표 조각">★ 교표 조각 ${G.fragments}/${FRAG_GOAL}</span>
+     <span class="st dup" title="철제 부품 · 합판 · 전선 · 유실물">${MATS.map(m=>m.i+G.mat[m.k]).join(' ')}</span>
+     <span class="st">${G.day}일째 ${timeIcon()} ${G.time}</span>
      ${G.comp&&G.comp.met?`<span class="st dup" title="유민 호감도">🎵 유민${G.comp.joined?' (동행)':''}</span>`:''}`;
+  applyFearFx();
   document.getElementById('where').textContent=whereText();
-  document.getElementById('choices').innerHTML=busy?'<div class="loading">이야기가 펼쳐지는 중</div>':choicesHTML();
+  document.getElementById('choices').innerHTML=busy?`<div class="loading">${['형광등이 깜빡인다','복도 끝에서 발소리가 들린다','점호 방송이 끊긴다'][(G.recent.length+G.day)%3]}</div>`:choicesHTML();
   const fx=document.getElementById('fixed');
   fx.innerHTML=fixedHTML();
   fx.querySelectorAll('button').forEach(b=>{ if(busy) b.disabled=true });
@@ -5580,11 +5587,20 @@ function render(){
   renderNeed(); renderMapPanel(); renderSides(); updateUndoBtn();
   run('render');
 }
+/* 공포가 높을수록 화면을 붉게 · 노이즈 (게임 화면에서만) */
+function applyFearFx(){
+  try{
+    const inGame=!!G&&!document.getElementById('game').classList.contains('hidden');
+    const r=inGame?fearRatio():0;
+    document.body.classList.toggle('fear1',inGame&&r>=FEAR_RED&&r<FEAR_NOISE);
+    document.body.classList.toggle('fear2',inGame&&r>=FEAR_NOISE);
+  }catch(e){}
+}
 function whereText(){
   if(G.loc==='city') return spotOn()?`중앙 캠퍼스 지구 — 📍 ${G.spot.name} (임시 장소)`:`중앙 캠퍼스 지구 — ${DISTRICTS[curDistrict()].n}`;
   if(G.loc==='town') return `${curTown().ic} ${curTown().n}`;
   if(G.loc==='home') return `아지트 — ${G.home.name||'폐 동아리실'}`;
-  if(G.loc==='road') return outsideRuin()?`${G.dungeon.name} › 입구 밖 한빛시`:'한빛시 뒷길';
+  if(G.loc==='road') return outsideRuin()?`${G.dungeon.name} › 입구 밖 뒷길`:'한빛시 뒷길';
   if(G.loc==='camp') return (G.dungeon?G.dungeon.name+' › ':'')+'임시 쉼터';
   if(G.dungeon){ const r=curRoom(); return `${G.dungeon.name} › ${r?r.name:''} (깊이 ${G.dungeon.depth})` }
   return '';
@@ -5593,7 +5609,7 @@ function choicesHTML(){
   const ex=roomExhausted();
   let lbl='';
   if(ex) lbl='🔎 이 공간에서는 더 찾을 것이 없어 보입니다 — 아래 → 버튼으로 이동하세요';
-  else if(G.choices.length) lbl=(G.loc==='dungeon'?'💬 이야기 — 이 공간 안에서의 행동 (방은 바뀌지 않음)':G.loc==='city'?'💬 이야기 선택지':'💬 이야기 선택지 (1걸음)')+' · 🎲는 판정, 🧭는 게임 기능으로 바로 처리';
+  else if(G.choices.length) lbl=(G.loc==='dungeon'?'💬 이야기 — 이 공간 안에서의 행동 (공간은 바뀌지 않음)':G.loc==='city'?'💬 이야기 선택지':'💬 이야기 선택지 (1걸음)')+' · 🎲는 판정, 🧭는 게임 기능으로 바로 처리';
   const TL={rest:'휴식',camp:'임시 쉼터',return:'귀환',exit:'나가기',trade:'거래'};
   return (lbl?`<div class="lbl">${lbl}</div>`:'')+G.choices.map((c,i)=>{
     const m=metaOf(c); let b='';
@@ -5615,7 +5631,7 @@ function fixedHTML(){
     const r=curRoom(), fd=has('study')?fragDist():null, p=dungeonProg();
     mvLbl='🧭 공간 이동 · 나가기 · 귀환';
     mv=r.exits.map(id=>{ const o=d.rooms.find(x=>x.id===id); const hint=fd&&fd[id]<fd[r.id]?' ✧':''; return btn(`moveTo('${id}')`,`→ ${o.visited?esc(o.name):'❓ 미탐험 공간'}${o.fragTaken?' ★':''}${hint}`,'mv') }).join('');
-    mv+=btn('exitRuin()','🚪 구역 밖으로 나가기','','data-exit="1" title="구역은 그대로 두고 입구 밖으로 (대상 상인을 만날 수도 있음)"');
+    mv+=btn('exitRuin()','🚪 구역 밖으로 나가기','','data-exit="1" title="구역은 그대로 두고 입구 밖으로 (이동 행상을 만날 수도 있음)"');
     mv+=p&&p.done?btn('returnToCity()',`✅ 조사 완료 · ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${returnRoute().days}일)`,'primary'):btn('returnToCity()',`↩ 귀환 (조사 ${p?p.vis+'/'+p.total:''} · ${returnRoute().days}일)`);
     if(!roomExhausted()) ac+=btn("pickFixed('주변을 둘러본다')",'👁 살펴보기')+btn("pickFixed('이곳을 꼼꼼히 조사한다')",'🔍 조사하기');
     ac+=btn('campHere()','⛺ 임시 쉼터');
@@ -5623,7 +5639,7 @@ function fixedHTML(){
   }else if(L==='home'){
     mvLbl='🧭 이동';
     mv=btn('enterCity(false)','↩ 중앙 캠퍼스 지구 상점가로')+btn('startExpedition()','🔦 구역 조사 떠나기','primary');
-    ac=btn('openBuild()','🔨 시설 짓기')+btn('openDecor(true)','🏡 아지트 꾸미기')+btn('homeRest()','🛏 아지트에서 쉬기')+btn('openRel()','👥 인연')
+    ac=btn('openBuild()','🔨 아지트 꾸미기')+btn('openDecor(true)','🪴 아지트 장식')+btn('homeRest()','🛏 아지트에서 쉬기')+btn('openRel()','👥 인연')
       +(has('well')?btn('wellFill()',wellLabel()):'')+(has('store')?btn('openStore()','📦 사물함'):'')
       +(has('workshop')?btn('appraise()','📦 유실물 감정'):'')+(has('study')?btn('studyMap()','🌌 교표 연구'):'')
       +(G.comp.met?btn(G.comp.joined||canMeetHere('유민')?'talkYumin()':'seekYumin()',G.comp.joined||canMeetHere('유민')?yuminFindLabel():`🎵 유민 만나러 가기 (지금: ${yuminWhereText()})`):'');
@@ -5643,7 +5659,7 @@ function fixedHTML(){
   }
   for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }   // 기능 모듈이 덧붙이는 버튼
   // 사건으로 생긴 버튼
-  if(G.waterSrc&&!G.waterSrc.used) ac+=btn('fillWaterSrc()',`💧 「${esc(G.waterSrc.name)}」에서 물 채우기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
+  if(G.waterSrc&&!G.waterSrc.used) ac+=btn('fillWaterSrc()',`🫧 「${esc(G.waterSrc.name)}」에서 공포 가라앉히기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
   if(L!=='road'&&caravanHere()) ac+=btn('openCaravan()',`🧭 ${esc(G.caravan.name)} (공포·배터리 💳${PRICE_ROAD.water} · 손전등 💳${PRICE_ROAD.torch})`,'','data-cv="1"');
   // 도시·아지트에서만
   if(isTown()){
@@ -5665,20 +5681,20 @@ function fragDist(){
   return dist;
 }
 
-/* 상단 상태줄: 갈증·허기 · 구역 조사도 · 탈것 */
+/* 상단 상태줄: 공포·배터리 · 구역 조사도 · 탈것 */
 function renderNeed(){
   const el=document.getElementById('needBar'); if(!el||!G||!G.char) return;
   const pips=(n,max)=>'●'.repeat(Math.max(0,Math.min(n,max)))+'○'.repeat(Math.max(0,max-n));
   const n=needState(), p=G.loc==='dungeon'?dungeonProg():null;
-  let h=`<span class="nb" title="물은 걸음 수에 따라 자동으로 소비됩니다. 0이 되면 갈증으로 체력이 줄어듭니다">💧 물 ${n.w}/${capW()} <span class="pips">${pips(Math.ceil(n.w/capW()*5),5)}</span> <span class="${n.wWarn?'warn':''}">${n.wl}</span></span>`+
-        `<span class="nb" title="배터리는 걸음 수에 따라 자동으로 소비됩니다. 0이 되면 굶주림으로 체력이 줄어듭니다">🍞 배터리 ${n.f}/${capF()} <span class="pips">${pips(Math.ceil(n.f/capF()*5),5)}</span> <span class="${n.fWarn?'warn':''}">${n.fl}</span></span>`;
+  let h=`<span class="nb" title="공포는 걸음 수에 따라 자동으로 쌓입니다. 한계에 닿으면 체력이 줄어듭니다">😨 공포 ${fearNow()}/${fearMax()} <span class="pips">${pips(Math.ceil(fearNow()/fearMax()*5),5)}</span> <span class="${n.wWarn?'warn':''}">${n.wl}</span></span>`+
+        `<span class="nb" title="배터리는 걸음 수에 따라 자동으로 닳습니다. 0이 되면 길을 잃어 체력이 줄어듭니다">🔋 배터리 ${batteryPct()}% <span class="pips">${pips(Math.ceil(n.f/capF()*5),5)}</span> <span class="${n.fWarn?'warn':''}">${n.fl}</span></span>`;
   if(p) h+=`<span class="nb" title="방문한 공간 / 전체 공간">🧭 조사도 <span class="pips">${pips(p.vis,p.total)}</span> <span class="${p.done?'ok':''}">${p.vis}/${p.total}공간${p.done?' · 조사 완료':''}</span>`+(!p.done?` <span class="muted">(미탐험 발견 ${p.found}${p.hidden>0?` · 아직 못 찾은 ${p.hidden}`:''})</span>`:'')+`</span>`;
   h+=cityStatusHTML()+fightStatusHTML();
   if(inDark()) h+=`<span class="nb" title="손전등을 구하거나 구역 밖으로 나가세요">🌑 <span class="warn">어둠 — 이동 2걸음 · 넘어질 위험 · 단서·조각 못 찾음</span></span>`;
   const m=mountDef();
   if(m&&G.mount){
     const tired=G._mountFed===false;
-    const fx=tired?['지쳐서 효과 없음']:(m.noWater?['물 소모 크게 느려짐 · 이동·귀환 때 물 절반','쓰러져도 손실 감소','짐 운반',`휴대 용량 +${mountCap()}`]:['물 소모 느려짐','짐 운반',`휴대 용량 +${mountCap()}`]);
+    const fx=tired?['지쳐서 효과 없음']:(m.noWater?['공포 누적 크게 느려짐 · 이동·귀환 때 공포 절반','쓰러져도 손실 감소','짐 운반',`휴대 용량 +${mountCap()}`]:['공포 누적 느려짐','짐 운반',`휴대 용량 +${mountCap()}`]);
     h+=`<span class="nb" title="${tired?'다음 조사 외출에서 충전을 주면 회복':'탈것 보유 효과'}">🔦 <span class="${tired?'warn':'ok'}">${esc(G.mount.name)}: ${fx.join(' · ')}</span></span>`;
   }
   el.innerHTML=h;
@@ -6695,16 +6711,19 @@ function show(id){
   ['title','create','game'].forEach(s=>document.getElementById(s).classList.toggle('hidden',s!==id));
   if(id==='title') refreshTitle();
   if(id==='game') applySides();
+  applyFearFx();
 }
 function startCreation(){
-  draft={origin:null,stats:{str:1,wis:1,cha:1,sur:1},traits:[]};
-  document.getElementById('cName').value='';
+  draft={reason:null,stats:{str:1,wis:1,cha:1,sur:1},traits:[]};
+  document.getElementById('cName').value='도현';
   document.getElementById('cBio').value='';
+  document.getElementById('cReason').value='';
   renderCreation(); show('create');
 }
 function renderCreation(){
-  document.getElementById('originGrid').innerHTML=ORIGINS.map(o=>
-    `<div class="opt ${draft.origin===o.id?'sel':''}" onclick="draft.origin='${o.id}';renderCreation()"><b>${o.name}</b><span>${o.desc}<br>고향: ${o.region}</span></div>`).join('');
+  document.getElementById('originGrid').innerHTML=ENTRY_REASONS.map(o=>
+    `<div class="opt ${draft.reason===o.id?'sel':''}" onclick="draft.reason=draft.reason==='${o.id}'?null:'${o.id}';renderCreation()"><b>${o.name}</b><span>${o.desc}</span></div>`).join('');
+  document.getElementById('cReason').classList.toggle('hidden',draft.reason!=='custom');
   const used=Object.values(draft.stats).reduce((a,b)=>a+b,0)-4;
   document.getElementById('ptsLeft').textContent=`(남은 점수 ${POINTS-used})`;
   document.getElementById('statBox').innerHTML=STATS.map(s=>
@@ -6730,17 +6749,20 @@ function togTrait(id){
 async function finishCreation(){
   const name=document.getElementById('cName').value.trim();
   if(!name) return toast('이름을 입력해 주세요');
-  if(!draft.origin) return toast('출신을 골라 주세요');
-  const o=ORIGINS.find(x=>x.id===draft.origin);
+  const age=Math.max(20,Math.round(+document.getElementById('cAge').value)||20);   // 20세 미만은 입소 불가 — 나이는 20세로 고정
+  if(age<20) return toast('20세 미만은 입소할 수 없습니다');
+  let reason='';
+  if(draft.reason==='custom'){ reason=document.getElementById('cReason').value.trim().slice(0,60); if(!reason) return toast('입소 이유를 적어 주세요 (또는 AI에 맡기기를 고르세요)') }
+  else if(draft.reason&&draft.reason!=='ai') reason=(ENTRY_REASONS.find(x=>x.id===draft.reason)||{}).name||'';
   const stats={...draft.stats};
-  for(const k in o.bonus) stats[k]+=o.bonus[k];
   const maxhp=10+stats.str*2;
   resetUndo();
   G={
     v:1,
-    char:{name,origin:o.name,region:o.region,stats,traits:draft.traits.map(id=>TRAITS.find(t=>t.id===id).n),bio:document.getElementById('cBio').value.trim()},
-    hp:maxhp,maxhp,water:4+(o.water||0),food:4,torch:3+(o.torch||0),gold:o.gold||30,
-    items:[...(o.items||[])],
+    char:{name,age:20,origin:'한빛 기숙학원 7반 전입생',region:HOME_REGION,reason,stats,traits:draft.traits.map(id=>TRAITS.find(t=>t.id===id).n),bio:document.getElementById('cBio').value.trim()},
+    hp:maxhp,maxhp,water:5,food:CAP_BASE,torch:3,gold:30,
+    items:['오래된 출석부'],
+    demerit:0,access:1,ledger:[],
     fragments:0,act:1,day:1,time:'낮',loc:'city',steps:0,
     dungeon:null,dungeonsDone:0,
     secret:null,rumors:[],heardRumors:[],
@@ -6749,32 +6771,33 @@ async function finishCreation(){
   };
   migrate();
   show('game'); renderLogAll();
-  addLog('sys','세계를 빚는 중입니다… (보물의 정체와 각 지역의 괴담을 정하고 있습니다)');
+  addLog('sys','입소 서류를 정리하는 중입니다… (숨겨진 것의 정체와 각 지구의 소문을 정하고 있습니다)');
   busy=true; render();
   await genWorld();
   busy=false;
-  G.log=G.log.filter(l=>!(l.type==='sys'&&/^세계를 빚는 중입니다/.test(l.text))); renderLogAll();
+  G.log=G.log.filter(l=>!(l.type==='sys'&&/^입소 서류를 정리하는 중입니다/.test(l.text))); renderLogAll();
   enterCity(true);
 }
 async function genWorld(){
-  const regions=ORIGINS.map(o=>o.region);
+  const regions=[HOME_REGION,TOWNS.east.n,TOWNS.south.n,TOWNS.north.n];
   const prompt=`새 게임의 숨겨진 설정을 정하라.
-1) 라쿠나 구역 출석부가 가리키는 '학원도시가 숨긴 것'의 진짜 정체를 다음 셋 중 하나로 고르거나 둘을 섞어 정하라: ${TRUTHS.join(' / ')}. 구체적 사연 2~3문장을 붙여라.
-2) 다음 네 지역 사람들은 보물의 정체를 각기 다르게 믿는다. 지역마다 그 지역 사람들이 믿는 소문을 2문장으로 써라. 어떤 소문은 진실의 조각을, 어떤 소문은 오해를 담게 하라: ${regions.join(', ')}
-3) 플레이어 캐릭터: ${G.char.name} (${G.char.origin}, 고향 ${G.char.region}). 배경: ${G.char.bio||'없음'}
+1) 오래된 출석부가 가리키는 '학원도시가 숨긴 것'의 진짜 정체를 네가 정하라(이 프롬프트에 정답은 없다). 지워진 일곱 구역, 교표, 한빛 교육특구의 역사와 이어지는 구체적 사연 2~3문장을 붙여라.
+2) 다음 네 지역 사람들은 그 정체를 각기 다르게 믿는다. 지역마다 그 지역 사람들 사이에 도는 소문을 2문장으로 써라. 어떤 소문은 진실의 조각을, 어떤 소문은 오해를 담게 하라: ${regions.join(', ')}
+3) 플레이어 캐릭터: ${G.char.name} (${G.char.age}세, ${G.char.origin}). 중간 입소 이유: ${G.char.reason||'미정 — 네가 정해 entry_reason에 한 문장으로 적고, opening에서는 서서히 암시만'}. 배경: ${G.char.bio||'없음'}
 출력은 JSON만:
-{"truth":"정체 한 줄","detail":"구체 사연","rumors":[{"region":"지역명","belief":"소문"}],"opening":"중앙 캠퍼스 지구에 도착한 첫 장면 서술 2~3문단, 2인칭, 플레이어 배경과 고향 소문을 엮을 것"}`;
+{"truth":"정체 한 줄","detail":"구체 사연","rumors":[{"region":"지역명","belief":"소문"}],"entry_reason":"중간 입소 이유 한 문장(위에 이미 있으면 그대로)","opening":"입소 첫날 한빛 기숙학원 7반의 첫 장면 서술 2~3문단, 2인칭 현재형(\"너는 ~한다\"). 서류 사이에 섞여 든 오래된 출석부를 발견하는 순간을 담고, 플레이어 배경과 7반 동기들의 소문을 엮을 것"}`;
   let w=null;
   try{ w=parseJSON(await callAI(SYS_BASE,prompt,1500,'world')) }catch(e){ if(e.message!=='NO_KEY') addLog('sys','AI 연결 실패: '+e.message+' (기본 설정으로 진행합니다)') }
   if(!w||!w.truth){
-    w={truth:rand(TRUTHS),detail:'오래전 왕은 그것을 지키기 위해 도시째 먼지 아래로 숨겼다.',rumors:regions.map(r=>({region:r,belief:`${r} 사람들은 라쿠나 구역의 보물이 ${rand(TRUTHS)}라고 믿는다.`})),opening:null};
+    w={truth:'',detail:'',rumors:regions.map(r=>({region:r,belief:`${r}에서는 지워진 구역에 대한 엇갈린 소문이 돈다.`})),opening:null};
   }
   G.secret={truth:w.truth,detail:w.detail};
+  if(!G.char.reason&&w.entry_reason) G.char.reasonAI=String(w.entry_reason).slice(0,80);
   G.rumors=(w.rumors||[]).map(r=>({region:r.region,belief:r.belief}));
   const home=G.rumors.find(r=>r.region===G.char.region)||G.rumors[0];
   if(home){ addLex({name:`${home.region}의 괴담`,cat:'괴담',desc:home.belief},true); G.heardRumors.push(home.region) }
-  addLex({name:'라쿠나 구역',cat:'장소',desc:'하룻밤 사이 먼지에 삼켜졌다는 황금 도시. 신전의 출석부에 학원도시가 숨긴 것이 묻힌 곳의 좌표가 새겨져 있다고 한다.'},true);
-  addLex({name:'중앙 캠퍼스 지구',cat:'장소',desc:'한빛시 교역로가 만나는 도시. 상점가, 구내식당, 기숙사가 있다.'},true);
+  addLex({name:'라쿠나 구역',cat:'장소',desc:'저수지 아래 잠겼다 드러난다는 첫 번째 지워진 구역. 오래된 출석부가 다른 구역들을 ???로 가리킨다고 한다.'},true);
+  addLex({name:'중앙 캠퍼스 지구',cat:'장소',desc:'한빛 기숙학원과 상점가, 구내식당이 있는 생활 지구. 공식 지도에 나오는 유일한 구역.'},true);
   G.openingText=w.opening;
 }
 function continueGame(){
