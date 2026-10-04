@@ -6004,7 +6004,7 @@ function closeSides(){
 const FS_KEY='sand7_fs', THEME_KEY='sand7_theme', TOP_KEY='sand7_top';
 const THEME_LABEL={auto:'🌓 자동',light:'☀️ 밝게',dark:'🌙 어둡게'};
 let fontScale=(function(){ try{ const v=parseFloat(localStorage.getItem(FS_KEY)); if(v>=0.8&&v<=1.8) return v }catch(e){} return 1 })();
-let themeMode=(function(){ try{ const v=localStorage.getItem(THEME_KEY); if(v==='light'||v==='dark'||v==='auto') return v }catch(e){} return 'auto' })();
+let themeMode=(function(){ try{ const v=localStorage.getItem(THEME_KEY); if(v==='light'||v==='dark'||v==='auto') return v }catch(e){} return 'dark' })();
 let topFolded=(function(){ try{ return localStorage.getItem(TOP_KEY)==='1' }catch(e){ return false } })();
 function applyFontScale(){
   document.documentElement.style.setProperty('--fs',String(fontScale));
