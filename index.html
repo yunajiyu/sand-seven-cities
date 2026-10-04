@@ -28,7 +28,8 @@
   --accent:#b4ee4a; --accent2:#7fd0ee; --gold:#c9e36a; --danger:#ff6b5e; --ok:#7ee08f;
   --on-accent:#0d1220;
   --shadow:0 2px 10px rgba(0,0,0,.5);
-}:border-box}
+}
+*{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans KR',sans-serif;font-size:15px;line-height:1.6}
 h1,h2,h3,.serif{font-family:'Noto Sans KR',sans-serif}
 button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:8px 14px}
@@ -3843,14 +3844,14 @@ function addLex(e,silent,ruinName){
     if(ex.desc.includes(e.desc)) return;
     ex.desc=(ex.desc+' '+e.desc).slice(-500); ex.isNew=true;
     if(ex.cat==='세력'){ ex.sumPending=(ex.sumPending||0)+1; if(ex.desc.length>FACTION_SUM_LEN||ex.sumPending>=4) summarizeFaction(ex) }   // 세력 기록이 길어지면 한 문단으로 요약
-    if(!silent) toast(`📜 사전 갱신: ${e.name}`);
+    if(!silent) toast(`📜 괴담 사전 갱신: ${e.name}`);
     return;
   }
   const x={name:e.name,cat,desc:e.desc,isNew:!silent};
   const rn=ruinName!==undefined?ruinName:((G.dungeon&&(G.loc==='dungeon'||G.loc==='camp'))?G.dungeon.name:null);
   if(rn) x.ruin=rn;
   G.lexicon.push(x);
-  if(!silent) toast(`📜 사전에 새 항목: ${e.name}`);
+  if(!silent) toast(`📜 괴담 사전에 새 항목: ${e.name}`);
 }
 /* 사전 추출 대기열 — G._lexQ = {key, ruin, items:[{a:행동, n:서술}]} (저장에 함께 남음) */
 function lexKey(){ if(G.dungeon&&['dungeon','camp','road'].includes(G.loc)) return 'ruin:'+G.dungeon.name; return G.loc==='town'?'town:'+G.town:G.loc }
@@ -4057,7 +4058,7 @@ function openLex(){
   }).reverse();
   if(lexTab!=='📦') items=[...items.filter(x=>x.e.fav),...items.filter(x=>!x.e.fav)];
   const total=items.length, list=items.slice(0,lexShown);
-  modal('사전',`<div class="tabs">${tabs.map(([k,l])=>`<button class="${k===lexTab?'on':''}" onclick="lexTab='${k}';lexShown=30;openLex()">${l} ${cnt(k)}</button>`).join('')}</div>
+  modal('괴담 사전',`<div class="tabs">${tabs.map(([k,l])=>`<button class="${k===lexTab?'on':''}" onclick="lexTab='${k}';lexShown=30;openLex()">${l} ${cnt(k)}</button>`).join('')}</div>
     <input id="lexSearch" placeholder="검색" value="${esc(lexQ)}" oninput="lexQ=this.value;lexShown=30;clearTimeout(window._lq);window._lq=setTimeout(()=>{openLex();const s=document.getElementById('lexSearch');s.focus();s.setSelectionRange(s.value.length,s.value.length)},300)">
     <div class="row" style="gap:8px;margin:8px 0;align-items:center;flex-wrap:wrap"><label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" style="width:auto;flex:0 0 auto;margin:0" ${SET.lexAuto!==false?'checked':''} onchange="SET.lexAuto=this.checked;saveSettings()"> 오래된 항목 자동 요약 (장소·괴담·물건이 40개를 넘으면)</label><button class="small" onclick="lexCompact(true)">🧹 지금 정리</button></div>
     ${list.map(({e,i})=>`<div class="lex"><div class="h"><b>${e.fav?'⭐ ':''}${e.sum?'📚 ':''}${esc(e.name)} ${e.isNew?'<span class="new">NEW</span>':''}</b><span class="cat">${e.cat}</span></div>
