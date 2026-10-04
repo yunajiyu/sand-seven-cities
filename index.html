@@ -534,7 +534,7 @@ const FAC=[
   {id:'guest',n:'휴게 소파',req:'land',cost:{wood:3,cloth:3,gold:30},desc:'유민이 머물 수 있는 자리. 유민이 소파에 있을 때 아지트에서 함께 쉬면 호감이 오름'},
   {id:'study',n:'교표 연구실',req:'workshop',cost:{relic:2,wood:2},desc:'구역에서 교표 조각 쪽 통로에 ✧ 표시 · 교표 연구로 단서 얻기'},
 ];
-{base:{food:15,water:10,torch:6},big:{food:25,water:16,torch:10}};
+const STORE_CAPS={base:{food:15,water:10,torch:6},big:{food:25,water:16,torch:10}};
 
 /* ---------- 상점·가격 ---------- */
 const PRICE_TOWN={water:2,food:3,torch:5};       // 중앙 캠퍼스 지구·아지트
@@ -555,13 +555,13 @@ const MOUNTS={
   camel: {n:'전동 스쿠터',  price:100,feed:2,thirst:3,noWater:true, carry:2,rescue:true,capBonus:4,
     desc:'빠르고 든든한 이동 수단. 공포가 크게 느리게 쌓이고, 이동·조사 외출 길에서 공포 진정 소모가 절반만 들며, 자재를 더 나르고, 쓰러져도 캐시를 덜 잃습니다. 멘탈 한도·보조배터리 팩 용량 +4.'},
 };
-=[[0,'낯선 사이'],[20,'익숙한 사이'],[45,'친근한 사이'],[70,'단짝']];
+const PET_STAGES=[[0,'낯선 사이'],[20,'익숙한 사이'],[45,'친근한 사이'],[70,'단짝']];
 const PET_KINDS={
   fox:{n:'떠돌이 개',icon:'🐕',price:40,perk:'공포가 쌓이는 주기 +1 (친근한 사이부터)'},
   hawk:{n:'까치',icon:'🐦',price:60,perk:'교표 연구 단서 확률 +15% (친근한 사이부터)'},
   cat:{n:'길고양이',icon:'🐈',price:30,perk:'보조배터리 팩 용량 +1 (친근한 사이부터)'},
 };
-=2;
+const MAXPETS=2;
 const petCount=()=>(G&&G.pets||[]).filter(p=>!(PET_KINDS[p.kind]||{}).reward).length;   // 곁가지 구역 괴담 보상 동물은 입양 한도(MAXPETS)에 세지 않음
 
 /* ---------- 동료 NPC: 유민 ---------- */
