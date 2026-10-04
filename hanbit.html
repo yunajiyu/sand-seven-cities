@@ -6473,7 +6473,7 @@ on('context',55,()=>G.fight?`\n[전투 중] ${G.fight.foe}와(과) 싸우는 중
    경험: 교표 조각(새로 얻을 때) +1 · 구역 끝까지 조사 +3 · 구역 사연을 다 밝힘 +1 · 전투 승리 +2~3(결전 +6) · 출석부 해독·구역의 심장 +4
    GROW_XP마다 성장 포인트 1 → 최대 체력 +HP_GROW(1점) 또는 능력치 +1(STAT_GROW_COST점, 최대 STAT_MAX)
    능력치 '체력'을 올리면 최대 체력도 +2 (캐릭터를 만들 때의 규칙과 같음) */
-const GROW_XP=6, HP_GROW=3, STAT_GROW_COST=2, STAT_MAX=6;
+const GROW_XP=6, HP_GROW=3, STAT_GROW_COST=2, STAT_MAX=10;
 function gainXp(n,why){
   if(!G||n<=0) return;
   const before=Math.floor((G.xp||0)/GROW_XP);
