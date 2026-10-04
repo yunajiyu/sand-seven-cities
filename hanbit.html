@@ -5042,7 +5042,29 @@ function addCanon(t){
   if(G.canon.some(c=>c.key===key)) return;
   G.canon.push({day:G.day,text:t,key}); while(G.canon.length>CANON_MAX) G.canon.shift();
 }
-function canonBlock(){ return (G.canon||[]).map(c=>`- (${c.day}일) ${c.text}`).join('\n')||'(아직 없음)' }
+/* 단서가 24개를 넘으면 오래된 12개를 AI가 2~3줄로 묶어 보존(호출 1회, 숫자·이름은 그대로). 호출이 안 되면 30개 상한에서 오래된 것부터 빠짐 */
+const CANON_SOFT=24, CANON_BATCH=12; let _canonBusy=false;
+async function canonCompact(){
+  if(_canonBusy||!G||!Array.isArray(G.canon)||G.canon.length<=CANON_SOFT) return;
+  const g=G, part=g.canon.slice(0,CANON_BATCH); if(part.length<CANON_BATCH) return;
+  _canonBusy=true;
+  try{
+    const r=parseJSON(await callAI('너는 게임 기록을 정리하는 서기다. 사실을 지어내지 말고 주어진 내용만 합친다. JSON만 출력한다.',
+`다음은 플레이어가 얻은 단서 ${part.length}개다. 서로 관련 있는 것끼리 묶어 2~3줄로 합쳐라.
+- 숫자·이름·칸·방향·장소는 원문 그대로 유지한다. 단서를 새로 만들거나 풀이를 덧붙이지 않는다.
+- 각 줄은 110자 이내 한 문장 또는 쉼표로 이어진 두 문장.
+${part.map(c=>`- (${c.day}일) ${c.text}`).join('\n')}
+JSON만 출력: {"lines":["…","…"]}`,400,'lex'));
+    const lines=(r&&Array.isArray(r.lines)?r.lines:[]).map(x=>String(x||'').replace(/\s+/g,' ').trim().slice(0,120)).filter(x=>x.length>=4).slice(0,3);
+    if(G!==g||!lines.length) return;
+    const day=part[part.length-1].day;
+    g.canon=[...lines.map(t=>({day,text:'(요약) '+t,key:t.replace(/[^가-힣0-9]/g,'').slice(0,14),sum:true})),...g.canon.slice(CANON_BATCH)];
+    save(); if(document.getElementById('canonNew')) openThreads();
+  }catch(e){ if(e&&e.message!=='NO_KEY') console.warn(e) }
+  finally{ _canonBusy=false }
+}
+on('after',85,()=>{ setTimeout(()=>{ if(!busy) canonCompact() },1200) });
+function canonBlock(n){ return (G.canon||[]).slice(n?-n:0).map(c=>`- (${c.day}일) ${c.text}`).join('\n')||'(아직 없음)' }
 function addCanonUser(){
   const el=document.getElementById('canonNew'); const v=(el&&el.value||'').trim(); if(v.length<4) return toast('단서를 4자 이상 적어 주세요');
   const n=(G.canon||[]).length; addCanon(v); if((G.canon||[]).length===n&&n>=CANON_MAX) return; save(); openThreads();
@@ -5176,8 +5198,8 @@ ${relevantLex(scenes)}
 ${scenes}
 ${threadsRequest(g)}
 - clues: 이 장면들에서 플레이어가 새로 알게 된 구체적 단서(숫자·이름·칸·장소를 장면에 나온 그대로)를 한 문장씩 최대 3개. [확정 단서]에 이미 있는 것은 빼고, 없으면 빈 배열.
-[확정 단서]
-${canonBlock()}
+[확정 단서(최근 12개)]
+${canonBlock(12)}
 JSON만 출력: {"lexicon":[{"name":"이름","cat":"인물|장소|괴담|물건|세력","desc":"플레이어가 알게 된 내용 1~2문장"}],"clues":["…"],"threads_new":[{"text":"조사 보드 한 줄"}],"threads_closed":["t1"]}`;
   let r=null;
   try{ r=parseJSON(await callAI('너는 게임 사전을 정리하는 서기다. JSON 하나만 출력한다.',prompt,1000,'lex')) }catch(e){ return }
