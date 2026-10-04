@@ -2891,7 +2891,7 @@ function studyHere(){
   if(st.n<STUDY_CLUE_LIMIT&&Math.random()<(lib?STUDY_LIB_P:STUDY_CLUE_P)){
     st.n++;
     const clue=G.fragments<FRAG_GOAL&&Math.random()<sb.frag?fragClue():'';
-    extra+=` [공부 단서] 공부하다가 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${sb.n}답게 ${sb.hint}. 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고 effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+    extra+=canonHint(sb.n)+` [공부 단서] 공부하다가 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${sb.n}답게 ${sb.hint}. 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고 effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
     G.chronicle.push({day:G.day,text:`주말 ${sb.n} 공부 중 단서를 얻었다${clue?`: ${clue}`:''}`});
     addLog('fx',`📖 공부 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
   }
@@ -3011,7 +3011,7 @@ function classStep(){
     extra=`[수업 끝 ${n}/${CLASS_ACTIONS}] ${subj} 수업의 마무리 장면. 마지막에 종이 울리며 ${k+1}교시가 끝난다.`;
     if(Math.random()<CLASS_CLUE_P){
       const clue=G.fragments<FRAG_GOAL&&Math.random()<sb.frag?fragClue():'';
-      extra+=` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${subj} 수업답게 ${sb.hint}. 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+      extra+=canonHint(subj)+` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${subj} 수업답게 ${sb.hint}. 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
       G.chronicle.push({day:G.day,text:`${subj} 수업에서 단서를 얻었다${clue?`: ${clue}`:''}`});
       if(clue) addCanon(`${subj} 수업 단서: ${clue}`);
       addLog('fx',`📚 수업 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
@@ -5044,6 +5044,16 @@ function addCanon(t){
   G.canon.push({day:G.day,text:t,key}); while(G.canon.length>CANON_MAX) G.canon.shift();
 }
 function canonBlock(){ return (G.canon||[]).map(c=>`- (${c.day}일) ${c.text}`).join('\n')||'(아직 없음)' }
+function addCanonUser(){
+  const el=document.getElementById('canonNew'); const v=(el&&el.value||'').trim(); if(v.length<4) return toast('단서를 4자 이상 적어 주세요');
+  const n=(G.canon||[]).length; addCanon(v); if((G.canon||[]).length===n&&n>=CANON_MAX) return; save(); openThreads();
+}
+/* 과목 단서를 새로 만들 때: 같은 과목에서 이미 얻은 단서(없으면 최근 단서)를 이어 가게 함 */
+function canonHint(subj){
+  const all=G.canon||[]; if(!all.length) return '';
+  const same=all.filter(c=>c.text.startsWith(subj)), pick=(same.length?same:all).slice(-3);
+  return ` [이어 가기] 이미 얻은 단서: ${pick.map(c=>c.text).join(' / ')}. 새 단서는 이 중 하나를 한 걸음 더 구체화하거나 이어서 풀어 주는 내용으로 하고, 같은 주제의 번호·이름·칸·방향을 새로 지어 바꾸지 말 것.`;
+}
 function delCanon(i){ if(!G.canon) return; G.canon.splice(i,1); save(); openThreads() }
 /* ---------- 🧩 추리 도우미: 지금까지의 단서를 AI가 정리해 방향만(살짝) 또는 다음 행동까지(확실히) 알려 줌. 숨겨진 정체·정답은 말하지 않음 ---------- */
 let _sleuthBusy=false;
@@ -5093,7 +5103,8 @@ function openThreads(){
   modal('🧵 조사 보드',`<p class="muted">이야기 속에서 생긴 약속·수수께끼·인물의 사정 중 아직 풀리지 않은 것입니다. 사전을 정리할 때 함께 적히고, 풀리면 자동으로 닫힙니다. 이야기꾼은 매 장면 몇 개를 참고해 자연스러울 때 이어 갑니다(최대 ${THREAD_MAX}개).</p>
     <div id="thrList">${open.map(t=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${t.day}일 ·</span> ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')||'<p class="muted">조사 보드가 없습니다.</p>'}</div>
     <div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="thrNew" placeholder="직접 적기 (예: 하킴이 은화를 갚겠다고 했다)" maxlength="60"><button class="small" onclick="addThread()">추가</button></div>
-    ${(G.canon&&G.canon.length)?`<h4 style="margin:14px 0 4px">📌 확정된 단서 <span class="muted" style="font-size:12px">(AI가 항상 기억합니다. 틀린 것은 ✕로 지우세요)</span></h4>${G.canon.map((c,i)=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${c.day}일 ·</span> ${esc(c.text)}</span><button class="small" onclick="delCanon(${i})">✕</button></div>`).join('')}`:''}
+    <h4 style="margin:14px 0 4px">📌 확정된 단서 <span class="muted" style="font-size:12px">(AI가 항상 기억합니다. 틀린 것은 ✕로 지우세요)</span></h4>${(G.canon||[]).map((c,i)=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${c.day}일 ·</span> ${esc(c.text)}</span><button class="small" onclick="delCanon(${i})">✕</button></div>`).join('')||'<p class="muted" style="font-size:13px">아직 없습니다. 이야기에서 얻은 단서가 자동으로 쌓입니다.</p>'}
+    <div class="row" style="margin-top:8px;flex-wrap:nowrap"><input id="canonNew" placeholder="직접 적기 (예: 출석부 3번 칸의 이름이 지워져 있다)" maxlength="90"><button class="small" onclick="addCanonUser()">추가</button></div>
     ${done.length?`<h4 style="margin:14px 0 4px">최근에 닫힌 것</h4>${done.map(t=>`<div class="shop-row muted" style="gap:8px"><span>${t.status==='faded'?'💨':'✓'} ${esc(t.text)}</span><button class="small" onclick="reopenThread('${t.id}')">다시 열기</button></div>`).join('')}`:''}`);
 }
 
