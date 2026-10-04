@@ -2240,11 +2240,11 @@ function campusFixedHTML(){
   if(sp) a=`<button class="primary" onclick="goDistrict('${d}')">↩ ${DISTRICTS[d].n}${josa(DISTRICTS[d].n,'으로','로')} 돌아가기</button>`;
   else if((PLACES[d]||{}).t==='hall') a=`<button onclick="strollHall()">🚶 ${PLACES[d].n} 거닐기</button>`;
   else if(d==='nurse') a=`<button onclick="nurseRest()">🩹 보건실에서 쉬기 (하루 한 번)</button>`;
-  else if((PLACES[d]||{}).clueP!=null) a=`<button onclick="browsePlace('${d}')">🔎 ${PLACES[d].n} 둘러보기</button>`;
-  else if(d==='snack') a=`<button onclick="openShop()">🥪 매점 (간식·진정 음료·배터리)</button>`;
-  else if(d==='office') a=`<button onclick="officeTalk()">🏢 담임 선생님과 면담</button>`;
+  else if((PLACES[d]||{}).clueP!=null) a=`<button onclick="browsePlace('${d}')">🔎 ${PLACES[d].n} 둘러보기</button>`+jobHTML(d);
+  else if(d==='snack') a=`<button onclick="openShop()">🥪 매점 (간식·진정 음료·배터리)</button>`+jobHTML('snack');
+  else if(d==='office') a=`<button onclick="officeTalk()">🏢 담임 선생님과 면담</button>`+jobHTML('office');
   else if(d==='market') a=`<button onclick="openShop()">🛒 상점 (진정 음료·배터리·부품)</button><button onclick="strollMarket()">🚶 상점가 거닐기</button>`;
-  else if(d==='canteen') a=`<button onclick="campusRumor()">🍚 식사하며 소문 듣기 (5)</button>`;
+  else if(d==='canteen') a=`<button onclick="campusRumor()">🍚 식사하며 소문 듣기 (5)</button>`+jobHTML('canteen');
   else if(d==='dorm') a=`<button onclick="dormTea()">🍵 휴게실에서 차 마시기 (공포 −1 · 오늘 ${3-dormSt().tea}번 남음)</button><button onclick="dormShower()">🚿 따뜻한 샤워 (공포 −2 · ${dormSt().shower?'오늘 사용함':'하루 1번'})</button><button onclick="campusRest()">🛏 기숙사에서 쉬기 (10)</button>`;
   else if(d==='gate') a=`<button class="primary" onclick="startExpedition()">🔦 구역 조사 떠나기</button><button onclick="openTravel()">🧭 다른 지구로 이동하기 (공원·학원가·재개발지구)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
   else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>` }
@@ -2313,6 +2313,43 @@ function strollHall(){
   let extra='[복도 거닐기] 오가는 학생들, 게시판의 공지와 낙서, 사물함 문 소리, 창가의 햇빛 같은 복도의 작은 장면 하나. 수업 중이면 조용한 복도와 교실 안에서 새어 나오는 선생님 목소리.';
   if(unheard.length&&Math.random()<0.15){ const r=rand(unheard); G.heardRumors.push(r.region); extra+=` 게시판 앞에서 ${r.region} 쪽 소문이 귀에 들어온다: "${r.belief}". 이 소문이 그 지역의 괴담이라는 것이 서술에서 분명히 드러나게 하라.` }
   tick(); aiTurn('복도를 천천히 거닌다',extra);
+}
+/* ---------- 학교 안 아르바이트 (쉬는 시간·점심시간·방과 후에 한 칸을 써서 캐시를 번다) ---------- */
+const JOB_DAILY_LIMIT=2;
+const JOBS={
+  snack:{n:'매점 아르바이트',ic:'🥪',pay:[5,8],hint:'점원을 도와 줄 선 아이들에게 간식을 계산하고 진열대를 채운다'},
+  canteen:{n:'배식 도우미',ic:'🍚',pay:[6,10],hint:'급식 조리원 아주머니를 도와 식판에 반찬을 담고 식당을 정리한다',slots:[4,'after']},
+  office:{n:'선생님 심부름',ic:'📦',pay:[4,7],hint:'선생님이 시킨 프린트물 정리와 상자 나르기를 돕는다',scold:0.25},
+  library:{n:'도서관 정리',ic:'📚',pay:[4,6],hint:'반납된 책을 서가에 꽂고 대출 카드를 정리한다'},
+};
+function jobSt(){ if(!G.jobDay||G.jobDay.day!==G.day) G.jobDay={day:G.day,n:0,done:{}}; return G.jobDay }
+function jobBlock(k){
+  const j=JOBS[k], st=jobSt();
+  if(isDarkTime()) return '소등 후에는 일할 수 없습니다';
+  const i=slotIdx();
+  if(i>=0){
+    if(CLASS_SLOTS.includes(i)) return '수업 중에는 일할 수 없습니다';
+    if(i===0||i===8) return `${SCHOOL[i]} 시간에는 일할 수 없습니다`;
+    if(j.slots&&!j.slots.includes(i)) return '이 일은 점심시간이나 방과 후에만 할 수 있습니다';
+  }else if(j.slots&&!j.slots.includes('after')) return '지금은 일할 수 없습니다';
+  if(st.n>=JOB_DAILY_LIMIT) return `오늘은 일을 ${JOB_DAILY_LIMIT}번 다 했습니다`;
+  if(st.done[k]) return '이 일은 오늘 이미 했습니다';
+  return '';
+}
+function jobHTML(k){
+  const j=JOBS[k]; if(!j) return '';
+  return `<button onclick="doJob('${k}')">💼 ${j.n} (💳${j.pay[0]}~${j.pay[1]} · 한 칸 · 오늘 ${jobSt().n}/${JOB_DAILY_LIMIT})</button>`;
+}
+function doJob(k){
+  if(busy||spotBlock()) return;
+  const j=JOBS[k]; if(!j||curDistrict()!==k) return;
+  const why=jobBlock(k); if(why) return toast(why);
+  const st=jobSt(); st.n++; st.done[k]=true; G._yuminHere=false;
+  const pay=j.pay[0]+Math.floor(Math.random()*(j.pay[1]-j.pay[0]+1));
+  G.cash+=pay; addLog('fx',`💼 ${j.n}로 💳${pay}을 벌었습니다 (오늘 ${st.n}/${JOB_DAILY_LIMIT})`);
+  let extra=`[${j.n}] 플레이어가 쉬는 시간을 쪼개 일을 돕는다: ${j.hint}. 힘들지만 소소한 보람이 있는 일상 장면. 대가로 받은 캐시(${pay})는 코드가 이미 반영했으니 effects.캐시는 0.`;
+  if(j.scold&&G.demerit>0&&Math.random()<j.scold){ addDemerit(-1,'선생님 신임'); extra+=' 선생님이 성실함을 기특하게 여겨 벌점을 하나 지워 준다(벌점은 이미 반영되었으니 effects.벌점은 0).' }
+  tick(); aiTurn(`${j.n}를 한다`,extra);
 }
 const BROWSE_CLUE_LIMIT=3;
 function browsePlace(k){
@@ -6831,6 +6868,7 @@ function openGuide(){
     ${row('🔔 점호 시간까지 기다리기','종례가 끝난 방과 후에 캠퍼스에서 🔔 버튼(또는 "점호 시간까지 기다린다"라고 입력)을 누르면 야간이 될 때까지 시간을 보내고 기숙사 점호 장면으로 넘어갑니다. 낮(수업 중)에는 쓸 수 없습니다')}
     ${row('🌙 소등 후 외출','야간·새벽(소등 후)에 기숙사 밖으로 나가면 그날 밤 처음 한 번 '+Math.round(CURFEW_CATCH_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(CURFEW_CATCH_WARN*100)+'%)로 들켜 기숙사로 돌려보내지고 벌점 +'+CURFEW_DEMERIT+'. 들키지 않으면 그날 밤은 자유롭게 다닐 수 있습니다. 구역 조사를 나가는 무단 외출 벌점은 따로 붙습니다')}
     ${row('🍵 기숙사에서 공포 낮추기','기숙사에서는 휴게실 차 마시기(공포 −1, 하루 3번)와 따뜻한 샤워(공포 −2, 하루 1번)를 쓸 수 있고, 기숙사에서 쉬기(💳10)는 하룻밤을 보냅니다')}
+    ${row('💼 학교 안 아르바이트','쉬는 시간·점심시간·방과 후에 한 칸을 써서 캐시를 벌 수 있습니다(수업 중·조례·종례·소등 후는 불가). 매점 아르바이트(💳'+JOBS.snack.pay.join('~')+'), 배식 도우미(급식실, 점심시간·방과 후, 💳'+JOBS.canteen.pay.join('~')+'), 선생님 심부름(교무실, 💳'+JOBS.office.pay.join('~')+', 벌점이 있으면 가끔 −1), 도서관 정리(💳'+JOBS.library.pay.join('~')+'). 하루 '+JOB_DAILY_LIMIT+'번까지, 같은 일은 하루 한 번')}
     ${row('📱 휴대폰','행동 버튼 줄의 📱 휴대폰에서 연락처(유민과 이야기에서 만난 사람들)에게 💬 문자나 📞 전화를 할 수 있습니다. 문자는 시간·배터리를 쓰지 않고 전화는 배터리 1과 시간 한 칸을 씁니다. 빠른 문구를 누르거나 직접 써서 보내면 상대가 답하고 이야기가 이어집니다. 유민에게는 📍 만나자고 하기(성공 '+Math.round(MEET_OK_P*100)+'%)도 있습니다. 수업 중(전화는 불가)과 소등 후에는 몰래 써야 하고 약 '+Math.round(PHONE_CATCH_P*100)+'% 확률로 들켜 벌점 +'+PHONE_DEMERIT+'과 그 시간대 압수. 구역 안에서는 전화가 안 터지고 문자만 보낼 수 있습니다(신호가 약해 답이 끊겨 옵니다)')}
     ${row('📩 수신 문자','시간이 흐르다 보면 연락처 사람(유민 포함)이 먼저 문자를 보냅니다(한 번에 최대 '+INBOX_MAX+'통). 행동 버튼 줄의 📩 버튼으로 읽으면 소문·안부·초대·경고 같은 내용이 이야기로 나옵니다. 수업 중·소등 후에 읽으면 몰래 읽는 것이라 적발될 수 있습니다')}
     ${row('🍫 공포를 늦추는 간식','상점·매점에서 초코바(💳4, 공포 누적 2회 늦춤), 캐러멜 사탕(💳2, 1회), 에너지 젤리(💳6, 3회)를 살 수 있습니다. 소지품에서 「먹기」(또는 "초코바를 먹는다"라고 입력)하면 다음 공포 누적을 건너뜁니다. 구역·뒷길처럼 걸을 때 공포가 오르는 곳에서 효과가 있고, 이미 오른 공포를 내리지는 않습니다')}
@@ -6909,6 +6947,7 @@ function openGuide(){
     ${h3('캐시 수입')}
     ${row('구역 조사 보상',`이야기 AI가 정함. 한 장면 💳${FX_LIMIT.cash[1]}까지, 구역 한 곳을 통틀어 💳${ZONE_CASH_CAP}까지`)}
     ${row('유실물 감정','작업대나 재개발지구 고물상에서 등급별 감정가 (💳'+KEEPSAKE_GRADES.map(r=>r.p).join('·')+')')}
+    ${row('학교 안 아르바이트','매점·급식실·교무실·도서관에서 일하면 💳4~10을 법니다(하루 '+JOB_DAILY_LIMIT+'번까지, 쉬는 시간·점심시간·방과 후)')}
     ${row('물건 팔기','상점가 상점에서 소지품을 팔 수 있음 (괴담 사전의 같은 이름 「물건」 항목도 지워짐)')}
     ${h3('기록')}
     ${row('📜 괴담 사전',`이야기 ${LEX_EVERY}장면마다 한 번, 또는 장소를 옮길 때 따로 정리됩니다 (인물 · 장소 · 괴담 · 물건 · 세력). 구역에서 생긴 항목은 조사를 마치면 정리됩니다 — 인물·세력·즐겨찾기는 그대로(세력이 한 일은 한 문단으로 요약), 물건은 삭제, 장소는 「구역 이름」 항목의 '둘러본 곳' 한 줄로, 괴담은 「구역 이름의 괴담」 한 항목으로 요약되어 구역 연혁 시대와 연결`)}
