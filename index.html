@@ -4870,7 +4870,7 @@ function openEnding(){
       ${G.day}일 동안 한빛시를 건넜습니다 · 조사를 마친 구역 ${G.dungeonsDone||0}곳<br>
       라쿠나 구역과 출석부가 가리키는 구역: ${['라쿠나 구역',...found.map(c=>c.name)].map(esc).join(' · ')}<br>
       ${comp?`동료: ${esc(comp)}<br>`:''}${rel.length?`가까워진 사람들: ${rel.map(esc).join(' · ')}<br>`:''}
-      ${G.rival?`적대 세력 「${esc(G.rival.name)}」${G.rival.defeated?' — 물리침':''}`:''}</div></div>
+      ${G.rival&&G.rival.factions?`적대 세력 ${G.rival.factions.map(f=>`「${esc(f.name)}」`).join(' · ')}${G.rival.defeated?' — 물리침':''}`:''}</div></div>
     <p class="muted" style="text-align:center;margin-top:10px">— 끝 —<br>이야기는 여기서 끝나지만, 한빛시는 계속 열려 있습니다. 남은 구역을 조사하거나 인연을 이어 갈 수 있습니다.</p>`);
 }
 on('fixed',9,L=>G&&G.act>=4&&L!=='dungeon'?`<button onclick="openEnding()">🌅 결말 다시 보기</button>`:'');
@@ -5220,11 +5220,11 @@ function fightSong(){
   if(Math.random()<FIGHT_SONG_SIDE){
     const opts=['supply','hurt']; if(G.dungeon&&G.loc==='dungeon') opts.push('collapse');
     const k=rand(opts);
-    if(k==='supply'){ const w=Math.min(1,G.water), t=Math.min(1,G.torch); G.water-=w; G.torch-=t; addLog('fx',`🌪 휘몰아친 찬 바람에 짐이 흩어졌습니다 (물 -${w} · 손전등 -${t})`); side=' 부작용: 휘몰아친 바람에 플레이어의 짐이 흩어져 물주머니와 손전등을 잃는다.' }
-    if(k==='hurt'){ hurt(1,'유민이 부른 찬 바람이 나까지 덮친다'); side=' 부작용: 유민이 부른 찬 바람이 플레이어까지 덮친다.' }
-    if(k==='collapse'){ const r=curRoom(); if(r) r.exhausted=true; addLog('fx','🪨 바람에 천장이 무너져 이 공간은 더 조사할 수 없게 되었습니다'); side=' 부작용: 바람에 천장 일부가 무너져 이 공간이 잔해에 묻힌다.' }
+    if(k==='supply'){ const w=Math.min(1,G.water), t=Math.min(1,G.torch); G.water-=w; G.torch-=t; addLog('fx',`🌪 요란한 노랫소리의 진동에 짐이 흩어졌습니다 (공포 +${w} · 손전등 -${t})`); side=' 부작용: 노랫소리의 진동에 플레이어의 짐이 흩어져 진정 음료와 손전등을 잃는다.' }
+    if(k==='hurt'){ hurt(1,'유민의 노래가 만든 소음이 나까지 덮친다'); side=' 부작용: 유민이 일으킨 소음이 플레이어까지 덮친다.' }
+    if(k==='collapse'){ const r=curRoom(); if(r) r.exhausted=true; addLog('fx','🪨 진동에 천장이 무너져 이 공간은 더 조사할 수 없게 되었습니다'); side=' 부작용: 진동에 천장 일부가 무너져 이 공간이 잔해에 묻힌다.' }
   }
-  const t=`[유민의 노래] 유민이 노래로 바람과 먼지를 불러 적을 휩쓴다. 버릇대로 과하게 써서 판이 크게 뒤집힌다.${side} 가사 한두 줄과 유민다운 농담(부작용이 있었다면 머쓱한 사과 섞인 농담) 한마디.`;
+  const t=`[유민의 노래] 유민이 노래로 교내 방송과 전자기기를 뒤흔들어 적을 몰아낸다. 버릇대로 과하게 써서 판이 크게 뒤집힌다.${side} 가사 한두 줄과 유민다운 농담(부작용이 있었다면 머쓱한 사과 섞인 농담) 한마디.`;
   if(F.morale<=0) return fightEnd('win','유민에게 눈짓한다',t+' 이 노래로 적이 무너진다.');
   if(G.hp<=0) return fightEnd('lose','유민에게 눈짓한다',t);
   fightRound('유민에게 눈짓한다',t+` 적의 기세 ${F.morale}/${F.max}.`);
@@ -5237,7 +5237,7 @@ function fightRetreat(){
   if(rollCheck.last==='success'||rollCheck.last==='partial'){
     if(G.hp<=0) return fightEnd('lose',text,note);
     let extra=' [전투] 플레이어는 싸움에서 빠져나온다.';
-    if(F.kind==='road'){ const w=Math.min(FIGHT_ESCAPE_LOSS,G.water), f=Math.min(FIGHT_ESCAPE_LOSS,G.food); G.water-=w; G.food-=f; addLog('fx',`🎒 달아나며 짐을 버렸습니다 (물 -${w} · 배터리 -${f})`); extra+=' 쫓아오지 못하게 짐 일부를 내던지고 달아났다.' }
+    if(F.kind==='road'){ const w=Math.min(FIGHT_ESCAPE_LOSS,G.water), f=Math.min(FIGHT_ESCAPE_LOSS,G.food); G.water-=w; G.food-=f; addLog('fx',`🎒 달아나며 짐을 버렸습니다 (공포 +${w} · 배터리 -${f})`); extra+=' 쫓아오지 못하게 짐 일부를 내던지고 달아났다.' }
     return fightEnd('escape',text,note+extra);
   }
   if(G.hp<=0) return fightEnd('lose',text,note);
@@ -5346,7 +5346,7 @@ async function raidCamp(){
   G.loc='road'; G.trip={dest:back,left:FIGHT_CAMP_DAYS,from:`「${G.rival.name}」의 임시 쉼터`,fromPos};
   G.base=back.kind==='town'?back.key:null;
   fightStart('camp');
-  aiTurn(`「${G.rival.name}」의 임시 쉼터를 습격한다`,`[전투 시작 — 임시 쉼터 습격] 소문을 따라 찾아낸 「${G.rival.name}」의 임시 쉼터. 랜턴 불빛, 보초, 빼앗긴 교표 조각을 보관한 천막. 우두머리 ${G.rival.leader}이(가) 있을 수도 있다. 플레이어가 기습해 들어가 그들이 「${INTENTS_F[G.fight.intent].n}」 기색을 보이며 무기를 잡는 순간에서 멈추고 결말은 쓰지 말 것. choices는 빈 배열 [].`,false);
+  aiTurn(`「${G.rival.name}」의 임시 쉼터를 습격한다`,`[전투 시작 — 임시 쉼터 습격] 소문을 따라 찾아낸 「${G.rival.name}」의 임시 쉼터. 랜턴 불빛, 보초, 빼앗긴 교표 조각을 보관한 사물함 구역. 우두머리 ${G.rival.leader}이(가) 있을 수도 있다. 플레이어가 기습해 들어가 그들이 「${INTENTS_F[G.fight.intent].n}」 기색을 보이며 무기를 잡는 순간에서 멈추고 결말은 쓰지 말 것. choices는 빈 배열 [].`,false);
 }
 function fightFixedHTML(){
   const F=G.fight, I=INTENTS_F[F.intent]||{}, b=(on,txt,cls,dis)=>`<button ${cls?`class="${cls}"`:''} ${dis?'disabled':''} onclick="${on}">${txt}</button>`;
@@ -5406,9 +5406,9 @@ function openGrowth(){
 }
 function rivalSideHTML(){
   if(!rivalOn()||!G.rival.known) return '';
-  const R=G.rival, last=R.log.slice(-2).reverse();
-  const lead=R.defeated?`우두머리 ${R.leader}이(가) 쓰러지고 무리가 흩어졌다`:(G.act>=3?`출석부가 가리키는 구역 ${R.cities}곳에 먼저 닿았다는 소문`:`교표 조각 ${R.frags}개를 가졌다는 소문${R.stolen?` (그중 ${R.stolen}개는 빼앗긴 것)`:''}`)+(R.leader_st==='hurt'?` · 우두머리가 다쳤다는 소문`:'');
-  return `<div class="sec"><h4>🏴 적대 세력</h4><div><b>${esc(R.name)}</b> <span class="muted">${esc(R.leader)}</span></div><div class="muted" style="font-size:12px">${lead}</div>${last.map(x=>`<div class="ch"><span class="d">${x.day}일</span><span>${esc(x.text)}</span></div>`).join('')}</div>`;
+  const R=G.rival, last=R.log.slice(-2).reverse(), boss=R.factions[R.boss]||R.factions[0];
+  const lead=R.defeated?`우두머리 ${boss.leader}이(가) 쓰러지고 무리가 흩어졌다`:(G.act>=3?`출석부가 가리키는 구역 ${R.cities}곳에 먼저 닿았다는 소문`:`교표 조각 ${R.frags}개를 가졌다는 소문${R.stolen?` (그중 ${R.stolen}개는 빼앗긴 것)`:''}`)+(R.leader_st==='hurt'?` · 우두머리가 다쳤다는 소문`:'');
+  return `<div class="sec"><h4>🏴 적대 세력</h4>${R.factions.filter(f=>f.known).map(f=>`<div><b>${esc(f.name)}</b> <span class="muted">${esc(f.leader)}</span></div>`).join('')}<div class="muted" style="font-size:12px">${lead}</div>${last.map(x=>`<div class="ch"><span class="d">${x.day}일</span><span>${esc(x.text)}</span></div>`).join('')}</div>`;
 }
 
 /* =========================================================
