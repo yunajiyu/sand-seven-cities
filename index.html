@@ -5131,6 +5131,7 @@ on('facts',87,o=>{
   if(!rivalOn()||!G.rival.known) return;
   const R=G.rival, st=({well:'건재',hurt:'다친 상태',down:'쓰러짐'})[R.leader_st||'well'];
   o.적대세력=R.factions.map((f,i)=>`「${f.name}」${f.known?'':'(아직 플레이어는 모름)'} — 우두머리 ${f.leader}${i===R.boss?` (${st}. 결전 전까지 죽거나 붙잡히지 않는다 — 싸움에서 이겨도 그 자리에 없었거나 달아난다)`:''}. ${f.look}. 동기(직접 밝히지 말 것): ${f.motive}`).join(' / ')+` / 지금까지 알려진 것: ${R.log.slice(-3).map(x=>x.text).join(' / ')||'소문뿐'}. 두 세력의 진짜 목적과 관계는 서서히 드러낸다.`;
+});
 
 /* ---------- 적대 세력과의 전투 ----------
    G.fight = {kind, foe, morale(적의 기세), max, danger(실패 시 피해), dc, intent(적의 다음 행동), yumin(노래를 썼나)}
