@@ -386,9 +386,9 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 
     <div class="mapbox" id="mapbox" data-tab="cont">
       <div class="maphead">
-        <span class="wt">🗺 대륙 지도 · 📍 현재 위치</span>
+        <span class="wt">🗺 한빛시 지도 · 📍 현재 위치</span>
         <div class="maptabs">
-          <button class="small on" data-t="cont" onclick="setMapTab('cont')">🗺 대륙</button>
+          <button class="small on" data-t="cont" onclick="setMapTab('cont')">🗺 한빛시</button>
           <button class="small" data-t="loc" onclick="setMapTab('loc')">📍 이곳</button>
         </div>
         <span style="display:inline-flex;gap:6px;align-items:center"><span id="zoomCtl" style="display:inline-flex;gap:2px;align-items:center"><button class="small" onclick="setMapZoom(-1)" aria-label="지도 축소" title="작은 지도 축소">−</button><span id="zoomLbl" class="muted" style="min-width:34px;text-align:center;font-size:12px">×2</span><button class="small" onclick="setMapZoom(1)" aria-label="지도 확대" title="작은 지도 확대">+</button></span><button class="small" id="mapBigBtn" onclick="openBigMap()">🔍 크게</button><button class="small" id="mapToggle" onclick="toggleMap()">지도 접기</button></span>
@@ -4660,10 +4660,10 @@ function islandArt(x,y,f){
     +`<path d="M${f(x-4)} ${f(y+2)}q2 -3 4 0q2 -3 4 0" fill="none" stroke="#b98f52" stroke-width=".8"/><g transform="translate(${f(x+5)} ${f(y+1)}) scale(.8)"><path d="M0 0 Q.6 -3 .2 -6" fill="none" stroke="#7a5a3a" stroke-width=".7"/><path d="M.2 -6 q-2.6 -.8 -4 .9 M.2 -6 q2.6 -.8 4 .9" fill="none" stroke="#4f7a3c" stroke-width=".9"/></g>`;
 }
 function cityIcon(t){
-  if(t==='underground') return `<circle r="7" style="fill:#3a2a1a;stroke:var(--gold);stroke-width:1.2"/><path d="M-3.5 -2.5 H-1 V0 H1.5 V2.5 H4" style="fill:none;stroke:var(--gold);stroke-width:1.3"/>`;
+  if(t==='underground') return `<circle r="7" style="fill:#10182a;stroke:var(--gold);stroke-width:1.2"/><path d="M-3.5 -2.5 H-1 V0 H1.5 V2.5 H4" style="fill:none;stroke:var(--gold);stroke-width:1.3"/>`;
   if(t==='island') return `<circle r="7" style="fill:var(--accent2);stroke:var(--bg);stroke-width:1.2"/><path d="M-4 2 Q0 -3 4 2" style="fill:none;stroke:#fff;stroke-width:1.3"/>`;
-  if(t==='mountain') return `<path d="M-8 6 L-2 -6 L1 -1 L3 -4 L8 6Z" style="fill:#a8774a;stroke:var(--ink);stroke-width:1"/>`;
-  return `<ellipse rx="8" ry="5" style="fill:#e7dcc3;stroke:var(--ink);stroke-width:1;stroke-dasharray:2 1.5"/>`;
+  if(t==='mountain') return `<path d="M-6 7 V-7 H0 V-2 H6 V7Z" style="fill:#6f7f9a;stroke:var(--ink);stroke-width:1"/>`;
+  return `<ellipse rx="8" ry="5" style="fill:#cfd8e4;stroke:var(--ink);stroke-width:1;stroke-dasharray:2 1.5"/>`;
 }
 function portsMapSVG(){
   return ['westport','eastport'].filter(townOpen).map(id=>{ const p=townPos(id);
@@ -5716,8 +5716,8 @@ function placeIcon(t){
   if(t==='town') return `<path d="M-6 5 V-1 L0 -6 L6 -1 V5Z" style="fill:var(--bg);stroke:var(--ink);stroke-width:1.2"/>`;
   if(t==='ruin') return `<path d="M-8 6 L0 -8 L8 6 Z" style="fill:var(--muted)"/>`;
   if(t==='oasis') return `<circle r="6.5" style="fill:var(--accent2)"/><circle r="2.5" style="fill:var(--bg)"/>`;
-  if(t==='camp') return `<path d="M-8 6 L0 -7 L8 6 Z" style="fill:var(--gold)"/><path d="M0 -7 L0 6" style="stroke:var(--bg);stroke-width:1.5"/>`;
-  return `<rect x="-8" y="-3" width="16" height="10" style="fill:var(--accent)"/><path d="M-8 -3 a8 8 0 0 1 16 0Z" style="fill:var(--accent)"/>`;
+  if(t==='camp') return `<rect x="-6" y="-8" width="12" height="14" style="fill:var(--gold)"/><path d="M-3 -5 h2 M1 -5 h2 M-3 -1 h2 M1 -1 h2 M-3 3 h2 M1 3 h2" style="stroke:var(--bg);stroke-width:1.3"/>`;
+  return `<path d="M-9 6 V-2 L0 -8 L9 -2 V6Z" style="fill:var(--accent)"/><rect x="-2" y="0" width="4" height="6" style="fill:var(--bg)"/>`;
 }
 function unknownMark(x,y){
   return `<g transform="translate(${x} ${y})"><circle r="5.5" style="fill:var(--map-land);stroke:var(--muted);stroke-width:1;stroke-dasharray:2.5 2"/>${svgText(0,3.5,'?',8,'var(--muted)',700,'middle',false)}</g>`;
@@ -5736,8 +5736,8 @@ function lab(x,y,t,size,fill,w,minor,anchor){
 function mapSVG(small){
   MAPCTX.small=!!small;
   const pp=playerPos();
-  let s=`<svg viewBox="${VB.x} ${VB.y} ${VB.w} ${VB.h}" class="mapover" role="img" aria-label="대륙 지도">`;
-  s+=lab(VB.x+12,VB.y+24,'대륙 지도',17,'var(--ink)',900,false,'start');
+  let s=`<svg viewBox="${VB.x} ${VB.y} ${VB.w} ${VB.h}" class="mapover" role="img" aria-label="한빛시 지도">`;
+  s+=lab(VB.x+12,VB.y+24,'한빛시 지도',17,'var(--ink)',900,false,'start');
   MAP_PLACES.filter(p=>placeKnown(p)&&!p.far).forEach(p=>{ s+=`<line x1="${KASR.x}" y1="${KASR.y}" x2="${p.x}" y2="${p.y}" style="stroke:var(--accent);stroke-width:1.6;stroke-dasharray:4 3;opacity:.8"/>` });
   if(has('land')) s+=`<line x1="${KASR.x}" y1="${KASR.y}" x2="${HOME_POS.x}" y2="${HOME_POS.y}" style="stroke:var(--gold);stroke-width:2"/>`;
   if(G.dungeon){ const dp=dunPos(), bp=basePos(); s+=`<line x1="${bp.x}" y1="${bp.y}" x2="${dp.x}" y2="${dp.y}" style="stroke:var(--accent);stroke-width:1.8;stroke-dasharray:2 3"/>` }
@@ -5773,8 +5773,8 @@ function yuminMapMark(){
   }
   return `<g transform="translate(${x} ${y})" style="opacity:${dim?.8:1}"><circle r="6.5" style="fill:#b5518a;stroke:#fff;stroke-width:1.6"/>${svgText(0,3.6,'♪',9,'#fff',700,'middle',false)}</g>`+lab(x,y+17,label,10,'#b5518a',700,true);
 }
-/* 대륙 그림: 해안선·지명 좌표 위에 지형을 코드로 그림 (한 번 만들어 재사용) */
-/* 대륙 그림: 단색 지도 — 바다와 땅, 해안선만 (섬은 출석부를 해독한 뒤 나타남). 색은 테마 변수 */
+/* 도시 그림: 외곽선·지명 좌표 위에 도로망과 건물 블록을 코드로 그림 (한 번 만들어 재사용) */
+/* 도시 그림: 단색 지도 — 외곽선·도로·저수지 (수몰 구역은 출석부를 해독한 뒤 나타남). 색은 테마 변수 */
 const MAPART=(function(){
   let cache=null;
   return function(isl){
@@ -5782,40 +5782,42 @@ const MAPART=(function(){
     if(cache&&cache.key===key) return cache.s;
     const SC=MAP_SC, f=n=>Math.round(n*10)/10;
     const C=COAST_PX.map(([x,y])=>[x*SC,y*SC]);
-    const smooth=pts=>{ const n=pts.length; let d=`M${f(pts[0][0])} ${f(pts[0][1])}`;
-      for(let i=0;i<n;i++){ const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
-        d+=` C${f(p1[0]+(p2[0]-p0[0])/6)} ${f(p1[1]+(p2[1]-p0[1])/6)} ${f(p2[0]-(p3[0]-p1[0])/6)} ${f(p2[1]-(p3[1]-p1[1])/6)} ${f(p2[0])} ${f(p2[1])}` }
-      return d+'Z' };
-    const blob=(x,y)=>{ const pts=[]; for(let i=0;i<10;i++){ const a=i/10*Math.PI*2, r=(i%2?7.5:10)+(i%3); pts.push([x+Math.cos(a)*r*1.25,y+Math.sin(a)*r*0.8]) } return smooth(pts) };
+    const poly=pts=>'M'+pts.map(p=>`${f(p[0])} ${f(p[1])}`).join('L')+'Z';
     let s=`<svg viewBox="${VB.x} ${VB.y} ${VB.w} ${VB.h}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`;
+    s+=`<defs><clipPath id="cityclip"><path d="${poly(C)}"/></clipPath></defs>`;
     s+=`<rect x="${VB.x}" y="${VB.y}" width="${VB.w}" height="${VB.h}" style="fill:var(--map-sea)"/>`;
-    const land=d=>`<path d="${d}" style="fill:var(--map-land);stroke:var(--map-line);stroke-width:1.2;stroke-linejoin:round"/>`;
-    s+=land(smooth(C));
-    isl.forEach(p=>{ s+=land(blob(p.x,p.y)) });
-    // 지형 기호 — 지명 표식 자리는 비워 둠
+    // 서쪽·동쪽 저수지(물): 점선 윤곽과 물결 — 수몰 구역은 그 안에 놓임
+    const lake=(cx,cy,rx,ry)=>`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" style="fill:var(--map-land);fill-opacity:.35;stroke:var(--map-line);stroke-width:1.2;stroke-dasharray:4 3"/><path d="M${cx-rx*.5} ${cy-ry*.35}q${rx*.12} -3 ${rx*.25} 0t${rx*.25} 0M${cx-rx*.4} ${cy+ry*.3}q${rx*.12} -3 ${rx*.25} 0t${rx*.25} 0" style="fill:none;stroke:var(--map-line);stroke-width:.9;stroke-linecap:round"/>`;
+    s+=lake(10,112,34,44)+lake(408,178,30,40);
+    // 한빛시 외곽선(직선 — 도시 구획)
+    s+=`<path d="${poly(C)}" style="fill:var(--map-land);stroke:var(--map-line);stroke-width:1.4;stroke-linejoin:round"/>`;
+    // 도로망 (외곽선 안쪽만)
+    let rd=''; for(let x=60;x<=380;x+=40) rd+=`M${x} ${VB.y}V${VB.y+VB.h}`; for(let y=40;y<=240;y+=34) rd+=`M${VB.x} ${y}H${VB.x+VB.w}`;
+    s+=`<g clip-path="url(#cityclip)"><path d="${rd}" style="fill:none;stroke:var(--map-line);stroke-width:.7;opacity:.45"/><path d="M${VB.x} ${VB.y+VB.h*.62}L${VB.x+VB.w} ${VB.y+VB.h*.38}" style="fill:none;stroke:var(--map-line);stroke-width:1.6;opacity:.6"/></g>`;
+    // 수몰 구역: 저수지 안에 잠긴 단지(작은 사각 구획)
+    isl.forEach(p=>{ s+=`<rect x="${f(p.x-8)}" y="${f(p.y-6)}" width="16" height="12" rx="1.5" style="fill:var(--map-land);stroke:var(--map-line);stroke-width:1;stroke-dasharray:3 2"/><path d="M${f(p.x-5)} ${f(p.y-2)}h4M${f(p.x+1)} ${f(p.y-2)}h4M${f(p.x-5)} ${f(p.y+2)}h4M${f(p.x+1)} ${f(p.y+2)}h4" style="stroke:var(--map-line);stroke-width:1"/>` });
+    // 건물 블록 기호 — 지명 표식 자리는 비워 둠
     const marks=[KASR,HOME_POS,IRAM_POS,...MAP_PLACES,...UNKNOWN_SPOTS];
-    const free=(x,y)=>marks.every(m=>Math.hypot(m.x-x,m.y-y)>13);
-    const sym='fill:none;stroke:var(--map-line);stroke-width:1;stroke-linejoin:round;stroke-linecap:round';
-    let mt='';
-    [...MOUNTAINS,[1150*SC,175*SC],[1240*SC,180*SC],[1330*SC,330*SC]].forEach(([x,y],i)=>{ if(!free(x,y)) return; const m=i<MOUNTAINS.length?5.5:4.2; mt+=`M${f(x-m)} ${f(y+m*.6)}L${f(x)} ${f(y-m)}L${f(x+m)} ${f(y+m*.6)}` });
-    s+=`<path d="${mt}" style="${sym}"/>`;
+    const free=(x,y)=>marks.every(m=>Math.hypot(m.x-x,m.y-y)>14);
+    const sym='fill:none;stroke:var(--map-line);stroke-width:1;stroke-linejoin:round';
+    let bl='';
+    [...MOUNTAINS].forEach(([x,y])=>{ if(!free(x,y)) return; bl+=`M${f(x-4)} ${f(y-3)}h8v6h-8z` });
     let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return (seed-1)/2147483646 };
-    let tr='';
-    [[560,170,70],[470,300,50],[420,700,60],[290,700,40],[590,640,38],[330,255,30]].forEach(([cx,cy,r])=>{
+    [[560,170,70],[470,300,50],[420,700,60],[290,700,40],[590,640,38],[330,255,30],[1150,175,60],[1330,330,50]].forEach(([cx,cy,r])=>{
       const X=cx*SC, Y=cy*SC, R=r*SC;
       for(let k=0;k<7;k++){ const a=rnd()*Math.PI*2, d=Math.sqrt(rnd())*R, x=X+Math.cos(a)*d, y=Y+Math.sin(a)*d*.8; if(!free(x,y)) continue;
-        tr+=`M${f(x)} ${f(y+1.2)}v2.2M${f(x-2.2)} ${f(y+.4)}a2.2 2.2 0 1 1 4.4 0a2.2 2.2 0 1 1 -4.4 0` }
+        bl+=`M${f(x-2.5)} ${f(y-2)}h5v4h-5z` }
     });
-    s+=`<path d="${tr}" style="${sym}"/>`;
+    s+=`<path d="${bl}" style="${sym}"/>`;
     s+=`<rect x="${VB.x+.6}" y="${VB.y+.6}" width="${VB.w-1.2}" height="${VB.h-1.2}" style="fill:none;stroke:var(--map-line);stroke-width:1.2"/></svg>`;
     cache={key,s}; return s;
   };
 })();
 const artDiv=()=>`<div class="mapimg mapart" aria-hidden="true" data-k="${islandKey()}">${MAPART(islandList())}</div>`;
 const MAP_CAP_BASE='● 현재 위치 · ◆ 조사 중인 구역 · ✕ 다녀온 구역 · ♪ 유민 · ??? 미탐험 지역';
-const mapCap=()=>MAP_CAP_BASE+(G&&G.act>=3?' · 🏝 섬 · 🕳 지하 · ⛰ 바위산 · 🏜 마른 호수':'');
+const mapCap=()=>MAP_CAP_BASE+(G&&G.act>=3?' · 🌊 수몰 구역 · 🕳 배수 터널 · 🏢 고지대 · 🌫 안개':'');
 function openBigMap(){
-  modal('대륙 지도',`<div class="mapwrap big">${artDiv()}<div class="mapovl">${mapSVG()}</div></div><div class="muted" style="margin-top:8px;font-size:13px">${mapCap()}</div>`);
+  modal('한빛시 지도',`<div class="mapwrap big">${artDiv()}<div class="mapovl">${mapSVG()}</div></div><div class="muted" style="margin-top:8px;font-size:13px">${mapCap()}</div>`);
   document.querySelector('#modalRoot .modal').classList.add('wide');
 }
 /* 구역 내부 지도: 조사 완료(초록) · 더 조사 가능(주황) · 현재 · 미지 */
