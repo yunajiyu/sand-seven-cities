@@ -1,0 +1,18 @@
+{
+  "_설명": "groups: 기본 주인공 스프라이트에서 뽑은 색 묶음. characters: 인물별 바꿀 색. 색 하나('#rrggbb')만 쓰면 그 색 계열로 자동 변환, 배열로 쓰면 groups와 같은 순서로 1:1 치환. shoes를 안 쓰면 신발은 hair를 따라감.",
+  "groups": {
+    "hair":   ["#593f2d", "#784d36", "#986641", "#b87f4c"],
+    "skin":   ["#b58a73", "#d9aa8d", "#f4c8a3", "#f4dbbc"],
+    "eyes":   ["#1f3e34", "#3a7864"],
+    "top":    ["#3c3a2c", "#5a5641", "#817c68", "#9a987d", "#b3b094", "#d1d1bb"],
+    "accent": ["#c4873c", "#dda349", "#e9ca4f"],
+    "bottom": ["#a38c4d", "#bca769"]
+  },
+  "shoes": { "from": "hair", "minY": 30 },
+  "characters": {
+    "player": {},
+    "hamid":  { "hair": "#b9b9c4", "skin": "#e0b595", "top": "#3f5f8f", "accent": "#d9d2c0", "bottom": "#4a4038", "shoes": "#3a2a22" },
+    "laila":  { "hair": "#2b2230", "skin": "#c98f6b", "top": "#a14a52", "accent": "#e6c86a", "bottom": "#6b3a40", "shoes": "#4a2e2a", "eyes": "#5a3a1a" },
+    "tariq":  { "hair": "#c88a3a", "skin": "#f0c09a", "top": "#4f8a5a", "accent": "#e8e0a8", "bottom": "#5a5040", "shoes": "#6a4a30" }
+  }
+}

@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# 에셋 팩은 재배포 조건이 확인되지 않아 공개 저장소에 올리지 않음
+assets/fantasy-tileset/
