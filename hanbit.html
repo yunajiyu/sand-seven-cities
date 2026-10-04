@@ -1111,6 +1111,7 @@ const TURN_SCHEMA=`출력 JSON 형식:
  "위치": "",
  "칸종료": false,
  "약속": null,
+ "단서": "",
  "event": null,
  "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[]},
  "chronicle": "이번 장면이 이야기상 중요하면 한 줄 요약, 아니면 빈 문자열"
@@ -1131,6 +1132,7 @@ materials는 구역에서 플레이어가 실제로 쓸 만한 철제 부품, �
 [위치 규칙] 중앙 캠퍼스 지구에 있을 때만 쓴다. "위치"에는 이번 장면이 끝났을 때 플레이어가 실제로 있는 곳을 적는다: 지점 이름(${placeNames()} 중 하나) 또는 지점 밖 장소 이름(옥상, 매점 앞 등). 플레이어의 행동이나 서술에서 장소가 실제로 바뀐 경우에만 적고, 그대로면 빈 문자열이다("자리를 옮겨", "~로 향했다", "~에 도착했다" 같은 표현도 장소가 바뀐 것이다). 선택지가 다른 곳으로 가는 행동이면 그 선택지의 "to"에 목적지 이름을 적는다. 수업 중에 교실을 벗어나면 땡땡이이므로 서술에서 그렇게 다룬다.
 [급식실 규칙] 급식실은 점심시간(평일·주말 모두)에만 식사를 준다. 점심시간이 아닐 때(조례·쉬는 시간·방과 후·야간·새벽)에는 급식실이 닫혀 있으니, 그때 급식실에서 밥을 먹는 장면·제안·선택지를 쓰지 않고 급식실에서 만나자는 약속도 점심시간으로만 한다. 방과 후의 간식은 매점이나 상점가에서 먹는다.
 [일과 규칙] 낮(학교 일과 중)에는 졸기·엎드리기·잠깐 쉬기도 type "rest"가 아니라 "story"로 낸다("rest"는 밤에 잠자리에 드는 선택지에만 쓴다). 수업은 코드가 센다. 수업 중에는 [수업 끝] 지시가 있는 장면에서만 종을 울리고, 그 전에는 수업이 계속되는 것으로 서술한다. 만약 이번 장면의 서술에서 수업이나 쉬는 시간 같은 일과 칸이 끝났다는 종이 울렸다면 "칸종료"를 true로 한다(그 밖에는 false).
+[단서] 이번 장면에서 플레이어가 새로 알게 된 구체적인 단서가 있으면 "단서"에 한 문장으로 적는다(숫자·이름·칸·장소·표현을 서술과 똑같이). 없으면 빈 문자열. 이미 [확정 단서]에 있는 것은 다시 적지 말고, 새 단서는 [확정 단서]와 모순되지 않게 이어 가거나 구체화한다.
 [약속] 이번 장면에서 플레이어가 누군가(유민 포함)와 어디서 언제 만나기로 약속했다면 "약속"에 {"인물":"이름","장소":"장소 이름(학교 안 장소·아지트·학원가 골목)","때":"방과 후|점심시간|쉬는 시간|저녁|내일 아침|내일 방과 후|곧 등"}을 적는다(없으면 null). 그 때가 되면 코드가 그 사람을 그 장소에 있게 하니, 약속 시간이 되기 전에는 그 사람을 그곳에 등장시키지 말고 시간이 되면 그곳에 있는 것으로 쓴다. 플레이어가 약속을 어겨 상대가 서운해한다는 [확정 사실]의 약속어김이 있으면 만났을 때 그 감정을 자연스럽게 드러낸다. 인물의 위치·약속은 [확정 사실]의 유민위치·인물위치·약속을 따른다.
 [선택지·사건 규칙]
 - choices는 3~4개의 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기, 해독, 설득, 함정 피하기, 몰래 지나가기 등)은 "check"와 알맞은 skill·dc. 쉬기/잠자기는 "rest", 임시 쉼터는 "shelter", 중앙 캠퍼스 지구 귀환은 "return", 구역 밖으로 나가기는 "exit", 사고팔기는 "trade". 그 밖의 관찰·대화·묘사 중심 행동은 "story". 능력치: str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정.
@@ -1209,12 +1211,12 @@ function sceneContext(){
   return s;
 }
 /* 사전 전달: 이름이 글에 나온 항목은 설명(200자)을, 즐겨찾기·최근 항목은 한 줄(60자)만, 합쳐 8개까지 */
-const LEX_HIT_N=6, LEX_TOTAL=8, LEX_FULL=200, LEX_BRIEF=60;
+const LEX_HIT_N=6, LEX_TOTAL=10, LEX_FULL=200, LEX_BRIEF=60;
 function relevantLex(text){
   const hits=G.lexicon.filter(e=>e.name&&e.name.length>=2&&text.includes(e.name)).slice(-LEX_HIT_N);
   hits.forEach(e=>{ e.seen=G.day; if(e.full){ e.desc=e.full; delete e.full } });
   const favs=G.lexicon.filter(e=>e.fav&&!e.arch&&!hits.includes(e)).slice(-2);
-  const recent=G.lexicon.filter(e=>!e.arch&&!hits.includes(e)&&!favs.includes(e)).slice(-2);
+  const recent=G.lexicon.filter(e=>!e.arch&&!hits.includes(e)&&!favs.includes(e)).slice(-3);
   const L=(e,n)=>`- [${e.cat}] ${e.name}: ${String(e.desc||'').slice(0,n)}${String(e.desc||'').length>n?'…':''}`;
   const rows=[...hits.map(e=>L(e,LEX_FULL)),...favs.map(e=>L(e,LEX_BRIEF)),...recent.map(e=>L(e,LEX_BRIEF))].slice(0,LEX_TOTAL);
   return rows.join('\n')||'(없음)';
@@ -1231,6 +1233,9 @@ function buildPrompt(action,extra=''){
 
 [떡밥 장부 — 네가 정한 사실(교칙·정체·약속 등). 이와 모순되게 쓰지 말 것]
 ${(G.ledger||[]).join('\n')||'(아직 없음)'}
+
+[확정 단서 — 플레이어가 이미 얻은 단서. 같은 주제의 새 단서를 만들 때 이와 모순되지 않게 이어 가거나 구체화하고, 숫자·이름·칸·방향 같은 세부를 바꾸지 말 것]
+${canonBlock()}
 
 [지금까지의 줄거리 요약]
 ${G.summary||'(이제 막 시작)'}
@@ -1302,6 +1307,7 @@ function normalizeTurn(r){
   }
   r.place=r['위치']!=null?String(r['위치']).trim().slice(0,16):'';
   r.slotEnd=r['칸종료']===true||r['칸종료']==='true';
+  r.clue=r['단서']!=null?String(r['단서']).trim().slice(0,120):'';
   { const ap=(r['약속']&&typeof r['약속']==='object')?r['약속']:(r['유민약속']&&typeof r['유민약속']==='object')?r['유민약속']:null;
     r.appt=ap?{name:String(ap['인물']||'유민').trim().slice(0,20),place:String(ap['장소']||'').trim().slice(0,16),when:String(ap['때']||'').trim().slice(0,16)}:null; }
   r.event=(r.event&&typeof r.event==='object'&&['merchant','calm_source','place_lead'].includes(r.event.type))?{type:r.event.type,name:String(r.event.name||'').slice(0,20),hint:String(r.event.hint||'').slice(0,80)}:null;
@@ -1338,6 +1344,7 @@ async function aiTurn(action,extra='',showAction=true){
   applyEffects(res.effects||{},T);
   applyPlace(res);
   try{ applyAppt(res,T.action) }catch(e){ console.warn(e) }
+  if(res.clue) addCanon(res.clue);
   applyBellSync(res);
   G._evtTurn=false;
   if(G.relEvt){ if(G._relSetup) G._relSetup=false; else if(++G.relEvt.turns>=4){ getRel(G.relEvt.name).cool=G.day+1; G.relEvt=null } }
@@ -2884,7 +2891,7 @@ function studyHere(){
   if(st.n<STUDY_CLUE_LIMIT&&Math.random()<(lib?STUDY_LIB_P:STUDY_CLUE_P)){
     st.n++;
     const clue=G.fragments<FRAG_GOAL&&Math.random()<sb.frag?fragClue():'';
-    extra+=` [공부 단서] 공부하다가 플레이어가 단서 하나를 얻는다. ${sb.n}답게 ${sb.hint}. 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고 effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+    extra+=` [공부 단서] 공부하다가 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${sb.n}답게 ${sb.hint}. 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고 effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
     G.chronicle.push({day:G.day,text:`주말 ${sb.n} 공부 중 단서를 얻었다${clue?`: ${clue}`:''}`});
     addLog('fx',`📖 공부 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
   }
@@ -3004,8 +3011,9 @@ function classStep(){
     extra=`[수업 끝 ${n}/${CLASS_ACTIONS}] ${subj} 수업의 마무리 장면. 마지막에 종이 울리며 ${k+1}교시가 끝난다.`;
     if(Math.random()<CLASS_CLUE_P){
       const clue=G.fragments<FRAG_GOAL&&Math.random()<sb.frag?fragClue():'';
-      extra+=` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다. ${subj} 수업답게 ${sb.hint}. 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+      extra+=` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${subj} 수업답게 ${sb.hint}. 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
       G.chronicle.push({day:G.day,text:`${subj} 수업에서 단서를 얻었다${clue?`: ${clue}`:''}`});
+      if(clue) addCanon(`${subj} 수업 단서: ${clue}`);
       addLog('fx',`📚 수업 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
     }else extra+=' 이번 수업에서는 별다른 단서가 없다. 단서를 억지로 만들지 말 것.';
     c.done.push(i); c.n++; c.tot++; c.active=null; gainXp(1,'수업');
@@ -3291,7 +3299,7 @@ async function genSite(){
   let prompt=`[구역 즉석 생성] ${baseName()} 근처 한빛시에 있는 폐구역(폐시설) 하나를 새로 만들어라. 지워진 일곱 구역과는 별개의 작은 구역이다.${rich?' 구 신시가 재개발지구 근처라 위험한 곳이 많지만 값진 유실물이 남아 있다.':''} 이것은 플레이어의 ${G.expeditions}번째 조사 외출이다(끝까지 조사한 구역은 ${G.sitesDone}곳). 현재 막: ${G.act}막.
 ${hasFrag?'이 구역의 깊은 곳에 교표 조각이 하나 있다(정확한 공간은 코드가 정함). 깊은 공간의 메모에 교표 문양의 흔적을 남겨도 좋다.':'이 구역에는 교표 조각이 없다. 공간 메모(desc)와 intro에 교표 조각이나 그 흔적을 쓰지 말고, 이 구역만의 단서와 사연에 집중하라.'}
 [떡밥 장부 — 모순되지 않게]
-${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}
+${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}\n[확정 단서 — 모순되지 않게]\n${canonBlock()}
 [지금까지의 사전 항목 일부] ${G.lexicon.slice(-8).map(e=>e.name).join(', ')||'(없음)'}
 [이미 생성된 방 목록] (없음 — 이 구역은 새로 만든다)
 요구:
@@ -4975,7 +4983,7 @@ on('facts',90,(o,rules)=>{
    - 서술 AI에게는 매 턴 2~3개를 '자연스러우면 회수'로 넘김 (억지로 풀지 않게)
    - G.threads=[{id,text,day,status:'open'|'closed',closedDay,shown}]
    ========================================================= */
-const THREAD_MAX=12, THREAD_PROMPT=3;
+const THREAD_MAX=12, THREAD_PROMPT=6;
 function threadsOpen(g){ g=g||G; return (g.threads||[]).filter(t=>t.status==='open') }
 function threadsRequest(g){
   const open=threadsOpen(g);
@@ -5026,6 +5034,17 @@ function threadsSideHTML(){
   const open=threadsOpen();
   return `<div class="sec"><h4>🧵 조사 보드 <button class="small" onclick="openThreads()">관리</button></h4>${open.slice(-5).reverse().map(t=>`<div class="ch"><span class="d">${t.day}일</span><span>${esc(t.text)}</span></div>`).join('')||'<div class="muted">아직 없습니다. 이야기 속 약속·수수께끼가 자동으로 적힙니다.</div>'}${open.length>5?`<div class="muted" style="font-size:12px">외 ${open.length-5}개</div>`:''}</div>`;
 }
+/* ---------- 확정 단서: 플레이어가 이미 얻은 구체적 단서(숫자·이름·칸 등). 지우지 않고 매 턴 AI에게 보내 새 단서가 이와 어긋나지 않게 함 ---------- */
+const CANON_MAX=30;
+function addCanon(t){
+  if(!G) return; t=String(t||'').replace(/\s+/g,' ').trim().slice(0,90); if(t.length<4) return;
+  if(!Array.isArray(G.canon)) G.canon=[];
+  const key=t.replace(/[^가-힣0-9]/g,'').slice(0,14);
+  if(G.canon.some(c=>c.key===key)) return;
+  G.canon.push({day:G.day,text:t,key}); while(G.canon.length>CANON_MAX) G.canon.shift();
+}
+function canonBlock(){ return (G.canon||[]).map(c=>`- (${c.day}일) ${c.text}`).join('\n')||'(아직 없음)' }
+function delCanon(i){ if(!G.canon) return; G.canon.splice(i,1); save(); openThreads() }
 /* ---------- 🧩 추리 도우미: 지금까지의 단서를 AI가 정리해 방향만(살짝) 또는 다음 행동까지(확실히) 알려 줌. 숨겨진 정체·정답은 말하지 않음 ---------- */
 let _sleuthBusy=false;
 const SLEUTH_LV={1:{n:'살짝',how:'방향만 짚는다. known은 지금까지 알려진 것 최대 3개, links는 서로 이어질 법한 단서를 "~일까?" 같은 질문 1~2개로, next는 어떤 종류의 단서를 어디서 더 찾아볼지 방향 2개(구체적인 정답이나 해답은 쓰지 않는다)'},2:{n:'확실히',how:'단서들 사이의 연결을 추정해 말하고(확정이 아닌 것은 "추정"이라고 표시), next에는 지금 하면 좋은 구체적인 행동 2~3개(장소·사람·행동)를 쓴다. 그래도 학원도시가 숨긴 것의 정체나 최종 진실은 직접 쓰지 않는다'}};
@@ -5035,7 +5054,7 @@ function sleuthContext(){
   const chr=(G.chronicle||[]).slice(-12).map(c=>`${chronLabel(c)}: ${c.text}`).join('\n')||'(없음)';
   const ap=(G.appts||[]).map(apptText).join(' / ')||'없음';
   const rs=(G.rumors||[]).filter(r=>(G.heardRumors||[]).includes(r.region)).slice(-5).map(r=>`- ${r.region}: ${r.belief}`).join('\n')||'(없음)';
-  return `[진행] ${G.act>=3?'3막':G.act>=2?'2막':'1막'} · 교표 조각 ${G.fragments}/${FRAG_GOAL}\n[현재] ${G.day}일째 ${G.time} · ${G.loc==='campus'?DISTRICTS[curDistrict()].n:G.loc}\n[조사 보드(풀리지 않은 것)]\n${open}\n[들은 소문]\n${rs}\n[괴담 사전]\n${lex}\n[연대기]\n${chr}\n[약속] ${ap}`;
+  return `[진행] ${G.act>=3?'3막':G.act>=2?'2막':'1막'} · 교표 조각 ${G.fragments}/${FRAG_GOAL}\n[현재] ${G.day}일째 ${G.time} · ${G.loc==='campus'?DISTRICTS[curDistrict()].n:G.loc}\n[확정 단서]\n${canonBlock()}\n[조사 보드(풀리지 않은 것)]\n${open}\n[들은 소문]\n${rs}\n[괴담 사전]\n${lex}\n[연대기]\n${chr}\n[약속] ${ap}`;
 }
 function sleuthHTML(r){
   const L=a=>(Array.isArray(a)&&a.length)?`<ul style="margin:4px 0 10px 18px">${a.map(x=>`<li>${esc(String(x))}</li>`).join('')}</ul>`:'<p class="muted" style="margin:4px 0 10px">아직 말할 만한 것이 없습니다.</p>';
@@ -5074,6 +5093,7 @@ function openThreads(){
   modal('🧵 조사 보드',`<p class="muted">이야기 속에서 생긴 약속·수수께끼·인물의 사정 중 아직 풀리지 않은 것입니다. 사전을 정리할 때 함께 적히고, 풀리면 자동으로 닫힙니다. 이야기꾼은 매 장면 몇 개를 참고해 자연스러울 때 이어 갑니다(최대 ${THREAD_MAX}개).</p>
     <div id="thrList">${open.map(t=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${t.day}일 ·</span> ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')||'<p class="muted">조사 보드가 없습니다.</p>'}</div>
     <div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="thrNew" placeholder="직접 적기 (예: 하킴이 은화를 갚겠다고 했다)" maxlength="60"><button class="small" onclick="addThread()">추가</button></div>
+    ${(G.canon&&G.canon.length)?`<h4 style="margin:14px 0 4px">📌 확정된 단서 <span class="muted" style="font-size:12px">(AI가 항상 기억합니다. 틀린 것은 ✕로 지우세요)</span></h4>${G.canon.map((c,i)=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${c.day}일 ·</span> ${esc(c.text)}</span><button class="small" onclick="delCanon(${i})">✕</button></div>`).join('')}`:''}
     ${done.length?`<h4 style="margin:14px 0 4px">최근에 닫힌 것</h4>${done.map(t=>`<div class="shop-row muted" style="gap:8px"><span>${t.status==='faded'?'💨':'✓'} ${esc(t.text)}</span><button class="small" onclick="reopenThread('${t.id}')">다시 열기</button></div>`).join('')}`:''}`);
 }
 
@@ -5145,11 +5165,15 @@ ${relevantLex(scenes)}
 [장면]
 ${scenes}
 ${threadsRequest(g)}
-JSON만 출력: {"lexicon":[{"name":"이름","cat":"인물|장소|괴담|물건|세력","desc":"플레이어가 알게 된 내용 1~2문장"}],"threads_new":[{"text":"조사 보드 한 줄"}],"threads_closed":["t1"]}`;
+- clues: 이 장면들에서 플레이어가 새로 알게 된 구체적 단서(숫자·이름·칸·장소를 장면에 나온 그대로)를 한 문장씩 최대 3개. [확정 단서]에 이미 있는 것은 빼고, 없으면 빈 배열.
+[확정 단서]
+${canonBlock()}
+JSON만 출력: {"lexicon":[{"name":"이름","cat":"인물|장소|괴담|물건|세력","desc":"플레이어가 알게 된 내용 1~2문장"}],"clues":["…"],"threads_new":[{"text":"조사 보드 한 줄"}],"threads_closed":["t1"]}`;
   let r=null;
   try{ r=parseJSON(await callAI('너는 게임 사전을 정리하는 서기다. JSON 하나만 출력한다.',prompt,1000,'lex')) }catch(e){ return }
   if(G!==g||!r) return;
   applyThreads(g,r);
+  (Array.isArray(r.clues)?r.clues:[]).slice(0,3).forEach(c=>addCanon(typeof c==='string'?c:(c&&c.text)));
   if(!Array.isArray(r.lexicon)){ save(); render(); return }
   // 이 장면들의 구역이 아직 진행 중(또는 중단)이면 그 구역 표시, 이미 끝난 구역이면 인물·물건만 남김
   const active=!!q.zone&&((g.site&&g.site.name===q.zone)||(g.pausedZones||[]).some(d=>d.name===q.zone));
@@ -5347,13 +5371,15 @@ async function maybeSummarize(){
 중요한 인물, 장소, 약속, 단서, 플레이어의 선택을 우선 남기고, 사소한 묘사는 버려라. 700자 이내, 한국어 평문.
 [기존 요약]
 ${G.summary||'(없음)'}
+[확정 단서 — 요약에서 빼지 말고 숫자·이름을 그대로 유지할 것]
+${canonBlock()}
 [이후 장면]
 ${txt}
 JSON만: {"summary":"..."}`;
   try{
     const r=parseJSON(await callAI('너는 게임 기록을 정리하는 서기다. JSON만 출력한다.',prompt,900,'summary'));
     if(r&&r.summary) G.summary=r.summary;
-  }catch(e){ G.summary=(G.summary+' '+old.filter(r=>r.role==='action').map(r=>r.text).join(' / ')).slice(-700) }
+  }catch(e){ G.summary=((G.summary||'').slice(0,350)+' … '+old.filter(r=>r.role==='action').map(r=>r.text).join(' / ')).slice(-700) }   // 실패해도 앞부분(오래된 줄거리)을 통째로 자르지 않음
 }
 function chronLabel(c){ return (c.tier&&c.to>c.day)?`${c.day}~${c.to}일`:`${c.day}일` }
 function chronTierMark(c){ return c.tier==='month'?'월간':c.tier==='week'?'주간':c.tier==='day'?'요약':'' }
@@ -5981,7 +6007,7 @@ async function genBigZone(sp){
 이 구역의 숨은 사연과 교칙(직접 밝히지 말고 공간 메모에 낙서·게시물·위반의 결과로 조각으로): ${c.lore}
 공간 8~10개, 층 2~3개. 가장 깊은 곳은 이 구역의 「심장」 — 구역이 지켜 온 것이 있는 곳.`)+`
 [떡밥 장부 — 모순되지 않게]
-${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}
+${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}\n[확정 단서 — 모순되지 않게]\n${canonBlock()}
 숨겨진 진실(학원도시가 숨긴 것의 정체 — 직접 밝히지 말 것): ${G.secret?.truth||''} / ${G.secret?.detail||''}
 - 첫 공간 id는 "r1"(입구). 각 공간은 1~3개 공간과 연결. 깊을수록 위험도 높게(0~3). 공간마다 floor(층 이름 짧게).
 - desc는 AI 서술용 비밀 메모(교칙의 흔적, 수수께끼, 괴이, 사연) 1~2문장, hook은 단서 또는 위험 요소 하나. 교표 조각은 없다. 학생 인물 사이의 관계는 우정·신뢰로만 그리고 연애·성적 묘사는 쓰지 않는다.
@@ -6057,7 +6083,7 @@ async function genWards(){
 숨겨진 진실(학원도시가 숨긴 것의 정체): ${G.secret?.truth||'미정 — 네가 일관되게 정하라'} / ${G.secret?.detail||''}
 구역 연혁 시대: ${eras||'(없음)'}
 [떡밥 장부]
-${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}
+${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}\n[확정 단서 — 모순되지 않게]\n${canonBlock()}
 구역의 이름·분위기·유형·실제 위치는 이 순서로 고정(wards 배열도 이 순서):
 ${where}
 요구: 지워진 일곱 구역(라쿠나 구역 포함)을 모두 찾으면 진실이 완성되도록, 구역마다 진실의 다른 조각을 지키게 하라. 구역마다 고유한 교칙이 있다 — 교칙 내용은 네가 정해 lore에 한 문장으로 적어 두고, 플레이어에게는 낙서·게시물·위반의 결과로 서서히 드러내라. riddle은 출석부의 ??? 칸에 적힌 한 줄 — 위 분위기와 방위를 은유로 암시하되(방위가 실제와 어긋나면 안 됨) 구역 이름은 쓰지 말 것.
