@@ -4982,6 +4982,49 @@ function threadsSideHTML(){
   const open=threadsOpen();
   return `<div class="sec"><h4>🧵 조사 보드 <button class="small" onclick="openThreads()">관리</button></h4>${open.slice(-5).reverse().map(t=>`<div class="ch"><span class="d">${t.day}일</span><span>${esc(t.text)}</span></div>`).join('')||'<div class="muted">아직 없습니다. 이야기 속 약속·수수께끼가 자동으로 적힙니다.</div>'}${open.length>5?`<div class="muted" style="font-size:12px">외 ${open.length-5}개</div>`:''}</div>`;
 }
+/* ---------- 🧩 추리 도우미: 지금까지의 단서를 AI가 정리해 방향만(살짝) 또는 다음 행동까지(확실히) 알려 줌. 숨겨진 정체·정답은 말하지 않음 ---------- */
+let _sleuthBusy=false;
+const SLEUTH_LV={1:{n:'살짝',how:'방향만 짚는다. known은 지금까지 알려진 것 최대 3개, links는 서로 이어질 법한 단서를 "~일까?" 같은 질문 1~2개로, next는 어떤 종류의 단서를 어디서 더 찾아볼지 방향 2개(구체적인 정답이나 해답은 쓰지 않는다)'},2:{n:'확실히',how:'단서들 사이의 연결을 추정해 말하고(확정이 아닌 것은 "추정"이라고 표시), next에는 지금 하면 좋은 구체적인 행동 2~3개(장소·사람·행동)를 쓴다. 그래도 학원도시가 숨긴 것의 정체나 최종 진실은 직접 쓰지 않는다'}};
+function sleuthContext(){
+  const open=(G.threads||[]).filter(t=>t.status==='open').slice(-10).map(t=>`- ${t.text}`).join('\n')||'(없음)';
+  const lex=G.lexicon.filter(e=>!e.arch&&e.cat!=='물건').slice(-14).map(e=>`- [${e.cat}] ${e.name}: ${String(e.desc||'').slice(0,110)}`).join('\n')||'(없음)';
+  const chr=(G.chronicle||[]).slice(-12).map(c=>`${chronLabel(c)}: ${c.text}`).join('\n')||'(없음)';
+  const ap=(G.appts||[]).map(apptText).join(' / ')||'없음';
+  const rs=(G.rumors||[]).filter(r=>(G.heardRumors||[]).includes(r.region)).slice(-5).map(r=>`- ${r.region}: ${r.belief}`).join('\n')||'(없음)';
+  return `[진행] ${G.act>=3?'3막':G.act>=2?'2막':'1막'} · 교표 조각 ${G.fragments}/${FRAG_GOAL}\n[현재] ${G.day}일째 ${G.time} · ${G.loc==='campus'?DISTRICTS[curDistrict()].n:G.loc}\n[조사 보드(풀리지 않은 것)]\n${open}\n[들은 소문]\n${rs}\n[괴담 사전]\n${lex}\n[연대기]\n${chr}\n[약속] ${ap}`;
+}
+function sleuthHTML(r){
+  const L=a=>(Array.isArray(a)&&a.length)?`<ul style="margin:4px 0 10px 18px">${a.map(x=>`<li>${esc(String(x))}</li>`).join('')}</ul>`:'<p class="muted" style="margin:4px 0 10px">아직 말할 만한 것이 없습니다.</p>';
+  return `<h4 style="margin:6px 0 0">📌 지금까지 알려진 것</h4>${L(r.known)}<h4 style="margin:6px 0 0">🔗 서로 이어질 법한 것</h4>${L(r.links)}<h4 style="margin:6px 0 0">👣 다음에 해 볼 일</h4>${L(r.next)}${r.note?`<p class="muted" style="font-size:12.5px">${esc(String(r.note))}</p>`:''}<p class="muted" style="font-size:11.5px">${esc(r.lvn||'')} 단계 · ${r.day}일째 기준 · 숨겨진 정체나 정답은 알려 주지 않습니다.</p>`;
+}
+function openSleuth(){
+  if(!G) return;
+  const r=G.sleuth;
+  modal('🧩 추리 도우미',`<p class="muted" style="font-size:13px">지금까지의 조사 보드·사전·연대기·소문을 AI가 정리해 줍니다. 정답이나 숨겨진 정체는 알려 주지 않고, 막혔을 때 방향을 잡도록 돕습니다. (누를 때마다 AI를 한 번 부릅니다)</p>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0"><select id="sleuthLv" style="width:auto"><option value="1" ${(+(r&&r.lv)||1)===1?'selected':''}>살짝 — 방향만</option><option value="2" ${(+(r&&r.lv)||1)===2?'selected':''}>확실히 — 다음 행동까지</option></select><button class="primary" id="sleuthBtn" onclick="runSleuth()">🧩 단서 정리하기</button></div>
+    <div id="sleuthOut">${r?sleuthHTML(r):'<p class="muted">단계를 고르고 「단서 정리하기」를 눌러 주세요.</p>'}</div>`);
+}
+async function runSleuth(){
+  if(!G||_sleuthBusy) return;
+  const sel=document.getElementById('sleuthLv'), out=document.getElementById('sleuthOut'), btn=document.getElementById('sleuthBtn');
+  const lv=+(sel&&sel.value)===2?2:1, g=G;
+  _sleuthBusy=true; if(btn) btn.disabled=true; if(out) out.innerHTML='<p class="muted">단서를 정리하는 중…</p>';
+  let r=null, err='';
+  try{
+    r=parseJSON(await callAI('너는 텍스트 호러 추리 게임의 조력자다. 플레이어가 지금까지 알게 된 단서만 근거로 정리하고, 사실을 지어내지 않는다. JSON 하나만 출력한다.',
+`${sleuthContext()}
+
+플레이어가 단서가 너무 많거나 모호해 막혔다. 단계 「${SLEUTH_LV[lv].n}」: ${SLEUTH_LV[lv].how}.
+규칙: 위 자료에 없는 사실을 만들지 않는다. 단서가 부족하면 부족하다고 말한다. 숨겨진 정체·결말은 쓰지 않는다. 각 항목은 한 문장(50자 안팎). 한국어.
+JSON만 출력: {"known":["…"],"links":["…"],"next":["…"],"note":"한 줄 덧붙임(없으면 빈 문자열)"}`,700,'lex'));
+  }catch(e){ err=e&&e.message==='NO_KEY'?'AI 키가 없어 정리할 수 없습니다. 설정에서 키를 입력해 주세요.':'정리를 받지 못했습니다. 잠시 뒤 다시 눌러 주세요.' }
+  _sleuthBusy=false;
+  if(G!==g) return;
+  const o=document.getElementById('sleuthOut'), b2=document.getElementById('sleuthBtn'); if(b2) b2.disabled=false;
+  if(!r||(!Array.isArray(r.known)&&!Array.isArray(r.next))){ if(o) o.innerHTML=`<p class="muted">${esc(err||'정리를 받지 못했습니다. 잠시 뒤 다시 눌러 주세요.')}</p>`; return }
+  G.sleuth={known:r.known,links:r.links,next:r.next,note:r.note,lv,lvn:SLEUTH_LV[lv].n,day:G.day};
+  save(); if(o) o.innerHTML=sleuthHTML(G.sleuth);
+}
 function openThreads(){
   const all=G.threads||[], open=all.filter(t=>t.status==='open'), done=all.filter(t=>t.status!=='open').slice(-15).reverse();
   modal('🧵 조사 보드',`<p class="muted">이야기 속에서 생긴 약속·수수께끼·인물의 사정 중 아직 풀리지 않은 것입니다. 사전을 정리할 때 함께 적히고, 풀리면 자동으로 닫힙니다. 이야기꾼은 매 장면 몇 개를 참고해 자연스러울 때 이어 갑니다(최대 ${THREAD_MAX}개).</p>
@@ -6809,7 +6852,7 @@ function fixedHTML(){
     if(G.comp&&G.comp.joined) ac+=btn('talkYumin()','🎵 유민과 이야기');
   }
   for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }
-  ac+=inboxHTML()+btn('openPhone()','📱 휴대폰');
+  ac+=inboxHTML()+btn('openPhone()','📱 휴대폰')+btn('openSleuth()','🧩 추리 도우미');
   if(G.comp&&G.comp.joined) ac+=btn('partYumin()','🤝 유민과 헤어지기');   // 기능 모듈이 덧붙이는 버튼
   // 사건으로 생긴 버튼
   if(G.calmSrc&&!G.calmSrc.used) ac+=btn('fillCalmSrc()',`🫧 「${esc(G.calmSrc.name)}」에서 공포 가라앉히기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
@@ -7406,7 +7449,7 @@ function openGuide(){
     ${row('🎉 주말 전용','토·일 자유시간에는 🧑‍🤝‍🧑 주말 외출(유민이나 아는 사람 한 명과 상점가·운동장·도서관·저수지 둑길 중 한 곳, 💳5·두 칸, 하루 한 번 성사, 유민 외 인물은 호감에 따라 수락 60~90%), 상점가의 🎸 버스킹 구경(공포 −1, 하루 한 번), 정문의 📮 면회 시간(점심 이후, 용돈 💳10~20과 간식 하나, 하루 한 번)이 열립니다')}
     ${row('🔧 소모 부품','나사·못·테이프·붕대·건전지 같은 소모 부품은 쓰면 사라집니다. 직접 입력("나사를 사용해 …")이나 소지품의 🔧 「쓰기」로 쓰면 소지품에서 하나가 줄고, 공구(드라이버 등)는 남습니다')}
     ${row('🔒 이야기 물건 vs 팔 수 있는 물건','소지품은 두 종류입니다. AI가 물건을 줄 때 이야기에 필요한 것(단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건)에는 🔒를 붙여 팔 수 없게 하고, 값나가는 잡동사니는 바로 팔 수 있습니다. 표시가 없는 물건은 이름으로 판단하고(출석부·열쇠·서류·사진 등은 🔒), 애매하면 팔기 전에 확인 창이 뜹니다')}
-    ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기로 언제든 헤어질 수 있습니다(지도의 🎵로 위치 확인)')}
+    ${row('🧩 추리 도우미','행동 버튼 줄의 🧩 추리 도우미를 누르면 지금까지의 조사 보드·사전·연대기·소문을 AI가 한 번 정리해 줍니다. 단계는 「살짝」(방향만: 알려진 것·이어질 법한 것을 질문으로·더 찾아볼 방향)과 「확실히」(다음에 할 구체적 행동 2~3개까지) 중에 고릅니다. 숨겨진 정체나 정답은 알려 주지 않으며, 누를 때마다 AI를 한 번 부르고 마지막 결과는 저장됩니다')}\n    ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기로 언제든 헤어질 수 있습니다(지도의 🎵로 위치 확인)')}
     ${row('📱 휴대폰','행동 버튼 줄의 📱 휴대폰에서 연락처(유민과 이야기에서 만난 사람들)에게 💬 문자나 📞 전화를 할 수 있습니다. 문자는 시간·배터리를 쓰지 않고, 💬 문자를 누르면 **팝업 대화창(말풍선)**이 열려 주고받은 내용이 연락처마다 기록됩니다. 빠른 문구를 누르거나 직접 써서 보내면 상대가 곧바로 답장하고(AI), 가끔 단서가 조사 보드에 적히고 호감이 오릅니다(하루 한 번). 전화는 배터리 1과 시간 한 칸을 쓰며 이야기 본문으로 진행됩니다. 유민에게는 📍 만나자고 하기(성공 '+Math.round(MEET_OK_P*100)+'%)도 있습니다. 수업 중(전화는 불가)과 소등 후에는 몰래 써야 하고 약 '+Math.round(PHONE_CATCH_P*100)+'% 확률로 들켜 벌점 +'+PHONE_DEMERIT+'과 그 시간대 압수. 구역 안에서는 전화가 안 터지고 문자만 보낼 수 있습니다(신호가 약해 답이 끊겨 옵니다)')}
     ${row('📩 수신 문자','시간이 흐르다 보면 연락처 사람(유민 포함)이 먼저 문자를 보냅니다(한 번에 최대 '+INBOX_MAX+'통). 화면 오른쪽 위에 알림 팝업이 뜨고(누르면 읽기, 행동 버튼 줄의 📩 버튼으로도 가능) 대화창에서 소문·안부·초대·경고 같은 문자를 읽고 바로 답장할 수 있습니다. 수업 중·소등 후에 읽으면 몰래 읽는 것이라 적발될 수 있습니다')}
     ${row('🍫 공포를 늦추는 간식','상점·매점에서 초코바(💳4, 공포 누적 2회 늦춤), 캐러멜 사탕(💳2, 1회), 에너지 젤리(💳6, 3회)를 살 수 있습니다. 소지품에서 「먹기」(또는 "초코바를 먹는다"라고 입력)하면 다음 공포 누적을 건너뜁니다. 구역·뒷길처럼 걸을 때 공포가 오르는 곳에서 효과가 있고, 이미 오른 공포를 내리지는 않습니다')}
