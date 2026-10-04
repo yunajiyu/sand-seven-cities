@@ -548,8 +548,21 @@ function timeIcon(){ return TIME_ICON[G.time]||'☀' }
 
 /* ---------- 시간과 소모 ---------- */
 /* 낮은 학교 일과(SCHOOL)의 9칸, 나머지 시간대는 quarter걸음씩. 낮의 dayStep이 곧 일과 칸 번호 */
-const SCHOOL=['조례','1교시','쉬는 시간','2교시','점심시간','3교시','쉬는 시간','4교시','종례'];
+const SCHOOL=['조례','1교시','쉬는 시간','2교시','점심시간','3교시','쉬는 시간','4교시','종례'];   // 요일에 따라 syncSchedule()이 바꿈
 const CLASS_SLOTS=[1,3,5,7];
+/* 월~일: 1일째가 월요일. 토·일은 학교를 가지 않고(수업 없음) 공부·자유 행동으로 낮을 보냄. SCHOOL·CLASS_SLOTS 배열은 요일에 맞춰 제자리에서 바뀜 */
+const DOW=['월','화','수','목','금','토','일'];
+const SCHOOL_WD=['조례','1교시','쉬는 시간','2교시','점심시간','3교시','쉬는 시간','4교시','종례'];
+const SCHOOL_WE=['아침 시간','오전 자유시간','오전 자유시간','오전 자유시간','점심시간','오후 자유시간','오후 자유시간','오후 자유시간','저녁 시간'];
+const dowIdx=d=>(((d||1)-1)%7+7)%7;
+const dowName=d=>DOW[dowIdx(d)];
+const isWeekend=()=>!!G&&dowIdx(G.day)>=5;
+function syncSchedule(){
+  const we=!!G&&dowIdx(G.day)>=5, want=we?SCHOOL_WE:SCHOOL_WD;
+  if(SCHOOL[0]===want[0]&&SCHOOL[1]===want[1]) return;
+  SCHOOL.splice(0,SCHOOL.length,...want);
+  CLASS_SLOTS.splice(0,CLASS_SLOTS.length,...(we?[]:[1,3,5,7]));
+}
 const MOVE_STEPS={calm:8,calmFrugal:11,battery:10,torch:5,half:8,quarter:4};   // quarter: 시간대(낮·방과 후·야간·새벽) 하나가 바뀌는 걸음 수 — 하루 16걸음은 그대로
 
 /* ---------- 아지트 ---------- */
@@ -1154,7 +1167,7 @@ function stateFacts(){
   const o={
     캐릭터:{이름:c.name,나이:c.age||17,신분:c.origin,전학이유:c.reason||c.reasonAI||'(미정 — AI가 정해 서서히 드러낼 것)',능력치:{체력:c.stats.str,지혜:c.stats.wis,매력:c.stats.cha,생존술:c.stats.sur},특성:c.traits,배경:c.bio||'(없음)'},
     상태:{체력:`${G.hp}/${G.maxhp}`,공포:`${fearNow()}/${fearMax()} (높을수록 위험)`,배터리:`${batteryPct()}%`,손전등:`${G.torch}/${capT()}`,캐시:G.cash,벌점:`${G.demerit||0} (${DEMERIT_WARN} 이상이면 외출 금지 경고)`,출입권한:`${G.access||1}등급 (1~${ACCESS_MAX})`,소지품:G.items,교표조각:`${G.fragments}/${FRAG_GOAL}`},
-    날짜:`${G.day}일째 ${G.time}`,
+    날짜:`${G.day}일째(${dowName(G.day)}요일${dowIdx(G.day)>=5?' 주말':''}) ${G.time}`,
     알려진지명:MAP_PLACES.filter(p=>p.far&&G.discovered.includes(p.id)).map(p=>`${p.n}(${p.lore||''} 소문으로만 아는 곁가지 구역)`).join(' / ')||'없음',
     아지트:has('clubroom')?`${G.home.name||'폐 동아리실'} — 시설: ${FAC.filter(f=>has(f.id)).map(f=>f.n).join(', ')}`:'없음',
     탈것:G.ride?`${RIDES[G.ride.type].n} 「${G.ride.name}」 (${G._rideFed===false?'충전을 못 해 지쳐 있음':'상태 좋음'}) — 평소 아지트 자전거 보관대에 있고 조사 외출에 데려간다. 한빛시 이동 장면에서 가끔(매번은 아님) 자연스럽게 등장시킬 것`:'없음',
@@ -1431,6 +1444,7 @@ function fearInterval(){
   return v;
 }
 function tick(soft){
+  syncSchedule();
   if(soft){ G._softN=(G._softN||0)+1; if(G._softN%2===1) return }
   G.steps++;
   if(!isHood()){
@@ -1470,12 +1484,12 @@ function tick(soft){
 function flushBell(){
   const p=G&&G._bell; if(!p) return; G._bell=null;
   if(G.loc!=='campus') return;
-  const end=p==='조례'?'조례가 끝났습니다':p==='쉬는 시간'?'쉬는 시간이 끝났습니다':p==='점심시간'?'점심시간이 끝났습니다':p==='종례'?'종례가 끝났습니다':`${p} 수업이 끝났습니다`;
+  const end=p==='조례'?'조례가 끝났습니다':p==='쉬는 시간'?'쉬는 시간이 끝났습니다':p==='점심시간'?'점심시간이 끝났습니다':p==='종례'?'종례가 끝났습니다':/교시$/.test(p)?`${p} 수업이 끝났습니다`:`${p}이 끝났습니다`;
   const nx=G.time==='낮'?slotLabel():G.time;
   addLog('sys',`🔔 ${end} → ${nx}`); toast(`🔔 ${end} → ${nx}`);
 }
-function blockLen(){ return G.time==='낮'?SCHOOL.length:MOVE_STEPS.quarter }
-function slotIdx(){ return G.time==='낮'?Math.min(SCHOOL.length-1,G.dayStep||0):-1 }
+function blockLen(){ syncSchedule(); return G.time==='낮'?SCHOOL.length:MOVE_STEPS.quarter }
+function slotIdx(){ syncSchedule(); return G.time==='낮'?Math.min(SCHOOL.length-1,G.dayStep||0):-1 }
 function slotLabel(){ const i=slotIdx(); if(i<0) return G.time; const k=CLASS_SLOTS.indexOf(i); return `${SCHOOL[i]}${k>=0?` (${subjectAt(k).n})`:''}` }
 function advanceTime(){
   const i=(Math.max(0,TIMES.indexOf(G.time))+1)%TIMES.length;
@@ -2309,7 +2323,7 @@ function campusFixedHTML(){
   const ft=(_floorTab&&_floorTab.d===d)?_floorTab.f:floorOf(d);
   const tabs=FLOORS.map(([f,nm])=>`<button class="small ${f===ft?'primary':''}" style="${f===floorOf(d)&&f!==ft?'outline:1px dashed var(--accent)':''}" onclick="setFloorTab('${f}')">${nm}${f===floorOf(d)?' 📍':''}</button>`).join('');
   const bar=tabs+'<div style="flex-basis:100%;height:0"></div>'+Object.keys(PLACES).filter(k=>PLACES[k].fl===ft).map(k=>`<button class="small ${k===d&&!sp?'primary':''}" ${k===d&&!sp?'disabled':''} onclick="goDistrict('${k}')">${PLACES[k].ic} ${PLACES[k].n}</button>`).join('');
-  let a=schoolHTML();
+  let a='';
   if(sp) a=`<button class="primary" onclick="goDistrict('${d}')">↩ ${DISTRICTS[d].n}${josa(DISTRICTS[d].n,'으로','로')} 돌아가기</button>`;
   else if((PLACES[d]||{}).t==='hall') a=`<button onclick="strollHall()">🚶 ${PLACES[d].n} 거닐기</button>`;
   else if(d==='nurse') a=`<button onclick="nurseRest()">🩹 보건실에서 쉬기 (하루 한 번)</button>`;
@@ -2321,6 +2335,7 @@ function campusFixedHTML(){
   else if(d==='dorm') a=`<button onclick="dormTea()">🍵 휴게실에서 차 마시기 (공포 −1 · 오늘 ${3-dormSt().tea}번 남음)</button><button onclick="dormShower()">🚿 따뜻한 샤워 (공포 −2 · ${dormSt().shower?'오늘 사용함':'하루 1번'})</button><button onclick="campusRest()">🛏 기숙사에서 쉬기 (10)</button>`;
   else if(d==='gate') a=`<button class="primary" onclick="startExpedition()">🔦 구역 조사 떠나기</button><button onclick="openTravel()">🧭 다른 지구로 이동하기 (공원·학원가·재개발지구)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
   else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>` }
+  if(!sp) a=schoolHTML()+a;   // 지금 일과 칸의 버튼은 어느 지점에서나 맨 앞에 보임
   if(dormLocked()) a=`<button class="primary" onclick="dormPlead()">🙏 사감 선생님께 사정하기 (매력 판정)</button>`+(G.comp.met&&!G.comp.joined?`<button class="primary" onclick="dormAskYumin()">📱 유민에게 몰래 문을 열어 달라고 문자</button>`:'')+a;
   if(!sp&&G.time==='방과 후') a+=`<button class="primary" onclick="waitRollCall()">🔔 점호 시간까지 기다리기</button>`;
   a+=`<button onclick="openSchoolMap()">🏫 학교 지도</button><button onclick="openRel()">👥 인연</button>`;
@@ -2403,7 +2418,7 @@ function jobBlock(k){
   const i=slotIdx();
   if(i>=0){
     if(CLASS_SLOTS.includes(i)) return '수업 중에는 일할 수 없습니다';
-    if(i===0||i===8) return `${SCHOOL[i]} 시간에는 일할 수 없습니다`;
+    if(!isWeekend()&&(i===0||i===8)) return `${SCHOOL[i]} 시간에는 일할 수 없습니다`;
     if(j.slots&&!j.slots.includes(i)) return '이 일은 점심시간이나 방과 후에만 할 수 있습니다';
   }else if(j.slots&&!j.slots.includes('after')) return '지금은 일할 수 없습니다';
   if(st.n>=JOB_DAILY_LIMIT) return `오늘은 일을 ${JOB_DAILY_LIMIT}번 다 했습니다`;
@@ -2673,8 +2688,51 @@ function classBlock(){
 function skipCatchP(){ return Math.min(0.85,SKIP_CATCH_P+SKIP_CATCH_STEP*clsSt().skip+((G.demerit||0)>=DEMERIT_WARN?SKIP_CATCH_WARN:0)) }
 function inClassroom(){ return G.loc==='campus'&&curDistrict()==='classroom'&&!spotOn() }
 /* 낮의 일과 버튼: 지금 칸에 맞는 행동 하나(또는 둘) */
+/* ---------- 주말(토·일): 공부하기 · 자유 행동 ---------- */
+const STUDY_CLUE_P=0.2, STUDY_LIB_P=0.35, STUDY_CLUE_LIMIT=2;
+function weekendHTML(i){
+  const b=[];
+  if(i===0) b.push(`<button class="primary" onclick="weekendMorning()">🌅 ${dowName(G.day)}요일 아침을 시작한다</button>`);
+  else if(i===4) b.push(`<button class="primary" onclick="lunchTime()">🍚 급식 먹기 (무료)</button>`);
+  else if(i===8) b.push(`<button class="primary" onclick="weekendEvening()">🌇 저녁이 된다 (하루 정리)</button>`);
+  else{
+    const lib=['library','study'].includes(curDistrict());
+    b.push(`<button class="primary" onclick="studyHere()">📖 공부하기 (단서 ${Math.round((lib?STUDY_LIB_P:STUDY_CLUE_P)*100)}%${lib?' · 도서관·자습실 보너스':''})</button><button class="primary" onclick="freeTime()">🎈 자유 행동</button>`);
+  }
+  return b.join('');
+}
+function weekendMorning(){
+  if(busy||spotBlock()||slotIdx()!==0) return;
+  G._yuminHere=false; tick();
+  aiTurn('주말 아침을 맞는다',`[${dowName(G.day)}요일 아침] 학교에 가지 않는 주말 아침. 늦잠, 느긋한 기숙사 분위기, 창밖의 햇빛과 복도의 슬리퍼 소리 같은 짧은 장면. 오늘 하루를 어떻게 보낼지(공부, 산책, 친구 만나기, 쇼핑, 아르바이트 등) 고민하는 마지막 한 줄. 학생 인물 사이의 관계는 우정으로만.`);
+}
+function weekendEvening(){
+  if(busy||spotBlock()||slotIdx()!==8) return;
+  G._yuminHere=false; tick();
+  aiTurn('저녁을 맞는다','[주말 저녁] 저녁노을과 저녁 급식 냄새, 하루를 돌아보는 짧은 장면. 곧 점호 시간이 다가온다는 느낌을 마지막 한 줄에.');
+}
+function studyHere(){
+  if(busy||spotBlock()||!isWeekend()||slotIdx()<0) return;
+  const st=(G.studyDay&&G.studyDay.day===G.day)?G.studyDay:(G.studyDay={day:G.day,n:0});
+  const lib=['library','study'].includes(curDistrict()), sb=rand(SUBJECTS); G._yuminHere=false;
+  let extra=`[주말 공부] 학교에 가지 않는 ${dowName(G.day)}요일에 플레이어가 혼자 ${sb.n} 공부를 한다(${curDistrict()==='classroom'?'빈 교실':DISTRICTS[curDistrict()].n}에서). 조용하고 집중되는 짧은 장면, 졸음이나 딴생각이 스며도 좋다.`;
+  if(st.n<STUDY_CLUE_LIMIT&&Math.random()<(lib?STUDY_LIB_P:STUDY_CLUE_P)){
+    st.n++;
+    const clue=G.fragments<FRAG_GOAL&&Math.random()<sb.frag?fragClue():'';
+    extra+=` [공부 단서] 공부하다가 플레이어가 단서 하나를 얻는다. ${sb.n}답게 ${sb.hint}. 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고 effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+    G.chronicle.push({day:G.day,text:`주말 ${sb.n} 공부 중 단서를 얻었다${clue?`: ${clue}`:''}`});
+    addLog('fx',`📖 공부 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
+  }
+  gainXp(1,'공부'); tick(); aiTurn(`${sb.n} 공부를 한다`,extra);
+}
+function freeTime(){
+  if(busy||spotBlock()||!isWeekend()||slotIdx()<0) return;
+  G._yuminHere=false; tick();
+  aiTurn('자유 시간을 보낸다',`[주말 자유 행동] ${dowName(G.day)}요일 자유 시간. 플레이어가 하고 싶은 대로 시간을 보낸다. 선택지는 산책, 친구나 유민과 어울리기, 낮잠, 취미, 쇼핑, 몰래 하는 작은 일탈, 학교 구석 둘러보기 등 서로 다른 성격으로 3~4개 줄 것. 장면은 짧고 가볍게. 학생 인물 사이의 관계는 우정으로만.`);
+}
 function schoolHTML(){
   const i=slotIdx(); if(i<0||G.loc!=='campus'||spotOn()) return '';
+  if(isWeekend()) return weekendHTML(i);
   const c=clsSt(), k=CLASS_SLOTS.indexOf(i), nx=SCHOOL[i+1]||'방과 후';
   const goRoom=`<button class="primary" onclick="goDistrict('classroom')">🚪 교실로 가기</button>`;
   let b='';
@@ -2692,6 +2750,7 @@ function schoolHTML(){
 /* 일과 안내 한 줄 (버튼 줄 아래 이름표에 표시) */
 function schoolInfo(){
   const i=slotIdx(); if(i<0||G.loc!=='campus'||spotOn()) return '';
+  if(isWeekend()) return `🔔 지금: <b>${esc(SCHOOL[i])}</b> · 다음: ${esc(SCHOOL[i+1]||'방과 후')} · ${dowName(G.day)}요일 주말 — 수업이 없습니다`;
   const c=clsSt(), nx=SCHOOL[i+1]||'방과 후';
   const tt=CLASS_SLOTS.map((_,j)=>`${j+1}교시 ${subjectAt(j).n}`).join(' · ');
   return `🔔 지금: <b>${esc(slotLabel())}</b>${classActive()?` · 📚 수업 진행 ${classActive().n}/${CLASS_ACTIONS} (선택지·입력도 수업 행동으로 셈)`:''} · 다음: ${esc(nx)} · 오늘 시간표 ${esc(tt)} (출석 ${c.n}회${c.skip?` · 땡땡이 ${c.skip}회`:''}${c.absent?` · 결석 ${c.absent}회`:''})`;
@@ -2821,6 +2880,7 @@ function skipClass(away){
 /* AI에게 지금 일과 칸을 알려 줌 */
 on('context',90.2,()=>{
   const i=slotIdx(); if(i<0||G.loc!=='campus') return '';
+  if(isWeekend()) return ` [주말] 오늘은 ${dowName(G.day)}요일 주말이라 수업이 없다. 지금은 낮의 「${SCHOOL[i]}」 시간이다. 서술과 선택지는 공부·자유 행동·산책·친구와 어울리기·아르바이트·외출 같은 주말 일과로 한다(수업·조례·종례는 쓰지 않는다).`;
   const nx=SCHOOL[i+1]||'방과 후';
   const ca=classActive();
   return (ca?` [수업 중 ${ca.n}/${CLASS_ACTIONS}] 플레이어는 교실에서 수업을 듣는 중이다. 서술과 선택지는 교실 안 수업 중 행동(필기·질문·졸기·속닥이기·딴짓·몰래 나가기)으로 하고, 수업이 아직 끝나지 않았으니 일과를 건너뛰지 말 것.`:'')+` [학교 일과] 지금은 낮의 「${slotLabel()}」 시간이다(다음: ${nx}). 서술과 선택지는 이 시간에 맞출 것(조례: 담임 공지·출석, 수업 중: 칠판·선생님, 쉬는 시간: 복도·매점·친구 수다, 점심시간: 급식실, 종례: 담임 정리). 수업 시간에 교실 밖으로 나가는 행동은 땡땡이로 다룬다. 장소를 옮기는 선택지는 '급식실로 간다', '교실로 돌아간다'처럼 장소 이름과 이동 동사를 함께 쓴다.`;
@@ -6246,6 +6306,7 @@ function scrollLog(){ const lg=document.getElementById('log'); lg.scrollTop=lg.s
 function renderLogAll(){ document.getElementById('logInner').innerHTML=''; G.log.forEach(appendLogEl); scrollLog() }
 
 function render(){
+  try{ syncSchedule() }catch(e){}
   if(!G) return;
   if(_sfxDay!=null&&G.day>_sfxDay) sfx('newday');
   _sfxDay=G.day;
@@ -6266,7 +6327,7 @@ function render(){
      <span class="st" title="출입 권한 등급 (1~${ACCESS_MAX})">🪪 권한 ${G.access||1}등급</span>
      <span class="st" title="교표 조각">★ 교표 조각 ${G.fragments}/${FRAG_GOAL}</span>
      <span class="st dup" title="철제 부품 · 합판 · 전선 · 유실물">${MATS.map(m=>m.i+G.mat[m.k]).join(' ')}</span>
-     <span class="st">${G.day}일째 ${timeIcon()} ${G.time}</span>
+     <span class="st" title="월~일 · 토·일은 학교를 가지 않는 주말">${G.day}일째(${dowName(G.day)}) ${timeIcon()} ${G.time}</span>
      ${G.comp&&G.comp.met?`<span class="st dup" title="유민 호감도">🎵 유민${G.comp.joined?' (동행)':''}</span>`:''}`;
   applyFearFx();
   document.getElementById('where').textContent=whereText();
@@ -6909,7 +6970,7 @@ function openGuide(){
       row(`🔦 손전등 ${G.torch}`,'구역에서 공간을 옮길 때 소모')+
       row(`📕 벌점 ${G.demerit||0}`,`${DEMERIT_WARN}점 이상이면 외출 금지 경고`)+
       row(`🪪 출입 권한 ${G.access||1}등급`,`1~${ACCESS_MAX}등급 · 높은 등급이 필요한 문은 열리지 않음`)+
-      row('⏳ 지금 시각',`${G.day}일째 ${timeIcon()} ${G.time} · ${toH}걸음 뒤 ${nextT==='낮'?'다음 날 낮':nextT}`);
+      row('⏳ 지금 시각',`${G.day}일째(${dowName(G.day)}요일) ${timeIcon()} ${G.time} · ${toH}걸음 뒤 ${nextT==='낮'?'다음 날 낮':nextT}`);
   }
   const S=13, ex=(extra,noW)=>{ const w=(noW?0:2)+Math.floor(S/(wBase+extra)), f=2+Math.floor(S/MOVE_STEPS.battery); return {w,f} };
   const e0=ex(0,false), e1=ex(RIDES.bike.fearStep,false), e3=ex(RIDES.scooter.fearStep,true);
@@ -6938,6 +6999,7 @@ function openGuide(){
     ${row('🎲 직접 행동 판정 고르기','직접 입력창 위의 🎲 판정 칸에서 능력치(체력·지혜·매력·생존술)를 고르고 행동을 입력하면, 그 능력치로 바로 2d6 판정을 하고 결과대로 이야기가 이어집니다. 난이도(쉬움 7 · 보통 9 · 어려움 11)는 항상 무작위이고, 판정 전에 "🎯 이번 판정은 보통 난이도입니다"와 성공 확률이 먼저 표시됩니다(능력치를 바꿔도 난이도는 그대로, 판정하면 새로 정해짐). 구역 깊은 곳이나 전투처럼 위험한 장면일수록 어려움이 더 자주 나옵니다(위험도 0: 쉬움 40·보통 40·어려움 20% / 3: 12·33·55%). "판정 없이 진행"은 판정과 확인 칩 없이 이야기로만 진행하고, 기본값 "자동"은 필요할 때만 물어봅니다')}
     ${row('🔎 특별실 둘러보기','도서관·음악실·가사실·과학실·방송실·미술실·자습실·컴퓨터실·옥상·운동장·체육관에서는 🔎 둘러보기로 곳곳을 살펴 단서(조사 보드, 가끔 교표 조각의 위치)를 얻을 수 있습니다(곳마다 확률이 다르고 하루 단서는 '+BROWSE_CLUE_LIMIT+'번까지). 🩹 보건실은 하루 한 번 체력 +2·공포 −1')}
     ${row('🔗 서술과 일과 맞추기','시간의 기준은 게임이고, 서술이 종소리로 수업 끝을 알리면(AI가 "칸종료"를 알리거나 서술에 수업 끝 종소리가 있으면) 게임도 수업을 끝내고 다음 칸으로 넘깁니다. 수업 시작 종소리 같은 표현은 끝으로 보지 않습니다')}
+    ${row('📅 월~일 · 주말','1일째는 월요일이고 요일이 상태 표시줄에 보입니다. 토·일은 학교를 가지 않아 수업·조례·종례가 없고, 낮이 아침·오전 자유(3칸)·점심·오후 자유(3칸)·저녁으로 흐릅니다. 자유시간에는 📖 공부하기(성장 경험치 +1, 단서 '+Math.round(STUDY_CLUE_P*100)+'%, 도서관·자습실에서는 '+Math.round(STUDY_LIB_P*100)+'%, 하루 단서 '+STUDY_CLUE_LIMIT+'번까지)와 🎈 자유 행동(AI가 산책·친구와 어울리기·낮잠·쇼핑·일탈 같은 선택지를 줌)을 고를 수 있고, 아르바이트·외출도 가능합니다. 소등 후 규칙은 평일과 같습니다')}
     ${row('🔔 칸이 끝날 때','수업·쉬는 시간 같은 칸이 끝나면 서술 뒤에 "🔔 1교시 수업이 끝났습니다 → 쉬는 시간"처럼 알림이 뜹니다')}
     ${row('🔔 점호 시간까지 기다리기','종례가 끝난 방과 후에 캠퍼스에서 🔔 버튼(또는 "점호 시간까지 기다린다"라고 입력)을 누르면 야간이 될 때까지 시간을 보내고 기숙사 점호 장면으로 넘어갑니다. 낮(수업 중)에는 쓸 수 없습니다')}
     ${row('🌙 소등 후 외출','야간·새벽(소등 후)에 기숙사 밖으로 나가면 그날 밤 처음 한 번 '+Math.round(CURFEW_CATCH_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(CURFEW_CATCH_WARN*100)+'%)로 들켜 기숙사로 돌려보내지고 벌점 +'+CURFEW_DEMERIT+'. 들키지 않으면 그날 밤은 자유롭게 다닐 수 있습니다. 구역 조사를 나가는 무단 외출 벌점은 따로 붙습니다')}
