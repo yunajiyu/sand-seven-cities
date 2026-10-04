@@ -303,15 +303,17 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 .rj-era{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0;background:var(--bg)}
 .rj-era b{font-family:'Noto Sans KR',sans-serif}
 
-.dc-scene{position:relative;width:100%;aspect-ratio:3/2;border-radius:10px;overflow:hidden;background:linear-gradient(#26314a,#141b2c);border:1px solid var(--line,#ccc);user-select:none;touch-action:none}
-.dc-base{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.dc-base,.dc-it img{image-rendering:pixelated}
-.dc-note{position:absolute;left:8px;top:6px;font-size:12px;opacity:.7}
+.dc-scene{position:relative;width:100%;aspect-ratio:3/2;border-radius:10px;overflow:hidden;border:1px solid var(--line,#ccc);user-select:none;touch-action:none;container-type:inline-size}
+.dc-scene.st1{background:linear-gradient(#3a3f4d 0 46%,#2a2622 46% 48%,#4a4036 48%)}
+.dc-scene.st2{background:linear-gradient(#4a5163 0 46%,#2f2a25 46% 48%,#5a4b3c 48%)}
+.dc-scene.st3{background:linear-gradient(#5a6479 0 46%,#352f29 46% 48%,#6b5842 48%)}
+.dc-scene.st4{background:linear-gradient(#6e7a92 0 46%,#3a332c 46% 48%,#7d6648 48%)}
+.dc-bg{position:absolute;transform:translate(-50%,-50%);pointer-events:none;opacity:.8;line-height:1}
+.dc-note{position:absolute;left:8px;top:6px;font-size:12px;opacity:.8;color:#fff;z-index:9999}
 .dc-it{position:absolute;transform:translate(-50%,-50%)}
 .dc-it.mv{cursor:grab;touch-action:none}
 .dc-it.sel{outline:2px dashed #e0402f;outline-offset:2px}
-.dc-it img{width:100%;display:block;pointer-events:none;-webkit-user-drag:none}
-.dc-fb{display:flex;align-items:center;justify-content:center;aspect-ratio:1;font-size:clamp(18px,4vw,34px);pointer-events:none}
+.dc-fb{display:flex;align-items:center;justify-content:center;aspect-ratio:1;line-height:1;pointer-events:none;text-shadow:0 2px 3px rgba(0,0,0,.45)}
 </style>
 </head>
 <body>
@@ -6310,17 +6312,23 @@ function openGuide(){
 
 
 /* =========================================================
-   35. 아지트 꾸미기 — 집 그림(4단계) 위에 시설·가구·장식·유실물 진열을 겹쳐 놓음
-   그림 파일이 없으면 이모지로 대신 보임. 파일은 images/home/ 에 넣고 아래 좌표·크기(%)는 그림에 맞게 조절
+   35. 아지트 꾸미기 — 이모지 장면(4단계 배경) 위에 시설·가구·장식·유실물 진열을 겹쳐 놓음
+   그림 파일은 쓰지 않음. 아래 좌표·크기(%)는 장면 가로폭 기준
    ========================================================= */
-const HOME_IMG='images/home/';
-/* 시설 그림: 지은 시설이 정해진 자리에 나타남 (x,y=중심 위치 %, w=가로 폭 %). 깊은 티 코너·큰 사물함은 낮은 단계 그림을 대체 */
+/* 시설 자리: 지은 시설이 정해진 자리에 나타남 (x,y=중심 위치 %, w=가로 폭 %). 큰 사물함·전기포트는 낮은 단계 시설을 대체 */
 const FAC_SLOTS={
-  well:{img:'fac_well',ic:'🫧',x:18,y:72,w:16.7},well2:{img:'fac_well2',ic:'🫧',x:18,y:72,w:20.8,rep:'well'},
-  store:{img:'fac_store',ic:'📦',x:80,y:62,w:20.8},store2:{img:'fac_store2',ic:'📦',x:80,y:62,w:25,rep:'store'},
-  stable:{img:'fac_stable',ic:'🚲',x:84,y:80,w:25},workshop:{img:'fac_workshop',ic:'🔨',x:66,y:40,w:25},
-  garden:{img:'fac_garden',ic:'🔋',x:30,y:82,w:25},guest:{img:'fac_guest',ic:'🛋',x:40,y:38,w:20.8},study:{img:'fac_study',ic:'🌌',x:55,y:55,w:20.8},
+  tea:{ic:'🍵',x:18,y:72,w:16.7},tea2:{ic:'♨️',x:18,y:72,w:20.8,rep:'tea'},
+  locker:{ic:'🗄',x:80,y:62,w:20.8},locker2:{ic:'🗄',x:80,y:62,w:25,rep:'locker'},
+  bikerack:{ic:'🚲',x:84,y:80,w:25},workbench:{ic:'🔨',x:66,y:40,w:25},
+  charger:{ic:'🔋',x:30,y:82,w:25},sofa:{ic:'🛋',x:40,y:38,w:20.8},lab:{ic:'🔍',x:55,y:55,w:20.8},
 };
+/* 단계별 배경 소품: 단계가 오를수록 방이 정돈됨 */
+const HOME_BG=[
+  [1,{ic:'🪟',x:50,y:20,w:12},{ic:'🚪',x:92,y:30,w:12}],
+  [2,{ic:'💡',x:30,y:10,w:7}],
+  [3,{ic:'🖼',x:20,y:24,w:9},{ic:'⏰',x:75,y:16,w:7}],
+  [4,{ic:'🎞',x:8,y:30,w:8},{ic:'🌟',x:62,y:9,w:6}],
+];
 /* 가구·장식: from = market(중앙 캠퍼스 지구 상점가) · 지구 id(그 지구 상점) · relic(보유 유실물 등급 g) */
 const DECOR=[
   {id:'furn_bed',n:'침대',ic:'🛏',price:30,from:'market',w:16.7},
@@ -6351,27 +6359,26 @@ const DECOR_MARKET_NOTE='폐 동아리실(아지트)이 있어야 놓을 수 있
 function decorSt(){ if(!G.home.decor) G.home.decor={owned:{},placed:{}}; return G.home.decor }
 function homeStage(){ const n=FAC.filter(f=>f.id!=='land'&&has(f.id)).length; return n>=FAC.length-1?4:n>=6?3:n>=3?2:1 }
 function decorHave(d){ if(d.from==='relic'){ relicSync(); return (G.relicG[d.g]||0)>0 } return !!decorSt().owned[d.id] }
-function decorImgHTML(file,ic,ext){
-  return `<img src="${HOME_IMG}${file}.${ext||'webp'}" alt="" onerror="this.outerHTML='<span class=&quot;dc-fb&quot;>${ic}</span>'">`;
-}
+function decorIcon(ic,w){ return `<span class="dc-fb" style="font-size:${Math.max(2,w*.8)}cqw">${ic}</span>` }
 let _dcEdit=false, _dcSel=null, _dcStage=null;
 /* 시설 자리: 기본값(FAC_SLOTS) 위에 편집 모드에서 저장한 값(SET.facSlots)을 덮어씀 */
 function facSlot(id){ return Object.assign({},FAC_SLOTS[id],(SET.facSlots||{})[id]) }
 function decorSceneHTML(movable){
   const st=decorSt(), n=(_dcEdit&&_dcStage)||homeStage();
-  let h=`<img class="dc-base" src="${HOME_IMG}house_${n}.webp" alt="" onerror="this.remove()"><span class="dc-note">집 ${n}단계</span>`;
+  let h=`<span class="dc-note">집 ${n}단계</span>`;
+  HOME_BG.forEach(([from,...its])=>{ if(n>=from) its.forEach(o=>{ h+=`<span class="dc-bg" style="left:${o.x}%;top:${o.y}%;font-size:${o.w*.8}cqw">${o.ic}</span>` }) });
   Object.keys(FAC_SLOTS).forEach(id=>{
     const o=facSlot(id), nm=esc((FAC.find(f=>f.id===id)||{}).n||'');
     if(_dcEdit){
-      h+=`<div class="dc-it mv ${_dcSel===id?'sel':''}" data-f="${id}" style="left:${o.x}%;top:${o.y}%;width:${o.w}%;z-index:${Math.round(o.y*10)};opacity:${has(id)?1:.55}" title="${nm}" onpointerdown="facDown(event,'${id}')">${decorImgHTML(o.img,o.ic)}</div>`;
+      h+=`<div class="dc-it mv ${_dcSel===id?'sel':''}" data-f="${id}" style="left:${o.x}%;top:${o.y}%;width:${o.w}%;z-index:${Math.round(o.y*10)};opacity:${has(id)?1:.55}" title="${nm}" onpointerdown="facDown(event,'${id}')">${decorIcon(o.ic,o.w)}</div>`;
       return;
     }
     if(!has(id)||(o.rep===undefined&&has(id+'2'))) return;
-    h+=`<div class="dc-it" style="left:${o.x}%;top:${o.y}%;width:${o.w}%;z-index:${Math.round(o.y*10)}" title="${nm}">${decorImgHTML(o.img,o.ic)}</div>`;
+    h+=`<div class="dc-it" style="left:${o.x}%;top:${o.y}%;width:${o.w}%;z-index:${Math.round(o.y*10)}" title="${nm}">${decorIcon(o.ic,o.w)}</div>`;
   });
   DECOR.forEach(d=>{
     const pl=st.placed[d.id]; if(!pl||!decorHave(d)) return;
-    h+=`<div class="dc-it ${movable&&!_dcEdit?'mv':''}" style="left:${pl.x}%;top:${pl.y}%;width:${d.w}%;z-index:${Math.round(pl.y*10)}" title="${esc(d.n)}" ${movable&&!_dcEdit?`onpointerdown="decorDown(event,'${d.id}')"`:''}>${decorImgHTML(d.id,d.ic)}</div>`;
+    h+=`<div class="dc-it ${movable&&!_dcEdit?'mv':''}" style="left:${pl.x}%;top:${pl.y}%;width:${d.w}%;z-index:${Math.round(pl.y*10)}" title="${esc(d.n)}" ${movable&&!_dcEdit?`onpointerdown="decorDown(event,'${d.id}')"`:''}>${decorIcon(d.ic,d.w)}</div>`;
   });
   return h;
 }
@@ -6455,7 +6462,7 @@ function openDecor(reset){
       <div class="row" style="margin-top:6px"><button class="small primary" onclick="facCopy()">📋 좌표 복사</button></div></div>`:'';
   modal('🏡 아지트 꾸미기',`<p class="muted" style="font-size:13px">놓은 가구와 장식은 끌어서 옮길 수 있습니다. 시설은 지으면 정해진 자리에 나타납니다. 가구·장식은 외형만 바뀌며 효과는 없습니다.${has('land')?'':' '+DECOR_MARKET_NOTE+'.'}</p>
     <div class="row" style="justify-content:flex-end;margin-bottom:6px"><button class="small ${_dcEdit?'primary':''}" onclick="toggleDcEdit()">🛠 시설 위치 편집 ${_dcEdit?'끝내기':''}</button></div>
-    <div class="dc-scene" id="dcScene">${decorSceneHTML(true)}</div>
+    <div class="dc-scene st${(_dcEdit&&_dcStage)||homeStage()}" id="dcScene">${decorSceneHTML(true)}</div>
     ${edit}
     ${_dcEdit?'':`<h4 style="margin:14px 0 4px">가지고 있는 것</h4>${rows}`}`);
   if(_dcEdit) updateFacInfo();
