@@ -1447,7 +1447,7 @@ function districtMove(t){
   if(!G||G.loc!=='campus') return null;
   t=String(t||'');
   if(/(에서\s*(쉰|묵|잔|마신|듣|산다|거닌))/.test(t)) return null;
-  const hit=IX.DIST_KEYS.find(([k,re])=>re.test(t)&&new RegExp(re.source+'[가-힣\\s]{0,6}'+IX.DIST_VERB.source).test(t));
+  const hit=IX.DIST_KEYS.find(([k,re])=>re.test(t)&&new RegExp('(?:'+re.source+')[가-힣\\s]{0,6}'+IX.DIST_VERB.source).test(t));
   return hit?hit[0]:null;
 }
 /* ---------- 임시 장소: 다섯 지점 밖의 곳(강당·옥상·골목 등)으로 가면 G.spot={name}만 기록하고 지점은 그대로 ----------
@@ -4510,7 +4510,7 @@ const TRAVEL_NAMES=[['campus',/중앙 캠퍼스 지구/],['east',/동부\s*저�
   ['reading',/대열람실/],['observatory',/천문대/],['pier',/온실\s*정원/],['checkpoint',/서고\s*검문소|검문소/],['herbgarden',/약초원/],['rooftop',/옥상\s*서고/],['depot',/지하\s*반입구|반입구/],['irongate',/온실\s*철문|철문/],
   ['far',/(곁가지\s*구역|오러리|코덱스)/]];
 function travelTarget(t){
-  const hit=([k,re])=>new RegExp(re.source+'[가-힣\\s]{0,8}'+TRAVEL_VERB).test(t);
+  const hit=([k,re])=>new RegExp('(?:'+re.source+')[가-힣\\s]{0,8}'+TRAVEL_VERB).test(t);
   const found=(G.wards||[]).find(c=>c.found&&new RegExp(c.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'[가-힣\\s]{0,8}'+TRAVEL_VERB).test(t));
   if(found) return {kind:'big',key:found.id,name:found.name};
   const e=TRAVEL_NAMES.find(hit); if(!e) return null;
