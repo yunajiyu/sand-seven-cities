@@ -1143,7 +1143,7 @@ const TURN_SCHEMA=`출력 JSON 형식:
  "narration": "서술 (문단은 \\n\\n로 구분)",
  "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","action_id":"[실행 가능한 행동]의 ID (일반 시도는 story)","type":"move|investigate|talk|story|check|rest|shelter|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)","to":"spot:enter일 때 새 임시장소 이름, 옛 이동 선택지 호환용 목적지 이름"}],
  "위치": "", "칸종료": false, "약속": null, "단서": "", "event": null,
- "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[],"해결단서":[],"사건진행":[]},
+ "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"안심접촉":null,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[],"해결단서":[],"사건진행":[]},
  "chronicle": "이번 장면이 이야기상 중요하면 한 줄 요약, 아니면 빈 문자열"
 }
 [effects] 한 장면 범위: ${fxRangeText()}(넘으면 코드가 자름). 공포: 괴이·교칙 위반·어둠·고립 +1~2, 진정 장소·동행·따뜻한 음료 −1~−2(서술의 공포 묘사와 맞춤). 배터리·손전등은 물건을 살 때만 산 만큼, 공포는 진정 음료를 샀을 때만 그만큼 음수.
@@ -1152,6 +1152,7 @@ const TURN_SCHEMA=`출력 JSON 형식:
 배터리·손전등·캐시·공포는 수치로만(보조배터리·건전지·따뜻한 차 같은 소모품도 items_add 금지). items_add는 {"name":"물건 이름","key":true 또는 false}: 단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건은 key:true(팔 수 없음), 값나가는 잡동사니는 false. 물건을 쓰거나 바꾸거나 잃거나 쓰면 사라지는 물건(나사·못·테이프·붕대)을 쓰면 그 장면의 items_remove에 소지품에 적힌 이름 그대로 넣는다. 실제로 얻거나 잃을 때만.
 companion_join: 유민이 장면에 있고 함께 가기로 분명히 정해진 순간에만 true. 유민호감: 진심·도움·특별한 순간에만 양수, 평범한 교류는 0(-5~+5; 코드가 확률·하루 횟수로 걸러 반영).
 relations: 실제로 대화·교류한 인물(유민 제외)마다 {"name":"사전과 같은 이름","delta":호감 변화}, 없으면 []. 스쳐 가는 대화 0, 즐거운 대화 1, 도움·진심 2~3, 큰 은혜 4~5, 무례 -2~-5. 대화가 통하는 사람만(괴이·동물·사물 제외).
+[안심접촉] 손잡기·어깨 토닥임으로 서로 안심시키는 실제 접촉이 성립했을 때 effects.안심접촉에 {"name":"상대 이름","kind":"hand_hold|shoulder_touch|hug","accepted":true}, 아니면 null. 손잡기·토닥임은 친구 이상, 짧은 포옹은 확인된 연인만. 상대는 실제 곁에 있어야 하고 명시적으로 수락해야 한다. 제안·거절·통화·문자·상상은 접촉 성립이 아니다. 코드가 공포 진정 1을 적용하므로 이 접촉만으로 effects.공포를 음수로 추가하지 않는다. 하루 전체 2회, 상대별 1회이며 반복은 묘사만 한다. 체력·배터리·손전등은 회복하지 않는다. 관계 단계는 접촉만으로 바뀌지 않는다.
 relation_event: 진행 중인 인연 이벤트가 있을 때만 {"name":"..","result":"success|fail|pending"}, 아니면 null.
 yumin_arc: [유민의 사연] 장면 중일 때만 effects 안에 {"result":"success|fail|pending","canon":"새로 드러난 유민의 과거 사실 1~2문장(없으면 빈 문자열)"}.
 materials: 구역에서 실제로 쓸 만한 철제 부품·합판·전선·유실물을 챙겼을 때만(각 0~2, 유실물 0~1). 교표조각: 조각을 손에 넣는 장면에서만 true(코드가 확인).
@@ -1407,7 +1408,7 @@ function fallbackTurn(action){
 
 /* AI가 새 항목명(한글 키)으로 준 효과를 내부 키로 옮김: 체력·공포·배터리·손전등·캐시·벌점·출입권한·유민호감·교표조각·사전추가·조사보드·떡밥장부 */
 function koEffects(e){
-  const m={체력:'hp',배터리:'battery',손전등:'torch',캐시:'cash',벌점:'demerit',출입권한:'access',유민호감:'affinity',교표조각:'fragment',사전추가:'lexAdd',조사보드:'board',떡밥장부:'ledgerAdd',해결단서:'threadsDone',사건진행:'caseUpdates'};
+  const m={체력:'hp',배터리:'battery',손전등:'torch',캐시:'cash',벌점:'demerit',출입권한:'access',유민호감:'affinity',교표조각:'fragment',사전추가:'lexAdd',조사보드:'board',떡밥장부:'ledgerAdd',해결단서:'threadsDone',사건진행:'caseUpdates',안심접촉:'comfortContact'};
   for(const k in m){ if(e[k]!==undefined){ if(e[m[k]]===undefined) e[m[k]]=e[k]; delete e[k] } }
   if(e['공포']!==undefined){ if(e.calm===undefined) e.calm=-(+e['공포']||0); delete e['공포'] }   // 공포 +는 내부 calm −
   return e;
@@ -2256,16 +2257,46 @@ on('effects',10,(e,{T})=>{
   if(ev&&ev.type==='calm_source'&&+e.calm>0) e.calm=0;
   if(ev&&ev.type==='merchant'){ ['calm','battery','torch'].forEach(k=>{ if(+e[k]>0) e[k]=0 }); if(+e.cash<0) e.cash=0 }
 });
+/* 19: 실제 곁에 있는 상대의 수락된 비성적 접촉은 진정 근거. 하루 총 2회, 상대별 1회. */
+const CONTACT_CALM_DAILY=2;
+function contactCalmState(){
+  if(!G.contactCalm||G.contactCalm.day!==G.day) G.contactCalm={day:G.day,used:[],total:0};
+  return G.contactCalm;
+}
+function comfortContactAllowed(c,T){
+  if(!c||typeof c!=='object'||c.accepted!==true||!['hand_hold','shoulder_touch','hug'].includes(c.kind)) return false;
+  const name=typeof c.name==='string'?c.name.trim():'', r=G.rel&&G.rel[name], f=T.flags||{};
+  if(!r||CREATURE.test(name)||f.storyOnly||f.zeroSupply||f.remoteContact||G.fight||fearNow()<=0) return false;
+  if(r.stage<2||c.kind==='hug'&&(r.stage<5||!r.romanceConfirmed)) return false;
+  if(!canMeetHere(name)) return false;
+  const st=contactCalmState(); return st.total<CONTACT_CALM_DAILY&&!st.used.includes(name);
+}
+on('effects',19,(e,{T})=>{
+  const c=e.comfortContact;
+  if(!comfortContactAllowed(c,T)){ if(c&&+e.calm>0) e.calm=0; return }
+  T.flags.comfortContact=c.name.trim();
+  // AI의 같은 접촉에 대한 공포 -1과 중복하지 않고, 같은 장면의 공포 증가도 보존한다.
+  e.calm=Math.min(1,(+e.calm||0)+1);
+});
+on('applied',19,(e,{T,fx})=>{
+  const name=T.flags.comfortContact; if(!name) return;
+  const st=contactCalmState(); st.used.push(name); st.total++;
+  fx.push(`🤝 ${name}${josa(name,'과','와')}의 안심 접촉 (공포 진정 1 · 오늘 ${st.total}/${CONTACT_CALM_DAILY})`);
+});
+on('facts',86,(o,rules)=>{
+  const st=contactCalmState();
+  o.안심접촉=`손잡기·어깨 토닥임은 친구 이상, 짧은 포옹은 확인된 연인과 가능. 실제 이곳에 있고 상대가 수락해야 공포 진정 1. 오늘 ${st.total}/${CONTACT_CALM_DAILY}회 사용, 이미 회복한 상대: ${st.used.join('·')||'없음'}. 반복 접촉은 묘사만 하고 회복하지 않는다.`;
+});
 /* 20: 한빛시에서 근거 없는 회복·보급 차단, 구역 한 곳 캐시 상한 90 */
 on('effects',20,(e,{T})=>{
   if(!isWild()) return;
   const narr=lastScene(), blocked=[];
   const buying=+e.cash<0||isBuyText(lastAction());
-  if(+e.calm>0&&!T.flags.srcOK&&!buying&&!NEED_RX.GAIN_W.test(narr)){ e.calm=0; blocked.push('공포 진정') }
+  if(+e.calm>0&&!T.flags.srcOK&&!T.flags.comfortContact&&!buying&&!NEED_RX.GAIN_W.test(narr)){ e.calm=0; blocked.push('공포 진정') }
   if(+e.battery>0&&!buying&&!NEED_RX.GAIN_F.test(narr)){ e.battery=0; blocked.push('배터리') }
   const usedItem=Array.isArray(e.items_remove)&&e.items_remove.length>0;
   if(+e.hp>0&&!usedItem){ e.hp=0; blocked.push('체력') }
-  if(blocked.length) addLog('sys',`⚖ ${blocked.join('·')} 회복은 근거(진정 장소·충전기 발견, 임시 쉼터·휴식, 약 같은 아이템 사용)가 있을 때만 적용됩니다.`);
+  if(blocked.length) addLog('sys',`⚖ ${blocked.join('·')} 회복은 근거(진정 장소·충전기 발견, 임시 쉼터·휴식, 아이템 사용, 곁에 있는 상대와의 수락된 안심 접촉)가 있을 때만 적용됩니다.`);
   if(G.loc==='site'&&G.site&&+e.cash>0){
     const d=G.site; d.cashGot=d.cashGot||0;
     const g=Math.max(0,Math.min(Math.round(+e.cash),ZONE_CASH_CAP-d.cashGot));
@@ -8343,6 +8374,7 @@ function openGuide(){
     ${row('🧩 추리 도우미','행동 버튼 줄의 🧩 추리 도우미를 누르면 지금까지의 조사 보드·사전·연대기·소문을 AI가 한 번 정리해 줍니다. 단계는 「살짝」(방향만: 알려진 것·이어질 법한 것을 질문으로·더 찾아볼 방향)과 「확실히」(다음에 할 구체적 행동 2~3개까지) 중에 고릅니다. 숨겨진 정체나 정답은 알려 주지 않으며, 누를 때마다 AI를 한 번 부르고 마지막 결과는 저장됩니다. ❓ 질문하기에 궁금한 점을 적으면 같은 단계로 알려진 단서만 근거로 2~3문장으로 답하고(최근 5개 저장), 역시 한 번 묻는 데 AI를 한 번 부릅니다')}
     ${row('🎒 소지품',`행동 버튼 줄의 🎒 소지품에서 공포·배터리·손전등·캐시·벌점·출입 권한, 교표 조각·자재·탈것·물건을 한눈에 봅니다. 간식·소모품은 「먹기·쓰기」로 쓰고, 🔒가 없는 물건은 상점가에서 팝니다. 모든 물건 옆의 🗑를 누르면 확인 후 버릴 수 있습니다(🔒 물건은 이야기에 필요할 수 있어 경고가 뜹니다)`)}
     ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기로 언제든 헤어질 수 있습니다(지도의 🎵로 위치 확인)')}
+    ${row('🤝 안심 접촉','곁에 있는 친구 이상 NPC에게 직접 입력이나 선택지로 손잡기·어깨 토닥임을 청할 수 있습니다. 상대가 수락하면 공포 −1. 짧은 포옹은 확인된 연인과 가능합니다. 같은 상대는 하루 1회, 전체 하루 2회까지 회복하며 거절·문자·전화·상상은 회복하지 않습니다. 반복 접촉은 묘사만 이어집니다.')}
     ${row('🎵 구역 안 유민의 도움','유민이 동행 중이면 구역에서 일정 걸음마다(체력이 35% 이하거나 위험도 2 이상 공간, 또는 가끔) 노래를 불러 상황을 뒤집고, 위기에는 체력 +2, '+Math.round(YUMIN_SING_CALM_P*100)+'% 확률로 공포 −1. 그 밖에 위험한 통로 경고·조각 쪽 울림·길 안내를 해 줍니다. 곁에 있는 유민에게 "노래를 불러 달라"고 청해도(버튼·직접 입력, 어디서나) 같은 확률로 공포가 줄고 위기에는 체력 +2')}
     ${row('📱 휴대폰',`행동 버튼 줄의 📱 휴대폰에서 연락처(유민과 이야기에서 만난 사람들)에게 💬 문자나 📞 전화를 할 수 있습니다. 문자는 시간이 흐르지 않지만 1통을 보낼 때마다 배터리가 1% 닳고(칸으로는 모았다가 소모), 💬 문자를 누르면 팝업 대화창(말풍선)이 열려 주고받은 내용이 연락처마다 기록됩니다. 빠른 문구를 누르거나 직접 써서 보내면 상대가 곧바로 답장하고(AI), 가끔 단서가 조사 보드에 적히고(하루 2번까지) 호감이 오릅니다(연락처마다 하루 한 번). 전화는 배터리 ${CALL_DRAIN}%와 시간 한 칸을 쓰며 이야기 본문으로 진행됩니다. 유민에게는 📍 만나자고 하기(성공 ${Math.round(MEET_OK_P*100)}%)도 있습니다. 소등 후와 교실에서 수업 중에는 몰래 써야 하고(수업 중 전화는 불가, 교실 밖이면 제한 없음) 약 ${Math.round(PHONE_CATCH_P*100)}%(벌점 ${DEMERIT_WARN}점 이상이면 +${Math.round(PHONE_CATCH_WARN*100)}%p) 확률로 들켜 벌점 +${PHONE_DEMERIT}과 그 시간대 압수. 점호에서는 휴대폰을 걷지 않습니다. 구역 안에서는 전화가 안 터지고 문자만 보낼 수 있습니다(신호가 약해 답이 끊겨 옵니다)`)}
     ${row('📩 수신 문자','시간이 흐르다 보면 연락처 사람(유민 포함)이 먼저 문자를 보냅니다(한 번에 최대 '+INBOX_MAX+'통). 화면 오른쪽 위에 알림 팝업이 뜨고(누르면 읽기, 행동 버튼 줄의 📩 버튼으로도 가능) 대화창에서 소문·안부·초대·경고 같은 문자를 읽고 바로 답장할 수 있습니다. 약속을 어기면 서운함을 담은 문자도 옵니다. 소등 후와 교실 수업 중에 읽으면 몰래 읽는 것이라 적발될 수 있습니다')}
