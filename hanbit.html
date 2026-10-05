@@ -2454,11 +2454,19 @@ function sleepAtHome(){
   if(isDarkTime()&&!dormLocked()&&curfewMove('bank')!=='bank'){ G.spot=null; G.district='dorm'; G._yuminHere=false; G.choices=[]; save(); render(); return }
   goHome(); if(G.loc==='home') homeRest();
 }
+/* 기숙사·아지트에서 자고 일어나면 배터리가 10 회복(용량 한도까지) */
+const SLEEP_BATTERY=10;
+function sleepCharge(where){
+  const gain=Math.min(SLEEP_BATTERY,Math.max(0,capF()-G.battery));
+  G.battery+=gain;
+  addLog('fx',gain?`🔋 ${where}에서 자고 일어나 배터리 +${gain} (${batteryPct()}%)`:`🔋 배터리가 이미 가득 차 있습니다 (${batteryPct()}%)`);
+}
 function campusRest(){
   if(busy||spotBlock()) return;
   if(G.loc==='campus'&&G.time==='낮') return toast('학교 일과 중에는 기숙사에서 하룻밤을 보낼 수 없습니다. 종례가 끝난 뒤(방과 후)부터 가능합니다');
   G.hp=G.maxhp; G.day++; G.time='낮'; G.dayStep=0;
   addLog('sys',`기숙사에서 하룻밤을 보냈습니다. 체력이 모두 회복되었습니다. (${G.day}일째 아침)`);
+  sleepCharge('기숙사');
   if((G.demerit||0)>0){ G.demerit--; addLog('fx',`📕 점호를 정상 통과해 벌점 -1 → ${G.demerit}`) }
   save(); render();
 }
@@ -2772,6 +2780,7 @@ function homeRest(){
   if(has('charger')&&first){ const gf=Math.min(2,Math.max(0,capF()-G.battery)); G.battery+=gf; addLog('fx',gf?`충전 거치대 — 배터리 +${gf}`:'충전 거치대 — 배터리가 가득 차 있습니다') }
   { const fr=Math.min(HOME_FEAR_RECOVER,fearNow()); if(fr>0){ G.calm+=fr; addLog('fx',`🫧 아지트에서 쉬며 공포 −${fr} → ${fearNow()}`) } }
   addLog('sys',`아지트에서 푹 쉬었습니다. 체력이 모두 회복되었습니다. (${G.day}일째 아침)`);
+  sleepCharge('아지트');
   if(G.ride) petGain(G.ride,1,G.ride.name);
   (G.pets||[]).forEach(p=>petGain(p,1,p.name));
   // 유민은 동행 중이거나, 휴게 소파가 있고 실제로 소파에 머물 때만 함께 쉼
