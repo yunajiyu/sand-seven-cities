@@ -4341,8 +4341,8 @@ ${inZone?'플레이어는 구역 안이라 신호가 약해 문자가 끊기고 
 최근 문자:
 ${hist}
 ${incomingTopic?`${name}이(가) 플레이어에게 먼저 문자를 보낸다. 내용: ${top}.`:'플레이어의 마지막 문자에 대한 답장을 쓴다.'}
-규칙: 급식실은 점심시간에만 열리니 다른 때에 급식실에서 밥을 먹거나 만나자고 하지 않는다. 학생·교직원 인물의 말투로 문자답게 1~2문장(40자 안팎). 숨겨진 진실을 직접 밝히지 않는다. 관계 단계가 연애 단계라면 설렘·다정한 말·데이트 제안은 가능하다. 새로운 사실을 만들 때는 사소한 것만.
-장소와 때를 정해 만나자고 하거나 받아들였다면 appointment에 {"place":"학교 안 장소·아지트·학원가 골목 중 하나","when":"방과 후|점심시간|쉬는 시간|저녁|내일 아침 등"}을 적는다(없으면 null). 
+규칙: 먼저 만나자고 약속을 잡으려 하지 않는다(플레이어가 만나자고 했거나 안부·소문 전달 주제에서 자연스러울 때만, 대부분의 답장은 약속 없이 대화로 끝낸다). 급식실은 점심시간에만 열리니 다른 때에 급식실에서 밥을 먹거나 만나자고 하지 않는다. 학생·교직원 인물의 말투로 문자답게 1~2문장(40자 안팎). 숨겨진 진실을 직접 밝히지 않는다. 관계 단계가 연애 단계라면 설렘·다정한 말·데이트 제안은 가능하다. 새로운 사실을 만들 때는 사소한 것만.
+플레이어가 먼저 만나자고 했거나 네가 한 제안을 플레이어가 받아들여 장소와 때가 정해졌을 때만 appointment에 {"place":"학교 안 장소·아지트·학원가 골목 중 하나","when":"방과 후|점심시간|쉬는 시간|저녁|내일 아침 등"}을 적는다(없으면 null). 
 JSON만: {"reply":"문자 내용","affinity":0 또는 1,"hint":"상대가 실제로 알려 주는 단서·소문이 있으면 한 문장, 없으면 빈 문자열","appointment":null}`;
 }
 async function chatAI(name,incomingTopic,rumor){
@@ -4352,10 +4352,17 @@ async function chatAI(name,incomingTopic,rumor){
   const reply=j&&j.reply?String(j.reply).trim().slice(0,160):'';
   return {reply:reply||rand(CHAT_FALLBACK),aff:j&&+j.affinity>0?1:0,hint:j&&j.hint?String(j.hint).trim().slice(0,120):'',appt:j&&j.appointment&&typeof j.appointment==='object'?{place:String(j.appointment.place||''),when:String(j.appointment.when||'')}:null};
 }
+/* 문자 약속: 플레이어가 만나자고 했거나, 상대가 먼저 제안한 약속을 플레이어가 받아들였을 때만 기록 (상대가 혼자 제안한 것은 약속이 아님) */
+const ACCEPT_RX=/^\s*(응|네|넵|예|좋아|좋지|좋아요|오케이|ㅇㅋ|ok|그래|그러자|알겠|알았|갈게|간다|가자|콜|ㄱㄱ)/i;
 function chatAppt(name,msg,o){
-  if(!G||!G.comp) return;
-  if(o.appt&&o.appt.place&&setAppt(name,o.appt.place,o.appt.when)) return;
-  apptParse(msg+'. '+o.reply,name).forEach(f=>setAppt(name,f.place,f.when));   // 문자 상대가 곧 약속 상대
+  if(!G||!G.comp||!msg) return;
+  const a=chatSt(name), prev=a.slice(0,-2).reverse().find(m=>m.f==='them');
+  const asked=APPT_CUE.test(msg);
+  const accepted=!asked&&prev&&ACCEPT_RX.test(msg)&&APPT_CUE.test(prev.t)&&APPT_TIME.test(prev.t);
+  if(!asked&&!accepted) return;
+  if(asked&&o.appt&&o.appt.place&&setAppt(name,o.appt.place,o.appt.when)) return;
+  const text=(accepted?prev.t+'. ':'')+msg+'. '+o.reply;
+  apptParse(text,name).forEach(f=>setAppt(name,f.place,f.when));   // 문자 상대가 곧 약속 상대
 }
 function renderChat(name){
   const log=document.getElementById('chatLog'); if(!log) return;
@@ -4386,7 +4393,7 @@ async function chatIncoming(name,topic){
   }
   _chatBusy=true;
   const o=await chatAI(name,topic,rumor); _chatBusy=false;
-  chatPush(name,'them',o.reply); G.recent.push({role:'scene',text:`[문자] ${name}: "${o.reply}"`}); chatAppt(name,'',o);
+  chatPush(name,'them',o.reply); G.recent.push({role:'scene',text:`[문자] ${name}: "${o.reply}"`});
   if(o.hint) applyThreads(G,{threads_new:[o.hint]});
   save(); if(_chatWith===name) renderChat(name);
 }
