@@ -3019,7 +3019,7 @@ function openShop(){
     const mb=(t!=='t'&&rideCap())?` <span class="muted">· 탈것 +${rideCap()}</span>`:'';
     return `<div class="shop-row" style="gap:8px;align-items:center;flex-wrap:wrap"><span>${CAP_ICON[t]} ${CAP_NAME[t]} <span class="muted">(${G[key]}/${cap})</span>${mb}</span>
       <span style="display:flex;gap:6px;flex-wrap:wrap"><button class="small" ${fill>0?'':'disabled'} onclick="fillSupply('${key}')">가득 채우기${fill>0?` +${fill} 💳${fp}`:''}</button>
-      ${max?'<span class="muted">최대 용량</span>':`<button class="small ${G.cash>=price?'primary':''}" onclick="buyCap('${t}')">확장 ${lv*CAP_STEP+CAP_BASE}→${lv*CAP_STEP+CAP_BASE+CAP_STEP} 💳${price}</button>`}</span></div>`;
+      ${max?'<span class="muted">최대 용량</span>':`<button class="small ${G.cash>=price?'primary':''}" onclick="buyCap('${t}')">확장 ${cap}→${cap+CAP_STEP} 💳${price}</button>`}</span></div>`;
   };
   let mt=`<h4 style="margin:14px 0 4px">탈것 매장</h4>`;
   if(G.ride){
