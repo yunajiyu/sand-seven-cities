@@ -76,5 +76,15 @@ await test('Actual story response resolves the selected confession and records a
 await test('Existing confirmed romances remain intact without retrospective progress',({run})=>{
  ready(run);run("getRel('유민').stage=5;getRel('유민').romanceConfirmed=true;delete getRel('유민').romanceProgress;migrate()");assert.equal(run("socialDateEligible('유민')"),true);assert.equal(run("romanceReady('유민')"),false);assert.equal(run("getRel('유민').romanceConfirmed"),true);
 });
+await test('Date feelings describe relative change without exposing scores or thresholds',({run})=>{
+ assert.match(run('dateFeeling(1)'),/조금 더 가까워진/);assert.match(run('dateFeeling(3)'),/한층 가까워진/);assert.match(run('dateFeeling(0)'),/큰 변화가 없는/);assert.match(run('dateFeeling(-1)'),/멀어진/);
+ for(const n of [-2,0,1,3])assert.doesNotMatch(run(`dateFeeling(${n})`),/\d|점수|진행도|기준|해금/);
+});
+await test('Completed date appends its abstract feeling after the AI closing scene even offline',async({run})=>{
+ ready(run);run("const a={id:'feel',name:'유민',kind:'date',where:placeKey(),status:'done',choices:[],scenes:[],dateFeeling:dateFeeling(1)};socialState().session=a;callAI=async()=>{throw Error('offline')}");await run('socialClosingScene(a)');assert.equal(run('a.scenes.at(-1)'),run('a.dateFeeling'));assert.match(run("socialActivityHTML('date')"),/조금 더 가까워진/);await run('socialClosingScene(a)');assert.equal(run('a.scenes.filter(t=>t===a.dateFeeling).length'),1);
+});
+await test('Relative feedback uses the actual capped change and cannot report duplicate gains',({run})=>{
+ run("romanceProgress('유민').closeness=11;const a={id:'cap',name:'유민',kind:'date',status:'done',choices:[{phase:0,id:'listen'},{phase:1,id:'care'},{phase:2,id:'thanks'}]};const change=recordDateProgress(a)");assert.equal(run('change'),1);assert.match(run('dateFeeling(change)'),/조금 더 가까워진/);assert.equal(run('recordDateProgress(a)'),undefined);
+});
 console.log(`${count} hidden-romance scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
