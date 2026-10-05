@@ -745,7 +745,7 @@ const DCV={easy:7,normal:9,hard:11};
 const DCN={easy:'쉬움',normal:'보통',hard:'어려움'};
 /* 능력치가 높을수록 난이도 숫자도 오름: 능력치 7~8은 +1, 9~10은 +2 (기본 능력치는 6까지는 그대로) */
 const dcVal=(dc,skill)=>{ const st=(G&&G.char&&G.char.stats&&G.char.stats[skill])||0; return DCV[dc]+(st>6?Math.ceil((st-6)/2):0) };
-const CHOICE_TYPES=['story','check','rest','shelter','return','exit','trade'];
+const CHOICE_TYPES=['move','investigate','talk','story','check','rest','shelter','return','exit','trade'];
 
 /* ---------- 이동 행상 (한빛시 뒷길에서 가끔 만나는 상인) ---------- */
 const PEDDLERS=['야식 푸드트럭 무리','문구·충전기 행상','심야 택배 기사들','편의점 순회 차량'];
@@ -853,6 +853,8 @@ function migrate(){
   if(!G.home.decor) G.home.decor={owned:{},placed:{}};
   ['mapDone','discovered','pets','chronicle','lexicon','recent','log','choices','items','heardRumors','rumors','threads'].forEach(k=>{ if(!Array.isArray(G[k])) G[k]=[] });
   if(!G.rel) G.rel={};
+  migrateCases();
+  if(G.site) siteIdentity();
   migrateRelationships();
   if(G._clockVersion!==2){ resetSoftClock(); G._clockVersion=2 }
   if(!G.attendance) G.attendance={missed:0,days:0,streak:0,lastDay:0};
@@ -1139,9 +1141,9 @@ const SYS_ZONE=`너는 텍스트 호러 게임 「출석부에 없는 구역」�
 const TURN_SCHEMA=`출력 JSON 형식:
 {
  "narration": "서술 (문단은 \\n\\n로 구분)",
- "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","type":"story|check|rest|shelter|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)","to":"장소를 옮기는 선택지일 때만 목적지 이름"}],
+ "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","action_id":"[실행 가능한 행동]의 ID (일반 시도는 story)","type":"move|investigate|talk|story|check|rest|shelter|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)","to":"장소를 옮기는 선택지일 때만 목적지 이름"}],
  "위치": "", "칸종료": false, "약속": null, "단서": "", "event": null,
- "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[],"해결단서":[]},
+ "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[],"해결단서":[],"사건진행":[]},
  "chronicle": "이번 장면이 이야기상 중요하면 한 줄 요약, 아니면 빈 문자열"
 }
 [effects] 한 장면 범위: ${fxRangeText()}(넘으면 코드가 자름). 공포: 괴이·교칙 위반·어둠·고립 +1~2, 진정 장소·동행·따뜻한 음료 −1~−2(서술의 공포 묘사와 맞춤). 배터리·손전등은 물건을 살 때만 산 만큼, 공포는 진정 음료를 샀을 때만 그만큼 음수.
@@ -1153,14 +1155,19 @@ relations: 실제로 대화·교류한 인물(유민 제외)마다 {"name":"사�
 relation_event: 진행 중인 인연 이벤트가 있을 때만 {"name":"..","result":"success|fail|pending"}, 아니면 null.
 yumin_arc: [유민의 사연] 장면 중일 때만 effects 안에 {"result":"success|fail|pending","canon":"새로 드러난 유민의 과거 사실 1~2문장(없으면 빈 문자열)"}.
 materials: 구역에서 실제로 쓸 만한 철제 부품·합판·전선·유실물을 챙겼을 때만(각 0~2, 유실물 0~1). 교표조각: 조각을 손에 넣는 장면에서만 true(코드가 확인).
-사전추가: 새 인물·장소·괴담 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}](핵심만, 없으면 []). 조사보드: 새 단서·증언·모순점 짧은 문장 배열. 해결단서: 이번 장면에서 분명히 풀리거나 막다른 길로 정리된 [조사 보드] 항목의 번호 배열(예 ["t3"], 없으면 []). 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등) "항목 = 내용" 배열. 없으면 []이고 이미 적힌 것은 반복 금지.
-[위치] 캠퍼스에서만. "위치"에는 장면이 끝났을 때 플레이어가 실제로 있는 곳(${placeNames()} 중 하나, 또는 옥상·매점 앞 같은 지점 밖 장소)을 장소가 실제로 바뀐 경우에만 적고('자리를 옮겨'·'~로 향했다'·'~에 도착했다'도 변경) 그대로면 빈 문자열. 다른 곳으로 가는 선택지는 "to"에 목적지를 적는다. 수업 중 교실을 벗어나면 땡땡이로 다룬다.
+사전추가: 새 인물·장소·괴담 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}](핵심만, 없으면 []). 조사보드·해결단서는 옛 형식 호환용이며 새 응답에서는 빈 배열. 사건진행에 기존 사건의 증거와 다음 목표를 기록한다. 관찰 사실 추가는 사건 해결이 아니다. 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등) "항목 = 내용" 배열. 없으면 []이고 이미 적힌 것은 반복 금지.
+[행동] 선택지마다 action_id를 [실행 가능한 행동] 목록에서 고른다. 이동 표현과 무관하게 ID가 기능을 결정한다. 장소·방 ID를 새로 만들지 않는다. 일반 대사·새로운 시도는 story, 위험한 시도는 check:능력치. 이동과 조사를 한 선택지에 묶지 않는다. "위치"는 빈 문자열이며 실제 위치는 게임 실행 결과를 따른다. 없는 곳으로 이동한 서술을 만들지 않는다.
+[사건진행] 기존 사건을 이어 가는 것이 기본. 같은 괴담의 반복 관찰·증언은 같은 case_id에 붙인다. 대부분의 장면은 []. 새 증거는 새 사실이며 원인 후보 축소(narrows)·가설 반박(refutes)·새 조사 방향(route)·중요 관찰(observation) 중 하나여야 한다. 분위기·표현만 다른 반복은 추가하지 않는다. kind는 fact(관찰 사실), testimony(증언), rumor(소문), hypothesis(추정). 소문·추정을 사실로 단정하지 않는다.
+- 기존 사건: {"case_id":"t1","evidence":[{"text":"관찰 사실","kind":"fact","role":"narrows"}],"next":["다음 조사 방향"]}
+- 새 사건은 독립적인 질문과 목표가 생길 때만: {"new_case":true,"question":"미해결 질문","reason":"기존 사건으로 묶을 수 없는 이유","scope":"main|local|personal","topic_key":"지속해서 쓸 사건 키워드","place_id":"현재 장소 ID","evidence":[],"next":[]} (한 턴 최대 1개).
+- 해결은 구체적인 conclusion과 공개된 증거 ID support_ids가 있어야 한다: {"case_id":"t1","resolution":{"conclusion":"밝혀낸 원인·결론","support_ids":["e1","e2"]}}. 현상이 존재한다는 사실만으로 원인을 해결하지 않는다. 증거 ID를 만들거나 공개되지 않은 비밀을 쓰지 않는다.
+
 [급식실] 점심시간에만 식사를 준다. 그 밖에는 닫혀 있어 급식실 식사 장면·제안·선택지와 급식실 약속을 쓰지 않는다(방과 후 간식은 매점·상점가).
 [일과] 낮에는 졸기·엎드리기·잠깐 쉬기도 type "rest"가 아닌 "story"("rest"는 밤 잠자리 선택지에만). 수업은 코드가 세니 [수업 끝] 지시가 있는 장면에서만 종을 울리고 그 전엔 수업이 계속되는 것으로 쓴다. 서술에서 수업·쉬는 시간 같은 칸이 끝났다는 종이 울렸다면 "칸종료"를 true(아니면 false).
-[단서] "단서"에는 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙처럼 나중에 어긋나면 안 되는 것)만 「장소, 키워드, 단서이름: 설명」 형식 한 줄로(예: "3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다"), 숫자·이름·칸은 서술과 똑같이 적는다. 분위기 묘사·사소한 발견·이미 [확정 단서]에 있는 것의 반복은 적지 않는다. 대부분의 장면은 빈 문자열이고 하루 최대 3개다. 새 단서는 [확정 단서]와 모순되지 않게 이어 가거나 구체화한다.
+[단서] "단서"에는 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙처럼 나중에 어긋나면 안 되는 것)만 「장소, 키워드, 단서이름: 설명」 형식 한 줄로(예: "3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다"), 숫자·이름·칸은 서술과 똑같이 적는다. 분위기 묘사·사소한 발견·이미 [확정 단서]에 있는 것의 반복은 적지 않는다. 대부분의 장면은 빈 문자열이고 하루 최대 3개다. 새 단서는 [확정 단서]와 모순되지 않게 이어 가거나 구체화한다. 새 응답에서는 핵심 증거도 사건진행.evidence에 넣고 "단서"는 빈 문자열(옛 응답만 호환).
 [약속] 플레이어가 누군가(유민 포함)와 어디서 언제 만나기로 했다면 "약속"에 {"인물":"이름","장소":"학교 안 장소·아지트·학원가 골목","때":"방과 후|점심시간|쉬는 시간|저녁|내일 아침|내일 방과 후|곧 등"}, 없으면 null. 때가 되면 코드가 그 사람을 그곳에 있게 하니 그 전에는 등장시키지 않는다. [확정 사실]에 약속어김이 있으면 만났을 때 서운함을 드러낸다. 인물 위치는 [확정 사실]의 유민위치·인물위치·약속을 따른다.
 [선택지·사건]
-- choices 3~4개 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기·해독·설득·함정 피하기·몰래 지나가기 등)은 "check"+skill·dc(str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정). 쉬기/잠자기 "rest", 임시 쉼터 "shelter", 캠퍼스 귀환 "return", 구역 밖으로 "exit", 사고팔기 "trade", 그 밖의 관찰·대화·묘사는 "story". 구역 안에서는 return·exit를 만들지 않는다(고정 버튼이 있음).
+- choices 3~4개 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기·해독·설득·함정 피하기·몰래 지나가기 등)은 "check"+skill·dc(str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정). 쉬기/잠자기 "rest", 임시 쉼터 "shelter", 캠퍼스 귀환 "return", 구역 밖으로 "exit", 사고팔기 "trade", 그 밖의 관찰·대화·묘사는 "story". 구역 안의 이동·나가기·귀환도 제공된 action_id가 있을 때만 가능하다.
 - 괴이와 마주치면 싸움보다 도주·숨기·교칙 지키기를 우선(전투는 규율부·청소반 같은 사람이 상대일 때만).
 - 선택지는 행동 하나·대상 하나(여러 단계 묶기 금지). 서술에 이미 보인 것만 대상으로 하고(안 읽은 글·안 연 상자·장치의 원리는 모르는 것) 소지품은 플레이어가 이번 장면이나 직전 행동에서 꺼내거나 언급했을 때만 넣는다. 장치는 살펴보기 → 만져보기 → 풀기 단계로, 처음 보는 장치에 바로 '푼다'를 만들지 않는다. 짧고 구체적인 동사로, 보통 관찰 하나+직접 행동 하나+조심스럽거나 다른 방향 하나, 위험하면 check 하나.
 - event: 상인(행상·자판기 주인 등)이 팔겠다고 나서면 {"type":"merchant","name":"짧은 이름"}, 공포를 가라앉힐 곳(휴게 공간·따뜻한 음료 자판기·사람 많은 식당)을 발견하면 {"type":"calm_source","name":"짧은 이름"}, 가 볼 만한 장소의 이름과 가는 길을 새로 알게 되면 {"type":"place_lead","name":"14자 이내","hint":"어디에 있고 어떻게 가는지 한 줄"}(알려진 곳 제외, 한 장면에 하나). 이름이 있는 새 장소와 가는 길이 서술에 처음 나오면(소문·행인·표지판·지도·대화 어느 쪽이든) 반드시 place_lead로 적을 것. 아니면 null. 상인·진정 장소 사건은 공포·배터리·손전등을 effects로 바꾸지 말 것(게임이 버튼을 띄움).
@@ -1252,11 +1259,12 @@ function buildPrompt(action,extra=''){
 [떡밥 장부 — 네가 정한 사실(교칙·정체·약속 등). 이와 모순되게 쓰지 말 것]
 ${(G.ledger||[]).map(x=>String(x).slice(0,120)).join('\n')||'(아직 없음)'}
 
-[확정 단서 — 플레이어가 이미 얻은 단서. 같은 주제의 새 단서를 만들 때 이와 모순되지 않게 이어 가거나 구체화하고, 숫자·이름·칸·방향 같은 세부를 바꾸지 말 것]
+[증거 기록 — fact는 관찰 사실, testimony는 증언, rumor는 소문, hypothesis는 추정. 종류를 유지하고 숫자·이름·칸·방향을 바꾸지 않는다. 증언·소문·추정을 사실로 단정하지 않는다. 본편/현재/다른 장소/인물에서 선별한 기록]
 ${canonBlock()}
 
 [지금까지의 줄거리 요약]
 ${G.summary||'(이제 막 시작)'}
+${(G.legacyCanon||[]).filter(c=>c.sum).length?'[이전 저장본의 단서 요약 — 원문 증거와 별도, 공개된 기록만]\n'+G.legacyCanon.filter(c=>c.sum).map(c=>c.text).join('\n'):''}
 
 [연대기 — 중요한 사건]
 ${G.chronicle.slice(-24).map(c=>`${chronLabel(c)}: ${c.text}`).join('\n')||'(없음)'}
@@ -1267,6 +1275,7 @@ ${JSON.stringify(stateFacts())}
 
 [관련 사전 항목]
 ${relevantLex(allText)}
+${actionsBlock()}
 
 [최근 장면]
 ${recentBlock()}
@@ -1315,9 +1324,10 @@ function normalizeTurn(r){
         const text=fixCalling(stripMd(String(c.text||'')).trim()); if(!text) return null;
         const type=CHOICE_TYPES.includes(c.type)?c.type:'story';
         const m={type};
+        if(c.action_id) m.actionId=String(c.action_id).trim().slice(0,160);
         if(type==='check'){ m.skill=SK[c.skill]?c.skill:'sur'; m.dc=DCV[c.dc]?c.dc:'normal' }
         if(c.to&&String(c.to).trim()) m.to=String(c.to).trim().slice(0,16);
-        meta[text]=m; return text;
+        if(meta[text]) return null; meta[text]=m; return text;
       }
       return typeof c==='string'?fixCalling(c):null;
     }).filter(Boolean);
@@ -1331,11 +1341,7 @@ function normalizeTurn(r){
   r.event=(r.event&&typeof r.event==='object'&&['merchant','calm_source','place_lead'].includes(r.event.type))?{type:r.event.type,name:String(r.event.name||'').slice(0,20),hint:String(r.event.hint||'').slice(0,80)}:null;
   return r;
 }
-function metaOf(c){
-  const M=G&&G.choiceMeta; if(!M) return null; c=String(c);
-  if(M[c]) return M[c];
-  const k=Object.keys(M).find(k=>c.startsWith(k)); return k?M[k]:null;
-}
+function metaOf(c){ return G&&G.choiceMeta?G.choiceMeta[String(c)]||null:null }
 
 /* ---------- 4-6. 한 턴의 처리 흐름 ----------
    before 훅 → 행동 기록 → 프롬프트 → 서술 AI → 응답 정리 → 효과 적용 → 선택지 정리
@@ -1362,14 +1368,14 @@ async function aiTurn(action,extra='',showAction=true){
   applyEffects(res.effects||{},T);
   applyPlace(res);
   try{ applyAppt(res,T.action) }catch(e){ console.warn(e) }
-  if(res.clue) addCanon(res.clue);
+  if(res.clue&&!T.flags.storyOnly) addCanon(res.clue);
   applyBellSync(res);
   G._evtTurn=false;
   if(G.relEvt){ if(G._relSetup) G._relSetup=false; else if(++G.relEvt.turns>=4){ getRel(G.relEvt.name).cool=G.day+1; G.relEvt=null } }
   if(res.chronicle&&String(res.chronicle).trim()) G.chronicle.push({day:G.day,text:stripMd(String(res.chronicle).trim())});
   G.choices=(res.choices||[]).slice(0,4);
   busy=false;
-  if(ok) queueLex(stripMd(res.narration),T.action);
+  if(ok&&!T.flags.storyOnly) queueLex(stripMd(res.narration),T.action);
   await maybeSummarize();
   checkState();
   run('after',T);
@@ -1401,7 +1407,7 @@ function fallbackTurn(action){
 
 /* AI가 새 항목명(한글 키)으로 준 효과를 내부 키로 옮김: 체력·공포·배터리·손전등·캐시·벌점·출입권한·유민호감·교표조각·사전추가·조사보드·떡밥장부 */
 function koEffects(e){
-  const m={체력:'hp',배터리:'battery',손전등:'torch',캐시:'cash',벌점:'demerit',출입권한:'access',유민호감:'affinity',교표조각:'fragment',사전추가:'lexAdd',조사보드:'board',떡밥장부:'ledgerAdd',해결단서:'threadsDone'};
+  const m={체력:'hp',배터리:'battery',손전등:'torch',캐시:'cash',벌점:'demerit',출입권한:'access',유민호감:'affinity',교표조각:'fragment',사전추가:'lexAdd',조사보드:'board',떡밥장부:'ledgerAdd',해결단서:'threadsDone',사건진행:'caseUpdates'};
   for(const k in m){ if(e[k]!==undefined){ if(e[m[k]]===undefined) e[m[k]]=e[k]; delete e[k] } }
   if(e['공포']!==undefined){ if(e.calm===undefined) e.calm=-(+e['공포']||0); delete e['공포'] }   // 공포 +는 내부 calm −
   return e;
@@ -1417,12 +1423,9 @@ function addDemerit(d,why,fx){
 /* 사전추가 · 조사보드 · 떡밥장부 (AI가 응답에 직접 준 항목) */
 function applyBoardLedger(e,fx){
   (Array.isArray(e.lexAdd)?e.lexAdd:[]).slice(0,4).forEach(x=>{ if(x&&x.name&&x.desc) addLex({name:String(x.name).slice(0,30),cat:x.cat,desc:String(x.desc).slice(0,300)},false) });
-  (Array.isArray(e.threadsDone)?e.threadsDone:[]).slice(0,2).map(String).forEach(id=>{
-    const t=(G.threads||[]).find(x=>x.id===id&&x.status==='open'); if(!t) return;
-    t.status='closed'; t.closedDay=G.day; toast('🧵 조사 보드 1개가 풀렸습니다: '+t.text.slice(0,24)); _sigR=''; threadResolved(t);
-  });
-  const board=(Array.isArray(e.board)?e.board:[]).map(x=>String(x&&(x.text||x)||'').trim()).filter(Boolean).slice(0,2);
-  if(board.length&&clueLoad()<THREAD_SOFT) applyThreads(G,{threads_new:board});   // 미해결이 많으면 새 단서는 적지 않음
+  applyCaseUpdates(e.caseUpdates);
+  if(Array.isArray(e.threadsDone)) e.threadsDone.slice(0,2).forEach(x=>{ if(x&&typeof x==='object') resolveCase(x.id,x.conclusion,x.support_ids) });
+  if(Array.isArray(e.board)&&e.board.length) applyThreads(G,{threads_new:e.board});
   (Array.isArray(e.ledgerAdd)?e.ledgerAdd:[]).slice(0,4).forEach(x=>{
     const s=String(x&&(x.text||x)||'').trim().slice(0,120); if(s.length<3) return;
     const k=s.split('=')[0].trim();
@@ -1593,7 +1596,9 @@ function sanitizeChoices(){
   if(!G||!Array.isArray(G.choices)) return;
   let a=G.choices.slice();
   for(const h of HOOKS.choices){ try{ const r=h.fn(a); if(Array.isArray(r)) a=r }catch(e){ console.warn('[choices]',e) } }
-  G.choices=a.slice(0,4);
+  const ids=new Set(gameActions().map(x=>x.id));
+  G.choices=a.filter(c=>{ const m=metaOf(c); return !m||!m.actionId||ids.has(m.actionId) }).slice(0,4);
+  if(!G.choices.length&&G.loc==='site'&&!G.fight&&!roomExhausted()) G.choices=['주변을 자세히 살펴본다','이곳을 꼼꼼히 조사한다'];
 }
 /* 빠진 자리를 채울 선택지 (방이 다 조사됐으면 채우지 않음) */
 function fillChoices(arr,fill,min=3){
@@ -1779,20 +1784,9 @@ function classLeaveEffect(toKey){
   if(Math.random()<skipCatchP()){ addDemerit(SKIP_DEMERIT,'수업 이탈 적발'); pend(' [적발] 수업 시간에 자리를 벗어난 것이 들켜 벌점이 붙었다(벌점은 이미 반영되었으니 effects.벌점은 0). 선생님이나 규율부 학생의 가벼운 꾸중으로 짧게만 언급하라.') }
   else addLog('sys','🏃 수업 중 자리를 벗어났지만 들키지 않았습니다.');
 }
-/* 서술 뒤에 AI가 알려 준 '위치'를 실제 장소로 반영 (선택지를 지우지 않도록 조용히) */
-function applyPlace(res){
-  if(!G||G.loc!=='campus'||!res||!res.place) return;
-  const k=destKey(res.place);
-  if(k){
-    if(k===curDistrict()&&!spotOn()) return;
-    classLeaveEffect(k);
-    const k0=k, kk=curfewMove(k0); if(kk!==k0){ G.spot=null; G.district=kk; G._yuminHere=false; return }
-    if(needDormCheck(k0)&&!dormEntry()) return;
-    G.spot=null; G.district=k; G._yuminHere=false;
-    addLog('sys',`${DISTRICTS[k].ic} ${DISTRICTS[k].n}${josa(DISTRICTS[k].n,'으로','로')} 이동했습니다.`);
-    if(G.comp&&G.comp.met&&!G.comp.joined&&G.comp.spot===k) addLog('sys','🎵 이곳에서 유민의 모습이 보입니다.');
-  }else if(validSpotName(res.place)&&!(G.spot&&G.spot.name===res.place)){ classLeaveEffect(null); setSpot(res.place) }
-}
+/* AI 서술의 위치 문자열은 게임 상태를 변경하지 않는다. */
+function applyPlace(res){ /* 실제 위치는 공통 행동 실행기만 변경한다. AI의 위치 문자열은 서술 자료다. */ }
+
 function spotBlock(){ if(spotOn()){ toast('임시 장소에서는 할 수 없습니다. 먼저 지점으로 돌아가세요'); return true } return false }
 const waitDays=t=>{ const m=String(t).match(/(\d+)\s*일/); if(m) return Math.min(3,Math.max(1,+m[1])); if(/사흘/.test(t)) return 3; if(/이틀|며칠/.test(t)) return 2; return 1 };
 const inZone=()=>!!G.site&&['site','shelter','road'].includes(G.loc);
@@ -1813,7 +1807,7 @@ const INTENTS=[
    when:t=>G.peddler&&G.peddler.here&&G.loc===(G.peddler.loc||'road')&&IX.PEDDLER_BUY.test(t), run:()=>{ openPeddler() }},
   {id:'district',
    when:t=>!!districtMove(t),
-   run:t=>{ const k=districtMove(t); addLog('action',t); if(curDistrict()===k&&!G.spot) toast(`이미 ${DISTRICTS[k].n}에 있습니다`); else{ classLeaveEffect(k); goDistrict(k) } }},
+   run:t=>{ const k=districtMove(t); addLog('action',t); if(curDistrict()===k&&!G.spot) toast(`이미 ${DISTRICTS[k].n}에 있습니다`); else{ goDistrict(k) } }},
   {id:'home',confirm:true,label:()=>'🏠 아지트로 이동',
    when:t=>IX.HOME.test(t),
    run:t=>{
@@ -1895,33 +1889,144 @@ function diceChance(){
   p.textContent=`🎯 이번 판정은 ${DCN[dc]} 난이도입니다 (${dcVal(dc,sk)}) — 성공 확률 약 ${checkChance(sk,dc,t)}%`;
 }
 on('render',50,()=>renderDice());
+/* 공통 행동 목록: 표시 문구와 실행 기능을 분리. 목록은 현재 상태에서 매번 다시 검증한다. */
+function siteIdentity(d=G&&G.site){
+  if(!d) return '';
+  if(!d.uid){ G.zoneN=(G.zoneN||0)+1; d.uid='z'+G.zoneN }
+  return d.uid;
+}
+function actionToken(s){ return encodeURIComponent(String(s)).replace(/'/g,'%27') }
+function roomActionId(kind,id){ return `${kind}:${siteIdentity()}:${actionToken(id)}` }
+function gameActions(){
+  if(!G) return [];
+  const out=[], add=(id,label,run,kind='system')=>out.push({id,label,run,kind});
+  add('story','현재 장소에서 새로운 시도·대화·관찰',(text,opt)=>story(text,{src:opt.src||'choice'}),'story');
+  if(G.fight) return out; // 전투의 결정은 기존 전투 버튼과 판정이 담당
+  for(const sk of Object.keys(SK)) add('check:'+sk,SK[sk]+' 판정',(text,opt)=>doCheck(text,sk,null,opt.src||'choice'),'check');
+  if(G.loc==='site'&&G.site){
+    const r=curRoom();
+    if(r){
+      for(const id of r.exits||[]){ const target=G.site.rooms.find(x=>x.id===id); if(target) add(roomActionId('move',id),target.visited?target.name:'연결된 미탐험 공간',()=>moveTo(id),'move') }
+      if(!roomExhausted()){
+        add(roomActionId('observe',r.id),'현재 공간 살펴보기',(text,opt)=>story(text||'주변을 둘러본다',{src:opt.src||'fixed'}),'investigate');
+        add(roomActionId('investigate',r.id),'현재 공간 조사하기',(text,opt)=>story(text||'이곳을 꼼꼼히 조사한다',{src:opt.src||'fixed'}),'investigate');
+      }
+      if((r.danger||0)<SHELTER_BLOCK_DANGER) add('shelter:setup','임시 쉼터 마련',()=>shelterHere());
+    }
+    add('zone:exit','구역 밖으로 나가기',()=>exitZone(),'move');
+    add('zone:return','떠나온 지구로 귀환',()=>returnToCampus(),'move');
+  }else if(G.loc==='campus'){
+    for(const [id,d] of Object.entries(DISTRICTS)) if(id!==curDistrict()||spotOn()) add('district:'+id,d.n,()=>goDistrict(id),'move');
+    if(!spotOn()&&(PLACES[curDistrict()]||{}).clueP!=null) add('investigate:campus:'+curDistrict(),'현재 장소 조사하기',text=>browsePlace(curDistrict(),text),'investigate');
+    if(!spotOn()&&has('clubroom')) add('home:enter','아지트로 이동',()=>goHome(),'move');
+    if(!spotOn()&&G.time!=='낮') add('rest:dorm','기숙사에서 잠들기',()=>sleepAtDorm());
+  }else if(G.loc==='hood'){
+    add('travel:campus','중앙 캠퍼스로 귀환',()=>travelBack(),'move');
+    if(G.time!=='낮') add('rest:hood','현지에서 숙박',()=>hoodRest());
+  }else if(G.loc==='home'){
+    add('district:gate','중앙 캠퍼스로 돌아가기',()=>enterCampus(false),'move');
+    add('rest:home','아지트에서 쉬기',()=>homeRest());
+  }else if(G.loc==='road'){
+    if(G.trip&&!G.trip.bandit) add('trip:continue','목적지까지 계속 이동',()=>continueTrip(),'move');
+    else if(outsideZone()){
+      add('zone:reenter','조사하던 공간으로 다시 들어가기',()=>reenterZone(),'move');
+      add('zone:return','떠나온 지구로 귀환',()=>returnToCampus(),'move');
+    }
+    add('shelter:setup','임시 쉼터 마련',()=>shelterHere());
+  }else if(G.loc==='shelter') add('shelter:finish','아침까지 쉬고 출발',()=>breakCamp());
+  if(isHood()&&!spotOn()){
+    for(const d of tripDests()) if(d.kind==='hood') add('travel:'+d.key,d.name,()=>travelTo(d.key),'move');
+    else if(d.kind==='big') add('big:'+d.key,d.name,()=>startBig(d.key),'move');
+    for(const l of G.leads||[]) add('lead:'+actionToken(l.id),l.name,()=>startLead(l.id),'move');
+    if(!(G.loc==='hood'&&curHood().branch)) add('expedition:start','근처 구역 조사 출발',()=>startExpedition(),'move');
+    add('trade:shop','상점 열기',()=>openShop());
+  }
+  if(peddlerHere()) add('trade:peddler','이동 행상과 거래',()=>openPeddler());
+  if(G.comp&&G.comp.met&&(G.comp.joined||canMeetHere('유민'))) add('talk:yumin','유민과 대화',()=>talkYumin(),'talk');
+  for(const name of Object.keys(G.rel||{})) if(name!=='유민'&&canMeetHere(name)) add('talk:'+actionToken(name),name+'와 대화',()=>visitNPC(name),'talk');
+  return out;
+}
+function actionsBlock(){ return '\n[실행 가능한 행동 — action_id는 아래 ID만 사용. 표시 문구는 자유롭게 작성하되 한 행동만]\n'+gameActions().map(a=>`${a.id}: ${a.label}`).join('\n') }
+function actionAtDestination(to){
+  to=String(to||'').trim(); if(!to) return null;
+  const all=gameActions();
+  if(G.loc==='site'&&G.site){
+    const r=G.site.rooms.find(x=>x.id===to||x.name===to);
+    return r?all.find(a=>a.id===roomActionId('move',r.id))||null:null;
+  }
+  const k=G.loc==='campus'?destKey(to):null;
+  return all.find(a=>(k&&a.id==='district:'+k)||a.label===to)||null;
+}
+/* 옛 저장 선택지·직접 입력의 제한적인 호환 해석. 명확하지 않은 문장은 이동으로 확정하지 않는다. */
+function compoundMove(text){ return /조사|살펴|읽|확인/.test(text)&&/가서|간\s*뒤|도착.*후/.test(text) }
+function indirectMove(text){ return /물어|묻는|묻는다|물으|가는\s*길.*(알아|듣|찾)|가고\s*싶|갈\s*수\s*있|가려면|가면|간다면|갈까/.test(text) }
+function movementCandidates(text,allowCompound=false){
+  text=String(text||'');
+  if(RX.NEG.test(text)||indirectMove(text)) return [];
+  if(!IX.DIST_VERB.test(text)&&!/향한다|향해|걸어간다|이동한다/.test(text)) return [];
+  if(!allowCompound&&compoundMove(text)) return []; // 복합 행동은 확인 후 한 단계씩
+  if(G.loc==='site'&&G.site){
+    return G.site.rooms.filter(r=>text.includes(r.name)).map(r=>actionAtDestination(r.id)).filter(Boolean);
+  }
+  if(G.loc==='campus'){
+    const target=districtMove(text);
+    const keys=target?[[target]]:Object.entries(PLACES).filter(([k,p])=>p.re.test(text));
+    const all=gameActions(); return keys.map(([k])=>all.find(a=>a.id==='district:'+k)).filter(Boolean);
+  }
+  return gameActions().filter(a=>a.kind==='move'&&a.label.length>=2&&text.includes(a.label));
+}
+function legacyAction(m,text){
+  if(m&&m.to){ const a=actionAtDestination(m.to); return a?a.id:null }
+  const mapped={rest:G.loc==='campus'?'rest:dorm':G.loc==='hood'?'rest:hood':G.loc==='home'?'rest:home':G.loc==='shelter'?'shelter:finish':'shelter:setup',shelter:'shelter:setup',return:'zone:return',exit:'zone:exit',trade:isHood()?'trade:shop':'trade:peddler'};
+  if(m&&mapped[m.type]) return mapped[m.type];
+  if(m&&m.type==='check') return 'check:'+(SK[m.skill]?m.skill:'sur');
+  const list=movementCandidates(text); return list.length===1?list[0].id:null;
+}
+function dispatchGameAction(id,text='',opt={}){
+  if(busy||!G) return false;
+  const a=gameActions().find(x=>x.id===id);
+  if(!a){ toast('이 행동은 지금 할 수 없습니다. 현재 위치의 선택지를 확인해 주세요'); return false }
+  const before=G.loc+':'+curDistrict();
+  const result=a.run(text||a.label,opt);
+  if(opt.narrate&&a.kind==='move'&&!busy&&G.loc==='campus'&&before!==G.loc+':'+curDistrict()) aiTurn(text||a.label,'[이동 완료] 게임이 위치와 수업 이탈을 처리했다. 현재 위치에서 짧게 서술하고 추가 이동·시간 경과·벌점 effects는 만들지 말 것.');
+  return result===false?false:true;
+}
+function gameActionButton(id,label,cls='',attr=''){
+  return `<button ${cls?`class="${cls}"`:''} ${attr} data-action="${esc(id)}" onclick="dispatchGameAction(this.dataset.action)">${label}</button>`;
+}
+function showMovementOptions(text,list){
+  chipText=text;
+  const rows=list.slice(0,6).map(a=>`<button class="small" data-action="${esc(a.id)}" onclick="runMovementOption(this.dataset.action)">${esc(a.label)}</button>`).join('');
+  chip(`<span class="q">이동할 장소를 선택해 주세요</span>${rows}<button class="small" onclick="intentStory()">현재 장소에서 이야기로 진행</button><button class="small" onclick="intentCancel()">취소</button>`);
+}
+function runMovementOption(id){ const t=chipText; hideChip(); chipText=''; const a=gameActions().find(x=>x.id===id); const note=compoundMove(t)?`[다단계 요청] 원래 의도: ${t}. 이번 턴은 ${a?a.label:'목적지'}로 이동까지만 처리했으므로 도착 장면만 서술하고 조사·증거 발견은 다음 행동을 기다린다.`:''; if(note) pend(note); dispatchGameAction(id,t,{src:'free',narrate:true}) }
+
 function pickChoice(i){
   if(busy||!G) return;
   const c=G.choices&&G.choices[i]; if(!c) return;
   const m=metaOf(c);
-  if(m){
-    if(m.type==='check') return doCheck(c,m.skill,m.dc,'choice');
-    if(m.type==='story'&&calmFillIntent(c)) return story(c,{src:'choice'});
-    if(m.type!=='story'&&runChoiceType(m.type,c)) return;
-    if(m.type==='story'&&isHood()&&!RX.NEG.test(c)&&leadByText(c)){ addLog('action',c); return startLead(leadByText(c).id) }   // 소문의 장소로 가는 선택지
-    if(m.type==='story'&&G.loc==='campus'&&m.to){   // AI가 준 목적지(to)가 있으면 글 해석 없이 그대로 이동
-      const k=destKey(m.to);
-      if(k){ if(k!==curDistrict()||spotOn()){ classLeaveEffect(k); goDistrict(k) } return story(c,{src:'choice'}) }
-      if(validSpotName(m.to)){ classLeaveEffect(null); setSpot(m.to); return story(c,{src:'choice'}) }
-    }
-    if(m.type==='story'&&G.loc==='campus'&&!RX.NEG.test(c)){   // 선택지 글이 다른 곳으로 가는 것이면 실제 장소도 옮김
-      const k=districtMove(c);
-      if(k){ if(k!==curDistrict()||spotOn()){ classLeaveEffect(k); goDistrict(k) } }          // 여러 지점 중 한 곳 (임시 장소도 함께 해제)
-      else{ const n=spotMove(c); if(n){ classLeaveEffect(null); setSpot(n) } }                   // 지점 밖 장소 → 임시 장소
-    }
-    return story(c,{src:'choice'});
-  }
+  if(m&&m.actionId) return dispatchGameAction(m.actionId,c,{src:'choice',narrate:true});
+  const id=legacyAction(m,c);
+  if(id) return dispatchGameAction(id,c,{src:'choice',narrate:true});
+  if(m&&m.to) return toast('선택지의 목적지로 지금 이동할 수 없습니다');
+  const moves=movementCandidates(c);
+  if(moves.length>1) return showMovementOptions(c,moves);
   act(c,{src:'choice'});
 }
-function pickFixed(a){ if(busy||!G) return; story(a,{src:'fixed'}) }
+
+function pickFixed(a){ if(busy||!G) return; const r=curRoom(); if(G.loc==='site'&&r){ const kind=/꼼꼼|조사/.test(a)?'investigate':'observe'; return dispatchGameAction(roomActionId(kind,r.id),a,{src:'fixed'}) } story(a,{src:'fixed'}) }
 
 function act(text,opt={}){
+  if(busy||!G) return;
   const t=String(text);
+  if(indirectMove(t)||RX.NEG.test(t)) return story(t,opt);
+  if(compoundMove(t)){ const targets=movementCandidates(t,true); if(targets.length) return showMovementOptions(t,targets); return story(t,opt) }
+  const moves=movementCandidates(t);
+  if(moves.length===1) return dispatchGameAction(moves[0].id,t,{src:opt.src||'free',narrate:true});
+  if(moves.length>1) return showMovementOptions(t,moves);
+  if(G.loc==='site'&&curRoom()&&INV_RX.test(t)&&!RX.NEG.test(t)) return dispatchGameAction(roomActionId('investigate',curRoom().id),t,{src:opt.src||'free'});
+  if(G.loc==='site'&&G.site&&IX.DIST_VERB.test(t)&&G.site.rooms.some(r=>t.includes(r.name))) return toast('현재 공간과 연결된 통로로만 이동할 수 있습니다');
+  if(G.loc==='campus'&&!spotOn()&&INV_RX.test(t)&&(PLACES[curDistrict()]||{}).clueP!=null) return dispatchGameAction('investigate:campus:'+curDistrict(),t,{src:opt.src||'free'});
   if(calmFillIntent(t)) return story(t,opt);   // 휴게 공간에서 공포를 가라앉히는 글 → 실제로 가라앉힌 뒤 이야기로
   const it=RX.NEG.test(t)?null:INTENTS.find(x=>{ try{ return x.when(t) }catch(_){ return false } });
   if(it&&spotOn()&&['go','travel','sleep','home'].includes(it.id)){ spotBlock(); return }   // 임시 장소에서는 지점 전용 행동 불가
@@ -2125,7 +2230,7 @@ on('after',40,T=>{
 on('effects',10,(e,{T})=>{
   const f=T.flags||{};
   if(f.checkHP) e.hp=0;
-  if(f.storyOnly){ ['hp','calm','battery','torch','cash'].forEach(k=>e[k]=0); e.items_add=[]; e.items_remove=[]; e.fragment=false; e.materials={} }
+  if(f.storyOnly){ e.caseUpdates=[]; e.board=[]; e.threadsDone=[]; ['hp','calm','battery','torch','cash'].forEach(k=>e[k]=0); e.items_add=[]; e.items_remove=[]; e.fragment=false; e.materials={} }
   const ev=T.res&&T.res.event;
   if(ev&&ev.type==='calm_source'&&+e.calm>0) e.calm=0;
   if(ev&&ev.type==='merchant'){ ['calm','battery','torch'].forEach(k=>{ if(+e[k]>0) e[k]=0 }); if(+e.cash<0) e.cash=0 }
@@ -2299,7 +2404,8 @@ on('choices',60,arr=>{
     const room=Math.max(0,capOf(k)-G[k]);
     if(room<=0) return;
     if(/💳\d/.test(c)){ out.push(c); return }   // 이미 가격을 붙였으면 그대로
-    out.push(/(가득|채운다|채워|보충)/.test(c)?`${c} (💳${room*U(k)}, ${k==='calm'?`공포 −${room}`:`${NM[k]} +${room}`})`:`${c} (개당 💳${U(k)})`);
+    const priced=/(가득|채운다|채워|보충)/.test(c)?`${c} (💳${room*U(k)}, ${k==='calm'?`공포 −${room}`:`${NM[k]} +${room}`})`:`${c} (개당 💳${U(k)})`;
+    const m=metaOf(c); if(m) G.choiceMeta[priced]=m; out.push(priced);
   });
   return out.length?out:(arr.length?['주변을 둘러본다']:out);
 });
@@ -2454,6 +2560,7 @@ function goDistrict(k){
   if(busy||!G||G.loc!=='campus'||!DISTRICTS[k]||(curDistrict()===k&&!G.spot)) return;
   k=curfewMove(k);
   if(needDormCheck(k)&&!dormEntry()){ save(); render(); return }
+  classLeaveEffect(k);
   G.spot=null; G.district=k; G._yuminHere=false; G.choices=[];
   addLog('sys',`${DISTRICTS[k].ic} ${DISTRICTS[k].n}${josa(DISTRICTS[k].n,'으로','로')} 이동했습니다.`);
   if(G.comp&&G.comp.met&&!G.comp.joined&&G.comp.spot===k) addLog('sys','🎵 이곳에서 유민의 모습이 보입니다.');
@@ -2744,8 +2851,8 @@ function visitHour(){
   aiTurn('면회 시간에 정문으로 나간다',`[면회 시간] 주말 면회 시간. 정문 앞에서 플레이어를 만나러 온 가족이나 오랜 친구(플레이어의 배경에 맞는 사람)가 용돈과 ${snack}을(를) 건네며 안부를 묻는다. 학교 생활을 걱정하는 따뜻하고 짧은 대화. 받은 용돈과 간식은 코드가 이미 반영했으니 effects.캐시와 items_add는 0/빈 배열.`);
 }
 const BROWSE_CLUE_LIMIT=3;
-function browsePlace(k){
-  if(busy||spotBlock()) return;
+function browsePlace(k,text){
+  if(busy||!G||G.loc!=='campus'||curDistrict()!==k||spotBlock()) return;
   const p=PLACES[k]; if(!p||p.clueP==null) return;
   G._yuminHere=false;
   const b=(G.brw&&G.brw.day===G.day)?G.brw:(G.brw={day:G.day,n:0});
@@ -2753,11 +2860,11 @@ function browsePlace(k){
   if(b.n<BROWSE_CLUE_LIMIT&&Math.random()<p.clueP){
     b.n++;
     const clue=G.fragments<FRAG_GOAL&&Math.random()<0.4?fragClue():'';
-    extra+=` [${p.n} 단서] 플레이어가 ${p.n}에서 단서 하나를 발견한다(${p.look} 가운데 하나에서). 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고 effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+    extra+=` [${p.n} 단서] 플레이어가 ${p.n}에서 단서 하나를 발견한다(${p.look} 가운데 하나에서). 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고 effects.사건진행에 기존 사건의 증거로 기록하라. 같은 괴담의 관찰을 새 사건으로 만들지 마라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
     G.chronicle.push({day:G.day,text:`${p.n}에서 단서를 얻었다${clue?`: ${clue}`:''}`});
     addLog('fx',`🔎 ${p.n} 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
   }
-  tick(); aiTurn(`${p.n}${josa(p.n,'을','를')} 둘러본다`,extra);
+  tick(); aiTurn(text||`${p.n}${josa(p.n,'을','를')} 둘러본다`,extra);
 }
 function nurseRest(){
   if(busy||spotBlock()) return;
@@ -2783,7 +2890,7 @@ const FLOOR_MAP={
 function schoolGo(k){
   if(busy||!G||G.loc!=='campus') return;
   if(k===curDistrict()&&!spotOn()) return toast('이미 이곳에 있습니다');
-  closeModal(); classLeaveEffect(k); goDistrict(k);
+  closeModal(); goDistrict(k);
 }
 function openSchoolMap(fl){
   if(!G||G.loc!=='campus') return;
@@ -3025,7 +3132,7 @@ function studyHere(){
   if(st.n<STUDY_CLUE_LIMIT&&Math.random()<(lib?STUDY_LIB_P:STUDY_CLUE_P)){
     st.n++;
     const clue=G.fragments<FRAG_GOAL&&Math.random()<sb.frag?fragClue():'';
-    extra+=canonHint(sb.n)+` [공부 단서] 공부하다가 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${sb.n}답게 ${sb.hint}. 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고 effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+    extra+=canonHint(sb.n)+` [공부 단서] 공부하다가 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${sb.n}답게 ${sb.hint}. 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고 effects.사건진행에 기존 사건의 증거로 기록하라. 같은 괴담의 관찰을 새 사건으로 만들지 마라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
     G.chronicle.push({day:G.day,text:`주말 ${sb.n} 공부 중 단서를 얻었다${clue?`: ${clue}`:''}`});
     addLog('fx',`📖 공부 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
   }
@@ -3145,7 +3252,7 @@ function classStep(){
     extra=`[수업 끝 ${n}/${CLASS_ACTIONS}] ${subj} 수업의 마무리 장면. 마지막에 종이 울리며 ${k+1}교시가 끝난다.`;
     if(Math.random()<CLASS_CLUE_P){
       const clue=G.fragments<FRAG_GOAL&&Math.random()<sb.frag?fragClue():'';
-      extra+=canonHint(subj)+` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${subj} 수업답게 ${sb.hint}. 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+      extra+=canonHint(subj)+` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${subj} 수업답게 ${sb.hint}. 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.사건진행에 기존 사건의 증거로 기록하라. 같은 괴담의 관찰을 새 사건으로 만들지 마라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
       G.chronicle.push({day:G.day,text:`${subj} 수업에서 단서를 얻었다${clue?`: ${clue}`:''}`});
       if(clue) addCanon(`${subj} 수업 단서: ${clue}`,false,true);
       addLog('fx',`📚 수업 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
@@ -3179,7 +3286,7 @@ function skipClass(away){
     if(G.calm<capW()){ G.calm=Math.min(capW(),G.calm+1); addLog('fx','🏃 몰래 숨을 돌려 공포가 조금 가라앉았습니다'); }
     if(Math.random()<SKIP_FIND_P){
       const clue=G.fragments<FRAG_GOAL&&Math.random()<0.5?fragClue():'';
-      extra+=` [땡땡이 중 단서] 빈 교실이나 복도에서 플레이어가 단서 하나를 발견한다(남은 흔적, 엿들은 대화, 잠긴 문 등). 서술에 분명히 담고 effects.조사보드에 한 줄로 적어라.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
+      extra+=` [땡땡이 중 단서] 빈 교실이나 복도에서 플레이어가 단서 하나를 발견한다(남은 흔적, 엿들은 대화, 잠긴 문 등). 서술에 분명히 담고 effects.사건진행에 기존 사건의 증거로 기록하라. 같은 괴담의 관찰을 새 사건으로 만들지 마라.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
       G.chronicle.push({day:G.day,text:`땡땡이 중 단서를 얻었다${clue?`: ${clue}`:''}`});
       addLog('fx',`🏃 땡땡이 중 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
     }
@@ -3522,7 +3629,8 @@ const SHELTER_BLOCK_DANGER=3;   // 위험도 3에서는 임시 쉼터 불가
 function inDark(){ return !!G&&G.loc==='site'&&G.torch<=0&&!hasTrait('밤눈') }
 function moveTo(id){
   if(busy) return;
-  const d=G.site; let r=d&&d.rooms.find(x=>x.id===id); if(!r) return;
+  const d=G.site; let r=d&&d.rooms.find(x=>x.id===id); if(!r||G.loc!=='site') return;
+  const here=curRoom(); if(!here||(here.exits||[]).indexOf(id)<0) return toast('현재 공간과 연결된 통로로만 이동할 수 있습니다');
   const gate=wardMoveGate(d,r); if(gate.stop) return;   // 출석부가 가리키는 구역: 수위·등반·신기루·소음
   if(gate.id&&gate.id!==r.id){ r=d.rooms.find(x=>x.id===gate.id)||r; id=r.id }
   const first=!r.visited;
@@ -3747,7 +3855,7 @@ const LOC_RULES={
   home:{re:/(구역\s*(안|내부|깊은\s*곳)(으로|에서)|통로(로|를)\s*(들어|지나)|(방|공간)으로\s*(들어|이동))/,fill:['아지트 주변을 둘러본다','잠시 쉬며 생각을 정리한다']},
 };
 function dropChoices(arr,R){
-  const keep=arr.filter(c=>!R.re.test(String(c)));
+  const keep=arr.filter(c=>{ const m=metaOf(c); return (m&&m.actionId)||!R.re.test(String(c)) });
   return keep.length===arr.length?arr:fillChoices(keep,R.fill);
 }
 on('choices',10,arr=>G.loc==='site'?dropChoices(arr,LOC_RULES.siteExit):arr);
@@ -3763,7 +3871,7 @@ on('choices',45,arr=>{
   const keep=arr.filter(c=>{
     c=String(c);
     if(c.replace(/\s*\(💳[^)]*\)\s*$/,'').length>22) return false;
-    if(CH_MULTI.some(rx=>rx.test(c))) return false;
+    if(compoundMove(c)||CH_MULTI.some(rx=>rx.test(c))) return false;
     if(words.some(w=>c.includes(w)&&!recent.includes(w))) return false;
     return true;
   });
@@ -3776,8 +3884,8 @@ on('choices',45,arr=>{
 on('context',30,()=>{
   let s='';
   if(G.loc==='site'){
-    s+='\n[위치 고정] 플레이어는 지금 구역 내부에 있다. 구역 밖으로 나가거나 은신처·전동 스쿠터가 있는 곳·중앙 캠퍼스 지구로 돌아가는 서술이나 선택지를 만들지 말 것(나가기·귀환은 플레이어가 고정 버튼으로 직접 한다). 이동은 연결된 공간 사이에서만.';
-    s+='\n[선택지 규칙] choices에는 현재 방 안에서 할 수 있는 행동(관찰, 조사, 대화, 물건 다루기, 함정·장치 조작 등)만 넣어라. 다른 방·계단·통로·출구로 이동하거나 내려가고 올라가는 선택지는 절대 넣지 말 것 — 이동은 플레이어가 고정 버튼으로 한다.';
+    s+='\n[위치 고정] 플레이어는 지금 구역 내부에 있다. 게임이 이동을 처리하기 전에는 구역 밖이나 다른 방에 도착한 서술을 만들지 말 것. 이동 선택지는 제공된 action_id만 쓰고 연결된 공간 사이에서만 이동한다.';
+    s+='\n[선택지 규칙] choices는 현재 방의 관찰·조사·대화·새로운 시도와 제공된 이동 action_id를 사용한다. 이동과 조사를 한 선택지에 묶지 말고, 다른 방으로 이동하려면 반드시 등록된 이동 ID를 쓴다.';
     if(G.site&&!G.site.rooms.some(r=>r.fragment||r.fragTaken)) s+='\n[비밀] 이 구역에는 교표 조각이 없다. 교표 조각이나 그 흔적을 발견하는 서술·선택지를 만들지 말 것. effects의 교표조각은 false.';
     if(G.site&&G.site.rooms.some(r=>r.fragTaken)) s+='\n[이미 획득] 이 구역의 교표 조각은 이미 얻었다. 교표 조각을 또 발견하거나 얻는 서술·선택지를 만들지 말 것. effects의 교표조각은 false.';
     const p=siteProg(); if(p&&p.done) s+='\n[조사 완료] 이 구역의 모든 공간을 조사했다. 새로운 방이나 숨은 통로를 만들지 말고, 남은 것이 없다는 분위기로 서술하며 귀환을 암시하라.';
@@ -3984,6 +4092,8 @@ function attachLore(era,j,hasFrag){
   });
   d.lore={era:era.id,eraName:era.name,fig:era.fig,who:String(L.who||fb.who),what:String(L.what||fb.what),fate:String(L.fate||fb.fate),lacuna:String(L.lacuna||fb.lacuna),record:String(L.record||fb.record),recorded:false};
   d.journal=[];
+  const t=caseRecord(`「${d.name}」에서 무슨 일이 있었는가?`,{scope:'local',placeId:'zone:'+siteIdentity(d),key:'zone-lore'});
+  d.caseId=t&&t.id;
 }
 on('context',50,()=>{
   const d=G.site, L=d&&d.lore;
@@ -4011,7 +4121,9 @@ function revealClue(d,r){
   (d.journal=d.journal||[]).push({room:r.name,t:r.clue.t,day:G.day});
   const all=d.rooms.filter(x=>x.clue), got=all.filter(x=>x.clue.got);
   addLog('fx',`📝 조사 수첩 (${got.length}/${all.length}): ${r.clue.t}`);
-  addCanon(`${r.name}: ${r.clue.t}`,false,true);   // 구역에서 찾은 단서도 확정 단서에 기록
+  const t=(G.threads||[]).find(t=>t.id===d.caseId)||caseRecord(`「${d.name}」에서 무슨 일이 있었는가?`,{scope:'local',placeId:'zone:'+siteIdentity(d)});
+  d.caseId=t&&t.id;
+  addCanon(`${r.name}: ${r.clue.t}`,false,true,{caseId:d.caseId,scope:'local',placeId:'zone:'+siteIdentity(d),kind:'fact',source:'prepared-room'});   // 구역에서 찾은 단서도 확정 단서에 기록
   toast(`📝 단서를 수첩에 적었습니다 (${got.length}/${all.length})`);
   if(got.length===all.length){
     addLog('sys',`🏚 모든 단서가 맞춰졌습니다 — 「${d.name}」의 사연이 사전에 기록됩니다.`);
@@ -4037,7 +4149,7 @@ function finalizeZone(d){
     linkLegendEra(d.name);
   }
   G.chronicle.push({day:G.day,text:`「${d.name}」의 사연을 ${full?'밝혀냈다':'일부 밝혀냈다'} — ${L.eraName}`});
-  if(full) gainXp(1,'구역의 사연');
+  if(full){ gainXp(1,'구역의 사연'); if(d.caseId) resolveCase(d.caseId,L.record,evidenceForCase((G.threads||[]).find(t=>t.id===d.caseId)||{}).filter(e=>e.source==='prepared-room').map(e=>e.id)) }
   L.recorded=true;
   toast(`🏚 사전에 「${d.name}」의 기록이 남았습니다`);
 }
@@ -5273,128 +5385,237 @@ on('facts',90,(o,rules)=>{
    - 서술 AI에게는 매 턴 2~3개를 '자연스러우면 회수'로 넘김 (억지로 풀지 않게)
    - G.threads=[{id,text,day,status:'open'|'closed',closedDay,shown}]
    ========================================================= */
-const THREAD_MAX=20, THREAD_PROMPT=6;
+/* 사건 한 개에 질문·증거·다음 목표를 모은다. 원문 보관량과 AI 전달량은 독립적이다. */
+const CASE_SCOPES=['main','local','personal'], EVIDENCE_KINDS=['fact','testimony','rumor','hypothesis','note'];
+const CASE_LOCAL_LIMIT=3, CASE_PROMPT_LIMIT=6, EVIDENCE_PROMPT_LIMIT=10;
+const EVIDENCE_NAMES={fact:'관찰 사실',testimony:'증언',rumor:'소문',hypothesis:'추정',note:'기록'};
+const clueKey=t=>String(t||'').replace(/\s+/g,' ').trim();
+function knowledgePlace(g=G){
+  if(g.site&&['site','shelter','road'].includes(g.loc)) return 'zone:'+siteIdentity(g.site);
+  if(g.loc==='campus') return 'campus:'+(g.spot?'spot:'+g.spot.name:(DISTRICTS[g.district]?g.district:'market'));
+  if(g.loc==='hood') return 'hood:'+g.hood;
+  return g.loc||'unknown';
+}
+function scopeForText(text){ return /교표|출석부|지워진.{0,5}구역|라쿠나/.test(text)?'main':/유민|속마음|가족|약속|부탁/.test(text)?'personal':'local' }
+function oldCluePlace(text){
+  const k=destKey(text); return k?'campus:'+k:/유민/.test(text)?'person:yumin':'legacy';
+}
+function knownKnowledgePlace(id){
+  if(typeof id!=='string') return false;
+  if(id===knowledgePlace()||id==='main'||id==='person:yumin') return true;
+  if(id.startsWith('campus:')) return !!DISTRICTS[id.slice(7)];
+  if(id.startsWith('hood:')) return !!HOODS[id.slice(5)];
+  return (G.threads||[]).some(t=>t.placeId===id)||(G.evidence||[]).some(e=>e.placeId===id);
+}
+function nextCaseId(g=G){ let id; do{ g.threadN=(g.threadN||0)+1; id='t'+g.threadN }while((g.threads||[]).some(t=>t.id===id)); return id }
+function caseRecord(text,opt={},g=G){
+  text=clueKey(text).slice(0,160); if(text.length<4) return null;
+  if(!g.threads) g.threads=[];
+  const scope=CASE_SCOPES.includes(opt.scope)?opt.scope:scopeForText(text), placeId=opt.placeId||knowledgePlace(g);
+  const exact=g.threads.find(t=>t.text===text&&!t.parentId&&t.scope===scope&&t.placeId===placeId); if(exact) return exact;
+  const same=g.threads.find(t=>t.status==='open'&&!t.parentId&&t.scope===scope&&t.placeId===placeId&&(opt.key?t.topicKey===opt.key:true));
+  if(same&&!opt.newCase){ if(!same.questions) same.questions=[]; if(!same.questions.includes(text)&&text!==same.text) same.questions.push(text); same.touched=g.day; return same }
+  if(!opt.force&&(clueLoad(g)>=THREAD_SOFT||(scope==='local'&&threadsActive(g).filter(t=>t.scope==='local'&&t.placeId===placeId).length>=CASE_LOCAL_LIMIT))) return opt.newCase?null:same||null;
+  const t={id:nextCaseId(g),text,scope,placeId,topicKey:String(opt.key||scope+':'+placeId).slice(0,100),day:g.day,touched:g.day,status:'open',shown:0,evidenceIds:[],questions:[],next:[],conclusion:'',supportIds:[]};
+  g.threads.push(t); return t;
+}
+function migrateCases(){
+  if(!G) return;
+  if(!Array.isArray(G.evidence)) G.evidence=[];
+  if(!Array.isArray(G.threads)) G.threads=[];
+  if(!Array.isArray(G.canon)) G.canon=[];
+  if(G._caseVersion===1) return;
+  G.legacyThreads=JSON.parse(JSON.stringify(G.threads)); // 이전 질문과 완료 상태도 원본으로 보관
+  G.legacyCanon=JSON.parse(JSON.stringify(G.canon));
+  const groups=new Map();
+  for(const t of G.threads){
+    t.scope=t.scope||scopeForText(t.text||''); t.placeId=t.placeId||oldCluePlace(t.text||'');
+    t.evidenceIds=t.evidenceIds||[]; t.questions=t.questions||[]; t.next=t.next||[]; t.supportIds=t.supportIds||[];
+    t.conclusion=t.conclusion||''; if(t.status==='closed'&&!t.conclusion) t.legacyClosed=true;
+    const key=t.scope+':'+t.placeId;
+    if(t.status==='open'&&t.scope==='local'&&t.placeId!=='legacy'){
+      const root=groups.get(key);
+      if(root){ root.questions.push(t.text); t.parentId=root.id; t.status='merged' }else groups.set(key,t);
+    }
+  }
+  for(const c of G.canon){
+    if(c.sum) continue; // 기존 요약은 증거 원문과 분리
+    const scope=scopeForText(c.text||''), placeId=oldCluePlace(c.text||'');
+    const t=caseRecord(scope==='main'?'출석부와 지워진 구역의 관계':`${placeId==='legacy'?'기존 기록':(DISTRICTS[placeId.slice(7)]||{}).n||'장소'}에서 밝혀진 일`,{scope,placeId,force:true});
+    const e=recordEvidence(c.text,{caseId:t&&t.id,scope,placeId,day:c.day,kind:c.text.startsWith('해결된 단서:')?'note':'fact',source:'legacy'}); if(e) Object.assign(c,{id:e.id,caseId:e.caseId,scope:e.scope,placeId:e.placeId,kind:e.kind});
+  }
+  G._caseVersion=1;
+}
+function recordEvidence(text,opt={}){
+  text=clueKey(text).slice(0,240); if(text.length<4) return null;
+  if(!Array.isArray(G.evidence)) G.evidence=[];
+  const t=(G.threads||[]).find(t=>t.id===opt.caseId&&!t.parentId);
+  const placeId=opt.placeId||(t&&t.placeId)||knowledgePlace(), scope=opt.scope||(t&&t.scope)||scopeForText(text);
+  const kind=EVIDENCE_KINDS.includes(opt.kind)?opt.kind:'fact';
+  const old=G.evidence.find(e=>!e.deleted&&e.text===text&&e.placeId===placeId&&e.kind===kind&&e.caseId===(t?t.id:opt.caseId||null)); if(old) return old;
+  let id; do{ G.evidenceN=(G.evidenceN||0)+1; id='e'+G.evidenceN }while(G.evidence.some(e=>e.id===id));
+  const e={id,text,caseId:t?t.id:opt.caseId||null,scope,placeId,kind,day:opt.day==null?G.day:opt.day,source:opt.source||'scene',role:opt.role||'observation',relatedPlaces:(Array.isArray(opt.relatedPlaces)?opt.relatedPlaces:[]).filter(knownKnowledgePlace).slice(0,3)};
+  G.evidence.push(e);
+  if(t){ if(!t.evidenceIds) t.evidenceIds=[]; t.evidenceIds.push(id); t.touched=G.day }
+  return e;
+}
+function caseForEvidence(text,opt={}){
+  if(opt.caseId) return (G.threads||[]).find(t=>t.id===opt.caseId&&!t.parentId)||null;
+  const scope=opt.scope||scopeForText(text), placeId=opt.placeId||knowledgePlace();
+  if(scope==='main') return threadsOpen().find(t=>t.scope==='main')||caseRecord('출석부와 지워진 구역은 어떻게 이어지는가?',{scope,placeId:'main'});
+  const roots=threadsOpen().filter(t=>t.scope===scope&&t.placeId===placeId);
+  return roots[0]||caseRecord(scope==='personal'?'이 인물의 사정은 어떻게 이어지는가?':'이 장소에서 실제로 무슨 일이 있었는가?',{scope,placeId});
+}
+function evidenceForCase(t){ return (G.evidence||[]).filter(e=>!e.deleted&&e.caseId===t.id) }
+function resolveCase(id,conclusion,supportIds,manual=false){
+  const t=(G.threads||[]).find(t=>t.id===id&&!t.parentId&&t.status==='open');
+  conclusion=clueKey(conclusion).slice(0,240);
+  const ids=[...new Set(Array.isArray(supportIds)?supportIds.map(String):[])];
+  const valid=ids.length&&ids.every(id=>(G.evidence||[]).some(e=>e.id===id&&!e.deleted&&e.caseId===t?.id&&['fact','testimony'].includes(e.kind)));
+  if(!t||!valid||conclusion.length<6||conclusion===t.text||/[?？]$/.test(conclusion)) return false;
+  t.status='closed'; t.closedDay=G.day; t.conclusion=conclusion; t.supportIds=ids; t.manual=manual;
+  threadResolved(t); _sigR=''; return true;
+}
+function applyCaseUpdates(updates,opt={}){
+  if(!Array.isArray(updates)) return;
+  let created=0;
+  for(const u of updates.slice(0,2)){
+    if(!u||typeof u!=='object') continue;
+    let t;
+    if(u.case_id){ t=(G.threads||[]).find(t=>t.id===u.case_id&&!t.parentId); if(!t||t.status!=='open') continue }
+    else {
+      if(created>=1||!u.question||!u.reason||u.new_case!==true) continue;
+      const placeId=u.place_id&&knownKnowledgePlace(u.place_id)?u.place_id:opt.placeId||knowledgePlace();
+      t=caseRecord(u.question,{scope:u.scope,placeId,key:u.topic_key,newCase:true}); if(!t) continue; created++;
+    }
+    for(const e of (Array.isArray(u.evidence)?u.evidence:[]).slice(0,2)){
+      if(!e||typeof e.text!=='string'||!EVIDENCE_KINDS.includes(e.kind)||!['narrows','refutes','route','observation'].includes(e.role)) continue;
+      // 소문과 추정의 종류를 유지하여 같은 사건의 증거로 보관한다.
+      addCanon(e.text,false,false,{caseId:t.id,scope:t.scope,placeId:opt.placeId||knowledgePlace(),kind:EVIDENCE_KINDS.includes(e.kind)?e.kind:'fact',role:e.role,relatedPlaces:e.related_places,source:opt.source||'scene'});
+    }
+    if(Array.isArray(u.next)) t.next=[...new Set(u.next.map(clueKey).filter(Boolean))].slice(0,3).map(s=>s.slice(0,100));
+    if(u.resolution&&opt.source!=='lex') resolveCase(t.id,u.resolution.conclusion,u.resolution.support_ids);
+    t.touched=G.day;
+  }
+}
+function selectedCases(text=''){
+  const open=threadsOpen(); const place=knowledgePlace();
+  const group=t=>t.scope==='main'?0:t.scope==='local'&&t.placeId===place?1:t.scope==='personal'?3:2;
+  const sorted=[...open].sort((a,b)=>((a.shown||0)-(b.shown||0))||a.day-b.day);
+  const out=[], take=(n,k)=>{ for(const t of sorted.filter(t=>group(t)===k)){ if(n--<=0) break; out.push(t) } };
+  take(2,0);take(2,1);take(1,2);take(1,3);
+  for(const t of sorted) if(out.length<CASE_PROMPT_LIMIT&&!out.includes(t)&&out.filter(x=>x.scope==='local'&&x.placeId===t.placeId).length<2) out.push(t);
+  return out;
+}
+function selectedEvidence(limit=EVIDENCE_PROMPT_LIMIT){
+  const all=(G.evidence||[]).filter(e=>!e.deleted), place=knowledgePlace(), out=[];
+  const group=e=>e.scope==='main'?0:e.scope==='personal'?3:e.placeId===place?1:2;
+  const anchors=new Set();
+  for(const t of (G.threads||[]).filter(t=>!t.parentId)){ const anchor=all.find(e=>e.caseId===t.id&&e.kind==='fact'&&e.source!=='resolution'); if(anchor) anchors.add(anchor.id) }
+  const sorted=[...all].sort((a,b)=>(Number(anchors.has(b.id))-Number(anchors.has(a.id)))||(b.day-a.day)||parseInt(b.id.slice(1))-parseInt(a.id.slice(1)));
+  const add=e=>{ if(out.includes(e)||out.length>=limit||out.filter(x=>x.caseId&&x.caseId===e.caseId).length>=2) return false; out.push(e); return true };
+  for(const [k,n] of [[0,3],[1,4],[2,2],[3,1]]){ let used=0; for(const e of sorted.filter(e=>group(e)===k)) if(used<n&&add(e)) used++ }
+  for(const e of sorted) add(e);
+  return out;
+}
+function caseSummaryBlock(text='',list=selectedCases(text)){
+  return list.map(t=>`- ${t.id} [${t.scope} ${t.placeId}]: ${t.text}${t.questions&&t.questions.length?' / 관련 질문: '+t.questions.slice(-2).join(' · '):''}${t.next&&t.next.length?' / 다음 조사: '+t.next.join(' · '):''}`).join('\n')||'(없음)';
+}
+function caseCard(t){
+  const facts=evidenceForCase(t), names={main:'본편',local:'장소',personal:'인물'};
+  return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${names[t.scope]||'사건'} · 증거 ${facts.length}개</span></div>${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${facts.length?`<details><summary>관찰·증언·소문 보기</summary>${facts.map(e=>`<div class="rj-clue">${esc(e.text)} <span class="muted">[${esc(EVIDENCE_NAMES[e.kind]||'기록')}]</span></div>`).join('')}</details>`:''}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
+}
+function openCaseResolution(id){
+  const t=(G.threads||[]).find(t=>t.id===id); if(!t) return;
+  const facts=evidenceForCase(t).filter(e=>['fact','testimony'].includes(e.kind));
+  modal('사건 결론 기록',`<p>${esc(t.text)}</p><textarea id="caseConclusion" placeholder="밝혀낸 원인·결론을 적어 주세요" maxlength="240"></textarea>${facts.map(e=>`<label style="display:block"><input type="checkbox" class="caseSupport" value="${esc(e.id)}" style="width:auto"> ${esc(e.text)}</label>`).join('')}<button class="primary" data-case="${esc(id)}" onclick="saveCaseResolution(this.dataset.case)">선택한 증거로 결론 기록</button>`);
+}
+function saveCaseResolution(id){
+  const text=(document.getElementById('caseConclusion')||{}).value||'', ids=[...document.querySelectorAll('.caseSupport:checked')].map(x=>x.value);
+  if(!resolveCase(id,text,ids,true)) return toast('관찰·증언 증거와 구체적인 결론을 함께 기록해 주세요');
+  save(); render(); openThreads();
+}
+
 /* 단서 피로 방지: 미해결 조사 보드가 이만큼 쌓이면 새 단서를 막고(코드), AI에게 새 수수께끼 대신 기존 것의 진전·해결을 요구함 */
-const THREAD_SOFT=10, THREAD_HARD=15;
+const THREAD_SOFT=10;
 const THREAD_DORMANT_DAYS=4;   // 이 일수 동안 장면에서 다뤄지지 않은 미해결 단서는 '보류'로 보고 개수에서 뺌
-function threadActive(t,g){ g=g||G; return t.status==='open'&&(g.day-(t.touched==null?t.day:t.touched))<THREAD_DORMANT_DAYS }
+function threadActive(t,g){ g=g||G; return !t.parentId&&t.status==='open'&&(g.day-(t.touched==null?t.day:t.touched))<THREAD_DORMANT_DAYS }
 function threadsActive(g){ return threadsOpen(g).filter(t=>threadActive(t,g)) }
 function clueLoad(g){ return threadsActive(g).length }
-/* 조사 보드가 풀리면(자동·직접) 그 내용을 확정 단서에도 남김 */
+/* 근거가 있는 결론을 사건에 기록한다. 질문 문장은 사실로 승격하지 않는다. */
 function threadResolved(t){
-  if(!G||!t||!t.text) return;
-  if(!Array.isArray(G.canon)) G.canon=[];
-  if(G.canon.some(c=>canonSimilar(c.text,t.text))) return;
-  addCanon('해결된 단서: '+t.text,true,true);
-  try{ toast('📌 풀린 조사 보드를 확정 단서에 기록했습니다') }catch(e){}
+  if(!G||!t||!t.conclusion||!t.supportIds||!t.supportIds.length) return;
+  addCanon('해결 결론: '+t.conclusion,true,true,{caseId:t.id,scope:t.scope,placeId:t.placeId,kind:'fact',source:'resolution'});
 }
-function threadsOpen(g){ g=g||G; return (g.threads||[]).filter(t=>t.status==='open') }
+
+function threadsOpen(g){ g=g||G; return (g.threads||[]).filter(t=>!t.parentId&&t.status==='open') }
 function threadsRequest(g){
-  const open=threadsOpen(g);
-  return `
-[조사 보드 정리 — 사전과 별도]
-'조사 보드'는 플레이어가 장면에서 직접 보거나 들은 것 중 아직 풀리지 않은 것이다: 인물이 한 약속이나 부탁, 답이 나오지 않은 수수께끼, 인물의 미해결 사정, 예고된 위협, 다시 만나자고 한 사람. 사소한 묘사·이미 끝난 일·플레이어가 모르는 비밀은 넣지 않는다.
-- threads_new: 이번 장면들에서 새로 생긴 조사 보드(최대 2개, 각 40자 이내, 누가·무엇을이 드러나게). 아래 목록과 겹치면 넣지 말 것. 없으면 [].
-- threads_closed: 아래 목록 중 이번 장면들에서 분명히 풀렸거나 끝난 것의 id. 없으면 [].
-[현재 조사 보드 목록]
-${open.map(t=>`${t.id}: ${t.text}`).join('\n')||'(없음)'}`;
+  return `\n[사건별 조사 정리]\n새 질문을 늘리기보다 기존 사건에 중요한 관찰·증언·다음 조사 방향을 붙인다. 같은 장소 괴담은 같은 case_id를 쓴다. 사실 기록만으로 질문을 해결하지 않는다. case_updates 기존 사건 형식은 {case_id:'t1',evidence:[{text:'장면에 나온 사실',kind:'fact|testimony|rumor|hypothesis',role:'narrows|refutes|route|observation'}],next:['다음 조사 방향']}. 새 사건은 new_case:true,question,reason,scope,topic_key,place_id가 있어야 하며 최대 1개. 이번 추출에서 사건 해결은 하지 않는다. threads_new는 옛 호환용이며 새 응답은 case_updates 사용. 결론에는 공개된 증거 ID와 실제 결론이 필요하다.\n[사건]\n${(g.threads||[]).filter(t=>!t.parentId&&t.status==='open').slice(-12).map(t=>`${t.id} [${t.scope} ${t.placeId}]: ${t.text}`).join('\n')||'(없음)'}`;
 }
-function applyThreads(g,r){
+
+function applyThreads(g,r,opt={}){
   if(!g.threads) g.threads=[];
-  const closed=new Set((Array.isArray(r.threads_closed)?r.threads_closed:[]).map(String));
-  let nc=0, nn=0;
-  g.threads.forEach(t=>{ if(t.status==='open'&&closed.has(t.id)){ t.status='closed'; t.closedDay=g.day; nc++; if(g===G) threadResolved(t) } });
-  (Array.isArray(r.threads_new)?r.threads_new:[]).slice(0,2).forEach(x=>{
-    if(!r.force&&clueLoad(g)>=THREAD_SOFT) return;   // 미해결 단서가 너무 많으면 새로 늘리지 않음
-    const text=String(x&&(x.text||x)||'').trim().slice(0,60); if(text.length<4) return;
-    if(threadsOpen(g).some(t=>t.text===text)) return;
-    g.threadN=(g.threadN||0)+1;
-    g.threads.push({id:'t'+g.threadN,text,day:g.day,touched:g.day,status:'open',shown:0}); nn++;
-  });
-  // 너무 많이 쌓이면 가장 오래된 것부터 '흐지부지'로 닫음
-  const open=threadsOpen(g);
-  if(open.length>THREAD_MAX) open.slice(0,open.length-THREAD_MAX).forEach(t=>{ t.status='faded'; t.closedDay=g.day });
-  g.threads=g.threads.filter(t=>t.status==='open'||g.day-(t.closedDay||g.day)<=30).slice(-40);   // 닫힌 기록은 한 달만 보관
-  if(nn) toast(`🧵 조사 보드 ${nn}개가 적혔습니다`);
-  if(nc) toast(`🧵 조사 보드 ${nc}개가 풀렸습니다`);
+  if(g===G) applyCaseUpdates(r.case_updates,opt);
+  for(const x of (Array.isArray(r.threads_new)?r.threads_new:[]).slice(0,2)){
+    const text=String(x&&(x.text||x)||'').trim();
+    caseRecord(text,{scope:x&&x.scope,placeId:opt.placeId||knowledgePlace(g),force:!!r.force},g);
+  }
+  // ID만 지정한 옛 완료 응답은 받지 않는다. 기록은 자동 삭제하지 않는다.
+  for(const x of (Array.isArray(r.threads_closed)?r.threads_closed:[])) if(g===G&&x&&typeof x==='object') resolveCase(x.id,x.conclusion,x.support_ids);
 }
-/* 이번 턴에 서술 AI에게 넘길 것: 지금 장면에 이름이 나온 것 → 오래 언급 안 된 것 순 */
-function pickThreads(text){
-  const open=threadsOpen(); if(!open.length) return [];
-  const hit=t=>t.text.split(/[\s,·.()「」'"]+/).filter(w=>w.length>=2).some(w=>text.includes(w));
-  open.forEach(t=>{ if(hit(t)) t.touched=G.day });   // 지금 장면에서 다뤄진 단서는 보류에서 깨어남
-  return [...open].sort((a,b)=>(hit(b)-hit(a))||((a.shown||0)-(b.shown||0))||(a.day-b.day)).slice(0,THREAD_PROMPT);
-}
-on('context',57,()=>{
-  const n=clueLoad(); if(n<THREAD_SOFT) return '';
-  const list=threadsActive().slice(-THREAD_HARD).map(t=>`${t.id}: ${t.text}`).join(' / ');
-  return n>=THREAD_HARD
-    ?`\n[단서 과다 — 미해결 ${n}개] 플레이어가 단서가 너무 많아 지쳐 있다. 새 수수께끼·새 인물·새 단서·새 떡밥을 절대 만들지 말 것. 이번 장면에서 아래 미해결 중 하나를 분명히 진전시켜 결론(진상이 드러나거나 막다른 길로 정리)에 가까이 가라: ${list}`
-    :`\n[단서 과다 — 미해결 ${n}개] 새 수수께끼·새 단서·새 인물 도입을 자제하고, 아래 미해결 중 하나를 한 걸음 진전시키거나 매듭지어라: ${list}`;
-});
+
+/* 본편·현재 장소·다른 장소·인물 사건을 배분하여 전달한다. */
+function pickThreads(text){ return selectedCases(text) }
+
+on('context',57,()=>clueLoad()>=THREAD_SOFT?'\n[사건이 많음] 새로운 독립 사건은 자제하고 현재 관련 사건에 증거·다음 목표를 추가한다. 무관한 사건을 억지로 해결하지 않는다.':'');
 function threadsBlock(text){
-  const list=pickThreads(text); if(!list.length) return '';
-  list.forEach(t=>t.shown=(t.shown||0)+1);
-  return `\n[조사 보드 — 아직 풀리지 않은 것. 지금 장면과 자연스럽게 이어질 때만 하나를 이어 가거나 매듭지어라. 억지로 끌어오지 말고, 이번 장면과 무관하면 무시해도 된다. 목록이 있다는 사실은 서술에 드러내지 말 것]\n${list.map(t=>`- ${t.id}: ${t.text}`).join('\n')}\n(장면에서 위 항목이 분명히 풀리거나 막다른 길로 정리되면 effects.해결단서에 그 번호를 적어라)`;
+  const list=pickThreads(text); list.forEach(t=>{ t.shown=(t.shown||0)+1; if(t.placeId===knowledgePlace()) t.touched=G.day });
+  return `\n[사건별 미해결 질문 — 본편/현재 장소/다른 장소/인물 배분. 새 관찰은 같은 사건의 증거로, 결론은 근거가 있을 때만]\n${caseSummaryBlock(text,list)}\n새로 무엇을 시도해도 사건을 추가할 필요는 없다. 원인 후보·가설·다음 조사 방향이 바뀔 때 증거를 기록한다.`;
 }
-function closeThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; t.status='closed'; t.closedDay=G.day; threadResolved(t); _sigR=''; save(); renderSides(); if(document.getElementById('thrList')) openThreads() }
-function reopenThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; t.status='open'; delete t.closedDay; _sigR=''; save(); renderSides(); openThreads() }
+
+function closeThread(id){ const t=(G.threads||[]).find(t=>t.id===id); if(!t) return; t.status='parked'; save(); renderSides(); openThreads() }
+
+function reopenThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; if(!threadActive(t)&&clueLoad()>=THREAD_SOFT) return toast('진행 중인 사건을 먼저 정리하거나 보류해 주세요'); t.status='open'; t.touched=G.day; delete t.closedDay; _sigR=''; save(); renderSides(); openThreads() }
 function addThread(){
-  const el=document.getElementById('thrNew'); const v=(el&&el.value||'').trim().slice(0,60); if(!v) return;
-  applyThreads(G,{threads_new:[{text:v}],force:true}); _sigR=''; save(); renderSides(); openThreads();
+  const el=document.getElementById('thrNew'); const v=(el&&el.value||'').trim().slice(0,160); if(!v) return;
+  const added=caseRecord(v,{newCase:true}); if(!added) return toast('진행 중인 사건이 많습니다. 기존 사건을 정리하거나 보류해 주세요'); _sigR=''; save(); renderSides(); openThreads();
 }
 function threadsSideHTML(){
   const open=threadsOpen();
-  return `<div class="sec"><h4>🧵 조사 보드 <button class="small" onclick="openThreads()">관리</button> <button class="small" onclick="openCanon()">📌 확정 단서 ${(G.canon||[]).length}</button></h4>${open.slice(-5).reverse().map(t=>`<div class="ch"><span class="d">${t.day}일</span><span>${esc(t.text)}</span></div>`).join('')||'<div class="muted">아직 없습니다. 이야기 속 약속·수수께끼가 자동으로 적힙니다.</div>'}${open.length>5?`<div class="muted" style="font-size:12px">외 ${open.length-5}개</div>`:''}</div>`;
+  return `<div class="sec"><h4>🧵 조사 보드 <button class="small" onclick="openThreads()">관리</button> <button class="small" onclick="openCanon()">📌 증거 기록 ${(G.canon||[]).length}</button></h4>${open.slice(-5).reverse().map(t=>`<div class="ch"><span class="d">${t.day}일</span><span>${esc(t.text)}</span></div>`).join('')||'<div class="muted">아직 없습니다. 이야기 속 약속·수수께끼가 자동으로 적힙니다.</div>'}${open.length>5?`<div class="muted" style="font-size:12px">외 ${open.length-5}개</div>`:''}</div>`;
 }
 /* ---------- 확정 단서: 플레이어가 이미 얻은 구체적 단서(숫자·이름·칸 등). 지우지 않고 매 턴 AI에게 보내 새 단서가 이와 어긋나지 않게 함 ---------- */
-const CANON_MAX=20, CANON_HARD=30, CANON_DAILY=3;   // 20개를 넘으면 묶기 대상, 30개는 절대 상한   // 하루에 AI가 자동으로 올릴 수 있는 새 단서는 3개까지
-const bigrams=t=>{ const a=String(t).replace(/[^가-힣0-9]/g,''), o=new Set(); for(let i=0;i<a.length-1;i++) o.add(a.slice(i,i+2)); return o };
-function canonSimilar(a,b){
-  const na=(String(a).match(/\d+/g)||[]).join(','), nb=(String(b).match(/\d+/g)||[]).join(',');
-  if(na!==nb) return false;   // 숫자가 다르면(3번 칸 ↔ 5번 칸) 다른 단서
-  const A=bigrams(a), B=bigrams(b); if(!A.size||!B.size) return false; let n=0; A.forEach(x=>{ if(B.has(x)) n++ }); return n/Math.min(A.size,B.size)>=0.6 }
-function addCanon(t,quiet,force){
-  if(!G) return; t=String(t||'').replace(/\s+/g,' ').trim().slice(0,120); if(t.length<4) return;
+const CANON_DAILY=3; // 자동 증거 기록은 하루 3개. 원문 보관량에는 제한을 두지 않는다.
+function addCanon(text,quiet,force,opt={}){
+  if(!G) return null; text=clueKey(text).slice(0,240); if(text.length<4) return null;
+  const t=caseForEvidence(text,opt); if(opt.caseId&&!t) return null;
+  const placeId=opt.placeId||knowledgePlace(), kind=opt.kind||'fact';
+  const same=(G.evidence||[]).find(e=>!e.deleted&&e.text===text&&e.placeId===placeId&&e.kind===kind&&(!t||e.caseId===t.id)); if(same) return same;
+  if(!quiet&&!force){ const day=G.canonDay&&G.canonDay.day===G.day?G.canonDay:(G.canonDay={day:G.day,n:0}); if(day.n>=CANON_DAILY) return null; day.n++ }
+  const e=recordEvidence(text,{...opt,caseId:t&&t.id,placeId,kind}); if(!e) return null;
   if(!Array.isArray(G.canon)) G.canon=[];
-  const key=t.replace(/[^가-힣0-9]/g,'').slice(0,14);
-  if(G.canon.some(c=>c.key===key)) return;
-  if(!quiet&&!force){
-    if(G.canon.some(c=>canonSimilar(c.text,t))) return;               // 이미 있는 단서와 거의 같은 말
-    const d=G.canonDay&&G.canonDay.day===G.day?G.canonDay:(G.canonDay={day:G.day,n:0});
-    if(d.n>=CANON_DAILY) return; d.n++;
-  }
-  G.canon.push({day:G.day,text:t,key}); while(G.canon.length>CANON_HARD) G.canon.shift();
-  if(!t.startsWith('해결된 단서:')) (G.threads||[]).forEach(th=>{ if(th.status==='open'&&canonSimilar(th.text,t)){ th.status='closed'; th.closedDay=G.day; if(!quiet) try{ toast('🧵 확정 단서와 같은 조사 보드를 닫았습니다') }catch(e){} } });
-  if(!quiet){ try{ toast('📌 확정 단서 기록: '+(t.length>34?t.slice(0,34)+'…':t)); addLog('fx','📌 확정 단서 기록: '+t) }catch(e){} }
+  G.canon.push({...e,key:e.id}); // 원문은 개수 제한이나 요약으로 삭제하지 않는다
+  if(!quiet){ toast('📌 증거 기록'+': '+text.slice(0,34)); addLog('fx','📌 증거 기록: '+text) }
+  return e;
 }
-/* 단서가 14개를 넘으면 오래된 8개를 AI가 2~3줄로 묶어 보존(호출 1회, 숫자·이름은 그대로). 호출이 안 되면 20개 상한에서 오래된 것부터 빠짐 */
-const CANON_SOFT=14, CANON_BATCH=8; let _canonBusy=false;
+
+/* 원문을 유지하고 표시용 사건 요약만 별도로 만든다. */
+const CANON_SOFT=14;
 async function canonCompact(){
-  if(_canonBusy||!G||!Array.isArray(G.canon)||G.canon.length<=CANON_SOFT) return;
-  const g=G, part=g.canon.slice(0,CANON_BATCH); if(part.length<CANON_BATCH) return;
-  _canonBusy=true;
-  try{
-    const r=parseJSON(await callAI('너는 게임 기록을 정리하는 서기다. 사실을 지어내지 말고 주어진 내용만 합친다. JSON만 출력한다.',
-`다음은 플레이어가 얻은 단서 ${part.length}개다. 서로 관련 있는 것끼리 묶어 2~3줄로 합쳐라.
-- 각 줄은 반드시 「장소, 키워드, 단서이름: 설명」 형식이다. 장소는 단서가 나온 곳, 키워드는 대상을 가리키는 짧은 말, 단서이름은 이 단서를 부르는 이름이다(예: 3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다). 설명은 알려진 사실만 간단히.
-- 숫자·이름·칸·방향·장소는 원문 그대로 유지한다. 단서를 새로 만들거나 풀이를 덧붙이지 않는다.
-- 각 줄은 130자 이내.
-${part.map(c=>`- (${c.day}일) ${c.text}`).join('\n')}
-JSON만 출력: {"lines":["…","…"]}`,400,'lex'));
-    const lines=(r&&Array.isArray(r.lines)?r.lines:[]).map(x=>String(x||'').replace(/\s+/g,' ').trim().slice(0,140)).filter(x=>x.length>=4).slice(0,3);
-    if(G!==g||!lines.length) return;
-    const day=part[part.length-1].day;
-    g.canon=[...lines.map(t=>({day,text:t,key:t.replace(/[^가-힣0-9]/g,'').slice(0,14),sum:true})),...g.canon.slice(CANON_BATCH)];
-    save(); if(document.getElementById('canonNew')) openThreads();
-  }catch(e){ if(e&&e.message!=='NO_KEY') console.warn(e) }
-  finally{ _canonBusy=false }
+  // AI 호출 없이 표시용 요약만 별도로 보관. 증거 원문은 G.evidence/G.canon에 남는다.
+  if(!G||!Array.isArray(G.canon)||G.canon.length<=CANON_SOFT) return;
+  G.canonSummary=selectedCases().map(t=>({caseId:t.id,text:t.text,count:evidenceForCase(t).length}));
 }
+
 on('after',85,()=>{ setTimeout(()=>{ if(!busy) canonCompact() },1200) });
-function canonBlock(n){ return (G.canon||[]).slice(n?-n:0).map(c=>`- (${c.day}일) ${c.text}`).join('\n')||'(아직 없음)' }
+function canonBlock(n){
+  const list=selectedEvidence(n||EVIDENCE_PROMPT_LIMIT);
+  return list.map(e=>`- ${e.id} [${e.caseId||'기록'} ${e.scope} ${e.kind} ${e.placeId}]: ${e.text}`).join('\n')||'(아직 없음)';
+}
+
 function addCanonUser(){
   const el=document.getElementById('canonNew'); const v=(el&&el.value||'').trim(); if(v.length<4) return toast('단서를 4자 이상 적어 주세요');
-  const n=(G.canon||[]).length; addCanon(v,true); if((G.canon||[]).length===n&&n>=CANON_HARD) return; toast('📌 확정 단서에 추가했습니다'); save(); openThreads();
+  if(!addCanon(v,true)) return toast('중복되거나 기록할 수 없는 증거입니다'); toast('📌 증거 기록에 추가했습니다'); save(); openThreads();
 }
 /* 과목 단서를 새로 만들 때: 같은 과목에서 이미 얻은 단서(없으면 최근 단서)를 이어 가게 함 */
 function canonHint(subj){
@@ -5402,26 +5623,13 @@ function canonHint(subj){
   const same=all.filter(c=>c.text.includes(subj)), pick=(same.length?same:all).slice(-3);
   return ` [이어 가기] 이미 얻은 단서: ${pick.map(c=>c.text).join(' / ')}. 새 단서는 이 중 하나를 한 걸음 더 구체화하거나 이어서 풀어 주는 내용으로 하고, 같은 주제의 번호·이름·칸·방향을 새로 지어 바꾸지 말 것.`;
 }
-/* 확정 단서가 너무 많을 때: 전체를 AI가 8줄 안팎으로 묶어 정리(호출 1회) */
+/* 사건별 정리는 원문을 보존하고 추가 AI 호출 없이 실행한다. */
 async function canonTidy(){
-  if(_canonBusy||!G||!Array.isArray(G.canon)||G.canon.length<4) return toast('정리할 단서가 많지 않습니다');
-  if(!(await askConfirm(`확정 단서 ${G.canon.length}개를 AI가 핵심만 남겨 8줄 안팎으로 묶습니다. 원래 목록은 되돌릴 수 없습니다. 진행할까요?`))) return;
-  _canonBusy=true; const g=G, all=g.canon.slice(); toast('🧹 확정 단서를 정리하는 중…');
-  try{
-    const r=parseJSON(await callAI('너는 게임 기록을 정리하는 서기다. 사실을 지어내지 말고 주어진 내용만 합친다. JSON만 출력한다.',
-`다음은 플레이어가 얻은 단서 ${all.length}개다. 이야기의 수수께끼에 쓰일 핵심만 남기고, 중복·사소한 것은 버리고, 관련된 것은 묶어 8줄 안팎으로 정리하라.
-- 각 줄은 반드시 「장소, 키워드, 단서이름: 설명」 형식이다. 장소는 단서가 나온 곳, 키워드는 대상을 가리키는 짧은 말, 단서이름은 이 단서를 부르는 이름이다(예: 3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다). 설명은 알려진 사실만 간단히.
-- 숫자·이름·칸·방향·장소는 원문 그대로 유지한다. 새 단서를 만들거나 풀이를 덧붙이지 않는다.
-- 각 줄은 130자 이내.
-${all.map(c=>`- (${c.day}일) ${c.text}`).join('\n')}
-JSON만 출력: {"lines":["…"]}`,600,'lex'));
-    const lines=(r&&Array.isArray(r.lines)?r.lines:[]).map(x=>String(x||'').replace(/\s+/g,' ').trim().slice(0,140)).filter(x=>x.length>=4).slice(0,10);
-    if(G!==g||!lines.length){ toast('정리를 받지 못했습니다. 잠시 뒤 다시 눌러 주세요'); return }
-    g.canon=lines.map(t=>({day:g.day,text:t,key:t.replace(/[^가-힣0-9]/g,'').slice(0,14),sum:true}));
-    save(); toast(`🧹 확정 단서를 ${all.length}개에서 ${lines.length}개로 정리했습니다`); render(); openCanon();
-  }catch(e){ toast(e&&e.message==='NO_KEY'?'AI 키가 없어 정리할 수 없습니다':'정리 중 오류가 났습니다') }
-  finally{ _canonBusy=false }
+  if(!G) return;
+  G.canonSummary=(G.threads||[]).filter(t=>!t.parentId).map(t=>({caseId:t.id,text:t.text,count:evidenceForCase(t).length}));
+  save(); toast('사건별로 정리했습니다. 증거 원문은 모두 보존됩니다'); openThreads();
 }
+
 /* 「장소, 키워드, 단서이름: 설명」 — 장소·키워드는 흐리게, 단서이름은 굵게 (옛 「키워드: 설명」 형식도 그대로 보임) */
 function canonHTML(t){
   t=String(t||''); const i=t.indexOf(':'); if(!(i>0&&i<=48)) return esc(t);
@@ -5429,7 +5637,7 @@ function canonHTML(t){
   if(parts.length>=3){ const name=parts.pop(); return `<span class="muted" style="font-size:12px">${esc(parts.join(' · '))}</span> <b>${esc(name)}</b>:${rest}` }
   return `<b>${esc(t.slice(0,i))}</b>:${rest}`;
 }
-function delCanon(i){ if(!G.canon) return; G.canon.splice(i,1); save(); openThreads() }
+function delCanon(i){ if(!G.canon) return; const c=G.canon[i]; if(c&&c.id){ const e=(G.evidence||[]).find(x=>x.id===c.id); if(e) e.deleted=true } G.canon.splice(i,1); save(); openThreads() }
 /* ---------- 🧩 추리 도우미: 지금까지의 단서를 AI가 정리해 방향만(살짝) 또는 다음 행동까지(확실히) 알려 줌. 숨겨진 정체·정답은 말하지 않음 ---------- */
 let _sleuthBusy=false;
 const SLEUTH_LV={1:{n:'살짝',how:'방향만 짚는다. known은 지금까지 알려진 것 최대 3개, links는 서로 이어질 법한 단서를 "~일까?" 같은 질문 1~2개로, next는 어떤 종류의 단서를 어디서 더 찾아볼지 방향 2개(구체적인 정답이나 해답은 쓰지 않는다)'},2:{n:'확실히',how:'단서들 사이의 연결을 추정해 말하고(확정이 아닌 것은 "추정"이라고 표시), next에는 지금 하면 좋은 구체적인 행동 2~3개(장소·사람·행동)를 쓴다. 그래도 학원도시가 숨긴 것의 정체나 최종 진실은 직접 쓰지 않는다'}};
@@ -5507,16 +5715,9 @@ JSON만 출력: {"known":["…"],"links":["…"],"next":["…"],"note":"한 줄 
 }
 function openCanon(){ openThreads(); setTimeout(()=>{ const e=document.getElementById('canonSec'); if(e) e.scrollIntoView({block:'start'}) },60) }
 function openThreads(){
-  const all=G.threads||[], open=all.filter(t=>threadActive(t)), dormant=all.filter(t=>t.status==='open'&&!threadActive(t)), done=all.filter(t=>t.status!=='open').slice(-15).reverse();
-  modal('🧵 조사 보드',`<p class="muted">이야기 속에서 생긴 약속·수수께끼·인물의 사정 중 아직 풀리지 않은 것입니다. 사전을 정리할 때 함께 적히고, 풀리면 자동으로 닫힙니다. 이야기꾼은 매 장면 몇 개를 참고해 자연스러울 때 이어 갑니다(최대 ${THREAD_MAX}개).</p>
-    ${open.length>=THREAD_SOFT?`<p class="muted" style="font-size:12.5px;color:var(--danger)">미해결 ${open.length}개 — ${THREAD_SOFT}개 이상이면 새 단서가 적히지 않고 이야기꾼이 기존 단서를 풀어 가도록 유도합니다.</p>`:`<p class="muted" style="font-size:12.5px">미해결 ${open.length}/${THREAD_SOFT} — ${THREAD_SOFT}개를 넘으면 새 단서를 억제합니다.</p>`}
-    <div id="thrList">${open.map(t=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${t.day}일 ·</span> ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')||'<p class="muted">조사 보드가 없습니다.</p>'}</div>
-    ${dormant.length?`<h4 style="margin:12px 0 4px">💤 보류 중 <span class="muted" style="font-size:12px">(${THREAD_DORMANT_DAYS}일 넘게 다뤄지지 않아 개수에서 뺐습니다. 장면에서 다시 나오면 깨어납니다)</span></h4>${dormant.map(t=>`<div class="shop-row muted" style="gap:8px"><span>${t.day}일 · ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')}`:''}
-    <div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="thrNew" placeholder="직접 적기 (예: 하킴이 은화를 갚겠다고 했다)" maxlength="60"><button class="small" onclick="addThread()">추가</button></div>
-    <h4 style="margin:14px 0 4px">📅 약속</h4>${apptListHTML()}
-    <h4 id="canonSec" style="margin:14px 0 4px">📌 확정된 단서 <span class="muted" style="font-size:12px">(AI가 항상 기억합니다. 틀린 것은 ✕로 지우세요)</span> <button class="small" onclick="canonTidy()">🧹 AI로 정리</button></h4>${(G.canon||[]).map((c,i)=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${c.day}일 ·</span> ${canonHTML(c.text)}</span><button class="small" onclick="delCanon(${i})">✕</button></div>`).join('')||'<p class="muted" style="font-size:13px">아직 없습니다. 이야기에서 얻은 단서가 자동으로 쌓입니다.</p>'}
-    <div class="row" style="margin-top:8px;flex-wrap:nowrap"><input id="canonNew" placeholder="직접 적기 (예: 3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다)" maxlength="120"><button class="small" onclick="addCanonUser()">추가</button></div>
-    ${done.length?`<h4 style="margin:14px 0 4px">최근에 닫힌 것</h4>${done.map(t=>`<div class="shop-row muted" style="gap:8px"><span>${t.status==='faded'?'💨':'✓'} ${esc(t.text)}</span><button class="small" onclick="reopenThread('${t.id}')">다시 열기</button></div>`).join('')}`:''}`);
+  if(!G) return;
+  const all=(G.threads||[]).filter(t=>!t.parentId), open=all.filter(t=>threadActive(t)), parked=all.filter(t=>t.status==='parked'||(t.status==='open'&&!threadActive(t))), done=all.filter(t=>t.status==='closed');
+  modal('🧵 사건별 조사 보드',`<p class="muted">같은 사건의 발견은 증거로 쌓입니다. 미해결 사건 ${open.length}/${THREAD_SOFT} · 증거 원문 ${(G.evidence||[]).filter(e=>!e.deleted).length}개 보관. 사실 확인과 사건 해결은 별개이며, 해결에는 결론과 근거가 필요합니다.</p><div id="thrList">${open.map(caseCard).join('')||'<p class="muted">현재 미해결 사건이 없습니다.</p>'}</div>${parked.length?`<h4>보류 중인 사건</h4>${parked.map(caseCard).join('')}`:''}<div class="row"><input id="thrNew" placeholder="독립적인 미해결 질문을 적어 주세요" maxlength="160"><button onclick="addThread()">질문 추가</button></div><h4>약속</h4>${apptListHTML()}<h4 id="canonSec">📌 관찰·증언·소문 기록 <button class="small" onclick="canonTidy()">사건별 정리</button></h4><p class="muted">원문은 보존하며, AI에는 본편·현재 사건·다른 장소·인물 기록을 배분해 전달합니다.</p>${(G.canon||[]).slice(-50).map((c,i)=>`<div class="shop-row"><span>${canonHTML(c.text)} <span class="muted">${esc(EVIDENCE_NAMES[c.kind]||'기존 기록')}</span></span><button class="small" onclick="delCanon(${Math.max(0,G.canon.length-50)+i})">✕</button></div>`).join('')}<div class="row"><input id="canonNew" placeholder="직접 확인한 사실을 적어 주세요" maxlength="240"><button onclick="addCanonUser()">증거 추가</button></div>${done.length?`<h4>해결한 사건</h4>${done.slice(-20).reverse().map(caseCard).join('')}`:''}`);
 }
 
 /* =========================================================
@@ -5556,25 +5757,25 @@ function addLex(e,silent,zoneName){
   if(!silent) toast(`📜 괴담 사전에 새 항목: ${e.name}`);
 }
 /* 사전 추출 대기열 — G._lexQ = {key, zone, items:[{a:행동, n:서술}]} (저장에 함께 남음) */
-function lexKey(){ if(G.site&&['site','shelter','road'].includes(G.loc)) return 'zone:'+G.site.name; return G.loc==='hood'?'hood:'+G.hood:G.loc }
+function lexKey(){ return knowledgePlace() }
 function queueLex(narr,action){
   if(!G) return;
   const key=lexKey();
   if(G._lexQ&&G._lexQ.items.length&&G._lexQ.key!==key) flushLex();
-  if(!G._lexQ||G._lexQ.key!==key) G._lexQ={key,zone:key.startsWith('zone:')?G.site.name:null,items:[]};
-  G._lexQ.items.push({a:String(action||'').slice(0,200),n:String(narr||'')});
+  if(!G._lexQ||G._lexQ.key!==key) G._lexQ={key,zone:key.startsWith('zone:')?G.site.name:null,placeId:knowledgePlace(),items:[]};
+  G._lexQ.items.push({a:String(action||'').slice(0,200),n:String(narr||''),placeId:knowledgePlace()});
   if(G._lexQ.items.length>=LEX_EVERY) flushLex();
 }
 /* 장소를 옮겼으면(화면을 그릴 때 확인) 이전 장소에서 쌓인 장면을 정리 */
 function lexMovedCheck(){ const q=G&&G._lexQ; if(!busy&&q&&q.items.length&&q.key!==lexKey()) flushLex() }
 function flushLex(){
   const q=G&&G._lexQ; if(!q||!q.items.length) return;
-  G._lexQ={key:q.key,zone:q.zone,items:[]};
+  G._lexQ={key:q.key,zone:q.zone,placeId:q.placeId||knowledgePlace(),items:[]};
   extractLex(q).catch(e=>console.warn(e));
 }
 async function extractLex(q){
   const g=G;
-  const scenes=q.items.map((x,i)=>`(${i+1}) 플레이어: ${x.a}\n${String(x.n).slice(0,350)}`).join('\n\n');
+  const scenes=q.items.map((x,i)=>`(${i+1}) 장소 ID: ${x.placeId||q.placeId||'legacy'} · 플레이어: ${x.a}\n${String(x.n).slice(0,350)}`).join('\n\n');
   const names=[...new Set([...g.lexicon.filter(e=>e.name.length>=2&&scenes.includes(e.name)).map(e=>e.name),...g.lexicon.map(e=>e.name).slice(-30)])].join(', ')||'(없음)';
   const prompt=`다음은 텍스트 탐험 게임의 최근 장면들이다. 이 장면들에서 새로 등장했거나 새로 알게 된 인물, 장소, 괴담, 물건, 세력만 뽑아 사전 항목으로 정리하라.
 - 이미 사전에 있는 대상이면 반드시 같은 이름을 쓰고, desc에는 이번에 새로 알게 된 내용만 쓴다.
@@ -5588,14 +5789,14 @@ ${relevantLex(scenes)}
 ${scenes}
 ${threadsRequest(g)}
 - clues: 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙 등 나중에 어긋나면 안 되는 것)만 「장소, 키워드, 단서이름: 설명」 형식으로(예: 3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다), 숫자·이름·칸은 장면에 나온 그대로 최대 1개. 분위기 묘사·사소한 발견·[확정 단서]에 이미 있는 것은 빼고, 대부분은 빈 배열.
-[확정 단서(최근 12개)]
-${canonBlock(12)}
-JSON만 출력: {"lexicon":[{"name":"이름","cat":"인물|장소|괴담|물건|세력","desc":"플레이어가 알게 된 내용 1~2문장"}],"clues":["…"],"threads_new":[{"text":"조사 보드 한 줄"}],"threads_closed":["t1"]}`;
+[종류를 유지해야 할 기존 증거 기록(배분해서 선별)]
+${canonBlock()}
+JSON만 출력: {"lexicon":[{"name":"이름","cat":"인물|장소|괴담|물건|세력","desc":"플레이어가 알게 된 내용 1~2문장"}],"clues":["…"],"threads_new":[{"text":"조사 보드 한 줄"}],"threads_closed":[],"case_updates":[]}`;
   let r=null;
   try{ r=parseJSON(await callAI('너는 게임 사전을 정리하는 서기다. JSON 하나만 출력한다.',prompt,1000,'lex')) }catch(e){ return }
   if(G!==g||!r) return;
-  applyThreads(g,r);
-  (Array.isArray(r.clues)?r.clues:[]).slice(0,1).forEach(c=>addCanon(typeof c==='string'?c:(c&&c.text)));
+  applyThreads(g,r,{placeId:q.placeId||'legacy',source:'lex'});
+  (Array.isArray(r.clues)?r.clues:[]).slice(0,1).forEach(c=>addCanon(typeof c==='string'?c:(c&&c.text),false,false,{placeId:q.placeId||'legacy',source:'lex'}));
   if(!Array.isArray(r.lexicon)){ save(); render(); return }
   // 이 장면들의 구역이 아직 진행 중(또는 중단)이면 그 구역 표시, 이미 끝난 구역이면 인물·물건만 남김
   const active=!!q.zone&&((g.site&&g.site.name===q.zone)||(g.pausedZones||[]).some(d=>d.name===q.zone));
@@ -7398,7 +7599,7 @@ function fixedHTML(){
   }else if(L==='site'&&d){
     const r=curRoom(), fd=has('lab')?fragDist():null, p=siteProg();
     mvLbl='🧭 공간 이동 · 나가기 · 귀환';
-    mv=r.exits.map(id=>{ const o=d.rooms.find(x=>x.id===id); const hint=fd&&fd[id]<fd[r.id]?' ✧':''; return btn(`moveTo('${id}')`,`→ ${o.visited?esc(o.name):'❓ 미탐험 공간'}${o.fragTaken?' ★':''}${hint}`,'mv') }).join('');
+    mv=r.exits.map(id=>{ const o=d.rooms.find(x=>x.id===id); const hint=fd&&fd[id]<fd[r.id]?' ✧':''; return gameActionButton(roomActionId('move',id),`→ ${o.visited?esc(o.name):'❓ 미탐험 공간'}${o.fragTaken?' ★':''}${hint}`,'mv') }).join('');
     mv+=btn('exitZone()','🚪 구역 밖으로 나가기','','data-exit="1" title="구역은 그대로 두고 입구 밖으로 (이동 행상을 만날 수도 있음)"');
     mv+=p&&p.done?btn('returnToCampus()',`✅ 조사 완료 · ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${durText(returnRoute().days)})`,'primary'):btn('returnToCampus()',`↩ 귀환 (조사 ${p?p.vis+'/'+p.total:''} · ${durText(returnRoute().days)})`);
     if(!roomExhausted()) ac+=btn("pickFixed('주변을 둘러본다')",'👁 살펴보기')+btn("pickFixed('이곳을 꼼꼼히 조사한다')",'🔍 조사하기');
@@ -7426,7 +7627,7 @@ function fixedHTML(){
     if(G.comp&&G.comp.joined) ac+=btn('talkYumin()','🎵 유민과 이야기');
   }
   for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }
-  ac+=excuseBtn()+inboxHTML()+btn('openPhone()','📱 휴대폰')+btn('openInv()',`🎒 소지품 (${(G.items||[]).length})`)+btn('openSleuth()','🧩 추리 도우미')+btn('openCanon()',`📌 확정 단서 (${(G.canon||[]).length})`);
+  ac+=excuseBtn()+inboxHTML()+btn('openPhone()','📱 휴대폰')+btn('openInv()',`🎒 소지품 (${(G.items||[]).length})`)+btn('openSleuth()','🧩 추리 도우미')+btn('openCanon()',`📌 증거 기록 (${(G.canon||[]).length})`);
   if(G.comp&&G.comp.joined) ac+=btn('partYumin()','🤝 유민과 헤어지기');
   if(guestHere()) ac+=btn('partGuest()',`🤝 ${esc(G.guest.name)}${josa(G.guest.name,'과','와')} 헤어지기`);   // 기능 모듈이 덧붙이는 버튼
   // 사건으로 생긴 버튼
@@ -8026,14 +8227,14 @@ function openGuide(){
     ${row('🔔 칸이 끝날 때','수업·쉬는 시간 같은 칸이 끝나면 서술 뒤에 "🔔 1교시 수업이 끝났습니다 → 쉬는 시간"처럼 알림이 뜹니다')}
     ${row('🔔 점호 시간까지 기다리기','종례가 끝난 방과 후에 캠퍼스에서 🔔 버튼(또는 "점호 시간까지 기다린다"라고 입력)을 누르면 야간이 될 때까지 시간을 보내고 기숙사 점호 장면으로 넘어갑니다. 점호에서 휴대폰을 걷지는 않습니다. 낮(수업 중)에는 쓸 수 없습니다')}
     ${row('🌙 소등 후 외출','야간·새벽(소등 후)에 기숙사 밖으로 나가면 그날 밤 처음 한 번 '+Math.round(CURFEW_CATCH_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(CURFEW_CATCH_WARN*100)+'%)로 들켜 기숙사로 돌려보내지고 벌점 +'+CURFEW_DEMERIT+'. 들키지 않으면 그날 밤은 자유롭게 다닐 수 있습니다. 구역 조사를 나가는 무단 외출 벌점은 따로 붙습니다')}
-    ${row('🚪 소등 후 기숙사 출입 판정','야간·새벽(소등 후)에 기숙사로 들어가는 버튼·선택지·글·AI 서술의 이동을 하면 출입 판정을 합니다. 생존술 2d6 + 출입 권한 등급 보너스(2등급 +1, 3등급 +2)를 무작위 난이도와 겨루고, 성공하면 조용히 들어가고, 부분 성공이면 들어가지만 벌점 +1(늦은 귀가), 실패하면 문이 잠겨 못 들어가고 벌점 +1에 시간이 한 칸 흐릅니다(다시 시도 가능). 실패한 뒤에는 대안 버튼이 나옵니다 — 🙏 사감 선생님께 사정하기(매력 판정: 성공 시 벌점 없이 입장, 부분 성공 벌점 +1 입장, 실패 벌점 +1)와 📱 유민에게 몰래 문을 열어 달라고 문자(호감 레벨이 높을수록 성공 확률이 오르는 50~85%, 문자도 몰래 쓰는 것이라 적발될 수 있음). 이미 기숙사 안에 있을 때는 판정하지 않습니다. 출입 권한을 올리면 판정이 유리해집니다')}
+    ${row('🚪 소등 후 기숙사 출입 판정','야간·새벽(소등 후)에 기숙사로 들어가는 버튼·선택지·글로 이동 행동을 실행하면 같은 출입 판정을 합니다. 생존술 2d6 + 출입 권한 등급 보너스(2등급 +1, 3등급 +2)를 무작위 난이도와 겨루고, 성공하면 조용히 들어가고, 부분 성공이면 들어가지만 벌점 +1(늦은 귀가), 실패하면 문이 잠겨 못 들어가고 벌점 +1에 시간이 한 칸 흐릅니다(다시 시도 가능). 실패한 뒤에는 대안 버튼이 나옵니다 — 🙏 사감 선생님께 사정하기(매력 판정: 성공 시 벌점 없이 입장, 부분 성공 벌점 +1 입장, 실패 벌점 +1)와 📱 유민에게 몰래 문을 열어 달라고 문자(호감 레벨이 높을수록 성공 확률이 오르는 50~85%, 문자도 몰래 쓰는 것이라 적발될 수 있음). 이미 기숙사 안에 있을 때는 판정하지 않습니다. 출입 권한을 올리면 판정이 유리해집니다')}
     ${row('🍵 기숙사에서 공포 낮추기','기숙사에서는 휴게실 차 마시기(공포 −1, 하루 3번)와 따뜻한 샤워(공포 −2, 하루 1번), 🔌 휴대폰 충전(배터리 +'+Math.round(DORM_CHARGE_PCT*100)+'%, 하루 '+DORM_CHARGE_DAILY+'번, 시간 한 칸)을 쓸 수 있고, 잠들기(무료)로 하룻밤을 보냅니다. 자고 일어나면 배터리 +'+SLEEP_BATTERY+'(용량 한도까지)')}
     ${row('💼 학교 안 아르바이트','쉬는 시간·점심시간·방과 후에 한 칸을 써서 캐시를 벌 수 있습니다(수업 중·조례·종례·소등 후는 불가). 매점 아르바이트(💳'+JOBS.snack.pay.join('~')+'), 배식 도우미(급식실, 점심시간·방과 후, 💳'+JOBS.canteen.pay.join('~')+'), 선생님 심부름(교무실, 💳'+JOBS.office.pay.join('~')+', 벌점이 있으면 '+Math.round(JOBS.office.scold*100)+'%로 −1), 도서관 정리(💳'+JOBS.library.pay.join('~')+'). 하루 '+JOB_DAILY_LIMIT+'번까지(같은 일을 반복해도 됨)')}
     ${row('📝 벌점 줄이기','교무실의 📝 반성문 쓰기(벌점 −'+PENANCE.write.cut+'), 교실의 🧹 청소 봉사(벌점 −'+PENANCE.clean.cut+')를 각각 하루 한 번, 한 칸을 써서 할 수 있습니다(수업 중·소등 후 불가, 벌점이 있어야 함). 평일에 네 교시를 모두 출석하고 땡땡이·결석이 없으면 종례에서 모범 출석으로 벌점 −1. 그 밖에 기숙사 하룻밤(−1), 선생님 심부름('+Math.round(JOBS.office.scold*100)+'%로 −1)이 있습니다')}
     ${row('🎉 주말 전용','토·일 자유시간에는 🧑‍🤝‍🧑 주말 외출(유민이나 아는 사람 한 명과 상점가·운동장·도서관·저수지 둑길 중 한 곳, 💳5·두 칸, 하루 한 번 성사, 유민은 항상 수락, 인연이 아는 사이 이상인 다른 사람은 호감에 따라 60~90%), 상점가의 🎸 버스킹 구경(공포 −1, 하루 한 번), 정문의 📮 면회 시간(점심 이후, 용돈 💳10~20과 간식 하나, 하루 한 번)이 열립니다')}
     ${row('🔧 소모 부품','나사·못·테이프·붕대·건전지 같은 소모 부품은 쓰면 사라집니다. 직접 입력("나사를 사용해 …")이나 소지품의 🔧 「쓰기」로 쓰면 소지품에서 하나가 줄고, 공구(드라이버 등)는 남습니다')}
     ${row('🔒 이야기 물건 vs 팔 수 있는 물건','소지품은 두 종류입니다. AI가 물건을 줄 때 이야기에 필요한 것(단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건)에는 🔒를 붙여 팔 수 없게 하고, 값나가는 잡동사니는 바로 팔 수 있습니다. 표시가 없는 물건은 이름으로 판단하고(출석부·열쇠·서류·사진 등은 🔒), 애매하면 팔기 전에 확인 창이 뜹니다')}
-    ${row('📌 확정 단서','이야기에서 얻은 구체적 단서(숫자·이름·칸 등)가 지워지지 않고 쌓여 AI가 매 턴 기억하는 목록입니다. 행동 버튼 줄의 「📌 확정 단서」나 🧵 조사 보드 창 아래쪽에서 보고, 직접 추가하거나 ✕로 지울 수 있습니다. 하루에 AI가 올리는 새 단서는 '+CANON_DAILY+'개까지이고 비슷한 말은 합쳐지며, '+CANON_MAX+'개를 넘으면 AI가 8줄 안팎으로 묶을 수 있고 최대 '+CANON_HARD+'개입니다. 각 단서는 「장소, 키워드, 단서이름: 설명」 형식으로 적히고, 장소·키워드는 흐리게, 단서이름은 굵게 보입니다. 조사 보드와 연동됩니다: 조사 보드가 풀리면(자동·직접 닫기) 「해결된 단서: …」로 확정 단서에도 남고, 확정 단서가 기록될 때 같은 내용의 조사 보드는 자동으로 닫힙니다')}
+    ${row('📌 증거 기록','발견한 원문은 관찰 사실·증언·소문·추정으로 나누어 사건에 모읍니다. 같은 장소를 여러 번 조사해도 증거가 새 사건 칸을 차지하지 않습니다. 자동 기록은 하루 '+CANON_DAILY+'개까지이며, 원문 보관량과 AI 전달량은 별개입니다. AI에는 본편·현재 장소·다른 장소·인물의 기록을 배분해 최대 '+EVIDENCE_PROMPT_LIMIT+'개 전달합니다. 정리는 원문을 삭제하지 않으며, 관찰 추가만으로 사건이 해결되지 않습니다. 결론 기록에는 관찰·증언 증거를 직접 선택해야 합니다') }
     ${row('🧩 추리 도우미','행동 버튼 줄의 🧩 추리 도우미를 누르면 지금까지의 조사 보드·사전·연대기·소문을 AI가 한 번 정리해 줍니다. 단계는 「살짝」(방향만: 알려진 것·이어질 법한 것을 질문으로·더 찾아볼 방향)과 「확실히」(다음에 할 구체적 행동 2~3개까지) 중에 고릅니다. 숨겨진 정체나 정답은 알려 주지 않으며, 누를 때마다 AI를 한 번 부르고 마지막 결과는 저장됩니다. ❓ 질문하기에 궁금한 점을 적으면 같은 단계로 알려진 단서만 근거로 2~3문장으로 답하고(최근 5개 저장), 역시 한 번 묻는 데 AI를 한 번 부릅니다')}
     ${row('🎒 소지품',`행동 버튼 줄의 🎒 소지품에서 공포·배터리·손전등·캐시·벌점·출입 권한, 교표 조각·자재·탈것·물건을 한눈에 봅니다. 간식·소모품은 「먹기·쓰기」로 쓰고, 🔒가 없는 물건은 상점가에서 팝니다. 모든 물건 옆의 🗑를 누르면 확인 후 버릴 수 있습니다(🔒 물건은 이야기에 필요할 수 있어 경고가 뜹니다)`)}
     ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기로 언제든 헤어질 수 있습니다(지도의 🎵로 위치 확인)')}
@@ -8125,7 +8326,7 @@ function openGuide(){
     ${row('물건 팔기','상점가 상점에서 소지품을 팔 수 있음 (괴담 사전의 같은 이름 「물건」 항목도 지워짐)')}
     ${h3('기록')}
     ${row('📜 괴담 사전',`이야기 ${LEX_EVERY}장면마다 한 번, 또는 장소를 옮길 때 따로 정리됩니다 (인물 · 장소 · 괴담 · 물건 · 세력). 구역에서 생긴 항목은 조사를 마치면 정리됩니다 — 인물·세력·즐겨찾기는 그대로(세력이 한 일은 한 문단으로 요약), 물건은 삭제, 장소는 「구역 이름」 항목의 '둘러본 곳' 한 줄로, 괴담은 「구역 이름의 괴담」 한 항목으로 요약되어 구역 연혁 시대와 연결`)}
-    ${row('🧵 조사 보드','이야기 속 단서·증언·모순점이 자동으로 적힙니다. 풀리면 닫히고, 직접 추가·관리도 할 수 있습니다. 풀림은 서술 AI가 장면마다 효과의 「해결단서」로 번호를 알려 즉시 닫히고, 사전 정리(6장면마다)가 놓친 것을 다시 점검합니다. '+THREAD_DORMANT_DAYS+'일 넘게 장면에서 다뤄지지 않으면 💤 보류로 접혀 미해결 개수(상한 '+THREAD_SOFT+'개)에서 빠지고, 다시 나오면 깨어납니다')}
+    ${row('🧵 사건별 조사 보드','미해결 질문 하나에 관련 질문·증거·다음 조사 목표를 모읍니다. 진행 중 사건은 '+THREAD_SOFT+'개, 같은 장소의 독립 사건은 '+CASE_LOCAL_LIMIT+'개까지입니다. '+THREAD_DORMANT_DAYS+'일간 다루지 않은 사건은 보류로 접혀 기록을 유지합니다. 보류는 해결과 다르며, 다시 조사할 수 있습니다. 해결에는 구체적인 결론과 그 사건의 증거 ID가 필요합니다. 새 관찰만으로 자동 해결되거나 오래된 원문이 삭제되지 않습니다') }
     ${row('📝 조사 수첩','구역마다 사연과 공간마다 단서. 모으면 조사를 마칠 때 구역의 기록과 구역 연혁 시대가 괴담 사전에 남습니다')}
     ${row('연대기','하루 → 한 주 → 한 달 단위로 자동 요약')}
     ${h3('호감 레벨')}
