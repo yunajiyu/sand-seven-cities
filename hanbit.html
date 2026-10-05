@@ -1178,7 +1178,7 @@ function narrCfg(){
   return NARR_LEVELS[k]||NARR_LEVELS.m;
 }
 function sysBase(){
-  const c=narrCfg(), base='[진행 방식] 플레이어는 화면의 선택지만 고른다. 직접 입력을 요구하지 않는다. 약속·도움 요청은 문자 탭, 연인 데이트와 친구 외출은 별도 탭의 기능으로 처리한다.\n'+(compactCampaign()?SYS_BASE.replaceAll('일곱','세').replaceAll('여섯','두').replace('- 최종 목표: 교표의 파편인 교표 조각 8개 모으기.', '- 최종 목표: 입문 사건을 해결하고 주요 지역 세 곳의 검증된 사실을 연결하기. 교표 조각 수집은 선택 활동이다.'):SYS_BASE)+actNote();
+  const c=narrCfg(), base='[진행 방식] 고백은 등록된 romance:confess 행동이 있을 때만 자연스러운 이야기 선택지로 제시한다. 등록되지 않은 고백·연인 성사를 만들지 않는다. 숨은 관계 진행값은 서술하지 않는다. 플레이어는 화면의 선택지만 고른다. 직접 입력을 요구하지 않는다. 약속·도움 요청은 문자 탭, 데이트와 친구 외출은 별도 탭의 기능으로 처리한다.\n'+(compactCampaign()?SYS_BASE.replaceAll('일곱','세').replaceAll('여섯','두').replace('- 최종 목표: 교표의 파편인 교표 조각 8개 모으기.', '- 최종 목표: 입문 사건을 해결하고 주요 지역 세 곳의 검증된 사실을 연결하기. 교표 조각 수집은 선택 활동이다.'):SYS_BASE)+actNote();
   if(!SET||!SET.narrLen||SET.narrLen==='m') return base;
   return base.replace(/서술은 3~6문단 정도, 500~900자/,`서술은 ${c.p}, ${c.s[0]}~${c.s[1]}문장(대략 ${c.c[0]}~${c.c[1]}자). 이 분량을 반드시 지킨다`).replace('장황하지 않게','군더더기 없이');
 }
@@ -1957,6 +1957,7 @@ function gameActions(){
   if(peddlerHere()) add('trade:peddler','이동 행상과 거래',()=>openPeddler());
   if(G.comp&&G.comp.met&&(G.comp.joined||canMeetHere('유민'))) add('talk:yumin','유민과 대화',()=>talkYumin(),'talk');
   for(const name of Object.keys(G.rel||{})) if(name!=='유민'&&canMeetHere(name)) add('talk:'+actionToken(name),name+'와 대화',()=>visitNPC(name),'talk');
+  for(const name of relList())if(romanceReady(name))add(romanceActionId(name),name+'에게 좋아하는 마음을 전하고 사귀자고 한다',text=>proposeTo(name,text),'story');
   return out;
 }
 function actionsBlock(){ return '\n[실행 가능한 행동 — action_id는 아래 ID만 사용. 표시 문구는 자유롭게 작성하되 한 행동만]\n'+gameActions().map(a=>`${a.id}: ${a.label}`).join('\n') }
@@ -3893,7 +3894,8 @@ on('choices',45,arr=>{
   const words=(G.items||[]).map(it=>String(it||'').trim().split(/\s+/)[0]).filter(w=>w.length>=2);
   const keep=arr.filter(c=>{
     c=String(c);
-    if(c.replace(/\s*\(💳[^)]*\)\s*$/,'').length>22) return false;
+    const max=metaOf(c)?.actionId?.startsWith('romance:confess:')?80:22;
+    if(c.replace(/\s*\(💳[^)]*\)\s*$/,'').length>max) return false;
     if(compoundMove(c)||CH_MULTI.some(rx=>rx.test(c))) return false;
     if(words.some(w=>c.includes(w)&&!recent.includes(w))) return false;
     return true;
@@ -5239,7 +5241,7 @@ function socialState(){
  return s;
 }
 function socialKnown(name){return !!name&&apptKnown(name)&&relList().includes(name)}
-function socialDateEligible(name){if(!socialKnown(name))return false;const r=getRel(name);return r.romanceEligible===true&&r.romanceConfirmed===true&&r.stage>=5}
+function socialDateEligible(name){if(!socialKnown(name))return false;const r=getRel(name);return r.romanceEligible===true&&(r.romanceConfirmed===true&&r.stage>=5||r.stage>=2&&r.stage<5&&relLv(name)>=20)}
 function socialActivityTime(){return !!G&&['campus','hood','home'].includes(G.loc)&&!classActive()&&!isDarkTime()&&(G.time!=='낮'||isWeekend()||!CLASS_SLOTS.includes(slotIdx())||excusedToday())}
 function socialPlaceOptions(){return [...SOCIAL_VENUES.map(w=>[w,apptWhereName(w)]),...tempPlaces().map(p=>[p.id,apptWhereName(p.id)]),...(has('clubroom')?[['home','아지트']]:[])]}
 function socialVenue(w){return socialPlaceOptions().some(x=>x[0]===w)}
@@ -5291,7 +5293,7 @@ function sendSocialMessage(name,kind,opt={}){
  const why=phoneBlock('text');if(why){toast(why);return false}
  const s=socialState(),session=activeSocial();
  if(session?.name===name&&['meet','date','outing','cancel'].includes(kind)){toast('함께하는 활동을 마친 뒤 약속을 변경해 주세요');return false}
- if(kind==='date'&&!socialDateEligible(name)){toast('데이트는 서로 고백을 확인한 연인과 진행할 수 있습니다');return false}
+ if(kind==='date'&&!socialDateEligible(name)){toast('서로 알고 지내며 가까워진 상대에게 데이트를 제안할 수 있습니다');return false}
  if(['meet','date','outing'].includes(kind)){
   if(!validAppointmentPlace(opt.where)||!apptRunnable(name,opt.where)||!apptOrdOptions().some(x=>x[0]===opt.ord)||opt.ord<apptOrd()||opt.where==='campus:canteen'&&opt.ord%20!==4||(['date','outing'].includes(kind)&&!socialVenue(opt.where))||(name==='유민'&&G.comp.joined)){toast('약속 장소와 시간을 다시 선택해 주세요');return false}
   const key=name+':'+kind+':'+opt.where+':'+opt.ord;if(s.day.attempts[key]){toast('같은 약속은 오늘 이미 요청했습니다');return false}s.day.attempts[key]=true;
@@ -5317,11 +5319,11 @@ function sendSocialMessage(name,kind,opt={}){
 }
 function socialActivityHTML(kind){
  const s=socialState(),a=activeSocial(),names=relList();
- const intro=`<h3>${kind==='date'?'💕 데이트':'🧑‍🤝‍🧑 외출'}</h3><p class="muted">${kind==='date'?'고백을 확인한 연인과':'알고 지내는 인물과'} 실제로 같은 장소에서 시작합니다. ${kind==='date'?'캐시 8':'캐시 5'} · 시간 2칸 · 선택 3회 · 두 활동을 합쳐 하루 한 번. 호감은 선택에 따라 최대 +3이며 관계 단계는 별도 조건을 지킵니다.</p>`;
+ const intro=`<h3>${kind==='date'?'💕 데이트':'🧑‍🤝‍🧑 외출'}</h3><p class="muted">${kind==='date'?'서로 가까워진 상대와':'알고 지내는 인물과'} 실제로 같은 장소에서 시작합니다. ${kind==='date'?'캐시 8':'캐시 5'} · 시간 2칸 · 선택 3회 · 두 활동을 합쳐 하루 한 번. 호감은 선택에 따라 최대 +3이며 관계 단계는 별도 조건을 지킵니다.</p>`;
  if(a)return intro+socialSessionHTML(a);
- const completed=s.session?.status==='done'?`<details open class="lex"><summary>마지막 활동의 이야기 · ${esc(s.session.name)}</summary>${s.session.scenes.map(t=>`<p>${esc(t)}</p>`).join('')}</details>`:'';
+ const completed=s.session?.status==='done'?`<details open class="lex"><summary>마지막 활동의 이야기 · ${esc(s.session.name)}</summary>${s.session.scenes.map(t=>`<p>${esc(t)}</p>`).join('')}${romanceReady(s.session.name)?romanceChoiceHTML(s.session.name):''}</details>`:'';
  const eligible=names.filter(n=>kind!=='date'||socialDateEligible(n));
- const rows=eligible.map(n=>`<div class="lex"><b>${esc(n)} · ${esc(STAGES[getRel(n).stage].n)} · Lv.${relLv(n)}</b><p>📍 ${esc(contactWhere(n))}</p>${socialMessageFormHTML(n,kind)}<button data-name="${esc(n)}" data-kind="${kind}" ${busy||s.day.activity||!socialActivityTime()||!socialVenue(placeKey())||!canMeetHere(n)?'disabled':''} onclick="startSocialActivity(this.dataset.name,this.dataset.kind)">${canMeetHere(n)?'함께하는 활동 시작':'약속 장소에서 만난 뒤 시작'}</button></div>`).join('')||`<p class="muted">${kind==='date'?'아직 고백을 확인한 연인이 없습니다. 인연에서 관계 조건을 확인하세요.':'아직 함께할 인물이 없습니다.'}</p>`;
+ const rows=eligible.map(n=>`<div class="lex"><b>${esc(n)} · ${esc(STAGES[getRel(n).stage].n)} · Lv.${relLv(n)}</b><p>📍 ${esc(contactWhere(n))}</p>${socialMessageFormHTML(n,kind)}<button data-name="${esc(n)}" data-kind="${kind}" ${busy||s.day.activity||!socialActivityTime()||!socialVenue(placeKey())||!canMeetHere(n)?'disabled':''} onclick="startSocialActivity(this.dataset.name,this.dataset.kind)">${canMeetHere(n)?'함께하는 활동 시작':'약속 장소에서 만난 뒤 시작'}</button></div>`).join('')||`<p class="muted">${kind==='date'?'아직 데이트를 제안할 만큼 가까워진 상대가 없습니다. 함께 시간을 보내며 알아가세요.':'아직 함께할 인물이 없습니다.'}</p>`;
  return intro+completed+`<p class="muted">${s.day.activity?'오늘의 관계 활동은 완료했습니다.':!socialActivityTime()?'수업 중·야간·구역 안에서는 시작할 수 없습니다. 방과 후나 주말 자유시간에 만나세요.':'같은 장소에서 함께 시간을 보낼 수 있습니다.'}</p><button class="small" onclick="openRel()">👥 인연·고백 조건 보기</button>`+`<button class="small" onclick="switchGameTab('play')">지도·이동 선택지로 약속 장소 가기</button>`+rows+socialHistoryHTML();
 }
 function socialHistoryHTML(){return `<details><summary>함께한 활동 기록</summary>${socialState().history.slice(-12).reverse().map(h=>`<p>${h.day}일 · ${esc(h.name)} · ${h.kind==='date'?'데이트':'외출'} · ${esc(h.result)}${h.aff==null?'':` · 호감 ${h.aff>=0?'+':''}${h.aff}`}</p>`).join('')||'<p class="muted">아직 기록이 없습니다.</p>'}</details>`}
@@ -5333,7 +5335,7 @@ async function socialScene(a,choice){
  const g=G;busy=true;render();let text='';
  try{
   const n=a.name,r=getRel(n),phase=SOCIAL_PHASES[Math.min(a.step,2)];
-  const prompt=`친구 외출 또는 연인 데이트의 짧은 장면 2~3문장을 쓴다. ${n}과 플레이어는 실제로 ${apptWhereName(a.where)}에서 함께 있다. 활동: ${a.kind==='date'?'연인 데이트':'친구 외출'}. 관계: ${STAGES[r.stage].n}, 호감 Lv.${relLv(n)}. ${n==='유민'?yuminProfile():((G.lexicon||[]).find(e=>e.name===n)?.desc||'이미 알게 된 사람')}. 지금 단계: ${phase.title}. 플레이어가 고른 행동: ${choice||'함께 시간을 시작한다'}. 이전 장면: ${a.scenes.slice(-2).join(' ')}. 상대의 성격과 관계 단계에 맞춰 반응한다. 현재 관계보다 앞선 고백·연애 선언을 하지 않는다. 공포 사건의 진상·새 단서·아이템·위치 변화는 만들지 않는다. choices와 effects는 코드가 결정하므로 JSON {"narration":"장면"}만.`;
+  const prompt=`친구 외출 또는 서로 알아가는 데이트의 짧은 장면 2~3문장을 쓴다. ${n}과 플레이어는 실제로 ${apptWhereName(a.where)}에서 함께 있다. 활동: ${a.kind==='date'?(r.romanceConfirmed?'연인 데이트':'고백 전 서로 알아가는 데이트'):'친구 외출'}. 관계: ${STAGES[r.stage].n}, 호감 Lv.${relLv(n)}. ${n==='유민'?yuminProfile():((G.lexicon||[]).find(e=>e.name===n)?.desc||'이미 알게 된 사람')}. 지금 단계: ${phase.title}. 플레이어가 고른 행동: ${choice||'함께 시간을 시작한다'}. 이전 장면: ${a.scenes.slice(-2).join(' ')}. 상대의 성격과 관계 단계에 맞춰 반응한다. 현재 관계보다 앞선 고백·연애 선언을 하지 않는다. 공포 사건의 진상·새 단서·아이템·위치 변화는 만들지 않는다. choices와 effects는 코드가 결정하므로 JSON {"narration":"장면"}만.`;
   text=String(parseJSON(await callAI('너는 선택지 기반 관계 활동의 장면 작성기다.',prompt,650,'story'))?.narration||'').slice(0,1800);
  }catch(e){}
  if(G!==g)return;if(G.social.session!==a||a.status!=='active'){busy=false;render();return}
@@ -5342,7 +5344,7 @@ async function socialScene(a,choice){
 async function startSocialActivity(name,kind){
  if(busy||!['date','outing'].includes(kind)||!socialKnown(name))return false;
  const s=socialState();if(activeSocial()||s.day.activity){toast('관계 활동은 하루 한 번 진행합니다');return false}
- if(kind==='date'&&!socialDateEligible(name)){toast('데이트는 고백을 확인한 연인과 진행할 수 있습니다');return false}
+ if(kind==='date'&&!socialDateEligible(name)){toast('서로 가까워진 상대와 데이트할 수 있습니다');return false}
  if(!socialActivityTime()||!socialVenue(placeKey())||!canMeetHere(name)){toast('수업이 끝난 뒤 약속 장소에서 실제로 만난 상태로 시작해 주세요');return false}
  const cost=kind==='date'?8:5;if(G.cash<cost){toast('활동비 캐시 '+cost+'가 필요합니다');return false}
  const a={id:'activity:'+G.day+':'+(s.nextId=(s.nextId||0)+1),name,kind,where:placeKey(),startDay:G.day,status:'active',step:0,choices:[],scenes:[],cost,score:0};
@@ -5358,12 +5360,17 @@ async function chooseSocialActivity(id,choiceId){
  a.choices.push({phase:a.step,id:choiceId,text:choice.text});a.score+=choice.score;a.step++;
  if(a.step===1)tick(false,{resources:false});
  if(a.step<3){await socialScene(a,choice.text);return true}
- const delta=clamp(a.score,-2,3);addAffTo(a.name,delta);relCheck(a.name);a.status='done';
+ const delta=clamp(a.score,-2,3);addAffTo(a.name,delta);relCheck(a.name);
+ // 실제로 함께 마친 상대는 이 시간대의 마무리 대화까지 같은 장소에 남는다.
+ if(a.name==='유민'){setYuminSpot(a.where.startsWith('campus:')?a.where.slice(7):a.where==='home'?'sofaroom':a.where==='hood:south'?'alley':a.where)}
+ else{const r=getRel(a.name);r.where=a.where;r.whereKey=yKey()}
+ a.status='done';
  const result=delta>0?'함께한 시간이 서로를 조금 가깝게 했다':delta<0?'대화가 어긋나 조금 서먹해졌다':'서두르지 않고 함께 시간을 보냈다';
  a.scenes.push(choice.text+' — '+result);const s=socialState();s.day.activity=true;s.history.push({day:G.day,name:a.name,kind:a.kind,result,aff:delta,where:a.where});
  s.plans.filter(p=>p.name===a.name&&p.where===a.where&&p.status==='met').forEach(p=>p.status='done');
  G.chronicle.push({day:G.day,text:`${a.name}${josa(a.name,'과','와')} ${a.kind==='date'?'데이트':'외출'}을 마쳤다 — ${result}`});
- addLog('fx',`${a.name} ${a.kind==='date'?'데이트':'외출'} 완료 · 호감 ${delta>=0?'+':''}${delta}`);save();render();return true;
+ recordDateProgress(a);addLog('fx',`${a.name} ${a.kind==='date'?'데이트':'외출'} 완료 · 호감 ${delta>=0?'+':''}${delta}`);save();
+ if(a.kind==='date')await socialClosingScene(a);else render();return true;
 }
 function cancelSocialActivity(id,reason='플레이어가 활동을 중단했다'){
  if(busy)return false;const a=activeSocial();if(!a||a.id!==id)return false;a.status='cancelled';socialState().history.push({day:G.day,name:a.name,kind:a.kind,result:reason,where:a.where});addLog('sys',reason+' — 이미 사용한 시간과 활동비는 유지됩니다.');save();render();return true;
@@ -5377,6 +5384,51 @@ function renderSocialTabs(){
  if(panel){panel.style.display=gameTab==='play'?'none':'';if(gameTab!=='play')panel.innerHTML=gameTab==='messages'?phonePanelHTML():socialActivityHTML(gameTab==='dates'?'date':'outing');if(busy)panel.querySelectorAll('button').forEach(b=>b.disabled=true)}
 }
 on('render',95,renderSocialTabs);
+
+/* 고백 준비는 보이지 않는 관계 진행값과 실제 데이트 선택으로만 계산한다. */
+const ROMANCE_READY_LEVEL=50,ROMANCE_READY_CLOSENESS=6;
+function romanceProgress(name){
+ const r=getRel(name);if(!r.romanceProgress||r.romanceProgress.v!==1)r.romanceProgress={v:1,closeness:0,completed:[]};
+ return r.romanceProgress;
+}
+function recordDateProgress(a){
+ if(a.kind!=='date'||a.status!=='done'||a.choices.length!==3)return;
+ const p=romanceProgress(a.name);if(p.completed.includes(a.id))return;
+ let score=0;for(let i=0;i<3;i++){const c=SOCIAL_PHASES[i].choices.find(c=>c.id===a.choices[i]?.id);if(!c||a.choices[i].phase!==i)return;score+=c.score}
+ p.closeness=clamp(p.closeness+score,0,12);p.completed.push(a.id);
+}
+function romanceReady(name){
+ if(!G||G.fight||G.relEvt||activeSocial()||!['campus','hood','home'].includes(G.loc)||!socialKnown(name)||!canMeetHere(name))return false;
+ const r=getRel(name),p=r.romanceProgress;
+ return r.romanceEligible===true&&!r.romanceConfirmed&&r.stage>=2&&r.stage<5&&relLv(name)>=ROMANCE_READY_LEVEL&&p?.v===1&&p.closeness>=ROMANCE_READY_CLOSENESS&&(!r.cool||G.day>=r.cool)&&!classActive();
+}
+function romanceActionId(name){return 'romance:confess:'+actionToken(name)}
+function romanceChoiceText(name){
+ const a=G.social?.session;return a?.name===name&&a.where===placeKey()&&a.confessionChoice||`${name}에게 농담으로 넘기지 않고 좋아하는 마음을 전한다`;
+}
+function romanceChoiceHTML(name){return `<div class="choices"><button data-action="${esc(romanceActionId(name))}" onclick="startStoryConfession(this.dataset.action)">${esc(romanceChoiceText(name))}</button></div>`}
+function startStoryConfession(id){if(busy)return false;const name=relList().find(n=>romanceActionId(n)===id);if(!name)return false;const ok=dispatchGameAction(id,romanceChoiceText(name));if(ok)switchGameTab('play');return ok}
+async function socialClosingScene(a){
+ const g=G,ready=romanceReady(a.name),id=romanceActionId(a.name);busy=true;render();let result;
+ try{result=parseJSON(await callAI('너는 관계 장면 작성기다. 상태 변화는 코드가 담당한다.',
+  `${a.name}과 ${apptWhereName(a.where)}에서 데이트를 마치는 짧은 장면 2~3문장. 관계는 ${STAGES[getRel(a.name).stage].n}. 방금 고른 행동: ${a.choices.map(c=>c.text).join(' / ')}. 상대의 성격과 관계에 맞는 온기와 여운을 보여 준다. ${ready?`좋아하는 마음을 말할 기회가 생겼다. 플레이어가 직접 고를 고백 행동 한 개를 choices에 {"text":"현재 장면에 맞는 자연스러운 행동 문장","action_id":"${id}"}로 작성한다. 고백은 아직 하지 않았으며 상대의 수락이나 연인 성사를 미리 쓰지 않는다.`:'이번 장면에 고백 선택지를 제시하지 않는다.'} 숨은 점수·기준치·조건 충족·해금 같은 설명을 하지 않는다. 새 단서·아이템·이동·effects는 없다. JSON {"narration":"장면","choices":[]}만.`,650,'story'))}catch(e){}
+ if(G!==g)return;if(G.social?.session!==a||a.status!=='done'){busy=false;render();return}
+ if(result?.narration)a.scenes.push(String(result.narration).slice(0,1800));
+ if(ready&&romanceReady(a.name)){
+  const c=Array.isArray(result?.choices)&&result.choices.find(c=>c&&c.action_id===id&&typeof c.text==='string'&&c.text.trim());
+  a.confessionChoice=c?fixCalling(stripMd(c.text.trim())).slice(0,180):`${a.name}에게 함께했던 시간이 특별했다며 좋아하는 마음을 전한다`;
+ }
+ busy=false;sanitizeChoices();save();render();
+}
+on('choices',95,arr=>{
+ if(!G)return arr;const names=relList().filter(romanceReady);if(!names.length)return arr;
+ G.choiceMeta=G.choiceMeta||{};
+ for(const name of names.slice(0,1)){
+  const id=romanceActionId(name);if(arr.some(c=>metaOf(c)?.actionId===id))continue;
+  const text=romanceChoiceText(name);G.choiceMeta[text]={type:'story',actionId:id};arr=arr.slice(0,3).concat(text);
+ }
+ return arr;
+});
 
 /* ---------- 만남 · 대화 · 동행 ---------- */
 async function meetYumin(place){
@@ -5514,7 +5566,7 @@ function openGiftYumin(){
   rows.push(`<div class="shop-row"><span>🧶 기념 팔찌 <span class="muted">(상점가에서 구입)</span></span><button class="small" ${G.cash>=40?'':'disabled'} onclick="giveYumin('b')">💳40 · 선물</button></div>`);
   Object.keys(YUMIN_LIKES).filter(k=>L[k]).forEach(k=>{ const b=YUMIN_LIKES[k].buy; rows.push(`<div class="shop-row"><span>${YUMIN_LIKES[k].ic} ${b.name} <span class="muted">(상점가에서 구입 · 💝 좋아함)</span></span><button class="small" ${G.cash>=b.cost?'':'disabled'} onclick="giveYumin('p','${k}')">💳${b.cost} · 선물</button></div>`) });
   const taste=Object.keys(YUMIN_LIKES).map(k=>L[k]?`${YUMIN_LIKES[k].ic} ${YUMIN_LIKES[k].n}`:'🔒 ???').join(' · ');
-  modal('유민에게 선물하기',`<p class="muted">하루에 한 번만 선물할 수 있고, 유민은 선물을 받으면 어색해하며 농담으로 넘기려 합니다. 고백이나 특별한 약속에 쓸 팔찌나 장신구는 남겨 두세요. 글로 "유민에게 ○○을 사 준다"고 써도 같은 선물로 처리됩니다.</p>
+  modal('유민에게 선물하기',`<p class="muted">하루에 한 번만 선물할 수 있고, 유민은 선물을 받으면 어색해하며 농담으로 넘기려 합니다. 팔찌나 장신구는 특별한 약속에 쓸 수도 있습니다. 글로 "유민에게 ○○을 사 준다"고 써도 같은 선물로 처리됩니다.</p>
     <p style="margin:8px 0"><b>💝 유민의 취향</b> <span class="muted">(대화하며 알아가면 열립니다)</span><br>${taste}</p>${rows.join('')}`);
 }
 const GIFT_ACC=/반지|목걸이|팔찌|귀걸이|장신구|비녀|머리핀|브로치|노리개|펜던트/;
@@ -5738,7 +5790,7 @@ function relConds(name){
   const c=[];
   if(nx.lv) c.push([`호감 레벨 Lv.${nx.lv} 이상 (현재 Lv.${relLv(name)})`,relLv(name)>=nx.lv]);
   if(nx.event==='heart'||nx.event==='confess') c.push([`이벤트: ${EVT_LABEL[nx.event]} (함께 시간을 보내다 보면 일어남)`,false]);
-  if(nx.event==='propose'){ c.push(['아지트가 있을 것',has('clubroom')]); c.push(['선물: 팔찌·장신구, 또는 유실물 1개',hasGift()]) }
+  // 고백의 숨은 데이트 진행값은 인연 화면에 표시하지 않는다.
   if(nx.event==='promise'){ c.push([`연인이 된 뒤 3일이 지날 것 (${Math.max(0,G.day-(r.engagedDay||G.day))}일 지남)`,G.day-(r.engagedDay||G.day)>=3]); c.push(['기념 외출 비용 캐시 100',G.cash>=100]) }
   if(r.cool&&G.day<r.cool) c.push([`사이가 잠시 어색함 (${r.cool}일째에 풀림)`,false]);
   return {nx,c,note:''};
@@ -5779,11 +5831,11 @@ function relEvtText(){
 }
 function resolveRelEvt(ok,fx){
   if(!G.relEvt) return;
-  const {name,type}=G.relEvt, r=getRel(name), nx=STAGES[r.stage+1];
+  const {name,type}=G.relEvt, r=getRel(name), nx=type==='propose'&&G.relEvt.authorized&&!r.romanceConfirmed?STAGES[5]:STAGES[r.stage+1];
   if(!nx||nx.event!==type||(nx.romance&&!r.romanceEligible)){ G.relEvt=null; return }
   G.relEvt=null;
   if(ok){
-    r.stage=Math.min(6,r.stage+1);
+    r.stage=nx.id;
     const st=STAGES[r.stage];
     if(st.id===5){ r.engagedDay=G.day; r.romanceConfirmed=true }
     addAffTo(name,5);
@@ -5828,7 +5880,7 @@ function openRel(){
     let btns='';
     if(canMeetHere(n)&&!busy) btns+=`<button class="small" data-n="${esc(n)}" onclick="visitNPC(this.dataset.n)">${n==='유민'?'🎵 이야기하기':'찾아가기'}</button>`;
     else if(n!=='유민'&&G.loc==='campus'&&npcWhere(n).startsWith('campus:')&&!busy){ const k=npcWhere(n).slice(7); btns+=`<button class="small" onclick="closeModal();goDistrict('${k}')">🚶 ${(DISTRICTS[k]||DISTRICTS.market).n}${josa((DISTRICTS[k]||DISTRICTS.market).n,'으로','로')} 가기</button>` }
-    if(!note&&nx&&nx.event==='propose'&&allOk&&canMeetHere(n)) btns+=`<button class="small primary" data-n="${esc(n)}" onclick="proposeTo(this.dataset.n)">💕 고백하기</button>`;
+    // 고백은 조건을 충족했을 때 이야기 선택지로만 제시한다.
     if(!note&&nx&&nx.event==='promise'&&allOk&&isHood()) btns+=`<button class="small primary" data-n="${esc(n)}" onclick="promiseWith(this.dataset.n)">💞 서로의 약속하기</button>`;
     return `<div class="lex"><div class="h"><b>${r.stage>=3?'🤝 ':''}${esc(n)}</b><span class="cat">${st.n} · Lv.${relLv(n)}${G.relEvt&&G.relEvt.name===n?' · 이벤트 진행 중':''}</span></div>
       <div class="bar"><i style="width:${affPct(n)}%"></i></div>
@@ -5847,14 +5899,12 @@ function visitNPC(name){
   const r=getRel(name); r.where=meetingPlace; r.whereKey=yKey();
   aiTurn(`${name}${josa(name,'을','를')} 찾아간다`,`[인물 방문] 플레이어가 ${name}${josa(name,'을','를')} 찾아간다. 사전과 연대기에 있는 이 인물의 설정과 지난 일을 이어서, 이 인물이 등장하는 대화 장면을 써라. effects.relations에 이 인물을 반드시 포함하라.`+relArmText(name,1));
 }
-function proposeTo(name){
-  const rc=relConds(name);
-  if(busy||!getRel(name).romanceEligible||!rc.nx||rc.nx.event!=='propose'||!rc.c.every(x=>x[1])||!canMeetHere(name)||G.relEvt) return toast('고백 조건을 아직 충족하지 못했습니다');
-  closeModal();
-  const gift=takeGift();
-  if(name==='유민') G._yuminHere=true;
-  G.relEvt={name,type:'propose',turns:0}; G._relSetup=false;
-  aiTurn(`${name}에게 ${gift}${josa(gift,'을','를')} 건네며 좋아한다고 고백한다`,`[인연 이벤트: 고백 — ${name}] 플레이어가 ${name}에게 ${gift}${josa(gift,'을','를')} 건네며 좋아하는 마음을 고백하고 연인으로 지내고 싶다는 뜻을 전한다. ${name}의 성격대로 반응하라. 그동안의 관계와 플레이어의 말에 따라 받아들이면 success, 아직 이르다고 느끼면 fail, 대답을 미루면 pending.`+(name==='유민'?yuminRomanceNote('propose'):''));
+function proposeTo(name,text=''){
+  if(busy||!romanceReady(name))return false;
+  closeModal();G.relEvt={name,type:'propose',turns:0,authorized:true};G._relSetup=false;
+  if(name==='유민')G._yuminHere=true;
+  const action=text||romanceChoiceText(name);switchGameTab('play');
+  aiTurn(action,`[인연 이벤트: 고백 — ${name}] 플레이어가 함께했던 시간과 좋아하는 마음을 전하며 사귀고 싶다는 뜻을 밝힌다. 선물이나 아지트는 필요하지 않다. ${name}의 성격대로 반응한다. 받아들이면 effects.relation_event={"name":"${name}","result":"success"}, 거절하면 fail, 대답을 미루면 pending. 숨은 점수나 조건은 서술하지 않는다.`+(name==='유민'?yuminRomanceNote('propose'):''));return true;
 }
 function promiseWith(name){
   const rc=relConds(name);
@@ -8796,7 +8846,7 @@ function openGuide(){
     ${row('🔎 사건 조사','새 구역의 원인·핵심 증거·검증 방법은 AI가 비공개로 생성하고 검토한 뒤 고정합니다. 조사 직후 새 증거·기여 또는 추가 발견 없음을 표시합니다. 조사 수첩에서 다음 후보를 보고, 필요한 근거를 확보한 뒤 지정 공간의 원인 검증 버튼으로 해결합니다. 방을 모두 방문하거나 단서를 일정 비율 모은 것만으로 해결되지 않습니다. 생성에 실패하면 사건 준비 재시도로 다시 준비합니다.')}
     ${row('🎵 구역 안 유민의 도움','유민이 동행 중이면 구역에서 일정 걸음마다(체력이 35% 이하거나 위험도 2 이상 공간, 또는 가끔) 노래를 불러 상황을 뒤집고, 위기에는 체력 +2, '+Math.round(YUMIN_SING_CALM_P*100)+'% 확률로 공포 −1. 그 밖에 위험한 통로 경고·조각 쪽 울림·길 안내를 해 줍니다. 곁에 있는 유민에게 "노래를 불러 달라"고 청해도(버튼·선택지, 어디서나) 같은 확률로 공포가 줄고 위기에는 체력 +2')}
     ${row('💬 문자 탭','약속 장소·시간 선택, 조사 방향 도움 요청, 현재 위치 확인, 약속 취소 기능을 고릅니다. 1통당 배터리 1%, 시간 소모 없음. 수락한 약속·도움 요청의 호감 +1은 상대마다 하루 한 번입니다. 수업 중·소등 후 적발과 압수 규칙은 적용됩니다. 새 단서나 진상은 문자로 만들지 않습니다.')}
-    ${row('💕 데이트 · 🧑‍🤝‍🧑 외출 탭','데이트는 고백을 확인한 연인, 외출은 알고 지내는 인물과 실제로 같은 장소에 있을 때 시작합니다. 데이트 캐시 8·외출 캐시 5, 시간 두 칸, 선택 세 번. 두 활동을 합쳐 하루 한 번, 완료 시 호감 −2~+3. 활동을 중단하거나 장소를 떠나면 호감 보상을 받지 않습니다. 진행 장면과 결과는 저장됩니다.')}
+    ${row('💕 데이트 · 🧑‍🤝‍🧑 외출 탭','데이트는 서로 가까워진 상대, 외출은 알고 지내는 인물과 실제로 같은 장소에 있을 때 시작합니다. 데이트 캐시 8·외출 캐시 5, 시간 두 칸, 선택 세 번. 두 활동을 합쳐 하루 한 번, 완료 시 호감 −2~+3. 활동을 중단하거나 장소를 떠나면 호감 보상을 받지 않습니다. 진행 장면과 결과는 저장됩니다.')}
     ${row('📩 수신 문자','시간이 흐르다 보면 연락처 사람(유민 포함)이 먼저 문자를 보냅니다(한 번에 최대 '+INBOX_MAX+'통). 화면 오른쪽 위에 알림 팝업이 뜨고(누르면 읽기, 행동 버튼 줄의 📩 버튼으로도 가능) 대화창에서 소문·안부·초대·경고 같은 문자를 읽고 바로 답장할 수 있습니다. 약속을 어기면 서운함을 담은 문자도 옵니다. 소등 후와 교실 수업 중에 읽으면 몰래 읽는 것이라 적발될 수 있습니다')}
     ${row('📅 약속',`문자나 이야기에서 누구와 어디서(학교 안 지점·아지트·학원가 골목) 언제(조례·쉬는 시간·점심시간·방과 후·저녁 등) 만나기로 하면 약속이 잡히고, 그 칸이 되면 상대가 그곳에 나타납니다. 「올래」「와 줄래」처럼 부르는 말도 약속으로 읽고, 급식실은 점심시간만 가능합니다. 문자로 만나자고 하면 상대가 거절할 수 있습니다(호감 Lv.0에서 ${Math.round(CHAT_REFUSE_BASE*100)}%, 레벨마다 −${(CHAT_REFUSE_STEP*100).toFixed(1)}%p, 최소 ${Math.round(CHAT_REFUSE_MIN*100)}%). 상대가 먼저 제안할 확률은 Lv.0에서 ${Math.round(CHAT_PROPOSE_BASE*100)}%, 레벨마다 +${(CHAT_PROPOSE_STEP*100).toFixed(1)}%p(최대 ${Math.round(CHAT_PROPOSE_MAX*100)}%)입니다. 약속한 칸에 그 장소에 있지 않으면 호감이 떨어지고 서운함이 담긴 문자가 오며, 한동안 다음 대화에서 서운함을 드러냅니다. 📱 휴대폰 위쪽 「📅 약속」에서 때·장소를 고치거나 취소할 수 있습니다. 유민이 동행 중일 때는 유민과의 약속이 없어집니다`)}
     ${row('🍫 공포를 늦추는 간식',`상점·매점에서 ${Object.keys(SNACKS).map(n=>{ const e=SHOP_GOODS.find(x=>x[1]==='i_'+n); return `${n}(💳${e?e[2]:'?'}, 공포 누적 ${SNACKS[n]}회 늦춤)` }).join(', ')}을(를) 살 수 있습니다. 소지품에서 「먹기」(또는 "초코바를 먹는다"라고 입력)하면 다음 공포 누적을 건너뜁니다. 구역·뒷길처럼 걸을 때 공포가 오르는 곳에서 효과가 있고, 이미 오른 공포를 내리지는 않습니다`)}

@@ -97,7 +97,7 @@ await test('Old friendship saves never become lovers, confirmed romance saves st
   const before=obj('G.rel');run('migrate()');assert.deepEqual(obj('G.rel'),before);
   run("seed(); delete G._relVersion; G.rel={유민:{stage:5,aff:300,adult:true,engagedDay:1}}; G.chronicle=[{day:1,text:'유민과 연인이 되었다'}]; migrate()");assert.equal(run("G.rel['유민'].stage"),5);assert.equal(run("G.rel['유민'].romanceConfirmed"),true);
 });
-await test('Manual romance buttons cannot bypass stage, gift or cash prerequisites',()=>{
+await test('Romance actions cannot bypass relationship progress or promise cash prerequisites',()=>{
   run("seed(); G.loc='campus'; G.cash=0; G.rel={유민:{stage:0,aff:10,romanceEligible:true}}; promiseWith('유민'); proposeTo('유민')");
   assert.equal(run("G.rel['유민'].stage"),0);assert.equal(run('G.cash'),0);assert.equal(run('G.relEvt'),null);
 });
