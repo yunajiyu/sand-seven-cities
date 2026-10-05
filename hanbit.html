@@ -775,7 +775,7 @@ const AI_ROLES=[
   {k:'story',  n:'서술 · 유민 대사',     d:'장면 서술, 유민 대사, 선택지 (가장 중요)'},
   {k:'world',  n:'세계 설정 (숨겨진 것의 정체)', d:'새 게임 시작 시 1회 · 구역 연혁 뼈대 1회'},
   {k:'site',n:'구역 생성 (구역 내부 공간)', d:'조사 외출마다 1회 (JSON 구조)'},
-  {k:'lex',    n:'괴담 사전 추출',       d:'새 인물·장소·괴담 정리 (4턴마다 또는 장소를 옮길 때, 뒤에서 실행)'},
+  {k:'lex',    n:'괴담 사전 추출',       d:'새 인물·장소·괴담 정리 (6턴마다 또는 장소를 옮길 때, 뒤에서 실행)'},
   {k:'chron',  n:'연대기 압축',          d:'하루·한 주·한 달 단위로 옛 기록을 합침 (가끔, 저렴하게)'},
   {k:'summary',n:'줄거리 요약',          d:'오래된 장면을 압축 (약 5턴마다 · 이야기 기억의 핵심)'},
 ];
@@ -783,11 +783,11 @@ const AI_ROLE_DEFAULT={
   story:  {provider:'gemini',model:'gemini-3.8-flash',effort:'medium'},
   world:  {provider:'gemini',model:'gemini-3.8-flash',effort:'high'},
   site:{provider:'gemini',model:'gemini-3.8-flash',effort:'low'},
-  lex:    {provider:'gemini',model:'gemini-3.8-flash',effort:'low'},
+  lex:    {provider:'gemini',model:'gemini-3.5-flash-lite',effort:'low'},   // 부가 역할은 가장 저렴한 모델
   summary:{provider:'gemini',model:'gemini-3.8-flash',effort:'low'},
-  chron:  {provider:'gemini',model:'gemini-3.8-flash',effort:'low'},
+  chron:  {provider:'gemini',model:'gemini-3.5-flash-lite',effort:'low'},
 };
-const LEX_EVERY=4;          // 사전 추출: 이 턴 수마다 한 번 (장소를 옮기면 그때도)
+const LEX_EVERY=6;          // 사전 추출: 이 턴 수마다 한 번 (장소를 옮기면 그때도)
 
 /* ---------- 지도 좌표 ---------- */
 const MAP_W=400, MAP_H=800/3, MAP_SC=400/1536;
@@ -5025,7 +5025,7 @@ on('facts',90,(o,rules)=>{
 
 /* =========================================================
    20-1. 떡밥 장부 — 아직 풀리지 않은 이야기
-   - 사전 추출(4장면마다) 때 같은 AI가 새 떡밥을 적고, 풀린 떡밥을 닫음 (호출이 늘지 않음)
+   - 사전 추출(6장면마다) 때 같은 AI가 새 떡밥을 적고, 풀린 떡밥을 닫음 (호출이 늘지 않음)
    - 서술 AI에게는 매 턴 2~3개를 '자연스러우면 회수'로 넘김 (억지로 풀지 않게)
    - G.threads=[{id,text,day,status:'open'|'closed',closedDay,shown}]
    ========================================================= */
@@ -7503,6 +7503,7 @@ function openSettings(){
   const keyRow=p=>`<label>${provLabel(p)} API 키</label><input id="k_${p}" type="password" value="${esc((SET.keys||{})[p]||'')}" placeholder="키는 이 브라우저에만 저장됩니다">`;
   modal('AI 설정',`
     <p class="muted">용도별로 다른 모델을 쓸 수 있습니다. 제공자가 같으면 키는 하나만 입력하면 됩니다.</p>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="small" onclick="applySavingModels()">💸 부가 역할을 저렴한 모델로</button><span class="muted" style="font-size:12px">사전 추출·연대기 압축을 Gemini 3.5 Flash-Lite로 채웁니다(저장을 눌러야 적용)</span></div>
     ${cards}
     <h4 style="margin:14px 0 0">API 키</h4>
     ${keyRow('anthropic')}
@@ -7515,6 +7516,10 @@ function openSettings(){
     </details>
     <div class="row" style="margin-top:12px"><button class="primary" onclick="saveSet()">저장</button></div>
     <p class="muted" style="margin-top:12px">브라우저에서 직접 연결이 막히는 회사가 있을 수 있습니다. 그럴 때는 OpenRouter를 쓰면 대부분 해결됩니다. 모델 이름은 각 회사 문서의 최신 목록으로 확인하세요.</p>`);
+}
+function applySavingModels(){
+  ['lex','chron'].forEach(k=>{ const p=document.getElementById('rp_'+k), m=document.getElementById('rm_'+k), e=document.getElementById('re_'+k); if(p) p.value='gemini'; if(m) m.value='gemini-3.5-flash-lite'; if(e) e.value='low' });
+  toast('사전 추출·연대기 압축 모델을 채웠습니다. 아래 「저장」을 눌러 주세요 (Gemini 키가 필요합니다)');
 }
 function onRoleProv(k){
   const p=document.getElementById('rp_'+k).value, d=AI_ROLE_DEFAULT[k];
