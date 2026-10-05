@@ -50,7 +50,7 @@ await test('Accepted future outing waits at the exact place and can be cancelled
 await test('Refusal and repeated identical proposal never create an agreement',({run})=>{
  run('Math.random=()=>0');assert.equal(run("sendSocialMessage('서연','outing',{where:'campus:market',ord:50})"),false);run('Math.random=()=>0.99');assert.equal(run("sendSocialMessage('서연','outing',{where:'campus:market',ord:50})"),false);assert.equal(run('(G.appts||[]).length'),0);assert.equal(run('G.textUse'),1);
 });
-await test('Date requests require mutual confirmed eligible romance',({run})=>{
+await test('Date requests require an eligible close relationship',({run})=>{
  assert.equal(run("sendSocialMessage('서연','date',{where:'campus:market',ord:50})"),false);run("getRel('서연').stage=5;getRel('서연').romanceConfirmed=true;getRel('서연').romanceEligible=false");assert.equal(run("socialDateEligible('서연')"),false);run("getRel('서연').romanceEligible=true");assert.equal(run("sendSocialMessage('서연','date',{where:'campus:market',ord:50})"),true);
 });
 await test('Remote contact cannot start an activity or teleport',async({run})=>{
