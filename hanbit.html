@@ -5019,12 +5019,13 @@ function threadsSideHTML(){
 }
 /* ---------- 확정 단서: 플레이어가 이미 얻은 구체적 단서(숫자·이름·칸 등). 지우지 않고 매 턴 AI에게 보내 새 단서가 이와 어긋나지 않게 함 ---------- */
 const CANON_MAX=30;
-function addCanon(t){
+function addCanon(t,quiet){
   if(!G) return; t=String(t||'').replace(/\s+/g,' ').trim().slice(0,90); if(t.length<4) return;
   if(!Array.isArray(G.canon)) G.canon=[];
   const key=t.replace(/[^가-힣0-9]/g,'').slice(0,14);
   if(G.canon.some(c=>c.key===key)) return;
   G.canon.push({day:G.day,text:t,key}); while(G.canon.length>CANON_MAX) G.canon.shift();
+  if(!quiet){ try{ toast('📌 확정 단서 기록: '+(t.length>34?t.slice(0,34)+'…':t)); addLog('fx','📌 확정 단서 기록: '+t) }catch(e){} }
 }
 /* 단서가 24개를 넘으면 오래된 12개를 AI가 2~3줄로 묶어 보존(호출 1회, 숫자·이름은 그대로). 호출이 안 되면 30개 상한에서 오래된 것부터 빠짐 */
 const CANON_SOFT=24, CANON_BATCH=12; let _canonBusy=false;
@@ -5051,7 +5052,7 @@ on('after',85,()=>{ setTimeout(()=>{ if(!busy) canonCompact() },1200) });
 function canonBlock(n){ return (G.canon||[]).slice(n?-n:0).map(c=>`- (${c.day}일) ${c.text}`).join('\n')||'(아직 없음)' }
 function addCanonUser(){
   const el=document.getElementById('canonNew'); const v=(el&&el.value||'').trim(); if(v.length<4) return toast('단서를 4자 이상 적어 주세요');
-  const n=(G.canon||[]).length; addCanon(v); if((G.canon||[]).length===n&&n>=CANON_MAX) return; save(); openThreads();
+  const n=(G.canon||[]).length; addCanon(v,true); if((G.canon||[]).length===n&&n>=CANON_MAX) return; toast('📌 확정 단서에 추가했습니다'); save(); openThreads();
 }
 /* 과목 단서를 새로 만들 때: 같은 과목에서 이미 얻은 단서(없으면 최근 단서)를 이어 가게 함 */
 function canonHint(subj){
