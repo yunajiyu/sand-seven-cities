@@ -1392,7 +1392,7 @@ function addDemerit(d,why,fx){
 function applyBoardLedger(e,fx){
   (Array.isArray(e.lexAdd)?e.lexAdd:[]).slice(0,4).forEach(x=>{ if(x&&x.name&&x.desc) addLex({name:String(x.name).slice(0,30),cat:x.cat,desc:String(x.desc).slice(0,300)},false) });
   const board=(Array.isArray(e.board)?e.board:[]).map(x=>String(x&&(x.text||x)||'').trim()).filter(Boolean).slice(0,2);
-  if(board.length) applyThreads(G,{threads_new:board});
+  if(board.length&&clueLoad()<THREAD_SOFT) applyThreads(G,{threads_new:board});   // 미해결이 많으면 새 단서는 적지 않음
   (Array.isArray(e.ledgerAdd)?e.ledgerAdd:[]).slice(0,4).forEach(x=>{
     const s=String(x&&(x.text||x)||'').trim().slice(0,120); if(s.length<3) return;
     const k=s.split('=')[0].trim();
@@ -5128,6 +5128,9 @@ on('facts',90,(o,rules)=>{
    - G.threads=[{id,text,day,status:'open'|'closed',closedDay,shown}]
    ========================================================= */
 const THREAD_MAX=12, THREAD_PROMPT=6;
+/* 단서 피로 방지: 미해결 조사 보드가 이만큼 쌓이면 새 단서를 막고(코드), AI에게 새 수수께끼 대신 기존 것의 진전·해결을 요구함 */
+const THREAD_SOFT=5, THREAD_HARD=8;
+function clueLoad(g){ return threadsOpen(g).length }
 function threadsOpen(g){ g=g||G; return (g.threads||[]).filter(t=>t.status==='open') }
 function threadsRequest(g){
   const open=threadsOpen(g);
@@ -5145,6 +5148,7 @@ function applyThreads(g,r){
   let nc=0, nn=0;
   g.threads.forEach(t=>{ if(t.status==='open'&&closed.has(t.id)){ t.status='closed'; t.closedDay=g.day; nc++ } });
   (Array.isArray(r.threads_new)?r.threads_new:[]).slice(0,2).forEach(x=>{
+    if(!r.force&&clueLoad(g)>=THREAD_SOFT) return;   // 미해결 단서가 너무 많으면 새로 늘리지 않음
     const text=String(x&&(x.text||x)||'').trim().slice(0,60); if(text.length<4) return;
     if(threadsOpen(g).some(t=>t.text===text)) return;
     g.threadN=(g.threadN||0)+1;
@@ -5163,6 +5167,13 @@ function pickThreads(text){
   const hit=t=>t.text.split(/[\s,·.()「」'"]+/).filter(w=>w.length>=2).some(w=>text.includes(w));
   return [...open].sort((a,b)=>(hit(b)-hit(a))||((a.shown||0)-(b.shown||0))||(a.day-b.day)).slice(0,THREAD_PROMPT);
 }
+on('context',57,()=>{
+  const n=clueLoad(); if(n<THREAD_SOFT) return '';
+  const list=threadsOpen().slice(-THREAD_HARD).map(t=>t.text).join(' / ');
+  return n>=THREAD_HARD
+    ?`\n[단서 과다 — 미해결 ${n}개] 플레이어가 단서가 너무 많아 지쳐 있다. 새 수수께끼·새 인물·새 단서·새 떡밥을 절대 만들지 말 것. 이번 장면에서 아래 미해결 중 하나를 분명히 진전시켜 결론(진상이 드러나거나 막다른 길로 정리)에 가까이 가라: ${list}`
+    :`\n[단서 과다 — 미해결 ${n}개] 새 수수께끼·새 단서·새 인물 도입을 자제하고, 아래 미해결 중 하나를 한 걸음 진전시키거나 매듭지어라: ${list}`;
+});
 function threadsBlock(text){
   const list=pickThreads(text); if(!list.length) return '';
   list.forEach(t=>t.shown=(t.shown||0)+1);
@@ -5172,7 +5183,7 @@ function closeThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) ret
 function reopenThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; t.status='open'; delete t.closedDay; _sigR=''; save(); renderSides(); openThreads() }
 function addThread(){
   const el=document.getElementById('thrNew'); const v=(el&&el.value||'').trim().slice(0,60); if(!v) return;
-  applyThreads(G,{threads_new:[{text:v}]}); _sigR=''; save(); renderSides(); openThreads();
+  applyThreads(G,{threads_new:[{text:v}],force:true}); _sigR=''; save(); renderSides(); openThreads();
 }
 function threadsSideHTML(){
   const open=threadsOpen();
@@ -5302,6 +5313,7 @@ function openCanon(){ openThreads(); setTimeout(()=>{ const e=document.getElemen
 function openThreads(){
   const all=G.threads||[], open=all.filter(t=>t.status==='open'), done=all.filter(t=>t.status!=='open').slice(-15).reverse();
   modal('🧵 조사 보드',`<p class="muted">이야기 속에서 생긴 약속·수수께끼·인물의 사정 중 아직 풀리지 않은 것입니다. 사전을 정리할 때 함께 적히고, 풀리면 자동으로 닫힙니다. 이야기꾼은 매 장면 몇 개를 참고해 자연스러울 때 이어 갑니다(최대 ${THREAD_MAX}개).</p>
+    ${open.length>=THREAD_SOFT?`<p class="muted" style="font-size:12.5px;color:var(--danger)">미해결 ${open.length}개 — ${THREAD_SOFT}개 이상이면 새 단서가 적히지 않고 이야기꾼이 기존 단서를 풀어 가도록 유도합니다.</p>`:`<p class="muted" style="font-size:12.5px">미해결 ${open.length}/${THREAD_SOFT} — ${THREAD_SOFT}개를 넘으면 새 단서를 억제합니다.</p>`}
     <div id="thrList">${open.map(t=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${t.day}일 ·</span> ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')||'<p class="muted">조사 보드가 없습니다.</p>'}</div>
     <div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="thrNew" placeholder="직접 적기 (예: 하킴이 은화를 갚겠다고 했다)" maxlength="60"><button class="small" onclick="addThread()">추가</button></div>
     <h4 style="margin:14px 0 4px">📅 약속</h4>${apptListHTML()}
