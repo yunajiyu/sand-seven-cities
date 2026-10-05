@@ -1122,7 +1122,7 @@ materials: 구역에서 실제로 쓸 만한 철제 부품·합판·전선·유�
 [위치] 캠퍼스에서만. "위치"에는 장면이 끝났을 때 플레이어가 실제로 있는 곳(${placeNames()} 중 하나, 또는 옥상·매점 앞 같은 지점 밖 장소)을 장소가 실제로 바뀐 경우에만 적고('자리를 옮겨'·'~로 향했다'·'~에 도착했다'도 변경) 그대로면 빈 문자열. 다른 곳으로 가는 선택지는 "to"에 목적지를 적는다. 수업 중 교실을 벗어나면 땡땡이로 다룬다.
 [급식실] 점심시간에만 식사를 준다. 그 밖에는 닫혀 있어 급식실 식사 장면·제안·선택지와 급식실 약속을 쓰지 않는다(방과 후 간식은 매점·상점가).
 [일과] 낮에는 졸기·엎드리기·잠깐 쉬기도 type "rest"가 아닌 "story"("rest"는 밤 잠자리 선택지에만). 수업은 코드가 세니 [수업 끝] 지시가 있는 장면에서만 종을 울리고 그 전엔 수업이 계속되는 것으로 쓴다. 서술에서 수업·쉬는 시간 같은 칸이 끝났다는 종이 울렸다면 "칸종료"를 true(아니면 false).
-[단서] "단서"에는 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙처럼 나중에 어긋나면 안 되는 것)만 「키워드: 내용 설명」 형식 한 줄로(예: "출석부 3번 칸: 이름이 지워져 있다"), 숫자·이름·칸은 서술과 똑같이 적는다. 분위기 묘사·사소한 발견·이미 [확정 단서]에 있는 것의 반복은 적지 않는다. 대부분의 장면은 빈 문자열이고 하루 최대 2개다. 새 단서는 [확정 단서]와 모순되지 않게 이어 가거나 구체화한다.
+[단서] "단서"에는 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙처럼 나중에 어긋나면 안 되는 것)만 「키워드: 내용 설명」 형식 한 줄로(예: "출석부 3번 칸: 이름이 지워져 있다"), 숫자·이름·칸은 서술과 똑같이 적는다. 분위기 묘사·사소한 발견·이미 [확정 단서]에 있는 것의 반복은 적지 않는다. 대부분의 장면은 빈 문자열이고 하루 최대 3개다. 새 단서는 [확정 단서]와 모순되지 않게 이어 가거나 구체화한다.
 [약속] 플레이어가 누군가(유민 포함)와 어디서 언제 만나기로 했다면 "약속"에 {"인물":"이름","장소":"학교 안 장소·아지트·학원가 골목","때":"방과 후|점심시간|쉬는 시간|저녁|내일 아침|내일 방과 후|곧 등"}, 없으면 null. 때가 되면 코드가 그 사람을 그곳에 있게 하니 그 전에는 등장시키지 않는다. [확정 사실]에 약속어김이 있으면 만났을 때 서운함을 드러낸다. 인물 위치는 [확정 사실]의 유민위치·인물위치·약속을 따른다.
 [선택지·사건]
 - choices 3~4개 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기·해독·설득·함정 피하기·몰래 지나가기 등)은 "check"+skill·dc(str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정). 쉬기/잠자기 "rest", 임시 쉼터 "shelter", 캠퍼스 귀환 "return", 구역 밖으로 "exit", 사고팔기 "trade", 그 밖의 관찰·대화·묘사는 "story". 구역 안에서는 return·exit를 만들지 않는다(고정 버튼이 있음).
@@ -2996,7 +2996,7 @@ function classStep(){
       const clue=G.fragments<FRAG_GOAL&&Math.random()<sb.frag?fragClue():'';
       extra+=canonHint(subj)+` [수업 단서] 이번 수업에서 플레이어가 단서 하나를 얻는다(얻은 단서는 반드시 JSON의 "단서"에 한 문장으로, 숫자·이름·칸을 서술과 똑같이 적을 것). ${subj} 수업답게 ${sb.hint}. 선생님이 무심코 한 말, 칠판 구석의 낙서, 교과서 여백의 메모, 옆자리 학생의 속삭임 중 하나로 학원의 교칙·지워진 구역·괴담과 이어지는 단서를 서술에 분명히 담고, effects.조사보드에 한 줄로 적어라. 숨겨진 진실을 직접 밝히지는 말 것.`+(clue?` 그 단서에는 다음 사실이 담긴다: ${clue}.`:'');
       G.chronicle.push({day:G.day,text:`${subj} 수업에서 단서를 얻었다${clue?`: ${clue}`:''}`});
-      if(clue) addCanon(`${subj} 수업 단서: ${clue}`);
+      if(clue) addCanon(`${subj} 수업 단서: ${clue}`,false,true);
       addLog('fx',`📚 수업 단서${clue?`: ${clue}`:' — 이야기 속에 담깁니다'}`);
     }else extra+=' 이번 수업에서는 별다른 단서가 없다. 단서를 억지로 만들지 말 것.';
     c.done.push(i); c.n++; c.tot++; c.active=null; gainXp(1,'수업');
@@ -3819,6 +3819,7 @@ function revealClue(d,r){
   (d.journal=d.journal||[]).push({room:r.name,t:r.clue.t,day:G.day});
   const all=d.rooms.filter(x=>x.clue), got=all.filter(x=>x.clue.got);
   addLog('fx',`📝 조사 수첩 (${got.length}/${all.length}): ${r.clue.t}`);
+  addCanon(`${r.name}: ${r.clue.t}`,false,true);   // 구역에서 찾은 단서도 확정 단서에 기록
   toast(`📝 단서를 수첩에 적었습니다 (${got.length}/${all.length})`);
   if(got.length===all.length){
     addLog('sys',`🏚 모든 단서가 맞춰졌습니다 — 「${d.name}」의 사연이 사전에 기록됩니다.`);
@@ -5080,15 +5081,18 @@ function threadsSideHTML(){
   return `<div class="sec"><h4>🧵 조사 보드 <button class="small" onclick="openThreads()">관리</button> <button class="small" onclick="openCanon()">📌 확정 단서 ${(G.canon||[]).length}</button></h4>${open.slice(-5).reverse().map(t=>`<div class="ch"><span class="d">${t.day}일</span><span>${esc(t.text)}</span></div>`).join('')||'<div class="muted">아직 없습니다. 이야기 속 약속·수수께끼가 자동으로 적힙니다.</div>'}${open.length>5?`<div class="muted" style="font-size:12px">외 ${open.length-5}개</div>`:''}</div>`;
 }
 /* ---------- 확정 단서: 플레이어가 이미 얻은 구체적 단서(숫자·이름·칸 등). 지우지 않고 매 턴 AI에게 보내 새 단서가 이와 어긋나지 않게 함 ---------- */
-const CANON_MAX=20, CANON_HARD=30, CANON_DAILY=2;   // 20개를 넘으면 묶기 대상, 30개는 절대 상한   // 하루에 AI가 자동으로 올릴 수 있는 새 단서는 2개까지
+const CANON_MAX=20, CANON_HARD=30, CANON_DAILY=3;   // 20개를 넘으면 묶기 대상, 30개는 절대 상한   // 하루에 AI가 자동으로 올릴 수 있는 새 단서는 3개까지
 const bigrams=t=>{ const a=String(t).replace(/[^가-힣0-9]/g,''), o=new Set(); for(let i=0;i<a.length-1;i++) o.add(a.slice(i,i+2)); return o };
-function canonSimilar(a,b){ const A=bigrams(a), B=bigrams(b); if(!A.size||!B.size) return false; let n=0; A.forEach(x=>{ if(B.has(x)) n++ }); return n/Math.min(A.size,B.size)>=0.6 }
-function addCanon(t,quiet){
+function canonSimilar(a,b){
+  const na=(String(a).match(/\d+/g)||[]).join(','), nb=(String(b).match(/\d+/g)||[]).join(',');
+  if(na!==nb) return false;   // 숫자가 다르면(3번 칸 ↔ 5번 칸) 다른 단서
+  const A=bigrams(a), B=bigrams(b); if(!A.size||!B.size) return false; let n=0; A.forEach(x=>{ if(B.has(x)) n++ }); return n/Math.min(A.size,B.size)>=0.6 }
+function addCanon(t,quiet,force){
   if(!G) return; t=String(t||'').replace(/\s+/g,' ').trim().slice(0,90); if(t.length<4) return;
   if(!Array.isArray(G.canon)) G.canon=[];
   const key=t.replace(/[^가-힣0-9]/g,'').slice(0,14);
   if(G.canon.some(c=>c.key===key)) return;
-  if(!quiet){
+  if(!quiet&&!force){
     if(G.canon.some(c=>canonSimilar(c.text,t))) return;               // 이미 있는 단서와 거의 같은 말
     const d=G.canonDay&&G.canonDay.day===G.day?G.canonDay:(G.canonDay={day:G.day,n:0});
     if(d.n>=CANON_DAILY) return; d.n++;
