@@ -4331,6 +4331,11 @@ function apptMissed(a){
   if(!G.inbox.some(m=>m.from===a.name)&&G.inbox.length<INBOX_MAX){ G.inbox.push({from:a.name,topic:'missed',day:G.day}); try{ showPhoneBanner(a.name) }catch(e){} }
 }
 const LEAD_APPT_WAIT=40;   // 소문의 장소 앞 약속은 약속 때부터 이틀(40) 안에 도착하면 만남
+/* 소문의 장소 앞에서 만난 인물은 그 구역을 조사하는 동안 함께함 (유민은 기존 동행 시스템). 구역을 떠나면 헤어짐 */
+function guestHere(){ const g=G&&G.guest; return !!(g&&(G.loc==='site'||G.loc==='road')&&G.site&&G.site.name===g.zone) }
+function guestCheck(){ if(G&&G.guest&&!guestHere()&&G.loc!=='shelter'){ addLog('sys',`🤝 ${G.guest.name}${josa(G.guest.name,'과','와')} ${G.guest.zone} 조사를 마치고 헤어졌습니다.`); G.guest=null } }
+function partGuest(){ if(!G||!G.guest) return; const n=G.guest.name; G.guest=null; addLog('sys',`🤝 ${n}${josa(n,'과','와')} 헤어졌습니다.`); pend(` [동행 종료] 플레이어가 ${n}${josa(n,'과','와')} 헤어졌다. ${n}은(는) 이 구역에서 떠난다.`); save(); render() }
+on('context',58,()=>{ guestCheck(); if(!guestHere()) return ''; const n=G.guest.name; return `\n[함께하는 인물: ${n}] 약속대로 입구에서 합류해 「${G.guest.zone}」을 함께 조사하는 중이다. 장면에 자연스럽게 함께 등장시키고(말·반응·행동), 호감 단계(${relLv(n)})에 맞는 태도를 지켜라. 플레이어 대신 판정을 해결하거나 전투를 끝내지 말고, 구역을 떠나면 헤어진 것으로 한다.` });
 function apptSync(){
   if(!G||!Array.isArray(G.appts)||!G.appts.length) return;
   const o=apptOrd(), here=placeKey();
@@ -4339,7 +4344,11 @@ function apptSync(){
     if(String(a.where).startsWith('lead:')){   // 소문의 장소 앞 약속: 때가 된 뒤 이틀 안에 플레이어가 그 구역에 도착하면 만남
       if(o<a.ord) return true;
       if(!a.arrived){ a.arrived=true; apptArrive(a) }
-      if(G.loc==='site'&&G.site&&G.site.name===a.where.slice(5)){ a.met=true; G._apptMeet={name:a.name,place:a.where.slice(5)}; if(a.name==='유민') G._yuminHere=true; return false }
+      if((G.loc==='site'||G.loc==='road')&&G.site&&G.site.name===a.where.slice(5)){   // 구역 안이나 그 입구 밖에 있으면 만남
+        a.met=true; G._apptMeet={name:a.name,place:a.where.slice(5)};
+        if(a.name==='유민'){ setYuminSpot(spotHere()); G._yuminHere=true; if(G.comp&&!G.comp.joined&&yuminLv()>=JOIN_LV){ joinYumin(); G._apptMeet.joined=true } }
+        else G.guest={name:a.name,zone:a.where.slice(5),day:G.day};
+        return false }
       if(o>a.ord+LEAD_APPT_WAIT){ apptMissed(a); return false }
       return true;
     }
@@ -4351,7 +4360,7 @@ function apptSync(){
 }
 on('facts',79,o=>{
   apptSync();
-  if(G._apptMeet){ const m=G._apptMeet; G._apptMeet=null; o.약속만남=`${m.name}${josa(m.name,'이','가')} 약속대로 「${m.place}」 입구에서 플레이어를 기다리다 맞이한다. 이번 장면에 ${m.name}을(를) 등장시킬 것`; addLog('sys',`📌 약속한 ${m.name}${josa(m.name,'이','가')} ${m.place} 입구에서 기다리고 있었습니다.`) }
+  if(G._apptMeet){ const m=G._apptMeet; G._apptMeet=null; o.약속만남=`${m.name}${josa(m.name,'이','가')} 약속대로 「${m.place}」 입구에서 플레이어를 기다리다 맞이한다. 이번 장면에 ${m.name}을(를) 등장시킬 것${m.joined?'. 약속대로 합류해 이제 함께 구역을 조사하기로 했다(동행 확정 — 이번 장면에서 함께 가는 방향으로 서술)':''}`; addLog('sys',`📌 약속한 ${m.name}${josa(m.name,'이','가')} ${m.place} 입구에서 기다리고 있었습니다.`) }
   const ap=(G.appts||[]).map(apptText); if(ap.length) o.약속=ap.join(' / ')+' (그 때가 되면 상대는 그곳에 있고, 그 전에는 등장시키지 말 것)';
   const ms=(G.missed||[]).filter(m=>G.day-m.day<=2); G.missed=ms;
   if(ms.length) o.약속어김=ms.map(m=>`${m.name}: ${m.text} 약속을 플레이어가 어김 — 다음에 만나면 서운함을 드러내되 사과하면 풀리는 정도로`).join(' / ');
@@ -7289,7 +7298,8 @@ function fixedHTML(){
   }
   for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }
   ac+=excuseBtn()+inboxHTML()+btn('openPhone()','📱 휴대폰')+btn('openInv()',`🎒 소지품 (${(G.items||[]).length})`)+btn('openSleuth()','🧩 추리 도우미')+btn('openCanon()',`📌 확정 단서 (${(G.canon||[]).length})`);
-  if(G.comp&&G.comp.joined) ac+=btn('partYumin()','🤝 유민과 헤어지기');   // 기능 모듈이 덧붙이는 버튼
+  if(G.comp&&G.comp.joined) ac+=btn('partYumin()','🤝 유민과 헤어지기');
+  if(guestHere()) ac+=btn('partGuest()',`🤝 ${esc(G.guest.name)}${josa(G.guest.name,'과','와')} 헤어지기`);   // 기능 모듈이 덧붙이는 버튼
   // 사건으로 생긴 버튼
   if(G.calmSrc&&!G.calmSrc.used) ac+=btn('fillCalmSrc()',`🫧 「${esc(G.calmSrc.name)}」에서 공포 가라앉히기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
   if(L!=='road'&&peddlerHere()) ac+=btn('openPeddler()',`🧭 ${esc(G.peddler.name)} (공포·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch})`,'','data-cv="1"');
@@ -8002,7 +8012,7 @@ function openGuide(){
     ${row('가구·장식','중앙 캠퍼스 지구 상점가(가구) · 지구 상점(그 지구 특산 장식)에서 사면 영구 보유. 아지트에서 🪴 아지트 장식을 열어 자유롭게 놓고 치울 수 있음 (끌어서 이동). 효과는 없고 외형만 바뀜')}
     ${row('유실물 진열','보유한 유실물 등급별로 진열대를 놓을 수 있음 (팔거나 쓰면 진열도 사라짐)')}
     ${h3('소문의 장소')}
-    ${row('📍 소문의 장소','이야기 속에서 새 장소와 가는 길을 알게 되면 지도에 ◇ 표식으로 나타나고 📍 소문의 장소 목록에 기록됩니다(최대 '+LEAD_MAX+'곳). 중앙 캠퍼스 지구 정문이나 지구에서 일반 조사 외출과 같은 비용으로 찾아가면 그 이름의 구역이 열립니다. 지도에 안 뜬 장소는 이름을 직접 적어 추가할 수 있고, "폐 방송국으로 간다"처럼 글로 써도 됩니다. AI가 장소 사건을 빠뜨려도 서술에 「이름」과 가는 길이 함께 나오면 코드가 보완해 기록합니다(하루 최대 2곳). 인물에게 소문의 장소로 오라고 약속하면 「○○ 입구」 약속으로 기록되고, 약속 때부터 이틀 안에 조사 외출로 그 구역에 도착하면 입구에서 인물이 맞이합니다(놓치면 호감 하락)')}
+    ${row('📍 소문의 장소','이야기 속에서 새 장소와 가는 길을 알게 되면 지도에 ◇ 표식으로 나타나고 📍 소문의 장소 목록에 기록됩니다(최대 '+LEAD_MAX+'곳). 중앙 캠퍼스 지구 정문이나 지구에서 일반 조사 외출과 같은 비용으로 찾아가면 그 이름의 구역이 열립니다. 지도에 안 뜬 장소는 이름을 직접 적어 추가할 수 있고, "폐 방송국으로 간다"처럼 글로 써도 됩니다. AI가 장소 사건을 빠뜨려도 서술에 「이름」과 가는 길이 함께 나오면 코드가 보완해 기록합니다(하루 최대 2곳). 인물에게 소문의 장소로 오라고 약속하면 「○○ 입구」 약속으로 기록되고, 약속 때부터 이틀 안에 조사 외출로 그 구역에 도착하면 입구에서 인물이 맞이하고 그 구역을 조사하는 동안 함께합니다(구역을 떠나거나 🤝 헤어지기를 누르면 헤어짐. 유민은 기존 동행 시스템). 놓치면 호감 하락')}
     ${h3('효과음')}
     ${row('🔊 효과음','버튼 누르기·판정(주사위와 결과)·구매와 판매·피해와 회복·교표 조각과 유실물 획득(학교 종 차임)·성장·이동 출발과 도착·건설·전투 시작·승패·쓰러짐·임시 쉼터·출석부 해독·불량배 조우·결말·하루가 바뀔 때 짧은 소리가 남. 위험할 때는 끊기는 교내 방송 노이즈, 지구 안에서는 형광등 웅웅거림이 낮게 깔립니다. 한 순간에 여러 소리가 겹치면 중요한 것 하나나 둘만 남. 상단의 🔊 버튼으로 끔 → 작게 → 보통 → 크게 (브라우저에 저장). 브라우저 규칙상 화면을 한 번 누르기 전에는 소리가 나지 않음')}`);
 }
