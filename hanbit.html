@@ -4256,7 +4256,7 @@ function apptMissed(a){
   G.missed=(G.missed||[]).filter(m=>m.name!==a.name); G.missed.push({name:a.name,day:G.day,text:`${apptWhenText(a.ord)} ${apptWhereName(a.where)}`});
   G.chronicle.push({day:G.day,text:`${a.name}와(과)의 약속을 지키지 못했다`});
   if(!Array.isArray(G.inbox)) G.inbox=[];
-  if(!G.inbox.some(m=>m.from===a.name)&&G.inbox.length<3){ G.inbox.push({from:a.name,topic:'missed',day:G.day}); try{ showPhoneBanner(a.name) }catch(e){} }
+  if(!G.inbox.some(m=>m.from===a.name)&&G.inbox.length<INBOX_MAX){ G.inbox.push({from:a.name,topic:'missed',day:G.day}); try{ showPhoneBanner(a.name) }catch(e){} }
 }
 function apptSync(){
   if(!G||!Array.isArray(G.appts)||!G.appts.length) return;
@@ -6696,7 +6696,7 @@ function fightRetreat(){
   if(rollCheck.last==='success'||rollCheck.last==='partial'){
     if(G.hp<=0) return fightEnd('lose',text,note);
     let extra=' [전투] 플레이어는 싸움에서 빠져나온다.';
-    if(F.kind==='road'){ const w=Math.min(FIGHT_ESCAPE_LOSS,G.calm), f=Math.min(FIGHT_ESCAPE_LOSS,G.battery); G.calm-=w; G.battery-=f; addLog('fx',`🎒 달아나며 짐을 버렸습니다 (공포 +${w} · 배터리 -${f})`); extra+=' 쫓아오지 못하게 짐 일부를 내던지고 달아났다.' }
+    if(F.kind==='road'){ const w=Math.min(FIGHT_ESCAPE_LOSS,G.calm), f=G.battery>0?FIGHT_ESCAPE_LOSS:0; G.calm-=w; textDrain(f); addLog('fx',`🎒 달아나며 짐을 버렸습니다 (공포 +${w} · 배터리 -${f}%)`); extra+=' 쫓아오지 못하게 짐 일부를 내던지고 달아났다.' }
     return fightEnd('escape',text,note+extra);
   }
   if(G.hp<=0) return fightEnd('lose',text,note);
@@ -6781,7 +6781,7 @@ on('fixed',12,L=>{
   if(L==='site'&&d&&d.rival&&!d.rival.done) return zoneFightReady()?`<button class="primary" onclick="fightZone()">🏴 「${esc(G.rival.name)}」을(를) 막아선다</button>`:`<button disabled title="교표 조각이 있는 깊은 곳 가까이 가야 그들을 따라잡을 수 있습니다">🏴 그들의 발소리가 아직 멀다 (더 깊이 들어가야 함)</button>`;
   if(isHood()&&G.rival.known&&fragAtRisk()&&(G.rival.stolen||0)>0&&G.day>=(G.rival.raidCool||0)){
     const n=travelNeed(FIGHT_HIDEOUT_DAYS);
-    return `<button onclick="raidCamp()">🏴 적대 세력 임시 쉼터 습격 (빼앗긴 조각 ${G.rival.stolen}개 · ${FIGHT_HIDEOUT_DAYS}일 · 공포 +${n.calm} · 배터리 -${n.battery})</button>`;
+    return `<button onclick="raidCamp()">🏴 적대 세력 임시 쉼터 습격 (빼앗긴 조각 ${G.rival.stolen}개 · ${durText(FIGHT_HIDEOUT_DAYS)} · 공포 +${n.calm} · 배터리 -${n.battery}%)</button>`;
   }
   return '';
 });
@@ -6795,13 +6795,13 @@ async function raidCamp(){
   if(busy||!isHood()||!rivalOn()) return;
   rivalAct();
   const n=travelNeed(FIGHT_HIDEOUT_DAYS);
-  if(!(await askConfirm(`「${G.rival.name}」의 임시 쉼터를 습격하러 갈까요?\n(가는 데 ${needText(n)} · 돌아오는 데도 ${FIGHT_HIDEOUT_DAYS}일 · 어려운 싸움입니다)`,'습격한다'))) return;
+  if(!(await askConfirm(`「${G.rival.name}」의 임시 쉼터를 습격하러 갈까요?\n(가는 데 ${needText(n)} · 돌아오는 데도 ${durText(FIGHT_HIDEOUT_DAYS)} · 어려운 싸움입니다)`,'습격한다'))) return;
   closeModal();
   const back=G.loc==='hood'?{kind:'hood',key:G.hood,name:curHood().n,pos:hoodPos(G.hood),ret:true}:{kind:'campus',key:'campus',name:'중앙 캠퍼스 지구',pos:CAMPUS_POS,ret:true};
   const fromPos=curPos();
   addLog('action',`「${G.rival.name}」의 임시 쉼터를 찾아 길을 떠난다`);
   const cost=travelPay(n,false);
-  addLog('sys',`🏴 ${FIGHT_HIDEOUT_DAYS}일을 걸어 적대 세력의 임시 쉼터 근처에 닿았습니다. (${cost})`);
+  addLog('sys',`🏴 ${durText(FIGHT_HIDEOUT_DAYS)} 동안 걸어 적대 세력의 임시 쉼터 근처에 닿았습니다. (${cost})`);
   G.loc='road'; G.trip={dest:back,left:FIGHT_HIDEOUT_DAYS,from:`「${G.rival.name}」의 임시 쉼터`,fromPos};
   G.base=back.kind==='hood'?back.key:null;
   fightStart('hideout');
