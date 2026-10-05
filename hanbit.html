@@ -4327,6 +4327,14 @@ function chatSt(n){ G.chats=G.chats||{}; return G.chats[n]||(G.chats[n]=[]) }
 function bubbleHTML(m,name){ return `<div class="bub ${m.f==='me'?'me':'them'}">${esc(m.t)}<small>${esc(m.when||'')}</small></div>` }
 function chatWhen(){ return `${G.day}일째 ${isWeekend()?'(주말) ':''}${G.time==='낮'&&slotIdx()>=0?slotLabel():G.time}` }
 function chatPush(name,f,t){ const a=chatSt(name); G.chatSeq=(G.chatSeq||0)+1; a.push({f,t:String(t).slice(0,200),when:chatWhen(),n:G.chatSeq,who:name}); while(a.length>24) a.shift() }
+/* 상대가 먼저 만나자고 제안할 확률: 기본 20%에 호감 레벨당 +0.5%p(최대 35%). 플레이어가 만나자고 했거나 '제안' 주제의 먼저 온 문자는 항상 허용 */
+const CHAT_PROPOSE_P=0.2;
+function chatMayPropose(name,incomingTopic){
+  if(incomingTopic==='invite') return true;
+  const lastMe=[...chatSt(name)].reverse().find(m=>m.f==='me');
+  if(lastMe&&APPT_CUE.test(lastMe.t)) return true;
+  return Math.random()<Math.min(0.35,CHAT_PROPOSE_P+0.005*relLv(name));
+}
 function chatPrompt(name,incomingTopic,rumor){
   const r=getRel(name), isY=name==='유민', lex=(G.lexicon||[]).find(e=>e.name===name);
   const hist=chatSt(name).slice(-8).map(m=>`${m.f==='me'?G.char.name:name}: ${m.t}`).join('\n')||'(첫 문자)';
@@ -4341,7 +4349,7 @@ ${inZone?'플레이어는 구역 안이라 신호가 약해 문자가 끊기고 
 최근 문자:
 ${hist}
 ${incomingTopic?`${name}이(가) 플레이어에게 먼저 문자를 보낸다. 내용: ${top}.`:'플레이어의 마지막 문자에 대한 답장을 쓴다.'}
-규칙: 먼저 만나자고 약속을 잡으려 하지 않는다(플레이어가 만나자고 했거나 안부·소문 전달 주제에서 자연스러울 때만, 대부분의 답장은 약속 없이 대화로 끝낸다). 급식실은 점심시간에만 열리니 다른 때에 급식실에서 밥을 먹거나 만나자고 하지 않는다. 학생·교직원 인물의 말투로 문자답게 1~2문장(40자 안팎). 숨겨진 진실을 직접 밝히지 않는다. 관계 단계가 연애 단계라면 설렘·다정한 말·데이트 제안은 가능하다. 새로운 사실을 만들 때는 사소한 것만.
+규칙: ${chatMayPropose(name,incomingTopic)?'이번 답장에서는 자연스러우면 만나자고 먼저 제안해도 좋다(학교 안 장소와 때를 구체적으로, 급식실은 점심시간에만).':'이번 답장에는 만나자는 제안·약속을 넣지 않고 대화로 끝낸다.'} 급식실은 점심시간에만 열리니 다른 때에 급식실에서 밥을 먹거나 만나자고 하지 않는다. 학생·교직원 인물의 말투로 문자답게 1~2문장(40자 안팎). 숨겨진 진실을 직접 밝히지 않는다. 관계 단계가 연애 단계라면 설렘·다정한 말·데이트 제안은 가능하다. 새로운 사실을 만들 때는 사소한 것만.
 플레이어가 먼저 만나자고 했거나 네가 한 제안을 플레이어가 받아들여 장소와 때가 정해졌을 때만 appointment에 {"place":"학교 안 장소·아지트·학원가 골목 중 하나","when":"방과 후|점심시간|쉬는 시간|저녁|내일 아침 등"}을 적는다(없으면 null). 
 JSON만: {"reply":"문자 내용","affinity":0 또는 1,"hint":"상대가 실제로 알려 주는 단서·소문이 있으면 한 문장, 없으면 빈 문자열","appointment":null}`;
 }
