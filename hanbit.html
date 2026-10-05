@@ -1728,7 +1728,7 @@ const waitDays=t=>{ const m=String(t).match(/(\d+)\s*일/); if(m) return Math.mi
 const inZone=()=>!!G.site&&['site','shelter','road'].includes(G.loc);
 const itemIn=t=>G.items.findIndex(it=>it&&String(it).length>=2&&t.includes(it));
 function sleepHere(){ const L=G.loc; if(L==='campus'||L==='hood') campusRest(); else if(L==='home') homeRest(); else if(L==='shelter') breakCamp(); else shelterHere() }
-function sleepLabel(){ const L=G.loc; return L==='campus'||L==='hood'?'🛏 잠들기 (기숙사 · 무료 · 하루 경과)':L==='home'?'🛏 아지트에서 쉬기 (하루 경과)':L==='shelter'?'🌅 아침까지 쉬기':'⛺ 임시 쉼터 (공포 +1·배터리 -1, 야간이 지남)' }
+function sleepLabel(){ const L=G.loc; return L==='campus'||L==='hood'?'🛏 잠들기 (기숙사 · 무료 · 하루 경과)':L==='home'?'🛏 아지트에서 쉬기 (하루 경과)':L==='shelter'?'🌅 아침까지 쉬기':'⛺ 임시 쉼터 (체력·공포·배터리 회복, 야간이 지남)' }
 
 /* 글로 쓴 행동 → 게임 기능. 위에서부터 처음 맞는 것 하나만.
    run()이 false를 돌려주면 '수정만 하고 이야기로 계속'(예: 기다리기, 물건 버리기) */
@@ -3406,20 +3406,21 @@ function moveTo(id){
   if(first&&yuminEventReady()&&Math.random()<0.2) ev=' '+yuminEventText(`구역 「${d.name}」의 ${r.name}`);
   aiTurn(`「${r.name}」(으)로 이동한다`,(first?'[처음 들어서는 공간이다. 공간의 모습과 첫인상, 눈에 띄는 것을 묘사하라.]':'[이미 와 본 공간이다. 짧게 묘사하라.]')+ev);
 }
+const SHELTER_HEAL=0.4, SHELTER_CALM=2, SHELTER_BATTERY=2;   // 임시 쉼터를 마련하면 체력(최대의 40%)·공포 −2·배터리 +2칸 회복
 function shelterHere(){
   if(busy) return;
   const where=G.loc==='site'?curRoom():null;
   if(where&&where.danger>=SHELTER_BLOCK_DANGER) return toast('이곳은 너무 위험해서 임시 쉼터를 만들 수 없습니다');
   sfx('shelter');
   const from=G.loc;
-  const fed=G.calm>0&&G.battery>0;
-  if(G.calm>0) G.calm--; if(G.battery>0) textDrain(1);
-  const heal=fed?Math.ceil(G.maxhp*0.4):1;
+  const heal=Math.ceil(G.maxhp*SHELTER_HEAL);
+  const dc=Math.min(SHELTER_CALM,fearNow()), db=Math.min(SHELTER_BATTERY,Math.max(0,capF()-G.battery));
+  G.calm=Math.min(capW(),G.calm+dc); G.battery+=db;
   G.hp=clamp(G.hp+heal,0,G.maxhp);
   G.time='야간'; G.dayStep=0; G.loc='shelter'; if(from!=='shelter') G._shelterFrom=from;
   wardShelterReset();
-  addLog('sys',`임시 쉼터를 마련했습니다. 공포 +1, 배터리 -1%, 체력 +${heal}${fed?'':' (공포 여유나 배터리가 부족해 거의 회복하지 못했습니다)'}`);
-  let ex='[임시 쉼터 장면] 구역 속이나 뒷길의 임시 쉼터. 랜턴 불빛, 환풍기 소리, 생각. 30% 확률로 작은 사건(방문자, 이상한 소리, 꿈, 점호 방송의 잡음)이 생긴다. 사건이 있으면 선택지로 대응하게 하라. 체력 effects는 0으로 두라(회복은 코드가 처리함).';
+  addLog('sys',`임시 쉼터를 마련했습니다. 체력 +${heal}, 공포 −${dc}, 배터리 +${db} (${batteryPct()}%)`);
+  let ex='[임시 쉼터 장면] 구역 속이나 뒷길의 임시 쉼터. 랜턴 불빛, 환풍기 소리, 생각. 30% 확률로 작은 사건(방문자, 이상한 소리, 꿈, 점호 방송의 잡음)이 생긴다. 사건이 있으면 선택지로 대응하게 하라. 체력·공포·배터리 effects는 0으로 두라(회복은 코드가 이미 처리함; 몸과 마음이 한결 가벼워진 느낌만 서술).';
   if(G.comp&&G.comp.joined){ changeAff(affGate(3),null); ex+=' [유민과의 임시 쉼터] 랜턴 불빛 곁에서 유민과 나누는 대화가 장면의 중심이다. 호감도 단계에 맞게: 낮으면 농담과 가벼운 노래, 중간이면 플레이어의 몸 상태를 챙기며 진심 한 조각, 높으면 플레이어의 여정을 담은 노래와 유민 자신의 숨겨온 이야기. 선택지에 유민에게 하는 말을 포함하라.'+relArmText('유민',0.7)+(G.relEvt?'':yuminArcArm(0.7)) }
   else if(yuminEventReady()&&Math.random()<0.35) ex+=' '+yuminEventText('랜턴 불빛을 보고 찾아온 임시 쉼터');
   aiTurn('랜턴을 켜고 임시 쉼터를 마련한다',ex,false);
@@ -7770,7 +7771,7 @@ function openGuide(){
     ${h3('행동별 비용')}
     ${row('구역 조사 출발','떠난 곳에서 구역까지 지도 거리만큼 (반나절 단위) — 반나절마다 공포 +1·배터리 −1%, 탈것 충전 1회. 두 단계(거의 하루) 이상이면 길 위의 사건이 생길 수 있음. 아지트 작업대가 있으면 손전등 +1, 소중한 연인이 있으면 그가 챙겨 준 보조배터리 +1. 공포 여유와 배터리가 최소 1씩 필요하고, 야간·새벽에 출발하면 무단 외출 벌점')}
     ${row('귀환','떠나온 지구(없으면 중앙 캠퍼스 지구)까지 지도 거리만큼 — 반나절마다 공포 +1·배터리 −1% (모자라면 체력), 충전은 없음. 두 단계(거의 하루) 이상이면 길 위의 사건. 수몰 구역은 보트로 선착장까지(대여료는 왕복 요금에 포함). 자재: 철제 부품 +(방문한 공간 수 ÷ 2, 올림 — 이어 조사한 구역은 새로 본 공간만큼만), 합판은 50% 확률로 +1')}
-    ${row('임시 쉼터','공포 +1, 배터리 -1%, 시간은 야간으로, 체력 40% 회복 (공포 여유·배터리가 없으면 거의 회복 못함). 아침이 되면 하루 경과하고 배터리가 +'+SLEEP_BATTERY+'칸(용량 한도까지) 충전되며 임시 쉼터를 시작한 곳으로. 기숙사 밖(임시 쉼터·아지트)에서 하룻밤을 보내면 '+Math.round(OUTSIDE_NIGHT_P*100)+'% 확률로 점호 불참이 적발되어 벌점 +1~+2')}
+    ${row('임시 쉼터','체력 '+Math.round(SHELTER_HEAL*100)+'% 회복, 공포 −'+SHELTER_CALM+', 배터리 +'+SHELTER_BATTERY+'칸, 시간은 야간으로. 아침이 되면 하루 경과하고 배터리가 +'+SLEEP_BATTERY+'칸(용량 한도까지) 충전되며 임시 쉼터를 시작한 곳으로. 기숙사 밖(임시 쉼터·아지트)에서 하룻밤을 보내면 '+Math.round(OUTSIDE_NIGHT_P*100)+'% 확률로 점호 불참이 적발되어 벌점 +1~+2')}
     ${row('🏠 아지트에서 잠들기','아지트를 마련했다면 방과 후 이후 학교 안 어느 곳에서든 「아지트로 가서 잠들기」를 쓸 수 있습니다. 무료이고 체력과 공포가 회복되고 배터리 +'+SLEEP_BATTERY+'칸, 하루가 지납니다. 소등 후에는 몰래 나가는 것이라 적발될 수 있고(기숙사 문이 잠겨 이미 밖에 있다면 바로 갈 수 있음), 기숙사의 점호 벌점 감소는 없으며 기숙사 밖 하룻밤 적발 확률('+Math.round(OUTSIDE_NIGHT_P*100)+'%)이 적용됩니다')}
     ${row('🛏 잠들기','기숙사의 「잠들기」 버튼(학교 안 어느 지점에서든 방과 후 이후에 보입니다): 무료, 체력 전부 회복, 하루 경과, 배터리 +'+SLEEP_BATTERY+'칸, 벌점이 있으면 -1. 소등 후에는 기숙사 출입 판정을 거칩니다')}
     ${row('급식실','점심시간에만 식사를 줍니다. 일과의 🍚 급식 먹기는 무료, 급식실의 🍚 식사하며 소문 듣기는 💳5 (모두 1걸음)')}
