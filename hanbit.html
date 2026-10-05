@@ -551,6 +551,7 @@ function fearNow(){ return clamp(fearMax()-G.calm,0,fearMax()) }   // 내부 값
 function fearRatio(){ const m=fearMax(); return m>0?fearNow()/m:0 }
 function batteryPct(){ const m=capF(); return m>0&&G.battery>0?Math.max(0,Math.round(G.battery/m*100-(G.textUse||0))):0 }
 /* 문자 1통 = 배터리 1% — 칸으로는 쪼개 두었다가 1칸어치(100/최대치 %)가 쌓이면 한 칸 닳음 */
+const CALL_DRAIN=3;   // 전화 1통 = 배터리 3% (문자는 1%)
 function textDrain(u){
   const m=capF(); if(m<=0||G.battery<=0){ G.textUse=0; return }
   G.textUse=(G.textUse||0)+(u==null?1:u);
@@ -578,7 +579,7 @@ function syncSchedule(){
   SCHOOL.splice(0,SCHOOL.length,...want);
   CLASS_SLOTS.splice(0,CLASS_SLOTS.length,...(we?[]:[1,3,5,7]));
 }
-const MOVE_STEPS={calm:8,calmFrugal:11,battery:10,torch:5,half:8,quarter:4};   // quarter: 시간대(낮·방과 후·야간·새벽) 하나가 바뀌는 걸음 수 — 하루 16걸음은 그대로
+const MOVE_STEPS={calm:8,calmFrugal:11,battery:5,torch:5,half:8,quarter:4};   // quarter: 시간대(낮·방과 후·야간·새벽) 하나가 바뀌는 걸음 수 — 하루 16걸음은 그대로
 
 /* ---------- 아지트 ---------- */
 const MATS=[{k:'metal',n:'철제 부품',i:'🔩'},{k:'ply',n:'합판',i:'🪵'},{k:'wire',n:'전선',i:'🔌'},{k:'keepsake',n:'유실물',i:'📦'}];
@@ -2020,12 +2021,12 @@ function judgeNeeds(t){
 }
 function needState(){
   const w=G.calm, f=G.battery;
-  const iv=fearInterval(), toW=iv-(G.steps%iv), toF=MOVE_STEPS.battery-(G.steps%MOVE_STEPS.battery);
+  const iv=fearInterval(), toW=iv-(G.steps%iv), toF=MOVE_STEPS.battery-(G.steps%MOVE_STEPS.battery), pf=batteryPct();
   if(isHood()) return {w,f,wl:'지구·아지트에서는 공포가 쌓이지 않음',fl:'지구·아지트에서는 닳지 않음',wWarn:false,fWarn:false};
   return {w,f,
     wl:w>=2?'공포 여유 있음':(w===1?`공포가 곧 한계 (약 ${toW}걸음)`:'공포 한계 — 체력 감소 중'),
-    fl:f>=2?'배터리 여유 있음':(f===1?`배터리가 곧 방전 (약 ${toF}걸음)`:'방전 — 체력 감소 중'),
-    wWarn:w<=1,fWarn:f<=1};
+    fl:pf>=20?'배터리 여유 있음':(pf>0?`배터리가 곧 방전 (약 ${toF+(pf-1)*MOVE_STEPS.battery}걸음)`:'방전 — 체력 감소 중'),
+    wWarn:w<=1,fWarn:pf<20};
 }
 on('facts',10,(o,rules)=>{
   const n=needState();
@@ -4362,7 +4363,7 @@ on('facts',80,o=>{ updateYuminSpot(); if(G.comp&&G.comp.met) o.유민위치=G.co
 
 /* =========================================================
    휴대폰 — 아는 사람에게 전화·문자 (유민 포함)
-   - 전화는 배터리 1을 쓰고 시간이 한 칸 흐름. 문자는 시간이 흐르지 않고, 1통을 보낼 때마다 배터리 1%
+   - 전화는 배터리 3%를 쓰고 시간이 한 칸 흐름. 문자는 시간이 흐르지 않고, 1통을 보낼 때마다 배터리 1%
    - 수업 중·소등 후에는 몰래 써야 하고 확률로 적발(벌점 +1, 그 시간대 휴대폰 압수). 수업 중 전화는 불가
    - 구역 안에서는 전파가 잡히지 않음. 유민에게는 '만나자고 하기'도 가능
    ========================================================= */
@@ -4554,11 +4555,11 @@ function openPhone(){
       <div class="muted" style="font-size:12px">📍 ${esc(contactWhere(n))}</div>
       <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:4px">
         <button class="small primary" data-n="${esc(n)}" onclick="openChat(this.dataset.n)">💬 문자 (팝업 대화)</button>
-        <button class="small" data-n="${esc(n)}" ${callWhy&&callWhy!==why?'disabled':''} onclick="phoneAct(this.dataset.n,'call')" title="${esc(callWhy)}">📞 전화하기 (배터리 −1)</button>
+        <button class="small" data-n="${esc(n)}" ${callWhy&&callWhy!==why?'disabled':''} onclick="phoneAct(this.dataset.n,'call')" title="${esc(callWhy)}">📞 전화하기 (배터리 −${CALL_DRAIN}%)</button>
         ${n==='유민'&&!G.comp.joined?`<button class="small" onclick="phoneAct('유민','meet')">📍 만나자고 하기</button>`:''}
       </div></div>`;
   }).join('')||'<p class="muted">아직 연락처에 저장된 사람이 없습니다. 이야기에서 만난 사람이 연락처에 추가됩니다.</p>';
-  modal('📱 휴대폰',`<details style="margin-bottom:6px"${(G.appts||[]).length?' open':''}><summary><b>📅 약속 ${(G.appts||[]).length}건</b> <span class="muted" style="font-size:12px">(때·장소 수정, 취소)</span></summary>${apptListHTML()}</details><p class="muted" style="font-size:13px">🔋 배터리 ${batteryPct()}%${why?` · <b>${esc(why)}</b>`:''}${!why&&rs?` · ⚠ ${rs}에는 몰래 써야 하고 들키면 벌점(적발 확률 약 ${Math.round(phoneCatchP()*100)}%)`:''}<br>문자는 시간이 흐르지 않지만 1통을 보낼 때마다 배터리가 1% 닳고, 전화는 배터리 1을 쓰며 시간이 한 칸 흐릅니다.</p>
+  modal('📱 휴대폰',`<details style="margin-bottom:6px"${(G.appts||[]).length?' open':''}><summary><b>📅 약속 ${(G.appts||[]).length}건</b> <span class="muted" style="font-size:12px">(때·장소 수정, 취소)</span></summary>${apptListHTML()}</details><p class="muted" style="font-size:13px">🔋 배터리 ${batteryPct()}%${why?` · <b>${esc(why)}</b>`:''}${!why&&rs?` · ⚠ ${rs}에는 몰래 써야 하고 들키면 벌점(적발 확률 약 ${Math.round(phoneCatchP()*100)}%)`:''}<br>문자는 시간이 흐르지 않지만 1통을 보낼 때마다 배터리가 1% 닳고, 전화는 배터리 3%를 쓰며 시간이 한 칸 흐릅니다.</p>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px">${chips}</div>
     <textarea id="phMsg" rows="2" placeholder="보낼 말이나 통화 용건 (비워 두면 가볍게 안부를 묻습니다)" style="width:100%;margin-bottom:8px"></textarea>
     ${rows}`);
@@ -4579,7 +4580,7 @@ function phoneAct(name,kind){
   if(caught){
     return aiTurn(kind==='call'?`${name}에게 전화를 건다`:`${name}에게 문자를 보낸다`,`[휴대폰 압수]${phoneSceneNote()} 플레이어가 ${rs}에 몰래 휴대폰을 꺼내다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 연락은 닿지 않았다. 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
   }
-  if(kind==='call'){ G.battery=Math.max(0,G.battery-1); tick() }
+  if(kind==='call'){ textDrain(CALL_DRAIN); tick() }
   G._yuminHere=false;
   const inZone=!!(G.site||G.loc==='site'||G.loc==='shelter');
   const secret=(rs?` ${rs}이라 플레이어는 몰래 쓰는 중이다. 소리를 죽이고 속삭이듯.`:'')+(inZone?' 플레이어는 지금 구역 안이라 신호가 약해 문자가 느리게, 끊겨서 오간다. 답장이 짧거나 한 글자씩 깨져도 좋다.':'');
@@ -7681,7 +7682,7 @@ function openGuide(){
   let live='';
   if(g){
     const iv=fearInterval(), toW=iv-(G.steps%iv), toF=MOVE_STEPS.battery-(G.steps%MOVE_STEPS.battery), toH=blockLen()-(G.dayStep||0);
-    const wLast=toW+Math.max(0,G.calm-1)*iv, fLast=toF+Math.max(0,G.battery-1)*MOVE_STEPS.battery;
+    const wLast=toW+Math.max(0,G.calm-1)*iv, fLast=toF+Math.max(0,batteryPct()-1)*MOVE_STEPS.battery;
     const nextT=TIMES[(Math.max(0,TIMES.indexOf(G.time))+1)%TIMES.length];
     live=h3('지금 내 상태')+
       (isHood()?row('😨 공포 · 🔋 배터리',`${fearNow()}/${fearMax()} · ${batteryPct()}% — 지구·아지트에서는 변하지 않음`):
@@ -7740,7 +7741,7 @@ function openGuide(){
     ${row('🏃 땡땡이치기',`수업 한 칸을 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}`)}
     ${h3('걸음에 따른 변화 (한빛시·구역에서만)')}
     ${row('😨 공포',`걸을 때 ${MOVE_STEPS.calm}걸음마다 +1 (하루 꼬박 움직이면 약 ${Math.round((SCHOOL.length+MOVE_STEPS.quarter*(TIMES.length-1))/MOVE_STEPS.calm)}) · 이동·기다리기는 하루 +1 — 걸음에는 헤매는 몫까지 들어 있어 더 쌓입니다<br><span class="muted">"담력" 특성: ${MOVE_STEPS.calmFrugal}걸음마다 · 떠돌이 개(친근한 사이부터) +1걸음</span>`)}
-    ${row('🔋 배터리',`${MOVE_STEPS.battery}걸음마다 -1`)}
+    ${row('🔋 배터리',`${MOVE_STEPS.battery}걸음마다 −1% · 문자 −1% · 전화 −${CALL_DRAIN}% (시간 한 칸)`)}
     ${row('🔦 손전등',`구역에서 공간을 ${MOVE_STEPS.torch}번 옮길 때마다 -1`)}
     ${row('한계에 닿으면','공포가 한계이거나 배터리가 0인 채 주기가 오면 체력 -1')}
     ${row('🌑 손전등 0 (어둠)',`구역 안에서: 공간 이동 2걸음 · ${Math.round(DARK_STUMBLE*100)}% 확률로 넘어져 체력 -1 · 단서와 교표 조각을 찾지 못함 · 판정 -2 (매력 제외). 「밤눈」 특성이 있으면 모두 면제`)}
@@ -7797,9 +7798,9 @@ function openGuide(){
     ${row('등급이 정해지는 때','구역에서 유실물을 얻는 순간 코드가 정함. 위험한 공간일수록, 구 신시가 재개발지구 근처 구역일수록 좋은 등급이 잘 나옴')}
     ${row('팔기','아지트 작업대에서 감정가대로 · 재개발지구 고물상은 20% 더. 시설 꾸미기·선물에는 흔한 유실물부터 쓰임')}
     ${h3('조사 외출 한 번의 대략적 소모 (구역 안에서 13걸음 가정)')}
-    ${row('탈것 없음',`공포 약 +${e0.w} · 배터리 약 −${e0.f}`)}
-    ${row('자전거',`공포 약 +${e1.w} · 배터리 약 −${e1.f}+충전 ${RIDES.bike.feed} (철제 부품 +1)`)}
-    ${row('전동 스쿠터',`공포 약 +${e3.w} · 배터리 약 −${e3.f}+충전 ${RIDES.scooter.feed} (철제 부품 +1, 합판이나 전선 +1)`)}
+    ${row('탈것 없음',`공포 약 +${e0.w} · 배터리 약 −${e0.f}%`)}
+    ${row('자전거',`공포 약 +${e1.w} · 배터리 약 −${e1.f}%+충전 ${RIDES.bike.feed} (철제 부품 +1)`)}
+    ${row('전동 스쿠터',`공포 약 +${e3.w} · 배터리 약 −${e3.f}%+충전 ${RIDES.scooter.feed} (철제 부품 +1, 합판이나 전선 +1)`)}
     <p class="muted">손전등은 별도로 약 2~3개. 전동 스쿠터: 걸음당 공포 누적 주기가 ${RIDES.scooter.fearStep}걸음 늘고, 이동·조사 외출 출발과 귀환 때 공포가 절반만 쌓입니다(일수÷2, 내림). 임시 쉼터를 마련할 때는 공포가 쌓입니다.</p>
     ${h3('휴대 용량')}
     ${row('기본 용량',`공포 한계 ${CAP_BASE} · 배터리 ${CAP_BASE} · 손전등 ${CAP_BASE}`)}
