@@ -1229,7 +1229,7 @@ function sceneContext(){
   else{
     const d=G.site, r=curRoom();
     const exits=r.exits.map(id=>(d.rooms.find(x=>x.id===id)||{}).name).join(', ');
-    s=`현재 위치: 구역 「${d.name}」 (주제: ${d.theme}) / 구역 내부 공간: ${r.name} (깊이 ${d.depth}, 위험도 ${r.danger}/3)\n공간의 설정 메모: ${r.desc}\n연결된 공간: ${exits}`;
+    s=`현재 위치: 구역 「${d.name}」 (주제: ${d.mystery?(mysteryPlan(d)?.question||'사건 준비 중'):d.theme}) / 구역 내부 공간: ${r.name} (깊이 ${d.depth}, 위험도 ${r.danger}/3)\n공간의 공개 묘사: ${d.mystery?(mysteryPlan(d)?.room_views.find(x=>x.room===r.id)?.text||'사건 준비 중 — 숨은 정보를 묘사하지 않는다'):r.desc}\n연결된 공간: ${exits}`;
     if(r.fragment&&!r.fragTaken) s+=`\n[비밀] 이 공간에는 교표 조각이 숨어 있다. 플레이어가 주의 깊게 조사하거나 장애물(교칙, 수수께끼, 괴이)을 넘기면 발견하게 하고, 그때 effects의 교표조각을 true로 하라. 쉽게 주지는 말 것.`;
     if(G.torch<=0) s+=hasTrait('밤눈')?'\n손전등이 다 떨어졌지만 플레이어는 밤눈이 밝아 희미하게나마 볼 수 있다.':'\n[어둠] 손전등이 꺼져 거의 아무것도 보이지 않는다(휴대폰 화면 불빛만 겨우). 손으로 더듬어 움직인다. 이 상태에서는 단서나 교표 조각을 찾아내지 못한다(교표조각은 false). 빛을 구하는 선택지를 하나 넣어라.';
   }
@@ -1255,7 +1255,7 @@ function buildPrompt(action,extra=''){
   const allText=action+' '+G.recent.map(r=>r.text).join(' ')+' '+ctx;
   const met=!!(G.comp&&G.comp.met), yn=met&&yuminNeeded(allText);
   const stable=`${G.act>=4?'[숨겨진 진실 — 결말: 지워진 일곱 구역을 모두 찾았으므로 이제 밝혀도 된다. 정체와 엔딩은 네가 정해 온 사실과 단서에 맞춘다]':'[숨겨진 진실 — 플레이어에게 절대 직접 밝히지 말 것]'}
-학원도시가 숨긴 것의 정체(네가 정한 사실): ${G.secret?.truth||'미정 — 단서가 필요해질 때 네가 일관되게 정하고 떡밥 장부에 기록하라'} / ${G.secret?.detail||''}
+학원도시가 숨긴 것의 정체(네가 정한 사실): ${G.act>=4?`${G.secret?.truth||''} / ${G.secret?.detail||''}`:'비공개 설계에 고정되어 있다. 서술 AI는 정답을 새로 만들거나 공개하지 않는다.'}
 
 [떡밥 장부 — 네가 정한 사실(교칙·정체·약속 등). 이와 모순되게 쓰지 말 것]
 ${(G.ledger||[]).map(x=>String(x).slice(0,120)).join('\n')||'(아직 없음)'}
@@ -1350,6 +1350,10 @@ function metaOf(c){ return G&&G.choiceMeta?G.choiceMeta[String(c)]||null:null }
 let curTurn=null;     // 진행 중인 턴의 정보 (훅들이 공유)
 async function aiTurn(action,extra='',showAction=true){
   if(busy||!G) return;
+  if(G._privateMysteryVersion===1&&G.loc==='site'&&G.site&&!G.site.mystery&&!G.site.done&&!(G.site.lore&&G.site.lore.recorded)){
+    const g=G,d=G.site; busy=true; render(); await ensureMystery(d); if(G!==g) return; busy=false;
+  }
+  if(G.loc==='site'&&G.site&&G.site.mystery&&!mysteryPlan()) return toast('검증된 사건을 준비한 뒤 조사해 주세요. 사건 준비 재시도를 눌러 주세요');
   const T=curTurn={action:String(action||''),extra:extra||'',showAction,g:G,loc:G.loc,room:curRoom(),frags:G.fragments,flags:{}};
   run('before',T);
   busy=true;
@@ -1363,20 +1367,21 @@ async function aiTurn(action,extra='',showAction=true){
   if(G!==T.g){ busy=false; return }
   const ok=!!(res&&res.narration);
   if(!ok){ res=T.flags.parting?{narration:`${T.flags.parting.name}${josa(T.flags.parting.name,'과','와')} 짧게 인사를 나눈다. 상대는 손을 흔들고 각자의 길로 떠난다.`,choices:[],effects:{},chronicle:''}:fallbackTurn(T.action); G.choiceMeta={} }
+  if(T.flags.privateMystery&&!ok){ res.narration=T.mysteryOutcome?.e?`조사 결과를 확인한다. ${T.mysteryOutcome.e.text}`:T.mysteryOutcome?.type==='verified'?`검증을 수행한다. ${mysteryPlan()?.verification.result||''}`:'이 공간에서 이미 확인한 사실을 되짚는다. 새로운 핵심 증거는 발견하지 않는다.'; res.effects={} }
   T.res=res;
   addLog('scene',res.narration);
   G.recent.push({role:'scene',text:stripMd(res.narration)});
   applyEffects(res.effects||{},T);
   applyPlace(res);
   try{ applyAppt(res,T.action) }catch(e){ console.warn(e) }
-  if(res.clue&&!T.flags.storyOnly) addCanon(res.clue);
+  if(res.clue&&!T.flags.storyOnly&&!T.flags.privateMystery) addCanon(res.clue);
   if(!T.flags.parting) applyBellSync(res);
   G._evtTurn=false;
   if(G.relEvt){ if(G._relSetup) G._relSetup=false; else if(++G.relEvt.turns>=4){ getRel(G.relEvt.name).cool=G.day+1; G.relEvt=null } }
   if(res.chronicle&&String(res.chronicle).trim()) G.chronicle.push({day:G.day,text:stripMd(String(res.chronicle).trim())});
   G.choices=(res.choices||[]).slice(0,4);
   busy=false;
-  if(ok&&!T.flags.storyOnly) queueLex(stripMd(res.narration),T.action);
+  if(ok&&!T.flags.storyOnly&&!T.flags.privateMystery) queueLex(stripMd(res.narration),T.action);
   await maybeSummarize();
   checkState();
   run('after',T);
@@ -1606,7 +1611,7 @@ function fillChoices(arr,fill,min=3){
   for(const f of fill){ if(arr.length>=min||roomExhausted()) break; if(!arr.includes(f)) arr.push(f) }
   return arr;
 }
-function roomExhausted(){ try{ if(!G||G.loc!=='site') return false; const r=curRoom(); return !!(r&&r.exhausted) }catch(_){ return false } }
+function roomExhausted(){ if(G&&G.site&&mysteryPlan()&&!G.site.mystery.state.solved) return false; try{ if(!G||G.loc!=='site') return false; const r=curRoom(); return !!(r&&r.exhausted) }catch(_){ return false } }
 
 /* ---------- 4-10. 입력: 직접 입력 · 선택지 · 고정 버튼 ----------
    원칙: 숫자·위치·시간이 바뀌는 행동은 게임 기능(INTENTS), "어떻게·왜·누구와"는 이야기(story)
@@ -1928,11 +1933,12 @@ function gameActions(){
     if(r){
       for(const id of r.exits||[]){ const target=G.site.rooms.find(x=>x.id===id); if(target) add(roomActionId('move',id),target.visited?target.name:'연결된 미탐험 공간',()=>moveTo(id),'move') }
       if(!roomExhausted()){
-        add(roomActionId('observe',r.id),'현재 공간 살펴보기',(text,opt)=>story(text||'주변을 둘러본다',{src:opt.src||'fixed'}),'investigate');
-        add(roomActionId('investigate',r.id),'현재 공간 조사하기',(text,opt)=>story(text||'이곳을 꼼꼼히 조사한다',{src:opt.src||'fixed'}),'investigate');
+        add(roomActionId('observe',r.id),'현재 공간 살펴보기',(text,opt)=>{ pend('',{caseInvestigate:true});return story(text||'주변을 둘러본다',{src:opt.src||'fixed'}) },'investigate');
+        add(roomActionId('investigate',r.id),'현재 공간 조사하기',(text,opt)=>{ pend('',{caseInvestigate:true});return story(text||'이곳을 꼼꼼히 조사한다',{src:opt.src||'fixed'}) },'investigate');
       }
       if((r.danger||0)<SHELTER_BLOCK_DANGER) add('shelter:setup','임시 쉼터 마련',()=>shelterHere());
     }
+    if(canVerifyMystery()) add(mysteryVerifyId(),'확보한 근거로 원인 검증',()=>verifyMystery(),'investigate');
     add('zone:exit','구역 밖으로 나가기',()=>exitZone(),'move');
     add('zone:return','떠나온 지구로 귀환',()=>returnToCampus(),'move');
   }else if(G.loc==='campus'){
@@ -2062,6 +2068,7 @@ function act(text,opt={}){
 /* 이야기로 진행: 공포·배터리 판정 → 걸음 → 서술 AI */
 function story(t,opt={}){
   if(busy||!G) return;
+  if(G.loc==='site'&&G.site&&G.site.mystery&&!mysteryPlan()) return toast('사건 준비 재시도로 검증된 사건을 먼저 준비해 주세요');
   const soft=G.loc==='site'||G.loc==='shelter'; // 직접 입력·선택지·고정 버튼의 시간 비용 동일
   const j=judgeNeeds(t);
   if(j){ j.logs.forEach(l=>addLog('fx',l)); pend(j.note,j.flags) }
@@ -3608,6 +3615,7 @@ ${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}\n[확정 단서 — 모순�
 - 구역 내부 공간(교실, 복도, 방송실, 배수 터널 등) 4~6개. 첫 공간 id는 "r1"(입구). 각 공간은 1~3개 공간과 연결(exits). 깊을수록 위험도(danger 0~3) 높게.
 - 각 공간에는 이름, 짧은 묘사(desc, AI 서술용 비밀 메모 1~2문장: 교칙의 흔적·사연 등), 단서 또는 위험 요소 하나(hook)를 넣는다.
 - 세계의 진상을 직접 밝히지 않는다.
+공간 이름과 주제에는 원인/범인/정답을 쓰지 말고 현상과 배경만 쓴다.
 JSON만 출력:
 {"name":"구역 이름","theme":"주제 한 줄","intro":"구역에 도착했을 때의 서술 ${narrCfg().s[0]}~${narrCfg().s[1]}문장(${narrCfg().p}, 이동 메모가 있으면 첫 문장에 이동 과정), 2인칭 현재형","rooms":[{"id":"r1","name":"공간 이름","desc":"비밀 메모","hook":"단서 또는 위험 요소 하나","exits":["r2"],"danger":0}]}`;
   if(era) prompt+=loreRequest(era,hasFrag);
@@ -3627,10 +3635,11 @@ JSON만 출력:
   G.site={rich,name:d.name||'이름 모를 구역',theme:d.theme||'오래 방치된 폐시설',rooms,cur:start.id,depth:0,pos:G.nextPos||pickPos()};
   G.nextPos=null;
   start.visited=true;
-  addLex({name:G.site.name,cat:'장소',desc:G.site.theme},true);
+  addLex({name:G.site.name,cat:'장소',desc:'사건 구성을 준비 중인 조사 장소'},true);
   if(era) attachLore(era,raw,hasFrag);
   if(rivalRaceSetupPending){ rivalRaceSetupPending=false; rivalRaceSetup(G.site) }
-  return d.intro;
+  await ensureMystery(G.site);
+  return mysteryPlan()?.opening||'구역 입구에 도착한다. 사건 구성을 준비한 뒤 조사를 시작할 수 있다.';
 }
 function fallbackSite(){
   const names=['잠긴 현관','불 꺼진 복도','물이 찬 교실','낙서투성이 게시판 앞','잠긴 방송실','배수 터널 입구','출석부가 놓인 마지막 공간'];
@@ -3774,7 +3783,7 @@ function siteProg(){
   const seen=new Set(d.rooms.filter(r=>r.visited).map(r=>r.id));
   d.rooms.forEach(r=>{ if(r.visited) r.exits.forEach(x=>seen.add(x)) });
   const found=[...seen].filter(id=>{ const r=d.rooms.find(x=>x.id===id); return r&&!r.visited }).length;
-  return {total,vis,found,hidden:total-vis-found,done:vis>=total};
+  return {total,vis,found,hidden:total-vis-found,done:vis>=total&&(!d.mystery||d.mystery.state?.solved)};
 }
 /* 귀환 (떠나온 지구 · 중앙 캠퍼스 지구 · 섬은 선착장). skipConfirm: 다른 기능(아지트 이동 등)이 이미 확인을 받은 경우 */
 async function returnToCampus(skipConfirm){
@@ -3788,7 +3797,7 @@ async function returnToCampus(skipConfirm){
   closeModal();
   if(G.loc==='site'){ advanceClock(zoneExitTicks()); resetSoftClock(); G.loc='road' }
   if(d){
-    const done=d.rooms.every(r=>r.visited), vis=d.rooms.filter(r=>r.visited).length;
+    const done=d.rooms.every(r=>r.visited)&&(!d.mystery||d.mystery.state?.solved), vis=d.rooms.filter(r=>r.visited).length;
     const st=Math.max(0,Math.ceil(vis/2)-(d.metalGot||0)); d.metalGot=(d.metalGot||0)+st;   // 이어 조사한 구역은 새로 본 방만큼만
     archiveSite();
     if(done&&!d.big) G.sitesDone++;
@@ -3814,7 +3823,7 @@ function returnRoute(){
 function archiveSite(){
   const d=G.site; if(!d) return;
   if(d.big){ G.bigZones=G.bigZones||{}; if(d.done) delete G.bigZones[d.key]; else G.bigZones[d.key]=JSON.parse(JSON.stringify(d)); return }
-  const fin=Array.isArray(d.rooms)&&d.rooms.every(r=>r.visited);
+  const fin=Array.isArray(d.rooms)&&d.rooms.every(r=>r.visited)&&(!d.mystery||d.mystery.state?.solved);
   const prev=(G.pausedZones||[]).map(r=>r.name);
   if(!fin){
     const copy=JSON.parse(JSON.stringify(d));
@@ -3890,7 +3899,7 @@ const ROOM_RX={
 };
 on('after',30,T=>{
   const room=(T.loc==='site'&&G.loc==='site'&&G.site&&curRoom()===T.room)?T.room:null;
-  if(!room||(room.fragment&&!room.fragTaken)) return;     // 교표 조각이 남은 방은 끝까지 조사 가능
+  if(!room||(G.site.mystery&&!G.site.mystery.state?.solved)||(room.fragment&&!room.fragTaken)) return;     // 교표 조각이 남은 방은 끝까지 조사 가능
   const act=T.action;
   if(ROOM_RX.SEARCH.test(act)||!ROOM_RX.NOT_SEARCH.test(act)) room.searchN=(room.searchN||0)+(T.flags.viaChoice?0.5:1);
   const limit=(room.keepsakeTaken||(room.gotItems&&room.gotItems.length)||room.fragTaken)?3:5;
@@ -4102,6 +4111,135 @@ function pickEra(){
   const e=G.ancient, min=Math.min(...e.map(x=>x.zones.length));
   return rand(e.filter(x=>x.zones.length===min));
 }
+/* 비공개 사건: 생성/검토 AI와 플레이 서술 AI를 분리한다. sealed는 저장 게임 내부 전용. */
+const MYSTERY_VERSION=1;
+let mysteryJob=null;
+function mysteryHash(s){ let h=2166136261; for(const c of s){ h^=c.charCodeAt(0); h=Math.imul(h,16777619) } return (h>>>0).toString(16) }
+function mysteryPlan(d=G&&G.site){
+  const m=d&&d.mystery; if(!m||m.version!==MYSTERY_VERSION||m.status!=='ready'||typeof m.sealed!=='string'||m.hash!==mysteryHash(m.sealed)||!m.state||!Array.isArray(m.state.found)||!m.state.evidenceIds||typeof m.state.solved!=='boolean') return null;
+  try{ return JSON.parse(m.sealed) }catch(e){ return null }
+}
+function validateMystery(p,d){
+  const errors=[], rooms=new Set(d.rooms.map(r=>r.id)), reached=new Set(), visit=id=>{ if(reached.has(id)||!rooms.has(id)) return; reached.add(id); const r=d.rooms.find(r=>r.id===id); (r.exits||[]).forEach(visit) }; visit(d.rooms[0].id);
+  const text=(v,max=400)=>typeof v==='string'&&v.trim().length>=4&&v.length<=max;
+  if(!p||typeof p!=='object') return ['사건 객체 없음'];
+  for(const k of ['question','opening','truth','conclusion']) if(!text(p[k],800)) errors.push(k+' 누락/길이');
+  if(!Array.isArray(p.room_views)||p.room_views.length!==d.rooms.length||new Set(p.room_views.map(r=>r&&r.room)).size!==d.rooms.length||p.room_views.some(r=>!r||!rooms.has(r.room)||!text(r.text))) errors.push('공개 공간 묘사');
+  const es=Array.isArray(p.evidence)?p.evidence:[], ids=new Set(es.map(e=>e&&e.id));
+  if(es.length<3||es.length>4||ids.size!==es.length||new Set(es.map(e=>e&&e.room)).size!==es.length) errors.push('핵심 증거 3~4개/고유 ID/서로 다른 공간');
+  for(const e of es) if(!e||!/^e[1-4]$/.test(e.id)||!reached.has(e.room)||!text(e.text,240)||!text(e.meaning,200)) errors.push('증거 도달성/필드');
+  const v=p.verification;
+  if(!v||!reached.has(v.room)||!text(v.action,80)||!text(v.result,400)||!Array.isArray(v.requires)||v.requires.length!==es.length||new Set(v.requires).size!==v.requires.length||v.requires.some(id=>!ids.has(id))) errors.push('검증 행동/근거');
+  return [...new Set(errors)];
+}
+function mysteryPrompt(d){
+  const seen=(G.evidence||[]).filter(e=>e.placeId==='zone:'+siteIdentity(d)).map(e=>e.text);
+  return `플레이어이자 제작자도 정답을 모르는 새 미스터리를 설계한다. 아래 장소의 중심 사건 하나를 비공개로 완성하라. 정답과 모든 증거를 지금 확정하고, 이후 행동에 맞춰 바꾸지 않는다. 주요 증거 3~4개는 서로 다른 접근 가능한 공간에서 얻고, 적어도 2개의 관찰을 연결해야 원인을 추론할 수 있게 한다. 모든 핵심 증거를 verification.requires에 넣고 구체적인 검증 행동으로 원인과 결과의 관계를 확인한다. 분위기와 증거를 구분하고, 소문만으로 정답을 확정하지 않는다. 공개 묘사/도착 장면은 원인이나 아직 읽지 않은 증거를 밝히지 않는다. 의미(meaning)는 해당 증거만으로 알 수 있는 기여이며 정답을 미리 설명하지 않는다. 다음 증거의 위치는 공개 조사 후보로 알려도 된다. 학원 공포 세계관이며 본편 진상을 새로 만들거나 바꾸지 않는다.\n장소: ${d.name} / ${d.theme}\n공간과 연결: ${JSON.stringify(d.rooms.map(r=>({id:r.id,name:r.name,exits:r.exits})))}\n이미 플레이어가 관찰한 사실(바꾸지 말 것): ${JSON.stringify(seen)}\n기존 사건의 확정 배경(있다면 유지): ${d.lore?JSON.stringify({what:d.lore.what,fate:d.lore.fate}):'(새 사건)'}\n본편과의 비공개 본편 진상(바꾸지 말 것): ${JSON.stringify(G.secret||{})}\n본편과의 비공개 연결 제약: ${d.big?JSON.stringify((G.wards||[]).find(w=>w.id===d.key)||{}):'(독립 사건)'}\nJSON만: {"question":"중심 질문","opening":"정답 없는 도착 장면","truth":"실제 원인과 사건 경위","room_views":[{"room":"r1","text":"진입 시 보이는 분위기만"}],"evidence":[{"id":"e1","room":"r1","text":"구체적인 관찰 사실","meaning":"이 사실이 좁히는 질문"}],"verification":{"room":"방 ID","action":"플레이어가 실행할 검증 방법","requires":["e1","e2"],"result":"실제 검증 결과"},"conclusion":"모든 근거를 연결한 최종 진상"}`;
+}
+async function ensureMystery(d=G&&G.site){
+  if(!d||!Array.isArray(d.rooms)) return null;
+  if(mysteryPlan(d)) return d.mystery;
+  if(d.mystery&&d.mystery.status==='ready'){ toast('사건 저장 기록이 손상됐습니다. 이전 저장본을 불러와 주세요'); return null } // 고정 사실 재생성 금지
+  const g=G;
+  if(mysteryJob&&mysteryJob.g===g&&mysteryJob.d===d) return mysteryJob.promise;
+  const token={g,d}; mysteryJob=token;
+  d.mystery=d.mystery||{version:MYSTERY_VERSION,status:'pending'};
+  token.promise=(async()=>{
+    let issues=[];
+    for(let attempt=0;attempt<2;attempt++){
+      let p,review;
+      try{
+        p=parseJSON(await callAI('너는 비공개 미스터리 설계자다. JSON만 출력한다.',mysteryPrompt(d)+(issues.length?'\n수정해야 할 검증 문제: '+JSON.stringify(issues):''),3200,'site'));
+        if(G!==g) return null;
+        issues=validateMystery(p,d); if(issues.length) continue;
+        review=parseJSON(await callAI('너는 미스터리의 독립 검토자다. 내용은 플레이어에게 공개하지 않는다. JSON만 출력한다.',`사건의 원인과 증거가 모순 없는지, 증거를 통해 추론 가능한지, 검증 행동이 원인을 확인하는지, 공개 opening/room_views/meaning이 숨겨진 답과 미발견 증거를 누설하지 않는지 검토하라. 기존 공개 사실을 지키는지도 확인한다. 문제가 있으면 valid:false와 구체적인 issues를 적는다. 단순 칭찬 금지.\n${mysteryPrompt(d)}\n후보: ${JSON.stringify(p)}\nJSON: {"valid":true,"issues":[]}`,900,'world'));
+        if(G!==g) return null;
+        if(!review||review.valid!==true){ issues=Array.isArray(review&&review.issues)?review.issues.slice(0,6):['의미 검토 실패']; continue }
+      }catch(e){ if(e.message==='NO_KEY') break; issues=['생성 또는 검토 응답 오류']; continue }
+      const sealed=JSON.stringify(p), old=(g.threads||[]).find(t=>t.id===d.caseId&&t.status==='open');
+      const t=old||caseRecord(p.question,{scope:'local',placeId:'zone:'+siteIdentity(d),key:'mystery:'+siteIdentity(d),newCase:true,force:true});
+      if(!t) return null;
+      t.text=p.question; t.privateMystery=true; d.caseId=t.id;
+      d.theme=p.question; upsertLex(d.name,'장소',p.opening);
+      d.mystery={version:MYSTERY_VERSION,status:'ready',sealed,hash:mysteryHash(sealed),state:{found:[],evidenceIds:{},solved:false}};
+      save(); return d.mystery;
+    }
+    if(G===g){ d.mystery.status='pending'; addLog('sys','사건 구성을 검증하지 못했습니다. 비공개 답을 임의로 만들지 않고 대기합니다. 사건 준비 재시도로 다시 생성할 수 있습니다.'); save() }
+    return null;
+  })();
+  try{ return await token.promise }finally{ if(mysteryJob===token) mysteryJob=null }
+}
+async function prepareMystery(){
+  if(busy||!G||!G.site) return;
+  const g=G,d=G.site; busy=true; render();
+  try{ await ensureMystery(d) }finally{ if(G===g){ busy=false; render(); save() } }
+}
+function mysteryPublic(d=G&&G.site){
+  const p=mysteryPlan(d); if(!p) return null;
+  const st=d.mystery.state, found=p.evidence.filter(e=>st.found.includes(e.id)), v=p.verification;
+  const next=p.evidence.filter(e=>!st.found.includes(e.id)).map(e=>d.rooms.find(r=>r.id===e.room)?.name).filter(Boolean);
+  return {question:p.question,phase:st.solved?'해결':v.requires.every(id=>st.found.includes(id))?'검증 가능':'증거 수집',evidence:found.map(e=>({text:e.text,meaning:e.meaning})),next:[...new Set(next)].slice(0,2),verification:v.requires.every(id=>st.found.includes(id))?{room:d.rooms.find(r=>r.id===v.room)?.name,action:v.action}:null,conclusion:st.solved?p.conclusion:null};
+}
+function mysteryPanel(d=G&&G.site){
+  const x=mysteryPublic(d);
+  if(!x) return '<p class="muted">사건 준비 중입니다. 검증된 사건이 준비되기 전에는 새로운 증거를 만들지 않습니다.</p>';
+  return `<div class="lex"><b>${esc(x.question)}</b><div>진행: ${x.phase} · 확인한 증거 ${x.evidence.length}</div>${x.evidence.map(e=>`<p><b>확인한 사실:</b> ${esc(e.text)}<br><span class="muted">기여: ${esc(e.meaning)}</span></p>`).join('')}${x.conclusion?`<p><b>검증된 진상:</b> ${esc(x.conclusion)}</p>`:`<p>다음 조사 후보: ${x.next.map(esc).join(' / ')||'필요한 증거를 확보했습니다'}${x.verification?`<br>검증 장소: ${esc(x.verification.room)} · ${esc(x.verification.action)}`:''}</p>`}</div>`;
+}
+function mysteryVerifyId(d=G&&G.site){ return 'mystery:verify:'+siteIdentity(d) }
+function canVerifyMystery(d=G&&G.site){
+  const p=mysteryPlan(d); return !!(p&&!d.mystery.state.solved&&G.loc==='site'&&!inDark()&&d.cur===p.verification.room&&p.verification.requires.every(id=>d.mystery.state.found.includes(id)));
+}
+function verifyMystery(){
+  if(busy||!canVerifyMystery()) return toast('필요한 증거와 검증 장소를 먼저 확인해 주세요');
+  const d=G.site,p=mysteryPlan(d);
+  pend('',{mysteryVerify:siteIdentity(d)});
+  return story(p.verification.action,{src:'fixed'});
+}
+on('before',29,T=>{
+  const d=G.site,p=mysteryPlan(d);
+  if(!p||!['site','shelter'].includes(G.loc)||T.flags.storyOnly||T.flags.parting) return;
+  T.flags.privateMystery=true;
+  if(G.loc!=='site') return;
+  const st=d.mystery.state,r=curRoom(), investigating=T.flags.caseInvestigate||INV_RX.test(T.action);
+  if(T.flags.mysteryVerify===siteIdentity(d)&&canVerifyMystery(d)){
+    T.mysteryOutcome={d,type:'verified'};
+    T.extra+=`\n[확정된 검증 결과 — 이번에만 공개] ${p.verification.result}\n[검증된 진상] ${p.conclusion}\n이 결과를 장면으로 표현한다. 결과와 원인을 바꾸지 않는다.`;
+  }else if(investigating){
+    const e=!inDark()&&p.evidence.find(e=>e.room===r.id&&!st.found.includes(e.id));
+    T.mysteryOutcome={d,type:e?'evidence':inDark()?'dark':'none',e};
+    T.extra+=e?`\n[이번 조사로 공개하는 확정 관찰] ${e.text}\n[이 관찰의 기여] ${e.meaning}\n관찰 과정을 표현하되 추가 핵심 단서·범인·원인을 만들지 않는다.`:'\n[조사 결과] '+(inDark()?'빛이 부족해 관찰하지 못한다.':'이번 조사에서 새로운 핵심 증거를 발견하지 않는다. 이미 공개된 사실만 재확인하며 새로운 수수께끼를 암시하지 않는다.');
+  }
+});
+on('context',49,()=>{
+  const d=G.site;if(!d||!d.mystery) return '';
+  return '\n[고정 사건의 공개 기록] '+JSON.stringify(mysteryPublic(d)||{status:'준비 중'})+'\n숨겨진 원인·미발견 증거를 추측하여 새 사실로 만들지 않는다. 조사 결과와 해결은 코드의 공개 기록만 따른다.';
+});
+on('effects',11,(e,{T})=>{
+  if(!T.flags.privateMystery) return;
+  if(T.res) T.res.event=null;
+  e.caseUpdates=[]; e.board=[]; e.threadsDone=[]; e.lexAdd=[]; e.ledgerAdd=[];
+});
+on('after',24,T=>{
+  const o=T.mysteryOutcome; if(!o||G!==T.g||G.site!==o.d) return;
+  const d=o.d,p=mysteryPlan(d),st=d.mystery.state; if(!p) return;
+  if(o.type==='evidence'&&!st.found.includes(o.e.id)){
+    const e=addCanon(o.e.text,false,true,{caseId:d.caseId,scope:'local',placeId:'zone:'+siteIdentity(d),kind:'fact',source:'mystery',role:'narrows'});
+    if(!e) return;
+    st.found.push(o.e.id);st.evidenceIds[o.e.id]=e.id;
+    addLog('fx',`🔎 조사 결과 — 새로운 증거\n확인한 사실: ${o.e.text}\n사건 진행: ${o.e.meaning}`);
+  }else if(o.type==='verified'){
+    const ids=p.verification.requires.map(id=>st.evidenceIds[id]);
+    if(ids.every(Boolean)){ st.solved=true; if(!resolveCase(d.caseId,p.conclusion,ids)) st.solved=false }
+    if(st.solved){ if(d.lore&&G.ancient){ const era=G.ancient.find(e=>e.id===d.lore.era); if(era){ era.zones=(era.zones||[]).filter(x=>x.name!==d.name);era.zones.push({name:d.name,record:p.conclusion,full:true,got:st.found.length,total:p.evidence.length});upsertLex(era.name,'괴담',eraEntryDesc(era),{eraRec:true,fav:true}) } } upsertLex(d.name,'장소',p.conclusion,{zoneRec:true}); gainXp(1,'사건 검증 완료'); addLog('fx',`✅ 사건 해결 — ${p.verification.result}\n검증된 진상: ${p.conclusion}`) }
+  }else addLog('sys','🔎 조사 결과 — '+(o.type==='dark'?'관찰 불가: 빛을 확보해야 합니다.':'추가 발견 없음: 이번 조사로 새로운 핵심 증거가 기록되지는 않았습니다.'));
+  const t=(G.threads||[]).find(t=>t.id===d.caseId);if(t){ const x=mysteryPublic(d);t.next=x.verification?[x.verification.room+': '+x.verification.action]:x.next }
+});
+on('fixed',11,L=>{
+  const d=G.site;if(!d||!d.mystery||!['site','shelter'].includes(L)) return '';
+  if(!mysteryPlan(d)) return '<button onclick="prepareMystery()">🔄 사건 준비 재시도</button>';
+  const x=mysteryPublic(d);return `<button onclick="openZoneJournal()">📝 사건 진행: ${x.phase} · 증거 ${x.evidence.length}</button>`+(canVerifyMystery(d)?'<button class="primary" onclick="verifyMystery()">🔬 확보한 근거로 원인 검증하기</button>':'');
+});
+
 function loreRequest(era,hasFrag){
   const prev=era.zones.map(r=>`「${r.name}」: ${r.record}`).join('\n')||'(아직 없음)';
   return `
@@ -4150,7 +4288,7 @@ function attachLore(era,j,hasFrag){
 }
 on('context',50,()=>{
   const d=G.site, L=d&&d.lore;
-  if(!L||(G.loc!=='site'&&G.loc!=='shelter')) return '';
+  if(d?.mystery||!L||(G.loc!=='site'&&G.loc!=='shelter')) return '';
   const r=curRoom(), got=d.rooms.filter(x=>x.clue&&x.clue.got).map(x=>x.clue.t);
   let s=`\n[구역의 사연 — 비밀 메모, 한꺼번에 설명하지 말 것] 시대: ${L.eraName} / 관련 인물: ${L.fig} / 만든 이: ${L.who} / 실제 있었던 일: ${L.what} / 버려진 이유: ${L.fate} / 라쿠나 구역과의 연결(희미하게만): ${L.lacuna}`;
   if(got.length) s+=`\n[플레이어가 이미 찾은 단서] ${got.join(' / ')}`;
@@ -4160,7 +4298,7 @@ on('context',50,()=>{
 /* 살펴보거나 조사하면 이 공간의 단서를 반드시 보여 줌 → 수첩에 기록 */
 const INV_RX=/(낙서|게시판|게시물|칠판|살펴|조사|읽|들여다|훑|만져|확인|찾아|찾는|뒤진|뒤져|해독|파헤|문양|벽화|비문|기록|둘러|더듬|비춘|비춰)/;
 on('before',30,T=>{
-  if(G.loc!=='site'||!G.site||!G.site.lore||inDark()) return;   // 어둠 속에서는 단서를 찾지 못함
+  if(G.loc!=='site'||!G.site||G.site.mystery||!G.site.lore||inDark()) return;   // 어둠 속에서는 단서를 찾지 못함
   const r=curRoom();
   if(r&&r.clue&&!r.clue.got&&INV_RX.test(T.action)){
     T.clueRoom=r;
@@ -4189,6 +4327,7 @@ function upsertLex(name,cat,desc,extra){
   else G.lexicon.push(Object.assign({name,cat,desc,isNew:true},extra||{}));
 }
 function finalizeZone(d){
+  if(d.mystery) return; // 준비된 사건은 증거 수나 방문만으로 진상을 공개하지 않는다.
   const L=d.lore; if(!L||L.recorded||!G.ancient) return;
   const all=d.rooms.filter(x=>x.clue), got=all.filter(x=>x.clue.got);
   const full=all.length>0&&got.length>=Math.ceil(all.length*0.6);
@@ -4207,6 +4346,7 @@ function finalizeZone(d){
   toast(`🏚 사전에 「${d.name}」의 기록이 남았습니다`);
 }
 function openZoneJournal(){
+  if(G.site&&G.site.mystery) return modal('📝 사건 조사 수첩',mysteryPanel());
   const d=G.site, L=d&&d.lore;
   let h='';
   if(L){
@@ -5625,6 +5765,7 @@ function recordEvidence(text,opt={}){
   text=clueKey(text).slice(0,240); if(text.length<4) return null;
   if(!Array.isArray(G.evidence)) G.evidence=[];
   const t=(G.threads||[]).find(t=>t.id===opt.caseId&&!t.parentId);
+  if(t?.privateMystery&&opt.source!=='mystery') return null;
   const placeId=opt.placeId||(t&&t.placeId)||knowledgePlace(), scope=opt.scope||(t&&t.scope)||scopeForText(text);
   const kind=EVIDENCE_KINDS.includes(opt.kind)?opt.kind:'fact';
   const old=G.evidence.find(e=>!e.deleted&&e.text===text&&e.placeId===placeId&&e.kind===kind&&e.caseId===(t?t.id:opt.caseId||null)); if(old) return old;
@@ -5644,6 +5785,7 @@ function caseForEvidence(text,opt={}){
 function evidenceForCase(t){ return (G.evidence||[]).filter(e=>!e.deleted&&e.caseId===t.id) }
 function resolveCase(id,conclusion,supportIds,manual=false){
   const t=(G.threads||[]).find(t=>t.id===id&&!t.parentId&&t.status==='open');
+  if(t&&t.privateMystery){ const d=G.site,p=mysteryPlan(d); if(!p||d.caseId!==id||!d.mystery.state.solved||conclusion!==p.conclusion||manual) return false }
   conclusion=clueKey(conclusion).slice(0,240);
   const ids=[...new Set(Array.isArray(supportIds)?supportIds.map(String):[])];
   const valid=ids.length&&ids.every(id=>(G.evidence||[]).some(e=>e.id===id&&!e.deleted&&e.caseId===t?.id&&['fact','testimony'].includes(e.kind)));
@@ -5653,11 +5795,12 @@ function resolveCase(id,conclusion,supportIds,manual=false){
 }
 function applyCaseUpdates(updates,opt={}){
   if(!Array.isArray(updates)) return;
+  if(G.site?.mystery&&['site','shelter'].includes(G.loc)&&(!opt.placeId||opt.placeId===knowledgePlace())) return;
   let created=0;
   for(const u of updates.slice(0,2)){
     if(!u||typeof u!=='object') continue;
     let t;
-    if(u.case_id){ t=(G.threads||[]).find(t=>t.id===u.case_id&&!t.parentId); if(!t||t.status!=='open') continue }
+    if(u.case_id){ t=(G.threads||[]).find(t=>t.id===u.case_id&&!t.parentId); if(!t||t.privateMystery||t.status!=='open') continue }
     else {
       if(created>=1||!u.question||!u.reason||u.new_case!==true) continue;
       const placeId=u.place_id&&knownKnowledgePlace(u.place_id)?u.place_id:opt.placeId||knowledgePlace();
@@ -5698,6 +5841,7 @@ function caseSummaryBlock(text='',list=selectedCases(text)){
 }
 function caseCard(t){
   const facts=evidenceForCase(t), names={main:'본편',local:'장소',personal:'인물'};
+  if(t.privateMystery) return `<div class="lex"><b>${esc(t.text)}</b><div>${t.status==='closed'?'해결 완료':'진행 중'} · 확인한 증거 ${facts.length}</div>${facts.map(e=>`<p>${esc(e.text)}</p>`).join('')}${t.conclusion?`<p><b>검증된 진상:</b> ${esc(t.conclusion)}</p>`:`<p class="muted">다음 조사: ${(t.next||[]).map(esc).join(' / ')||'지역의 사건 조사 수첩 확인'}<br>증거를 확보한 뒤 지정 공간의 원인 검증 버튼으로 해결합니다.</p>`}</div>`;
   return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${names[t.scope]||'사건'} · 증거 ${facts.length}개</span></div>${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${facts.length?`<details><summary>관찰·증언·소문 보기</summary>${facts.map(e=>`<div class="rj-clue">${esc(e.text)} <span class="muted">[${esc(EVIDENCE_NAMES[e.kind]||'기록')}]</span></div>`).join('')}</details>`:''}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
 }
 function openCaseResolution(id){
@@ -5748,9 +5892,9 @@ function threadsBlock(text){
   return `\n[사건별 미해결 질문 — 본편/현재 장소/다른 장소/인물 배분. 새 관찰은 같은 사건의 증거로, 결론은 근거가 있을 때만]\n${caseSummaryBlock(text,list)}\n새로 무엇을 시도해도 사건을 추가할 필요는 없다. 원인 후보·가설·다음 조사 방향이 바뀔 때 증거를 기록한다.`;
 }
 
-function closeThread(id){ const t=(G.threads||[]).find(t=>t.id===id); if(!t) return; t.status='parked'; save(); renderSides(); openThreads() }
+function closeThread(id){ const t=(G.threads||[]).find(t=>t.id===id); if(!t) return; if(t.privateMystery) return toast('고정 사건은 조사와 원인 검증으로 진행합니다'); t.status='parked'; save(); renderSides(); openThreads() }
 
-function reopenThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; if(!threadActive(t)&&clueLoad()>=THREAD_SOFT) return toast('진행 중인 사건을 먼저 정리하거나 보류해 주세요'); t.status='open'; t.touched=G.day; delete t.closedDay; _sigR=''; save(); renderSides(); openThreads() }
+function reopenThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; if(t.privateMystery) return toast('검증한 사건의 사실과 해결 기록은 유지됩니다'); if(!threadActive(t)&&clueLoad()>=THREAD_SOFT) return toast('진행 중인 사건을 먼저 정리하거나 보류해 주세요'); t.status='open'; t.touched=G.day; delete t.closedDay; _sigR=''; save(); renderSides(); openThreads() }
 function addThread(){
   const el=document.getElementById('thrNew'); const v=(el&&el.value||'').trim().slice(0,160); if(!v) return;
   const added=caseRecord(v,{newCase:true}); if(!added) return toast('진행 중인 사건이 많습니다. 기존 사건을 정리하거나 보류해 주세요'); _sigR=''; save(); renderSides(); openThreads();
@@ -5764,6 +5908,7 @@ const CANON_DAILY=3; // 자동 증거 기록은 하루 3개. 원문 보관량에
 function addCanon(text,quiet,force,opt={}){
   if(!G) return null; text=clueKey(text).slice(0,240); if(text.length<4) return null;
   const t=caseForEvidence(text,opt); if(opt.caseId&&!t) return null;
+  if(t?.privateMystery&&opt.source!=='mystery') return null;
   const placeId=opt.placeId||knowledgePlace(), kind=opt.kind||'fact';
   const same=(G.evidence||[]).find(e=>!e.deleted&&e.text===text&&e.placeId===placeId&&e.kind===kind&&(!t||e.caseId===t.id)); if(same) return same;
   if(!quiet&&!force){ const day=G.canonDay&&G.canonDay.day===G.day?G.canonDay:(G.canonDay={day:G.day,n:0}); if(day.n>=CANON_DAILY) return null; day.n++ }
@@ -6880,6 +7025,7 @@ async function genBigZone(sp){
 [떡밥 장부 — 모순되지 않게]
 ${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}\n[확정 단서 — 모순되지 않게]\n${canonBlock()}
 숨겨진 진실(학원도시가 숨긴 것의 정체 — 직접 밝히지 말 것): ${G.secret?.truth||''} / ${G.secret?.detail||''}
+- 공간 이름과 주제에는 원인/범인/정답을 쓰지 말고 현상과 배경만 쓴다.
 - 첫 공간 id는 "r1"(입구). 각 공간은 1~3개 공간과 연결. 깊을수록 위험도 높게(0~3). 공간마다 floor(층 이름 짧게).
 - desc는 AI 서술용 비밀 메모(교칙의 흔적, 수수께끼, 괴이, 사연) 1~2문장, hook은 단서 또는 위험 요소 하나. 교표 조각은 없다.
 JSON만 출력:
@@ -6897,14 +7043,15 @@ JSON만 출력:
   if(lacuna&&!/출석부/.test(heart.name)) heart.name='출석부 보관실';
   G.site={big:true,key:sp.key,terrain:sp.terrain,name:lacuna?'라쿠나 구역':c.name,theme:d.theme||'',rooms,cur:start.id,depth:0,pos:sp.pos};
   G.nextPos=null; start.visited=true; wardArrive(G.site);
-  if(!G.lexicon.some(e=>e.name===G.site.name)) addLex({name:G.site.name,cat:'장소',desc:G.site.theme||sp.name},true,null);
-  return d.intro;
+  if(!G.lexicon.some(e=>e.name===G.site.name)) addLex({name:G.site.name,cat:'장소',desc:'사건 구성을 준비 중인 조사 장소'},true,null);
+  await ensureMystery(G.site);
+  return mysteryPlan()?.opening||'구역 입구에 도착한다. 사건 구성을 준비한 뒤 조사를 시작할 수 있다.';
 }
 on('context',52,()=>{
   const d=G.site; if(!d||!d.big||(G.loc!=='site'&&G.loc!=='shelter')) return '';
   const r=curRoom(), c=(G.wards||[]).find(x=>x.id===d.key);
   let s=d.key==='lacuna'?'\n[라쿠나 구역] 플레이어는 마침내 지워진 첫 구역 라쿠나 구역 안에 있다. 경이와 두려움이 함께. 가장 깊은 「출석부 보관실」에 오래된 출석부의 원본이 있다.'
-    :`\n[출석부가 가리키는 구역] 「${d.name}」(분위기: ${c&&c.mood||''}) — ${WARD_TYPES[d.terrain].desc} 숨은 사연과 교칙(조각으로만): ${c?c.lore:''}`;
+    :`\n[출석부가 가리키는 구역] 「${d.name}」(분위기: ${c&&c.mood||''}) — ${WARD_TYPES[d.terrain].desc}${d.mystery?'':` 숨은 사연과 교칙(조각으로만): ${c?c.lore:''}`}`;
   if(r&&r.floor) s+=` 지금 층: ${r.floor}.`;
   if(r&&r.heart&&!d.done) s+=d.key==='lacuna'?'\n[이 공간] 출석부가 있다. 출석부를 읽어 내는 것은 플레이어가 버튼(해독 판정)으로 한다 — 서술에서 출석부 내용을 먼저 밝히지 말 것.'
     :'\n[이 공간] 구역의 심장이 있다. 여는 것은 플레이어가 버튼(판정)으로 한다 — 서술에서 먼저 열지 말 것.';
@@ -6913,7 +7060,7 @@ on('context',52,()=>{
 /* 가장 깊은 방의 버튼: 출석부 해독 / 심장 열기 (🎲 판정) */
 on('fixed',10,L=>{
   const d=G.site, r=curRoom();
-  if(L==='site'&&d&&d.big&&r&&r.heart&&!d.done){
+  if(L==='site'&&d&&d.big&&r&&r.heart&&!d.done&&(!d.mystery||d.mystery.state?.solved)){
     const lacuna=d.key==='lacuna', sk=lacuna?'wis':WARD_TYPES[d.terrain].check, dc=lacuna?'normal':'hard';
     return `<button class="primary" onclick="openHeart()">${lacuna?'📜 출석부 해독하기':'✨ 구역의 심장 열기'} <span class="cbadge ck">🎲 ${SK[sk]} · ${DCN[dc]} · ${checkChance(sk,dc,lacuna?'출석부의 문자를 해독':'심장')}%</span></button>`;
   }
@@ -6924,6 +7071,7 @@ on('fixed',10,L=>{
 });
 function openHeart(){
   const d=G.site, r=curRoom(); if(busy||!d||!d.big||!r||!r.heart||d.done) return;
+  if(d.mystery&&!d.mystery.state?.solved) return toast('이 지역의 사건을 증거와 검증으로 해결한 뒤 심장을 열 수 있습니다');
   const hc=(G.wards||[]).find(x=>x.id===d.key);
   if(hc&&!hc.found&&rivalOn()&&G.wards.filter(x=>!x.found).length===1){   // 마지막 구역 — 우두머리 결전
     rivalAct(G.rival.boss);
@@ -8414,6 +8562,7 @@ function openGuide(){
     ${row('🎒 소지품',`행동 버튼 줄의 🎒 소지품에서 공포·배터리·손전등·캐시·벌점·출입 권한, 교표 조각·자재·탈것·물건을 한눈에 봅니다. 간식·소모품은 「먹기·쓰기」로 쓰고, 🔒가 없는 물건은 상점가에서 팝니다. 모든 물건 옆의 🗑를 누르면 확인 후 버릴 수 있습니다(🔒 물건은 이야기에 필요할 수 있어 경고가 뜹니다)`)}
     ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기를 누르면 작별 장면이 나온 뒤 동행이 종료됩니다(지도의 🎵로 위치 확인)')}
     ${row('🤝 안심 접촉','곁에 있는 친구 이상 NPC에게 직접 입력이나 선택지로 손잡기·어깨 토닥임을 청할 수 있습니다. 상대가 수락하면 공포 −1. 짧은 포옹은 확인된 연인과 가능합니다. 같은 상대는 하루 1회, 전체 하루 2회까지 회복하며 거절·문자·전화·상상은 회복하지 않습니다. 반복 접촉은 묘사만 이어집니다.')}
+    ${row('🔎 사건 조사','새 구역의 원인·핵심 증거·검증 방법은 AI가 비공개로 생성하고 검토한 뒤 고정합니다. 조사 직후 새 증거·기여 또는 추가 발견 없음을 표시합니다. 조사 수첩에서 다음 후보를 보고, 필요한 근거를 확보한 뒤 지정 공간의 원인 검증 버튼으로 해결합니다. 방을 모두 방문하거나 단서를 일정 비율 모은 것만으로 해결되지 않습니다. 생성에 실패하면 사건 준비 재시도로 다시 준비합니다.')}
     ${row('🎵 구역 안 유민의 도움','유민이 동행 중이면 구역에서 일정 걸음마다(체력이 35% 이하거나 위험도 2 이상 공간, 또는 가끔) 노래를 불러 상황을 뒤집고, 위기에는 체력 +2, '+Math.round(YUMIN_SING_CALM_P*100)+'% 확률로 공포 −1. 그 밖에 위험한 통로 경고·조각 쪽 울림·길 안내를 해 줍니다. 곁에 있는 유민에게 "노래를 불러 달라"고 청해도(버튼·직접 입력, 어디서나) 같은 확률로 공포가 줄고 위기에는 체력 +2')}
     ${row('📱 휴대폰',`행동 버튼 줄의 📱 휴대폰에서 연락처(유민과 이야기에서 만난 사람들)에게 💬 문자나 📞 전화를 할 수 있습니다. 문자는 시간이 흐르지 않지만 1통을 보낼 때마다 배터리가 1% 닳고(칸으로는 모았다가 소모), 💬 문자를 누르면 팝업 대화창(말풍선)이 열려 주고받은 내용이 연락처마다 기록됩니다. 빠른 문구를 누르거나 직접 써서 보내면 상대가 곧바로 답장하고(AI), 가끔 단서가 조사 보드에 적히고(하루 2번까지) 호감이 오릅니다(연락처마다 하루 한 번). 전화는 배터리 ${CALL_DRAIN}%와 시간 한 칸을 쓰며 이야기 본문으로 진행됩니다. 유민에게는 📍 만나자고 하기(성공 ${Math.round(MEET_OK_P*100)}%)도 있습니다. 소등 후와 교실에서 수업 중에는 몰래 써야 하고(수업 중 전화는 불가, 교실 밖이면 제한 없음) 약 ${Math.round(PHONE_CATCH_P*100)}%(벌점 ${DEMERIT_WARN}점 이상이면 +${Math.round(PHONE_CATCH_WARN*100)}%p) 확률로 들켜 벌점 +${PHONE_DEMERIT}과 그 시간대 압수. 점호에서는 휴대폰을 걷지 않습니다. 구역 안에서는 전화가 안 터지고 문자만 보낼 수 있습니다(신호가 약해 답이 끊겨 옵니다)`)}
     ${row('📩 수신 문자','시간이 흐르다 보면 연락처 사람(유민 포함)이 먼저 문자를 보냅니다(한 번에 최대 '+INBOX_MAX+'통). 화면 오른쪽 위에 알림 팝업이 뜨고(누르면 읽기, 행동 버튼 줄의 📩 버튼으로도 가능) 대화창에서 소문·안부·초대·경고 같은 문자를 읽고 바로 답장할 수 있습니다. 약속을 어기면 서운함을 담은 문자도 옵니다. 소등 후와 교실 수업 중에 읽으면 몰래 읽는 것이라 적발될 수 있습니다')}
@@ -9016,7 +9165,7 @@ async function finishCreation(){
   const maxhp=10+stats.str*2;
   resetUndo();
   G={
-    v:1,_relVersion:2,_clockVersion:2,
+    v:1,_relVersion:2,_clockVersion:2,_privateMysteryVersion:1,
     char:{name,age:17,origin:'한빛학원 2학년 7반 전학생',region:HOME_REGION,reason,stats,traits:draft.traits.map(id=>TRAITS.find(t=>t.id===id).n),bio:document.getElementById('cBio').value.trim()},
     hp:maxhp,maxhp,calm:5,battery:CAP_BASE,torch:3,cash:30,
     items:['오래된 출석부'],
@@ -9061,7 +9210,7 @@ async function genWorld(){
 function continueGame(){
   try{ G=JSON.parse(localStorage.getItem(SAVE_KEY)) }catch(e){ G=null }
   if(!G) return toast('저장된 게임이 없습니다');
-  migrate(); busy=false; show('game'); setTitle(G.act>=3); renderLogAll(); render();
+  migrate(); G._privateMysteryVersion=1; busy=false; show('game'); setTitle(G.act>=3); renderLogAll(); render();
 }
 function toTitle(){ save(); show('title') }
 function exportSave(){
