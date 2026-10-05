@@ -4183,7 +4183,8 @@ function mysteryPublic(d=G&&G.site){
 function mysteryPanel(d=G&&G.site){
   const x=mysteryPublic(d);
   if(!x) return '<p class="muted">사건 준비 중입니다. 검증된 사건이 준비되기 전에는 새로운 증거를 만들지 않습니다.</p>';
-  return `<div class="lex"><b>${esc(x.question)}</b><div>진행: ${x.phase} · 확인한 증거 ${x.evidence.length}</div>${x.evidence.map(e=>`<p><b>확인한 사실:</b> ${esc(e.text)}<br><span class="muted">기여: ${esc(e.meaning)}</span></p>`).join('')}${x.conclusion?`<p><b>검증된 진상:</b> ${esc(x.conclusion)}</p>`:`<p>다음 조사 후보: ${x.next.map(esc).join(' / ')||'필요한 증거를 확보했습니다'}${x.verification?`<br>검증 장소: ${esc(x.verification.room)} · ${esc(x.verification.action)}`:''}</p>`}</div>`;
+  const t=(G.threads||[]).find(t=>t.id===d.caseId), other=t?evidenceForCase(t).filter(e=>notebookCategory(e)!=='core'):[];
+  return `<div class="lex"><b>${esc(x.question)}</b><div>진행: ${x.phase} · 핵심 증거 ${x.evidence.length}개</div><h4>🔑 핵심 증거</h4><p class="muted">조사로 확인한 원인 검증의 근거입니다.</p>${x.evidence.map(e=>`<p><b>확인한 사실:</b> ${esc(e.text)}<br><span class="muted">기여: ${esc(e.meaning)}</span></p>`).join('')||'<p class="muted">아직 확인한 핵심 증거가 없습니다.</p>'}${x.conclusion?`<p><b>검증된 진상:</b> ${esc(x.conclusion)}</p>`:`<p>다음 조사 후보: ${x.next.map(esc).join(' / ')||'필요한 증거를 확보했습니다'}${x.verification?`<br>검증 장소: ${esc(x.verification.room)} · ${esc(x.verification.action)}`:''}</p>`}${other.length?`<h4>함께 보관한 기존·참고 기록</h4>${notebookGroupsHTML(other)}`:''}</div>`;
 }
 function mysteryVerifyId(d=G&&G.site){ return 'mystery:verify:'+siteIdentity(d) }
 function canVerifyMystery(d=G&&G.site){
@@ -5839,10 +5840,39 @@ function selectedEvidence(limit=EVIDENCE_PROMPT_LIMIT){
 function caseSummaryBlock(text='',list=selectedCases(text)){
   return list.map(t=>`- ${t.id} [${t.scope} ${t.placeId}]: ${t.text}${t.questions&&t.questions.length?' / 관련 질문: '+t.questions.slice(-2).join(' · '):''}${t.next&&t.next.length?' / 다음 조사: '+t.next.join(' · '):''}`).join('\n')||'(없음)';
 }
+/* 기록의 진위(kind)와 사건 내 중요도는 다르다. 고정 사건에서 공개한 증거만 핵심으로 표시한다. */
+function notebookCategory(e){
+  if(e&&e.source==='mystery'&&e.kind==='fact') return 'core';
+  if(e&&['rumor','hypothesis'].includes(e.kind)) return 'rumor';
+  return 'background';
+}
+function notebookRecords(){
+  const records=[],seen=new Set();
+  for(const c of G.canon||[]){
+    const e=c.id&&(G.evidence||[]).find(e=>e.id===c.id);
+    if(e?.deleted||c.deleted) continue;
+    const record=e||c;if(record.id&&seen.has(record.id)) continue;
+    records.push(record);if(record.id) seen.add(record.id);
+  }
+  for(const e of G.evidence||[]) if(!e.deleted&&!seen.has(e.id)){records.push(e);seen.add(e.id)}
+  return records;
+}
+function notebookGroupsHTML(records,allowDelete=false){
+  const groups=[['core','🔑 핵심 증거','고정 사건에서 조사로 확인한 증거입니다. 원인 검증의 필수 근거로 쓰입니다.'],['rumor','💬 소문·가설','아직 사실로 확인되지 않았습니다. 조사 방향을 잡는 참고이며 검증 근거로 자동 인정되지 않습니다.'],['background','📖 배경 기록','관찰·증언·기존 기록을 보관합니다. 핵심 여부 미확정이며, 중요하지 않거나 거짓이라는 뜻은 아닙니다.']];
+  return groups.map(([key,name,help])=>{
+    const entries=records.filter(e=>notebookCategory(e)===key);
+    const rows=entries.map(e=>{
+      const type=e.source==='legacy'||!e.kind?'기존 기록 · 중요도 미확정':EVIDENCE_NAMES[e.kind]||'기록';
+      const i=(G.canon||[]).findIndex(c=>e.id?c.id===e.id:c===e);
+      return `<div class="shop-row"><span>${canonHTML(e.text)} <span class="muted">[${esc(type)}]</span></span>${allowDelete&&i>=0&&key!=='core'?`<button class="small" onclick="delCanon(${i})" aria-label="기록 삭제">✕</button>`:''}</div>`;
+    }).join('')||'<p class="muted">아직 기록이 없습니다.</p>';
+    return `<details${key==='core'?' open':''}><summary><b>${name} · ${entries.length}개</b></summary><p class="muted">${help}</p>${rows}</details>`;
+  }).join('');
+}
 function caseCard(t){
   const facts=evidenceForCase(t), names={main:'본편',local:'장소',personal:'인물'};
-  if(t.privateMystery) return `<div class="lex"><b>${esc(t.text)}</b><div>${t.status==='closed'?'해결 완료':'진행 중'} · 확인한 증거 ${facts.length}</div>${facts.map(e=>`<p>${esc(e.text)}</p>`).join('')}${t.conclusion?`<p><b>검증된 진상:</b> ${esc(t.conclusion)}</p>`:`<p class="muted">다음 조사: ${(t.next||[]).map(esc).join(' / ')||'지역의 사건 조사 수첩 확인'}<br>증거를 확보한 뒤 지정 공간의 원인 검증 버튼으로 해결합니다.</p>`}</div>`;
-  return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${names[t.scope]||'사건'} · 증거 ${facts.length}개</span></div>${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${facts.length?`<details><summary>관찰·증언·소문 보기</summary>${facts.map(e=>`<div class="rj-clue">${esc(e.text)} <span class="muted">[${esc(EVIDENCE_NAMES[e.kind]||'기록')}]</span></div>`).join('')}</details>`:''}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
+  if(t.privateMystery) return `<div class="lex"><b>${esc(t.text)}</b><div>${t.status==='closed'?'해결 완료':'진행 중'} · 핵심 증거 ${facts.filter(e=>notebookCategory(e)==='core').length}개 · 전체 기록 ${facts.length}개</div>${notebookGroupsHTML(facts)}${t.conclusion?`<p><b>검증된 진상:</b> ${esc(t.conclusion)}</p>`:`<p class="muted">다음 조사: ${(t.next||[]).map(esc).join(' / ')||'지역의 사건 조사 수첩 확인'}<br>핵심 증거를 확보한 뒤 지정 공간의 원인 검증 버튼으로 해결합니다.</p>`}</div>`;
+  return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${names[t.scope]||'사건'} · 기록 ${facts.length}개</span></div>${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${notebookGroupsHTML(facts)}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
 }
 function openCaseResolution(id){
   const t=(G.threads||[]).find(t=>t.id===id); if(!t) return;
@@ -5957,7 +5987,7 @@ function canonHTML(t){
   if(parts.length>=3){ const name=parts.pop(); return `<span class="muted" style="font-size:12px">${esc(parts.join(' · '))}</span> <b>${esc(name)}</b>:${rest}` }
   return `<b>${esc(t.slice(0,i))}</b>:${rest}`;
 }
-function delCanon(i){ if(!G.canon) return; const c=G.canon[i]; if(c&&c.id){ const e=(G.evidence||[]).find(x=>x.id===c.id); if(e) e.deleted=true } G.canon.splice(i,1); save(); openThreads() }
+function delCanon(i){ if(!G.canon) return; const c=G.canon[i]; const e=c?.id&&(G.evidence||[]).find(x=>x.id===c.id); if(notebookCategory(e||c)==='core') return toast('핵심 증거는 사건 검증 기록으로 보존합니다'); if(c&&c.id){ const e=(G.evidence||[]).find(x=>x.id===c.id); if(e) e.deleted=true } G.canon.splice(i,1); save(); openThreads() }
 /* ---------- 🧩 추리 도우미: 지금까지의 단서를 AI가 정리해 방향만(살짝) 또는 다음 행동까지(확실히) 알려 줌. 숨겨진 정체·정답은 말하지 않음 ---------- */
 let _sleuthBusy=false;
 const SLEUTH_LV={1:{n:'살짝',how:'방향만 짚는다. known은 지금까지 알려진 것 최대 3개, links는 서로 이어질 법한 단서를 "~일까?" 같은 질문 1~2개로, next는 어떤 종류의 단서를 어디서 더 찾아볼지 방향 2개(구체적인 정답이나 해답은 쓰지 않는다)'},2:{n:'확실히',how:'단서들 사이의 연결을 추정해 말하고(확정이 아닌 것은 "추정"이라고 표시), next에는 지금 하면 좋은 구체적인 행동 2~3개(장소·사람·행동)를 쓴다. 그래도 학원도시가 숨긴 것의 정체나 최종 진실은 직접 쓰지 않는다'}};
@@ -6037,7 +6067,7 @@ function openCanon(){ openThreads(); setTimeout(()=>{ const e=document.getElemen
 function openThreads(){
   if(!G) return;
   const all=(G.threads||[]).filter(t=>!t.parentId), open=all.filter(t=>threadActive(t)), parked=all.filter(t=>t.status==='parked'||(t.status==='open'&&!threadActive(t))), done=all.filter(t=>t.status==='closed');
-  modal('🧵 사건별 조사 보드',`<p class="muted">같은 사건의 발견은 증거로 쌓입니다. 미해결 사건 ${open.length}/${THREAD_SOFT} · 증거 원문 ${(G.evidence||[]).filter(e=>!e.deleted).length}개 보관. 사실 확인과 사건 해결은 별개이며, 해결에는 결론과 근거가 필요합니다.</p><div id="thrList">${open.map(caseCard).join('')||'<p class="muted">현재 미해결 사건이 없습니다.</p>'}</div>${parked.length?`<h4>보류 중인 사건</h4>${parked.map(caseCard).join('')}`:''}<div class="row"><input id="thrNew" placeholder="독립적인 미해결 질문을 적어 주세요" maxlength="160"><button onclick="addThread()">질문 추가</button></div><h4>약속</h4>${apptListHTML()}<h4 id="canonSec">📌 관찰·증언·소문 기록 <button class="small" onclick="canonTidy()">사건별 정리</button></h4><p class="muted">원문은 보존하며, AI에는 본편·현재 사건·다른 장소·인물 기록을 배분해 전달합니다.</p>${(G.canon||[]).slice(-50).map((c,i)=>`<div class="shop-row"><span>${canonHTML(c.text)} <span class="muted">${esc(EVIDENCE_NAMES[c.kind]||'기존 기록')}</span></span><button class="small" onclick="delCanon(${Math.max(0,G.canon.length-50)+i})">✕</button></div>`).join('')}<div class="row"><input id="canonNew" placeholder="직접 확인한 사실을 적어 주세요" maxlength="240"><button onclick="addCanonUser()">증거 추가</button></div>${done.length?`<h4>해결한 사건</h4>${done.slice(-20).reverse().map(caseCard).join('')}`:''}`);
+  modal('🧵 사건별 조사 보드',`<p class="muted">같은 사건의 발견은 증거로 쌓입니다. 미해결 사건 ${open.length}/${THREAD_SOFT} · 증거 원문 ${(G.evidence||[]).filter(e=>!e.deleted).length}개 보관. 사실 확인과 사건 해결은 별개이며, 해결에는 결론과 근거가 필요합니다.</p><div id="thrList">${open.map(caseCard).join('')||'<p class="muted">현재 미해결 사건이 없습니다.</p>'}</div>${parked.length?`<h4>보류 중인 사건</h4>${parked.map(caseCard).join('')}`:''}<div class="row"><input id="thrNew" placeholder="독립적인 미해결 질문을 적어 주세요" maxlength="160"><button onclick="addThread()">질문 추가</button></div><h4>약속</h4>${apptListHTML()}<h4 id="canonSec">📌 분류별 조사 기록 <button class="small" onclick="canonTidy()">사건별 정리</button></h4><p class="muted">핵심 여부와 사실 여부를 구분합니다. 기존 기록은 삭제하거나 핵심으로 자동 승격하지 않습니다. 원문은 모두 보관합니다.</p>${notebookGroupsHTML(notebookRecords(),true)}<div class="row"><input id="canonNew" placeholder="직접 확인한 사실을 적어 주세요" maxlength="240"><button onclick="addCanonUser()">증거 추가</button></div>${done.length?`<h4>해결한 사건</h4>${done.slice(-20).reverse().map(caseCard).join('')}`:''}`);
 }
 
 /* =========================================================
