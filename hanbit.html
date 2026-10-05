@@ -2459,8 +2459,9 @@ const EXCUSE_COOLDOWN=3;
 const excusedToday=()=>!!G&&G.excuse&&G.excuse.day===G.day;
 function excuseLeft(){ return G.excuseLast==null?0:Math.max(0,G.excuseLast+EXCUSE_COOLDOWN-G.day) }
 function excuseBtn(){
-  if(!G||isWeekend()||G.time!=='낮'||!['campus','hood','home'].includes(G.loc)) return '';
+  if(!G||isWeekend()||!['campus','hood','home'].includes(G.loc)) return '';
   if(excusedToday()) return '<button disabled>📝 오늘은 결석 처리됨 (벌점 없음)</button>';
+  if(G.time!=='낮') return '';
   const left=excuseLeft();
   return `<button onclick="takeExcuse()" ${left?'disabled':''}>📝 오늘 학교 결석하기 (${left?`${left}일 뒤 가능`:`${EXCUSE_COOLDOWN}일에 1번 · 수업·점호 벌점 없음`})</button>`;
 }
@@ -2468,7 +2469,8 @@ function takeExcuse(){
   if(busy||!G||isWeekend()||G.time!=='낮'||excusedToday()||excuseLeft()>0) return;
   if(classActive&&classActive()) return toast('수업을 듣는 중에는 결석을 신청할 수 없습니다');
   G.excuse={day:G.day}; G.excuseLast=G.day;
-  addLog('sys','📝 담임 선생님께 사정을 말하고 오늘 하루 결석하기로 했습니다. 오늘은 수업에 가지 않아도, 밤에 기숙사에 들어가지 않아도 벌점이 없습니다.');
+  G.time='방과 후'; G.dayStep=0; G._bell=null; G._yuminHere=false;   // 남은 학교 일과(조례·수업·점심·종례)는 결석으로 건너뜀
+  addLog('sys','📝 담임 선생님께 사정을 말하고 오늘 하루 결석하기로 했습니다. 남은 학교 일과는 건너뛰고 방과 후가 되었습니다. 오늘은 수업에 가지 않아도, 밤에 기숙사에 들어가지 않아도 벌점이 없습니다.');
   pend(' [결석 허가] 오늘 플레이어는 담임 선생님의 허락을 받아 학교를 결석했다. 수업·점호·기숙사 밖 외출에 대한 꾸중이나 벌점 언급은 하지 말 것(오늘 하루 한정).');
   save(); render();
 }
@@ -7791,7 +7793,7 @@ function openGuide(){
     ${row('🍫 공포를 늦추는 간식',`상점·매점에서 ${Object.keys(SNACKS).map(n=>{ const e=SHOP_GOODS.find(x=>x[1]==='i_'+n); return `${n}(💳${e?e[2]:'?'}, 공포 누적 ${SNACKS[n]}회 늦춤)` }).join(', ')}을(를) 살 수 있습니다. 소지품에서 「먹기」(또는 "초코바를 먹는다"라고 입력)하면 다음 공포 누적을 건너뜁니다. 구역·뒷길처럼 걸을 때 공포가 오르는 곳에서 효과가 있고, 이미 오른 공포를 내리지는 않습니다`)}
     ${row('📋 전학 첫날','1일째 조례에서 「전학 인사하기」를 누르면 담임의 소개, 자기소개, 옆자리 유민과의 첫 만남이 이어집니다')}
     ${row('📚 수업 듣기',`시간표는 날짜로 정해져 미리 보입니다. 한 교시는 행동 ${CLASS_ACTIONS}번(수업 듣기 버튼이나, 수업 중 고른 선택지·입력 행동)이고 마지막 행동 뒤에 종이 울립니다. 교시마다 ${Math.round(CLASS_CLUE_P*100)}% 확률로 마지막 장면에서 단서(조사 보드, 가끔 교표 조각의 위치)를 얻고 성장 경험치 +1. 과목마다 단서의 성격이 다름 — 국어: 기록·문서, 수학: 숫자·좌표(조각 위치 단서가 잘 나옴), 영어: 구역 이름의 유래, 과학: 구역 환경, 한국사: 구역 연혁, 사회: 지도·위치(조각 위치 단서가 잘 나옴), 음악: 소리·방송, 체육 이론: 안전 수칙, 기술·가정: 건물 구조. 수업 칸에 수업을 듣지 않고 시간이 흐르는 다른 행동(둘러보기·거닐기·급식 등)을 하면 땡땡이로 처리되어 확률로 적발됩니다(칸당 한 번)`)}
-    ${row('📝 결석하기',`평일 낮에 📝 오늘 학교 결석하기 버튼으로 담임 선생님께 승인을 받으면(${EXCUSE_COOLDOWN}일에 1번) 그날 하루는 수업에 가지 않아도 땡땡이·결석 기록이나 벌점이 없고, 밤에 기숙사에 들어가지 않아도(점호 누락·소등 후 외출 적발·기숙사 밖 하룻밤·무단 외출) 벌점이 없습니다. 하루가 지나면 효과가 끝납니다`)}
+    ${row('📝 결석하기',`평일 낮에 📝 오늘 학교 결석하기 버튼으로 담임 선생님께 승인을 받으면(${EXCUSE_COOLDOWN}일에 1번) 신청하면 남은 학교 일과가 자동으로 지나가 방과 후가 되고, 그날은 땡땡이·결석 기록이나 벌점이 없고, 밤에 기숙사에 들어가지 않아도(점호 누락·소등 후 외출 적발·기숙사 밖 하룻밤·무단 외출) 벌점이 없습니다. 하루가 지나면 효과가 끝납니다`)}
     ${row('🏃 땡땡이치기',`수업 한 칸을 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}`)}
     ${h3('걸음에 따른 변화 (한빛시·구역에서만)')}
     ${row('😨 공포',`걸을 때 ${MOVE_STEPS.calm}걸음마다 +1 (하루 꼬박 움직이면 약 ${Math.round((SCHOOL.length+MOVE_STEPS.quarter*(TIMES.length-1))/MOVE_STEPS.calm)}) · 이동은 반나절마다 +1 · 학교 안·지구·아지트에서는 쌓이지 않음<br><span class="muted">"담력" 특성: ${MOVE_STEPS.calmFrugal}걸음마다 · 떠돌이 개(친근한 사이부터) +1걸음</span>`)}
