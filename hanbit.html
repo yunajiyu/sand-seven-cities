@@ -1115,7 +1115,7 @@ const TURN_SCHEMA=`출력 JSON 형식:
  "narration": "서술 (문단은 \\n\\n로 구분)",
  "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","type":"story|check|rest|shelter|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)","to":"장소를 옮기는 선택지일 때만 목적지 이름"}],
  "위치": "", "칸종료": false, "약속": null, "단서": "", "event": null,
- "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[]},
+ "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[],"해결단서":[]},
  "chronicle": "이번 장면이 이야기상 중요하면 한 줄 요약, 아니면 빈 문자열"
 }
 [effects] 한 장면 범위: ${fxRangeText()}(넘으면 코드가 자름). 공포: 괴이·교칙 위반·어둠·고립 +1~2, 진정 장소·동행·따뜻한 음료 −1~−2(서술의 공포 묘사와 맞춤). 배터리·손전등은 물건을 살 때만 산 만큼, 공포는 진정 음료를 샀을 때만 그만큼 음수.
@@ -1127,7 +1127,7 @@ relations: 실제로 대화·교류한 인물(유민 제외)마다 {"name":"사�
 relation_event: 진행 중인 인연 이벤트가 있을 때만 {"name":"..","result":"success|fail|pending"}, 아니면 null.
 yumin_arc: [유민의 사연] 장면 중일 때만 effects 안에 {"result":"success|fail|pending","canon":"새로 드러난 유민의 과거 사실 1~2문장(없으면 빈 문자열)"}.
 materials: 구역에서 실제로 쓸 만한 철제 부품·합판·전선·유실물을 챙겼을 때만(각 0~2, 유실물 0~1). 교표조각: 조각을 손에 넣는 장면에서만 true(코드가 확인).
-사전추가: 새 인물·장소·괴담 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}](핵심만, 없으면 []). 조사보드: 새 단서·증언·모순점 짧은 문장 배열. 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등) "항목 = 내용" 배열. 없으면 []이고 이미 적힌 것은 반복 금지.
+사전추가: 새 인물·장소·괴담 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}](핵심만, 없으면 []). 조사보드: 새 단서·증언·모순점 짧은 문장 배열. 해결단서: 이번 장면에서 분명히 풀리거나 막다른 길로 정리된 [조사 보드] 항목의 번호 배열(예 ["t3"], 없으면 []). 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등) "항목 = 내용" 배열. 없으면 []이고 이미 적힌 것은 반복 금지.
 [위치] 캠퍼스에서만. "위치"에는 장면이 끝났을 때 플레이어가 실제로 있는 곳(${placeNames()} 중 하나, 또는 옥상·매점 앞 같은 지점 밖 장소)을 장소가 실제로 바뀐 경우에만 적고('자리를 옮겨'·'~로 향했다'·'~에 도착했다'도 변경) 그대로면 빈 문자열. 다른 곳으로 가는 선택지는 "to"에 목적지를 적는다. 수업 중 교실을 벗어나면 땡땡이로 다룬다.
 [급식실] 점심시간에만 식사를 준다. 그 밖에는 닫혀 있어 급식실 식사 장면·제안·선택지와 급식실 약속을 쓰지 않는다(방과 후 간식은 매점·상점가).
 [일과] 낮에는 졸기·엎드리기·잠깐 쉬기도 type "rest"가 아닌 "story"("rest"는 밤 잠자리 선택지에만). 수업은 코드가 세니 [수업 끝] 지시가 있는 장면에서만 종을 울리고 그 전엔 수업이 계속되는 것으로 쓴다. 서술에서 수업·쉬는 시간 같은 칸이 끝났다는 종이 울렸다면 "칸종료"를 true(아니면 false).
@@ -1375,7 +1375,7 @@ function fallbackTurn(action){
 
 /* AI가 새 항목명(한글 키)으로 준 효과를 내부 키로 옮김: 체력·공포·배터리·손전등·캐시·벌점·출입권한·유민호감·교표조각·사전추가·조사보드·떡밥장부 */
 function koEffects(e){
-  const m={체력:'hp',배터리:'battery',손전등:'torch',캐시:'cash',벌점:'demerit',출입권한:'access',유민호감:'affinity',교표조각:'fragment',사전추가:'lexAdd',조사보드:'board',떡밥장부:'ledgerAdd'};
+  const m={체력:'hp',배터리:'battery',손전등:'torch',캐시:'cash',벌점:'demerit',출입권한:'access',유민호감:'affinity',교표조각:'fragment',사전추가:'lexAdd',조사보드:'board',떡밥장부:'ledgerAdd',해결단서:'threadsDone'};
   for(const k in m){ if(e[k]!==undefined){ if(e[m[k]]===undefined) e[m[k]]=e[k]; delete e[k] } }
   if(e['공포']!==undefined){ if(e.calm===undefined) e.calm=-(+e['공포']||0); delete e['공포'] }   // 공포 +는 내부 calm −
   return e;
@@ -1391,6 +1391,10 @@ function addDemerit(d,why,fx){
 /* 사전추가 · 조사보드 · 떡밥장부 (AI가 응답에 직접 준 항목) */
 function applyBoardLedger(e,fx){
   (Array.isArray(e.lexAdd)?e.lexAdd:[]).slice(0,4).forEach(x=>{ if(x&&x.name&&x.desc) addLex({name:String(x.name).slice(0,30),cat:x.cat,desc:String(x.desc).slice(0,300)},false) });
+  (Array.isArray(e.threadsDone)?e.threadsDone:[]).slice(0,2).map(String).forEach(id=>{
+    const t=(G.threads||[]).find(x=>x.id===id&&x.status==='open'); if(!t) return;
+    t.status='closed'; t.closedDay=G.day; toast('🧵 조사 보드 1개가 풀렸습니다: '+t.text.slice(0,24)); _sigR='';
+  });
   const board=(Array.isArray(e.board)?e.board:[]).map(x=>String(x&&(x.text||x)||'').trim()).filter(Boolean).slice(0,2);
   if(board.length&&clueLoad()<THREAD_SOFT) applyThreads(G,{threads_new:board});   // 미해결이 많으면 새 단서는 적지 않음
   (Array.isArray(e.ledgerAdd)?e.ledgerAdd:[]).slice(0,4).forEach(x=>{
@@ -5130,7 +5134,10 @@ on('facts',90,(o,rules)=>{
 const THREAD_MAX=12, THREAD_PROMPT=6;
 /* 단서 피로 방지: 미해결 조사 보드가 이만큼 쌓이면 새 단서를 막고(코드), AI에게 새 수수께끼 대신 기존 것의 진전·해결을 요구함 */
 const THREAD_SOFT=5, THREAD_HARD=8;
-function clueLoad(g){ return threadsOpen(g).length }
+const THREAD_DORMANT_DAYS=4;   // 이 일수 동안 장면에서 다뤄지지 않은 미해결 단서는 '보류'로 보고 개수에서 뺌
+function threadActive(t,g){ g=g||G; return t.status==='open'&&(g.day-(t.touched==null?t.day:t.touched))<THREAD_DORMANT_DAYS }
+function threadsActive(g){ return threadsOpen(g).filter(t=>threadActive(t,g)) }
+function clueLoad(g){ return threadsActive(g).length }
 function threadsOpen(g){ g=g||G; return (g.threads||[]).filter(t=>t.status==='open') }
 function threadsRequest(g){
   const open=threadsOpen(g);
@@ -5152,7 +5159,7 @@ function applyThreads(g,r){
     const text=String(x&&(x.text||x)||'').trim().slice(0,60); if(text.length<4) return;
     if(threadsOpen(g).some(t=>t.text===text)) return;
     g.threadN=(g.threadN||0)+1;
-    g.threads.push({id:'t'+g.threadN,text,day:g.day,status:'open',shown:0}); nn++;
+    g.threads.push({id:'t'+g.threadN,text,day:g.day,touched:g.day,status:'open',shown:0}); nn++;
   });
   // 너무 많이 쌓이면 가장 오래된 것부터 '흐지부지'로 닫음
   const open=threadsOpen(g);
@@ -5165,11 +5172,12 @@ function applyThreads(g,r){
 function pickThreads(text){
   const open=threadsOpen(); if(!open.length) return [];
   const hit=t=>t.text.split(/[\s,·.()「」'"]+/).filter(w=>w.length>=2).some(w=>text.includes(w));
+  open.forEach(t=>{ if(hit(t)) t.touched=G.day });   // 지금 장면에서 다뤄진 단서는 보류에서 깨어남
   return [...open].sort((a,b)=>(hit(b)-hit(a))||((a.shown||0)-(b.shown||0))||(a.day-b.day)).slice(0,THREAD_PROMPT);
 }
 on('context',57,()=>{
   const n=clueLoad(); if(n<THREAD_SOFT) return '';
-  const list=threadsOpen().slice(-THREAD_HARD).map(t=>t.text).join(' / ');
+  const list=threadsActive().slice(-THREAD_HARD).map(t=>`${t.id}: ${t.text}`).join(' / ');
   return n>=THREAD_HARD
     ?`\n[단서 과다 — 미해결 ${n}개] 플레이어가 단서가 너무 많아 지쳐 있다. 새 수수께끼·새 인물·새 단서·새 떡밥을 절대 만들지 말 것. 이번 장면에서 아래 미해결 중 하나를 분명히 진전시켜 결론(진상이 드러나거나 막다른 길로 정리)에 가까이 가라: ${list}`
     :`\n[단서 과다 — 미해결 ${n}개] 새 수수께끼·새 단서·새 인물 도입을 자제하고, 아래 미해결 중 하나를 한 걸음 진전시키거나 매듭지어라: ${list}`;
@@ -5177,7 +5185,7 @@ on('context',57,()=>{
 function threadsBlock(text){
   const list=pickThreads(text); if(!list.length) return '';
   list.forEach(t=>t.shown=(t.shown||0)+1);
-  return `\n[조사 보드 — 아직 풀리지 않은 것. 지금 장면과 자연스럽게 이어질 때만 하나를 이어 가거나 매듭지어라. 억지로 끌어오지 말고, 이번 장면과 무관하면 무시해도 된다. 목록이 있다는 사실은 서술에 드러내지 말 것]\n${list.map(t=>'- '+t.text).join('\n')}`;
+  return `\n[조사 보드 — 아직 풀리지 않은 것. 지금 장면과 자연스럽게 이어질 때만 하나를 이어 가거나 매듭지어라. 억지로 끌어오지 말고, 이번 장면과 무관하면 무시해도 된다. 목록이 있다는 사실은 서술에 드러내지 말 것]\n${list.map(t=>`- ${t.id}: ${t.text}`).join('\n')}\n(장면에서 위 항목이 분명히 풀리거나 막다른 길로 정리되면 effects.해결단서에 그 번호를 적어라)`;
 }
 function closeThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; t.status='closed'; t.closedDay=G.day; _sigR=''; save(); renderSides(); if(document.getElementById('thrList')) openThreads() }
 function reopenThread(id){ const t=(G.threads||[]).find(x=>x.id===id); if(!t) return; t.status='open'; delete t.closedDay; _sigR=''; save(); renderSides(); openThreads() }
@@ -5343,10 +5351,11 @@ JSON만 출력: {"known":["…"],"links":["…"],"next":["…"],"note":"한 줄 
 }
 function openCanon(){ openThreads(); setTimeout(()=>{ const e=document.getElementById('canonSec'); if(e) e.scrollIntoView({block:'start'}) },60) }
 function openThreads(){
-  const all=G.threads||[], open=all.filter(t=>t.status==='open'), done=all.filter(t=>t.status!=='open').slice(-15).reverse();
+  const all=G.threads||[], open=all.filter(t=>threadActive(t)), dormant=all.filter(t=>t.status==='open'&&!threadActive(t)), done=all.filter(t=>t.status!=='open').slice(-15).reverse();
   modal('🧵 조사 보드',`<p class="muted">이야기 속에서 생긴 약속·수수께끼·인물의 사정 중 아직 풀리지 않은 것입니다. 사전을 정리할 때 함께 적히고, 풀리면 자동으로 닫힙니다. 이야기꾼은 매 장면 몇 개를 참고해 자연스러울 때 이어 갑니다(최대 ${THREAD_MAX}개).</p>
     ${open.length>=THREAD_SOFT?`<p class="muted" style="font-size:12.5px;color:var(--danger)">미해결 ${open.length}개 — ${THREAD_SOFT}개 이상이면 새 단서가 적히지 않고 이야기꾼이 기존 단서를 풀어 가도록 유도합니다.</p>`:`<p class="muted" style="font-size:12.5px">미해결 ${open.length}/${THREAD_SOFT} — ${THREAD_SOFT}개를 넘으면 새 단서를 억제합니다.</p>`}
     <div id="thrList">${open.map(t=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${t.day}일 ·</span> ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')||'<p class="muted">조사 보드가 없습니다.</p>'}</div>
+    ${dormant.length?`<h4 style="margin:12px 0 4px">💤 보류 중 <span class="muted" style="font-size:12px">(${THREAD_DORMANT_DAYS}일 넘게 다뤄지지 않아 개수에서 뺐습니다. 장면에서 다시 나오면 깨어납니다)</span></h4>${dormant.map(t=>`<div class="shop-row muted" style="gap:8px"><span>${t.day}일 · ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')}`:''}
     <div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="thrNew" placeholder="직접 적기 (예: 하킴이 은화를 갚겠다고 했다)" maxlength="60"><button class="small" onclick="addThread()">추가</button></div>
     <h4 style="margin:14px 0 4px">📅 약속</h4>${apptListHTML()}
     <h4 id="canonSec" style="margin:14px 0 4px">📌 확정된 단서 <span class="muted" style="font-size:12px">(AI가 항상 기억합니다. 틀린 것은 ✕로 지우세요)</span> <button class="small" onclick="canonTidy()">🧹 AI로 정리</button></h4>${(G.canon||[]).map((c,i)=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${c.day}일 ·</span> ${canonHTML(c.text)}</span><button class="small" onclick="delCanon(${i})">✕</button></div>`).join('')||'<p class="muted" style="font-size:13px">아직 없습니다. 이야기에서 얻은 단서가 자동으로 쌓입니다.</p>'}
@@ -7917,7 +7926,7 @@ function openGuide(){
     ${row('물건 팔기','상점가 상점에서 소지품을 팔 수 있음 (괴담 사전의 같은 이름 「물건」 항목도 지워짐)')}
     ${h3('기록')}
     ${row('📜 괴담 사전',`이야기 ${LEX_EVERY}장면마다 한 번, 또는 장소를 옮길 때 따로 정리됩니다 (인물 · 장소 · 괴담 · 물건 · 세력). 구역에서 생긴 항목은 조사를 마치면 정리됩니다 — 인물·세력·즐겨찾기는 그대로(세력이 한 일은 한 문단으로 요약), 물건은 삭제, 장소는 「구역 이름」 항목의 '둘러본 곳' 한 줄로, 괴담은 「구역 이름의 괴담」 한 항목으로 요약되어 구역 연혁 시대와 연결`)}
-    ${row('🧵 조사 보드','이야기 속 단서·증언·모순점이 자동으로 적힙니다. 풀리면 닫히고, 직접 추가·관리도 할 수 있습니다')}
+    ${row('🧵 조사 보드','이야기 속 단서·증언·모순점이 자동으로 적힙니다. 풀리면 닫히고, 직접 추가·관리도 할 수 있습니다. 풀림은 서술 AI가 장면마다 효과의 「해결단서」로 번호를 알려 즉시 닫히고, 사전 정리(6장면마다)가 놓친 것을 다시 점검합니다. '+THREAD_DORMANT_DAYS+'일 넘게 장면에서 다뤄지지 않으면 💤 보류로 접혀 미해결 개수(상한 '+THREAD_SOFT+'개)에서 빠지고, 다시 나오면 깨어납니다')}
     ${row('📝 조사 수첩','구역마다 사연과 공간마다 단서. 모으면 조사를 마칠 때 구역의 기록과 구역 연혁 시대가 괴담 사전에 남습니다')}
     ${row('연대기','하루 → 한 주 → 한 달 단위로 자동 요약')}
     ${h3('호감 레벨')}
