@@ -5015,7 +5015,7 @@ function addThread(){
 }
 function threadsSideHTML(){
   const open=threadsOpen();
-  return `<div class="sec"><h4>🧵 조사 보드 <button class="small" onclick="openThreads()">관리</button></h4>${open.slice(-5).reverse().map(t=>`<div class="ch"><span class="d">${t.day}일</span><span>${esc(t.text)}</span></div>`).join('')||'<div class="muted">아직 없습니다. 이야기 속 약속·수수께끼가 자동으로 적힙니다.</div>'}${open.length>5?`<div class="muted" style="font-size:12px">외 ${open.length-5}개</div>`:''}</div>`;
+  return `<div class="sec"><h4>🧵 조사 보드 <button class="small" onclick="openThreads()">관리</button> <button class="small" onclick="openCanon()">📌 확정 단서 ${(G.canon||[]).length}</button></h4>${open.slice(-5).reverse().map(t=>`<div class="ch"><span class="d">${t.day}일</span><span>${esc(t.text)}</span></div>`).join('')||'<div class="muted">아직 없습니다. 이야기 속 약속·수수께끼가 자동으로 적힙니다.</div>'}${open.length>5?`<div class="muted" style="font-size:12px">외 ${open.length-5}개</div>`:''}</div>`;
 }
 /* ---------- 확정 단서: 플레이어가 이미 얻은 구체적 단서(숫자·이름·칸 등). 지우지 않고 매 턴 AI에게 보내 새 단서가 이와 어긋나지 않게 함 ---------- */
 const CANON_MAX=30;
@@ -5103,12 +5103,13 @@ JSON만 출력: {"known":["…"],"links":["…"],"next":["…"],"note":"한 줄 
   G.sleuth={known:r.known,links:r.links,next:r.next,note:r.note,lv,lvn:SLEUTH_LV[lv].n,day:G.day};
   save(); if(o) o.innerHTML=sleuthHTML(G.sleuth);
 }
+function openCanon(){ openThreads(); setTimeout(()=>{ const e=document.getElementById('canonSec'); if(e) e.scrollIntoView({block:'start'}) },60) }
 function openThreads(){
   const all=G.threads||[], open=all.filter(t=>t.status==='open'), done=all.filter(t=>t.status!=='open').slice(-15).reverse();
   modal('🧵 조사 보드',`<p class="muted">이야기 속에서 생긴 약속·수수께끼·인물의 사정 중 아직 풀리지 않은 것입니다. 사전을 정리할 때 함께 적히고, 풀리면 자동으로 닫힙니다. 이야기꾼은 매 장면 몇 개를 참고해 자연스러울 때 이어 갑니다(최대 ${THREAD_MAX}개).</p>
     <div id="thrList">${open.map(t=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${t.day}일 ·</span> ${esc(t.text)}</span><button class="small" onclick="closeThread('${t.id}')">✓ 닫기</button></div>`).join('')||'<p class="muted">조사 보드가 없습니다.</p>'}</div>
     <div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="thrNew" placeholder="직접 적기 (예: 하킴이 은화를 갚겠다고 했다)" maxlength="60"><button class="small" onclick="addThread()">추가</button></div>
-    <h4 style="margin:14px 0 4px">📌 확정된 단서 <span class="muted" style="font-size:12px">(AI가 항상 기억합니다. 틀린 것은 ✕로 지우세요)</span></h4>${(G.canon||[]).map((c,i)=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${c.day}일 ·</span> ${esc(c.text)}</span><button class="small" onclick="delCanon(${i})">✕</button></div>`).join('')||'<p class="muted" style="font-size:13px">아직 없습니다. 이야기에서 얻은 단서가 자동으로 쌓입니다.</p>'}
+    <h4 id="canonSec" style="margin:14px 0 4px">📌 확정된 단서 <span class="muted" style="font-size:12px">(AI가 항상 기억합니다. 틀린 것은 ✕로 지우세요)</span></h4>${(G.canon||[]).map((c,i)=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${c.day}일 ·</span> ${esc(c.text)}</span><button class="small" onclick="delCanon(${i})">✕</button></div>`).join('')||'<p class="muted" style="font-size:13px">아직 없습니다. 이야기에서 얻은 단서가 자동으로 쌓입니다.</p>'}
     <div class="row" style="margin-top:8px;flex-wrap:nowrap"><input id="canonNew" placeholder="직접 적기 (예: 출석부 3번 칸의 이름이 지워져 있다)" maxlength="90"><button class="small" onclick="addCanonUser()">추가</button></div>
     ${done.length?`<h4 style="margin:14px 0 4px">최근에 닫힌 것</h4>${done.map(t=>`<div class="shop-row muted" style="gap:8px"><span>${t.status==='faded'?'💨':'✓'} ${esc(t.text)}</span><button class="small" onclick="reopenThread('${t.id}')">다시 열기</button></div>`).join('')}`:''}`);
 }
@@ -6938,7 +6939,7 @@ function fixedHTML(){
     if(G.comp&&G.comp.joined) ac+=btn('talkYumin()','🎵 유민과 이야기');
   }
   for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }
-  ac+=inboxHTML()+btn('openPhone()','📱 휴대폰')+btn('openSleuth()','🧩 추리 도우미');
+  ac+=inboxHTML()+btn('openPhone()','📱 휴대폰')+btn('openSleuth()','🧩 추리 도우미')+btn('openCanon()',`📌 확정 단서 (${(G.canon||[]).length})`);
   if(G.comp&&G.comp.joined) ac+=btn('partYumin()','🤝 유민과 헤어지기');   // 기능 모듈이 덧붙이는 버튼
   // 사건으로 생긴 버튼
   if(G.calmSrc&&!G.calmSrc.used) ac+=btn('fillCalmSrc()',`🫧 「${esc(G.calmSrc.name)}」에서 공포 가라앉히기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
@@ -7244,7 +7245,7 @@ function renderSides(){
   const L=document.querySelector('#sideL .sbody'), R=document.querySelector('#sideR .sbody');
   const sl=JSON.stringify([G.xp,G.growth,G.char,G.hp,G.maxhp,G.calm,G.battery,G.torch,G.cash,G.demerit,G.access,G.time,G.items,G.mat,G.fragments,G.comp,G.home,G.rel,G.relEvt,G.keepsakeG,G.ride,G._rideFed,G.pets,G._yuminHere,G.loc,G.district,G.day,busy]);
   if(sl!==_sigL){ _sigL=sl; L.innerHTML=leftHTML() }
-  const sr=JSON.stringify([G.chronicle.slice(-10),G.lexicon,G.rival&&[G.rival.known,G.rival.log.length,G.rival.frags,G.rival.stolen,G.rival.wards,G.rival.leader_st],threadsOpen().map(t=>t.id),sideLexTab,sideLexN,themeMode,fontScale,SET.narrLen,SET.narrMin,SET.narrMax]);
+  const sr=JSON.stringify([(G.canon||[]).length,G.chronicle.slice(-10),G.lexicon,G.rival&&[G.rival.known,G.rival.log.length,G.rival.frags,G.rival.stolen,G.rival.wards,G.rival.leader_st],threadsOpen().map(t=>t.id),sideLexTab,sideLexN,themeMode,fontScale,SET.narrLen,SET.narrMin,SET.narrMax]);
   if(sr!==_sigR){ _sigR=sr; R.innerHTML=rightHTML() }
   const nNew=G.lexicon.filter(e=>e.isNew).length;
   document.getElementById('rBadge').innerHTML=nNew?` <span class="badge">${nNew}</span>`:'';
@@ -7535,6 +7536,7 @@ function openGuide(){
     ${row('🎉 주말 전용','토·일 자유시간에는 🧑‍🤝‍🧑 주말 외출(유민이나 아는 사람 한 명과 상점가·운동장·도서관·저수지 둑길 중 한 곳, 💳5·두 칸, 하루 한 번 성사, 유민 외 인물은 호감에 따라 수락 60~90%), 상점가의 🎸 버스킹 구경(공포 −1, 하루 한 번), 정문의 📮 면회 시간(점심 이후, 용돈 💳10~20과 간식 하나, 하루 한 번)이 열립니다')}
     ${row('🔧 소모 부품','나사·못·테이프·붕대·건전지 같은 소모 부품은 쓰면 사라집니다. 직접 입력("나사를 사용해 …")이나 소지품의 🔧 「쓰기」로 쓰면 소지품에서 하나가 줄고, 공구(드라이버 등)는 남습니다')}
     ${row('🔒 이야기 물건 vs 팔 수 있는 물건','소지품은 두 종류입니다. AI가 물건을 줄 때 이야기에 필요한 것(단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건)에는 🔒를 붙여 팔 수 없게 하고, 값나가는 잡동사니는 바로 팔 수 있습니다. 표시가 없는 물건은 이름으로 판단하고(출석부·열쇠·서류·사진 등은 🔒), 애매하면 팔기 전에 확인 창이 뜹니다')}
+    ${row('📌 확정 단서','이야기에서 얻은 구체적 단서(숫자·이름·칸 등)가 지워지지 않고 쌓여 AI가 매 턴 기억하는 목록입니다. 행동 버튼 줄의 「📌 확정 단서」나 🧵 조사 보드 창 아래쪽에서 보고, 직접 추가하거나 ✕로 지울 수 있습니다')}
     ${row('🧩 추리 도우미','행동 버튼 줄의 🧩 추리 도우미를 누르면 지금까지의 조사 보드·사전·연대기·소문을 AI가 한 번 정리해 줍니다. 단계는 「살짝」(방향만: 알려진 것·이어질 법한 것을 질문으로·더 찾아볼 방향)과 「확실히」(다음에 할 구체적 행동 2~3개까지) 중에 고릅니다. 숨겨진 정체나 정답은 알려 주지 않으며, 누를 때마다 AI를 한 번 부르고 마지막 결과는 저장됩니다')}\n    ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기로 언제든 헤어질 수 있습니다(지도의 🎵로 위치 확인)')}
     ${row('📱 휴대폰','행동 버튼 줄의 📱 휴대폰에서 연락처(유민과 이야기에서 만난 사람들)에게 💬 문자나 📞 전화를 할 수 있습니다. 문자는 시간·배터리를 쓰지 않고, 💬 문자를 누르면 **팝업 대화창(말풍선)**이 열려 주고받은 내용이 연락처마다 기록됩니다. 빠른 문구를 누르거나 직접 써서 보내면 상대가 곧바로 답장하고(AI), 가끔 단서가 조사 보드에 적히고 호감이 오릅니다(하루 한 번). 전화는 배터리 1과 시간 한 칸을 쓰며 이야기 본문으로 진행됩니다. 유민에게는 📍 만나자고 하기(성공 '+Math.round(MEET_OK_P*100)+'%)도 있습니다. 수업 중(전화는 불가)과 소등 후에는 몰래 써야 하고 약 '+Math.round(PHONE_CATCH_P*100)+'% 확률로 들켜 벌점 +'+PHONE_DEMERIT+'과 그 시간대 압수. 구역 안에서는 전화가 안 터지고 문자만 보낼 수 있습니다(신호가 약해 답이 끊겨 옵니다)')}
     ${row('📩 수신 문자','시간이 흐르다 보면 연락처 사람(유민 포함)이 먼저 문자를 보냅니다(한 번에 최대 '+INBOX_MAX+'통). 화면 오른쪽 위에 알림 팝업이 뜨고(누르면 읽기, 행동 버튼 줄의 📩 버튼으로도 가능) 대화창에서 소문·안부·초대·경고 같은 문자를 읽고 바로 답장할 수 있습니다. 수업 중·소등 후에 읽으면 몰래 읽는 것이라 적발될 수 있습니다')}
