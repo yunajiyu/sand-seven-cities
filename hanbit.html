@@ -5146,9 +5146,9 @@ on('facts',90,(o,rules)=>{
    - 서술 AI에게는 매 턴 2~3개를 '자연스러우면 회수'로 넘김 (억지로 풀지 않게)
    - G.threads=[{id,text,day,status:'open'|'closed',closedDay,shown}]
    ========================================================= */
-const THREAD_MAX=12, THREAD_PROMPT=6;
+const THREAD_MAX=20, THREAD_PROMPT=6;
 /* 단서 피로 방지: 미해결 조사 보드가 이만큼 쌓이면 새 단서를 막고(코드), AI에게 새 수수께끼 대신 기존 것의 진전·해결을 요구함 */
-const THREAD_SOFT=5, THREAD_HARD=8;
+const THREAD_SOFT=10, THREAD_HARD=15;
 const THREAD_DORMANT_DAYS=4;   // 이 일수 동안 장면에서 다뤄지지 않은 미해결 단서는 '보류'로 보고 개수에서 뺌
 function threadActive(t,g){ g=g||G; return t.status==='open'&&(g.day-(t.touched==null?t.day:t.touched))<THREAD_DORMANT_DAYS }
 function threadsActive(g){ return threadsOpen(g).filter(t=>threadActive(t,g)) }
