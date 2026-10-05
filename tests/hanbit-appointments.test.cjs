@@ -35,12 +35,12 @@ await test(name+' waits at the exact temporary place at the scheduled time',({ru
 });
 await test(name+' receives real text agreement for a temporary place without AI redirect',async({run,input})=>{
   run(`setSpot('강당');const dest=placeKey();_chatWith='${name}';callAI=async()=>JSON.stringify({reply:'좋아, 내일 방과 후 강당에서 보자.',appointment:{place:'도서관',when:'저녁'}});`);
-  input.value='내일 방과 후 강당으로 와줘';await run('sendChat()');assert.equal(run('G.appts[0].where'),run('dest'));assert.equal(run('G.appts[0].ord'),50);assert.equal(run('G.appts[0].arrived'),false);
+  run(`sendSocialMessage('${name}','meet',{where:dest,ord:50})`);assert.equal(run('G.appts[0].where'),run('dest'));assert.equal(run('G.appts[0].ord'),50);assert.equal(run('G.appts[0].arrived'),false);
   run('G.day=2;apptSync();');assert.equal(run(`canMeetHere('${name}')`),true);
 });
 await test(name+' reaches a rumored zone after its lead has been consumed',async({run,input})=>{
   run(`G.leads=[{id:'l1',name:'푸른 터널'}];_chatWith='${name}';callAI=async()=>JSON.stringify({reply:'좋아, 내일 방과 후 터널 입구에서 보자.',appointment:{place:'푸른 터널',when:'내일 방과 후'}})`);
-  input.value='내일 방과 후 푸른 터널로 와줘';await run('sendChat()');assert.equal(run('G.appts[0].where'),'lead:푸른 터널');
+  run(`sendSocialMessage('${name}','meet',{where:'lead:푸른 터널',ord:50})`);assert.equal(run('G.appts[0].where'),'lead:푸른 터널');
   run("G.day=2;G.leads=[];G.loc='site';G.site={name:'푸른 터널',uid:'z123',cur:'r1',rooms:[{id:'r1',name:'입구',exits:[],danger:0}]};apptSync();updateYuminSpot()");
   assert.equal(run(`canMeetHere('${name}')`),true);assert.equal(run(name==='유민'?'G.comp.spot':`npcWhere('${name}')`),'lead:푸른 터널');assert.ok(run(`gameActions().some(a=>a.id==='${name==='유민'?'talk:yumin':'talk:'+encodeURIComponent(name)}')`));
   run("G.loc='shelter'");assert.equal(run(`canMeetHere('${name}')`),true);
@@ -48,7 +48,7 @@ await test(name+' reaches a rumored zone after its lead has been consumed',async
 });
 await test(name+' refuses even if AI accidentally supplies appointment metadata',async({run,input})=>{
   run(`setSpot('강당');_chatWith='${name}';Math.random=()=>0;callAI=async()=>JSON.stringify({reply:'좋아, 지금 갈게.',appointment:{place:'강당',when:'지금'}});`);
-  input.value='지금 강당으로 와줘';await run('sendChat()');assert.equal(run('(G.appts||[]).length'),0);assert.equal(run(`canMeetHere('${name}')`),false);
+  run(`sendSocialMessage('${name}','meet',{where:placeKey(),ord:apptOrd()})`);assert.equal(run('(G.appts||[]).length'),0);assert.equal(run(`canMeetHere('${name}')`),false);
 });
 await test(name+' cancellation and missed meetings remove temporary location claims',({run})=>{
   run(`setSpot('강당');setAppt('${name}','강당','지금');apptSync();G.spot=null;apptCancel(0)`);assert.equal(run('(G.appts||[]).length'),0);assert.ok(!run(name==='유민'?"String(G.comp.spot).startsWith('spot:')":`String(npcWhere('${name}')).startsWith('spot:')`));
@@ -61,23 +61,22 @@ await test('Same temporary name in two districts cannot place an NPC in both',({
 await test('Old name-only spot saves gain persistent keys and retain destinations after leaving',({run})=>{
   run("G.spot={name:'강당'};const before=placeKey();G.spot=null;G.district='library';migrate();const after=apptPlaceKey('강당')");assert.equal(run('before'),run('after'));assert.equal(run('G.tempPlaces.length'),1);run('migrate();tempPlaces()');assert.equal(run('G.tempPlaces.length'),1);
 });
-await test('A named new campus background can be requested without first visiting it',async({run,input})=>{
-  run("_chatWith='서연';callAI=async()=>JSON.stringify({reply:'좋아, 내일 강당에서 보자.',appointment:{place:'강당',when:'내일 방과 후'}})");input.value='내일 강당으로 와줘';await run('sendChat()');assert.equal(run('G.tempPlaces[0].name'),'강당');assert.equal(run('G.appts[0].where'),run('G.tempPlaces[0].id'));assert.equal(run('G.tempPlaces.length'),1);
+await test('Functional requests use discovered temporary places and cannot invent a destination',({run})=>{
+  assert.equal(run("sendSocialMessage('서연','meet',{where:'spot:music:unknown',ord:50})"),false);run("setSpot('강당');const registered=placeKey();sendSocialMessage('서연','meet',{where:registered,ord:50})");assert.equal(run('G.tempPlaces[0].name'),'강당');assert.equal(run('G.appts[0].where'),run('G.tempPlaces[0].id'));assert.equal(run('G.tempPlaces.length'),1);
   assert.equal(run("apptPlaceKey('지금 와줘')"),null);assert.equal(run("apptPlaceKey('응 좋아')"),null);
 });
 await test('Invalid movement keys and unregistered external locations cannot become appointments',({run})=>{
   run("G.loc='hood';G.hood='south'");for(const target of ['lead:없는 구역','spot:music:unknown','campus:invalid','없는 구역'])assert.equal(run(`setAppt('서연',${JSON.stringify(target)},'지금')`),false);assert.equal(run('(G.appts||[]).length'),0);
 });
-await test('Text origin and decision survive movement and another concurrent AI prompt',async({run,input})=>{
-  run("setSpot('강당');const dest=placeKey();_chatWith='유민';let resolveText;callAI=()=>new Promise(r=>resolveText=r)");input.value='지금 여기로 와줘';const sending=run('sendChat()');
-  run("G.spot=null;G.district='library';Math.random=()=>0;chatPush('서연','me','지금 여기로 와줘');chatPrompt('서연');resolveText(JSON.stringify({reply:'응, 지금 그곳으로 갈게.',appointment:{place:'여기',when:'지금'}}))");await sending;
+await test('Functional text binds the exact saved place rather than interpreting AI location names',({run})=>{
+  run("setSpot('강당');const dest=placeKey();sendSocialMessage('유민','meet',{where:dest,ord:apptOrd()});G.spot=null;G.district='library';chatPrompt('서연')");
   assert.equal(run('G.comp.spot'),run('dest'));assert.equal(run('G.appts[0].where'),run('dest'));assert.equal(run("canMeetHere('유민')"),false);run("G.district='music';setSpot('강당')");assert.equal(run("canMeetHere('유민')"),true);
 });
-await test('Incoming proposals become appointments only after player acceptance',async({run,input})=>{
-  run("setSpot('강당');const dest=placeKey();_chatWith='서연';chatPush('서연','them','내일 방과 후 강당에서 만나자');callAI=async()=>JSON.stringify({reply:'응, 거기서 기다릴게.',appointment:{place:'강당',when:'내일 방과 후'}})");assert.equal(run('(G.appts||[]).length'),0);input.value='응 좋아';await run('sendChat()');assert.equal(run('G.appts[0].where'),run('dest'));
+await test('Incoming proposals become appointments only after selecting the functional request',({run})=>{
+  run("setSpot('강당');const dest=placeKey();chatPush('서연','them','내일 방과 후 강당에서 만나자')");assert.equal(run('(G.appts||[]).length'),0);run("sendSocialMessage('서연','meet',{where:dest,ord:50})");assert.equal(run('G.appts[0].where'),run('dest'));
 });
-await test('Network fallback replies never create a confirmed appointment',async({run,input})=>{
-  run("setSpot('강당');_chatWith='유민';callAI=async()=>{throw new Error('NO_KEY')}");input.value='지금 강당으로 와줘';await run('sendChat()');assert.equal(run('(G.appts||[]).length'),0);
+await test('Arbitrary text no longer creates appointments or spends resources',async({run,input})=>{
+  run("setSpot('강당');_chatWith='유민';const batteryBefore=G.battery");input.value='지금 강당으로 와줘';await run('sendChat()');assert.equal(run('(G.appts||[]).length'),0);assert.equal(run('G.battery'),run('batteryBefore'));
 });
 await test('Late arrival cannot meet an NPC after the rumored-place deadline',({run})=>{
   run("G.leads=[{name:'푸른 터널'}];setAppt('유민','푸른 터널','지금');G.day+=3;G.loc='site';G.site={name:'푸른 터널'};G.leads=[];apptSync()");assert.equal(run('G.appts.length'),0);assert.equal(run('G._apptMeet||null'),null);assert.equal(run("canMeetHere('유민')"),false);assert.equal(run('G.missed.length'),1);
@@ -100,8 +99,8 @@ await test('Story agreement reaches a real temporary NPC location and rejects re
 await test('Phone dialogue effects cannot teleport a remote NPC and visit buttons enforce presence',({run})=>{
   run("setSpot('강당');const r=getRel('서연');r.where='campus:library';r.whereKey=yKey();applyEffects({relations:[{name:'서연',aff:1}]},{flags:{remoteContact:true},action:'서연에게 전화를 건다'});");assert.equal(run("G.rel['서연'].where"),'campus:library');run("visitNPC('서연')");assert.equal(run('calls.length'),0);
 });
-await test('Phone meet button schedules a destination instead of immediately teleporting Yumin',({run,input})=>{
-  run("setSpot('강당');Math.random=()=>0.5");input.value='내일 방과 후 강당으로 와줘';run("phoneAct('유민','meet')");assert.equal(run('G.appts[0].where'),run('placeKey()'));assert.equal(run('G.comp.spot'),'market');assert.equal(run('PENDING.flags.remoteContact'),true);
+await test('Phone meet button opens functional requests without teleporting or confirming an appointment',({run})=>{
+  run("setSpot('강당');phoneAct('유민','meet')");assert.equal(run('(G.appts||[]).length'),0);assert.equal(run('G.comp.spot'),'market');assert.equal(run('gameTab'),'messages');run("sendSocialMessage('유민','meet',{where:placeKey(),ord:50})");assert.equal(run('G.appts[0].where'),run('placeKey()'));assert.equal(run('G.comp.spot'),'market');
 });
 await test('Several invited NPCs are present together and all leave with the zone',({run})=>{
   run("getRel('지훈');G.leads=[{name:'푸른 터널'}];setAppt('서연','푸른 터널','지금');setAppt('지훈','푸른 터널','지금');G.loc='site';G.site={name:'푸른 터널'};apptSync();");assert.equal(run("canMeetHere('서연')&&canMeetHere('지훈')"),true);
