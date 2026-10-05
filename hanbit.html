@@ -7716,7 +7716,7 @@ function openChar(){
 function openInv(){
   modal('소지품',`<p>😨 공포 ${fearNow()}/${fearMax()} · 🔋 배터리 ${batteryPct()}% · 🔦 손전등 ${G.torch} · 💳 캐시 ${G.cash} · 📕 벌점 ${G.demerit||0} · 🪪 출입 권한 ${G.access||1}등급</p>
     <p class="muted" style="font-size:12px">🔒 표시는 이야기에 필요한 물건이라 팔 수 없습니다.</p>
-    <p>교표 조각: ${G.fragments}/${FRAG_GOAL}${G._wCredit>0?` · 🍫 공포 누적 늦춤 ${G._wCredit}회`:''}</p>
+    <p>교표 조각: ${G.fragments}/${FRAG_GOAL}${G._wCredit>0?` · 🍫 공포 누적 늦춤 ${G._wCredit}회`:''} ${G.fragments<FRAG_GOAL?`<button class="small" onclick="fragManual()" title="이미 얻었는데 숫자에 반영되지 않았을 때">★ 이미 얻은 조각 +1 반영</button>`:''}</p>
     <p>자재: ${MATS.map(m=>`${m.i} ${m.n} ${G.mat[m.k]}`).join(' · ')}</p>
     <ul>${G.ride?`<li><span class="chip">🚲 ${esc(G.ride.name)} (${RIDES[G.ride.type].n}${G._rideFed===false?' · 지침':''})</span></li>`:''}${G.items.map((i,n)=>`<li>${itemChipHTML(i,n)}</li>`).join('')||(G.ride?'':'<li class="muted">없음</li>')}</ul>`);
 }
