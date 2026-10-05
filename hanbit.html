@@ -523,8 +523,9 @@ const HOODS={
     desc:'동쪽 배수지가 저수지와 만나는 곳의 선착장. 야간 순찰 보트가 쉬어 가고, 물비린내가 짙다.',
     perk:'동쪽 저수지의 수몰 구역으로 가는 보트를 탈 수 있음'},
 };
-const DAY_DIST=35;          // 지도에서 하루 동안 가는 거리 — 이동 일수는 거리로 자동 계산
-const TRIP_EVENT=0.45;      // 이틀 이상 걸리는 육로 이동에서 길 위의 사건이 생길 확률
+const DAY_DIST=55;          // 지도 거리 55당 이동 1단계 (기존 days 필드는 단계 수로 유지)
+const TRAVEL_TICKS=2, ZONE_ACTIONS_PER_TICK=2; // 이동 1단계=시간 2칸, 구역 행동 2회=1칸
+const TRIP_EVENT=0.45;      // 2단계 이상 걸리는 육로의 사건 확률
 const BOAT_FEE=60;           // 수몰 구역으로 가는 보트 대여료
 /* 유실물 등급 — G.keepsakeG=[흔한, 귀한, 희귀한, 기이한] 개수 (합계는 G.mat.keepsake) */
 const KEEPSAKE_GRADES=[{n:'흔한 유실물',s:'흔함',p:15},{n:'귀한 유실물',s:'귀함',p:25},{n:'희귀한 유실물',s:'희귀',p:45},{n:'기이한 유실물',s:'기이함',p:80}];
@@ -579,7 +580,7 @@ function syncSchedule(){
   SCHOOL.splice(0,SCHOOL.length,...want);
   CLASS_SLOTS.splice(0,CLASS_SLOTS.length,...(we?[]:[1,3,5,7]));
 }
-const MOVE_STEPS={calm:8,calmFrugal:11,battery:5,torch:5,half:8,quarter:4};   // quarter: 시간대(낮·방과 후·야간·새벽) 하나가 바뀌는 걸음 수 — 하루 16걸음은 그대로
+const MOVE_STEPS={calm:8,calmFrugal:11,battery:5,torch:5,half:8,quarter:4};   // quarter: 방과 후·야간·새벽 각각 4칸, 낮은 학교 일과 9칸 — 하루 21칸
 
 /* ---------- 아지트 ---------- */
 const MATS=[{k:'metal',n:'철제 부품',i:'🔩'},{k:'ply',n:'합판',i:'🪵'},{k:'wire',n:'전선',i:'🔌'},{k:'keepsake',n:'유실물',i:'📦'}];
@@ -852,6 +853,9 @@ function migrate(){
   if(!G.home.decor) G.home.decor={owned:{},placed:{}};
   ['mapDone','discovered','pets','chronicle','lexicon','recent','log','choices','items','heardRumors','rumors','threads'].forEach(k=>{ if(!Array.isArray(G[k])) G[k]=[] });
   if(!G.rel) G.rel={};
+  migrateRelationships();
+  if(G._clockVersion!==2){ resetSoftClock(); G._clockVersion=2 }
+  if(!G.attendance) G.attendance={missed:0,days:0,streak:0,lastDay:0};
   if(G.relEvt===undefined) G.relEvt=null;
   if(!G.cap) G.cap={w:0,f:0,t:0}; if(G.cap.t==null) G.cap.t=0;
   if(!Array.isArray(G.ooc)) G.ooc=[]; if(!Array.isArray(G.oocOnce)) G.oocOnce=[];
@@ -890,6 +894,28 @@ function migrate(){
     if(G.battery>CAP_BASE+rideCap()) c.f=Math.max(c.f,Math.ceil((G.battery-CAP_BASE-rideCap())/CAP_STEP));
     if(G.torch>CAP_BASE) c.t=Math.max(c.t,Math.ceil((G.torch-CAP_BASE)/CAP_STEP));
   }
+}
+function migrateRelationships(){
+  const old=G._relVersion!==2;
+  Object.entries(G.rel||{}).forEach(([name,r])=>{
+    if(!r||typeof r!=='object'){ delete G.rel[name]; return }
+    r.stage=clamp(Math.floor(+r.stage||0),0,6);
+    r.romanceEligible=name==='유민'; if(name==='유민') r.age=17;
+    delete r.adult;
+    if(old&&r.stage>=3){
+      const records=(G.chronicle||[]).filter(x=>String(x.text).startsWith(name)).map(x=>String(x.text));
+      const confirmed=!!r.engagedDay&&records.some(t=>t.endsWith('연인이 되었다')||t.endsWith('서로에게 가장 소중한 연인으로 남고 싶다는 마음을 확인했다'));
+      if(confirmed&&name==='유민'){ r.romanceConfirmed=true }
+      else {
+        r.legacyFriendshipStage=r.stage; r.stage=2; delete r.engagedDay;
+        if(name==='유민'&&records.some(t=>t.endsWith('서로를 특별히 신경 쓰기 시작했다'))) r.stage=3;
+        if(name==='유민'&&records.some(t=>t.endsWith('서로를 좋아하는 마음을 확인했다'))) r.stage=4;
+      }
+    }
+    if(name!=='유민') r.stage=Math.min(2,r.stage);
+  });
+  if(old){ G.relEvt=null; G._relSetup=false }
+  G._relVersion=2;
 }
 function ensureComp(){ migrate() }      // 예전 이름 호환
 
@@ -1432,7 +1458,7 @@ function applyEffects(raw,T){
   (Array.isArray(e.relations)?e.relations:[]).slice(0,4).forEach(x=>{
     if(!x||!x.name||x.name==='유민'||x.name===G.char.name) return;
     const nm=String(x.name).trim().slice(0,30), r=getRel(nm);
-    if(typeof x.adult==='boolean'&&r.adult===undefined) r.adult=x.adult;
+    // AI가 성인 여부만으로 연애 자격을 부여하지 않는다.
     const d=clamp(Math.round(+x.delta||0),-5,5);
     if(d){ addAffTo(nm,d); fx.push(d>0?`${nm}${josa(nm,'과','와')} 조금 가까워졌다`:`${nm}${josa(nm,'과','와')} 조금 서먹해졌다`) }
     r.lastSeen=G.day; relCheck(nm);
@@ -1458,7 +1484,7 @@ function applyEffects(raw,T){
 }
 
 /* ---------- 4-8. 시간 흐름 ----------
-   걸음 1 = 행동 1. 구역·임시 쉼터 안의 행동(soft)은 2번에 1걸음.
+   시간 1칸 = 일반 행동 1회. 구역·임시 쉼터 안에서는 이동·조사·입력을 모두 2회당 1칸으로 처리.
    캠퍼스·아지트에서는 시간만 흐르고 공포·배터리·체력은 줄지 않음.
    미리 마시거나 먹었으면(credit) 다음 자동 소비 1회를 건너뜀. */
 function fearInterval(){
@@ -1466,11 +1492,48 @@ function fearInterval(){
   if(petPerk('dog')) v+=1;
   return v;
 }
-function tick(soft){
+function resetSoftClock(){ G._softN=0; G._softContext=null }
+/* 실제 진행과 귀교 예측이 함께 쓰는 시계. 낮 9칸 + 방과 후/야간/새벽 각 4칸. */
+function stepClock(c){
+  const out={day:c.day,time:c.time,dayStep:(c.dayStep||0)+1};
+  const len=c.time==='낮'?SCHOOL_WD.length:MOVE_STEPS.quarter;
+  if(out.dayStep>=len){
+    out.dayStep=0; const i=(Math.max(0,TIMES.indexOf(c.time))+1)%TIMES.length;
+    out.time=TIMES[i]; if(i===0) out.day++;
+  }
+  return out;
+}
+function clockAfter(ticks,start=G){
+  let c={day:start.day,time:start.time,dayStep:start.dayStep||0};
+  for(let i=0;i<Math.max(0,Math.floor(ticks));i++) c=stepClock(c);
+  return c;
+}
+function advanceClock(ticks,opt={}){ for(let i=0;i<Math.max(0,Math.floor(ticks));i++) tick(false,opt) }
+function ticksToMorning(){
+  let c={day:G.day,time:G.time,dayStep:G.dayStep||0}, n=0;
+  do{ c=stepClock(c); n++ }while(!(c.time==='낮'&&c.dayStep===0));
+  return n;
+}
+function finishAttendance(){
+  const a=G.attendance||(G.attendance={missed:0,days:0,streak:0,lastDay:0});
+  if(a.lastDay===G.day||isWeekend()) return;
+  const c=clsSt(); a.lastDay=G.day;
+  if(excusedToday()) return;
+  a.missed+=c.absent||0;
+  if(c.absent){ a.days++; a.streak++; addLog('sys',`📋 오늘 결석 ${c.absent}교시 · 누적 ${a.missed}교시 (${a.days}일).${a.streak>=3?' 연속 결석이 이어져 담임과 일정 상담이 필요합니다. 긴 조사는 주말이나 결석 허가를 이용하세요.':''}`) }
+  else a.streak=0;
+}
+function tick(soft,opt={}){
   syncSchedule();
-  if(soft){ G._softN=(G._softN||0)+1; if(G._softN%2===1) return }
-  G.steps++;
-  if(!isHood()){
+  if(soft){
+    const key=`${G.day}:${G.site?G.site.name:G.loc}`;
+    if(G._softContext!==key){ G._softContext=key; G._softN=0 }
+    G._softN=(G._softN||0)+1;
+    if(G._softN<ZONE_ACTIONS_PER_TICK) return;
+    G._softN=0;
+  }
+  if(opt.resources!==false) G.steps++;
+  if(opt.resources!==false&&!isHood()){
     if(G.steps%fearInterval()===0){
       if(G._wCredit>0) G._wCredit--;
       else if(G.calm>0) G.calm--;
@@ -1484,23 +1547,30 @@ function tick(soft){
   }
   // 낮·밤은 따로 센다: 쉬거나 임시 쉼터하면 이 카운터가 0부터 다시 시작 (일어나자마자 밤이 되지 않게)
   const prevSlot=G.time==='낮'?(G.dayStep||0):-1;
-  if(prevSlot>=0&&G.loc==='campus'&&G._bell==null) G._bell=SCHOOL[prevSlot];
+  if(prevSlot>=0&&!opt.away&&G.loc==='campus'&&G._bell==null) G._bell=SCHOOL[prevSlot];
   if(prevSlot>=0&&CLASS_SLOTS.includes(prevSlot)){   // 수업 칸을 수업·땡땡이 없이 흘려보내면: 학교 안이면 땡땡이로 판정(칸당 한 번), 학교 밖이면 결석 기록
     const c=clsSt();
     if(!c.done.includes(prevSlot)){
       c.done.push(prevSlot);
       if(excusedToday()){ /* 승인된 결석 — 땡땡이·결석 기록 없음 */ }
-      else if(G.loc==='campus'&&!c.active){
+      else if(!opt.away&&G.loc==='campus'&&!c.active){
         const pc=skipCatchP(); c.skip++; c.sk++;
         addLog('sys','🏃 수업 시간에 수업을 듣지 않고 다른 행동을 해서 땡땡이로 처리됩니다.');
         if(Math.random()<pc){ addDemerit(SKIP_DEMERIT,'수업 중 딴짓 적발'); pend(' [적발] 수업 시간에 딴짓을 하다가 들켜 벌점이 붙었다(벌점은 이미 반영되었으니 effects.벌점은 0). 선생님이나 규율부 학생의 가벼운 꾸중으로 짧게만 언급하라.') }
       }else c.absent++;
     }
   }
-  G.dayStep=(G.dayStep||0)+1;
-  if(G.dayStep>=blockLen()){ G.dayStep=0; advanceTime() }
-  try{ maybeIncoming() }catch(e){ console.warn(e) }
-  try{ apptSync() }catch(e){ console.warn(e) }
+  const next=stepClock(G), oldTime=G.time;
+  if(oldTime==='낮'&&next.time!=='낮') finishAttendance();
+  if(next.day!==G.day) resetSoftClock();
+  Object.assign(G,next); syncSchedule();
+  if(oldTime!==G.time&&G.time==='야간'&&!opt.sleep&&(opt.away||isWild()||G.loc==='hood'||G.loc==='home')&&!excusedToday()){
+    if(G._rollcallDay!==G.day){ G._rollcallDay=G.day; addDemerit(1,'점호 누락') }
+  }
+  if(!opt.quiet){
+    try{ maybeIncoming() }catch(e){ console.warn(e) }
+    try{ apptSync() }catch(e){ console.warn(e) }
+  }
 
 }
 
@@ -1516,12 +1586,7 @@ function flushBell(){
 function blockLen(){ syncSchedule(); return G.time==='낮'?SCHOOL.length:MOVE_STEPS.quarter }
 function slotIdx(){ syncSchedule(); return G.time==='낮'?Math.min(SCHOOL.length-1,G.dayStep||0):-1 }
 function slotLabel(){ const i=slotIdx(); if(i<0) return G.time; const k=CLASS_SLOTS.indexOf(i); return `${SCHOOL[i]}${k>=0?` (${subjectAt(k).n})`:''}` }
-function advanceTime(){
-  const i=(Math.max(0,TIMES.indexOf(G.time))+1)%TIMES.length;
-  G.time=TIMES[i]; if(i===0) G.day++;
-  if(G.time==='야간'&&isWild()&&!excusedToday()) addDemerit(1,'점호 누락');
-
-}
+function advanceTime(){ advanceClock(blockLen()-(G.dayStep||0)) }
 
 /* ---------- 4-9. 선택지 정리 (턴 끝·화면 그릴 때마다, 여러 번 해도 결과가 같음) ---------- */
 function sanitizeChoices(){
@@ -1732,8 +1797,8 @@ function spotBlock(){ if(spotOn()){ toast('임시 장소에서는 할 수 없습
 const waitDays=t=>{ const m=String(t).match(/(\d+)\s*일/); if(m) return Math.min(3,Math.max(1,+m[1])); if(/사흘/.test(t)) return 3; if(/이틀|며칠/.test(t)) return 2; return 1 };
 const inZone=()=>!!G.site&&['site','shelter','road'].includes(G.loc);
 const itemIn=t=>G.items.findIndex(it=>it&&String(it).length>=2&&t.includes(it));
-function sleepHere(){ const L=G.loc; if(L==='campus'||L==='hood') campusRest(); else if(L==='home') homeRest(); else if(L==='shelter') breakCamp(); else shelterHere() }
-function sleepLabel(){ const L=G.loc; return L==='campus'||L==='hood'?'🛏 잠들기 (기숙사 · 무료 · 하루 경과)':L==='home'?'🛏 아지트에서 쉬기 (하루 경과)':L==='shelter'?'🌅 아침까지 쉬기':'⛺ 임시 쉼터 (체력·공포·배터리 회복, 야간이 지남)' }
+function sleepHere(){ const L=G.loc; if(L==='campus') campusRest(); else if(L==='hood') hoodRest(); else if(L==='home') homeRest(); else if(L==='shelter') breakCamp(); else shelterHere() }
+function sleepLabel(){ const L=G.loc; return L==='campus'?'🛏 잠들기 (기숙사 · 무료 · 다음 아침)':L==='hood'?`🏨 현지 숙박 (💳${HOOD_LODGING_FEE} · 다음 아침)`:L==='home'?'🛏 아지트에서 쉬기 (하루 경과)':L==='shelter'?'🌅 아침까지 쉬기':'⛺ 임시 쉼터 (아침까지 숙박하면 회복)' }
 
 /* 글로 쓴 행동 → 게임 기능. 위에서부터 처음 맞는 것 하나만.
    run()이 false를 돌려주면 '수정만 하고 이야기로 계속'(예: 기다리기, 물건 버리기) */
@@ -1767,16 +1832,16 @@ const INTENTS=[
    run:()=>{ toast('그곳은 아직 소문으로만 아는 곳이라 갈 수 없습니다'); pend('\n[이동 불가] 플레이어가 말한 곳은 아직 소문으로만 아는 먼 곳이다. 실제로 길을 떠나거나 도착하는 서술은 하지 말고, 그곳을 그리워하거나 소문을 떠올리는 정도로만.',{zeroSupply:true}); return false }},
   {id:'lead',confirm:true,label:t=>`📍 「${(leadByText(t)||{}).name}」 찾아 떠나기 (소문의 장소)`,
    when:t=>isHood()&&!!leadByText(t), run:t=>{ const l=leadByText(t); addLog('action',t); startLead(l.id) }},
-  {id:'go',confirm:true,label:()=>'🔦 구역 조사 나가기 (거리만큼 일수 · 하루마다 공포 +1·배터리 −1%)',
+  {id:'go',confirm:true,label:()=>'🔦 구역 조사 나가기 (지도 거리에 따른 시간 · 이동 단계마다 공포 +1·배터리 −1%)',
    when:t=>isHood()&&!(G.loc==='hood'&&curHood().branch)&&IX.GO.test(t), run:t=>{ addLog('action',t); startExpedition() }},
   {id:'spot',confirm:true,label:t=>`📍 ${spotMove(t)} (임시 장소)로 이동`,
    when:t=>!!spotMove(t), run:t=>{ setSpot(spotMove(t)); return false }},   // 장소만 기록하고 이야기로 계속
-  {id:'return',confirm:true,label:()=>{ const r=returnRoute(); return `↩ ${r.name}${josa(r.name,'으로','로')} 귀환 (${durText(r.days)} · 반나절마다 공포 +1·배터리 −1%)` },
+  {id:'return',confirm:true,label:()=>{ const r=returnRoute(); return `↩ ${r.name}${josa(r.name,'으로','로')} 귀환 (${durText(r.days)} · 이동 단계마다 공포 +1·배터리 −1%)` },
    when:t=>inZone()&&IX.RET.test(t), run:t=>{ addLog('action',t); returnToCampus() }},
   {id:'useItem',
    when:t=>{ const i=itemIn(t); return i>=0&&!!consKind(G.items[i])&&IX.USEV.test(t) }, run:t=>{ addLog('action',t); useItem(itemIn(t)) }},
   {id:'sleep',confirm:true,label:sleepLabel,
-   when:t=>IX.SLEEP.test(t)&&!IX.SLEEP_NEG.test(t)&&['campus','hood','home','road','site','shelter'].includes(G.loc)&&!(G.loc==='campus'&&G.time==='낮'),
+   when:t=>IX.SLEEP.test(t)&&!IX.SLEEP_NEG.test(t)&&['campus','hood','home','road','site','shelter'].includes(G.loc)&&!((G.loc==='campus'||G.loc==='hood')&&G.time==='낮'),
    run:t=>{ addLog('action',t); addLog('sys','🌙 밤을 보내는 행동은 게임의 휴식 기능으로 처리되어 시간이 흐릅니다.'); G.choices=[]; sleepHere(); save(); render() }},
   {id:'rollcall',when:t=>/점호(\s*시간)?(까지|이\s*될\s*때까지|를\s*기다|를\s*맞|가\s*될\s*때까지)/.test(t)&&G.loc==='campus'&&!RX.NEG.test(t),
    run:t=>{ addLog('action',t); const why=rollCallBlock(); if(why) return toast(why); waitRollCall() }},
@@ -1785,7 +1850,7 @@ const INTENTS=[
    when:t=>IX.WAIT.test(t),
    run:t=>{   // 시간만 처리하고 장면은 이야기로 계속
      const n=waitDays(t);
-     G.day+=n; G.time='낮'; G.dayStep=0;
+     advanceClock(ticksToMorning()+(n-1)*(SCHOOL_WD.length+3*MOVE_STEPS.quarter),{resources:false,quiet:true}); resetSoftClock();
      let note=`${n}일이 지났다`;
      if(isWild()){
        for(let i=0;i<n;i++){
@@ -1795,7 +1860,7 @@ const INTENTS=[
        note+=rideNoCalm()?` (공포 +${Math.floor(n/2)} · 배터리 -${n}%)`:` (공포 +${n} · 배터리 -${n}%)`;
      }
      addLog('sys',`⏳ ${note}. (${G.day}일째)`);
-     pend(` [시간 경과 ${n}일은 게임이 이미 처리했다. 공포·배터리·체력 effects는 0.]`,{zeroSupply:true});
+     pend(` [시간 경과 ${n}일은 게임이 이미 처리했다. 공포·배터리·체력 effects는 0.]`,{zeroSupply:true,timeHandled:true});
      return false;
    }},
   {id:'drop',
@@ -1870,10 +1935,11 @@ function act(text,opt={}){
 /* 이야기로 진행: 공포·배터리 판정 → 걸음 → 서술 AI */
 function story(t,opt={}){
   if(busy||!G) return;
-  const soft=(opt.src==='choice'||opt.src==='fixed')&&(G.loc==='site'||G.loc==='shelter');
+  const soft=G.loc==='site'||G.loc==='shelter'; // 직접 입력·선택지·고정 버튼의 시간 비용 동일
   const j=judgeNeeds(t);
   if(j){ j.logs.forEach(l=>addLog('fx',l)); pend(j.note,j.flags) }
-  if(G.loc!=='campus') tick(soft);
+  if(opt.noTime||PENDING.flags.timeHandled){ /* 시간 없는 이야기 또는 호출자가 시간을 이미 처리 */ }
+  else if(G.loc!=='campus') tick(soft);
   else if(classActive()) pend(' '+classStep());   // 수업 중의 선택지·입력도 수업 행동으로 센다
   pend(opt.extra||'',{storyOnly:!!opt.storyOnly,checkHP:!!opt.checkHP,viaChoice:opt.src==='choice'});
   aiTurn(t,'',!opt.noActionLog);
@@ -1882,7 +1948,7 @@ function story(t,opt={}){
 function runChoiceType(type,text){
   const L=G.loc, say=()=>addLog('action',text);
   if(type==='rest'){
-    if(L==='campus'&&G.time==='낮') return false;   // 학교 일과 중의 졸기·쉬기는 하룻밤 휴식이 아니라 이야기 행동으로 처리
+    if((L==='campus'||L==='hood')&&G.time==='낮') return false;   // 학교 일과 중의 졸기·쉬기는 하룻밤 휴식이 아니라 이야기 행동으로 처리
     say(); sleepHere(); return true;
   }
   if(type==='shelter'&&['road','site'].includes(L)){ say(); shelterHere(); return true }
@@ -1925,7 +1991,7 @@ function showCheckChip(t,ck){
 function intentRun(){ const t=chipText; hideChip(); chipText=''; if(t) act(t,{src:'free',confirmed:true}) }
 function intentStory(){
   const t=chipText; hideChip(); chipText=''; if(!t) return;
-  story(t,{src:'free',storyOnly:true,extra:'\n[시스템 처리 없음] 플레이어는 이 행동을 게임 기능 없이 이야기로만 진행하기로 했다. 장소 이동·시간 경과·거래·휴식 효과를 만들지 말고, 의도와 분위기·짧은 장면으로만 서술. effects는 모두 0.'});
+  story(t,{src:'free',storyOnly:true,noTime:true,extra:'\n[시스템 처리 없음] 플레이어는 이 행동을 게임 기능 없이 이야기로만 진행하기로 했다. 장소 이동·시간 경과·거래·휴식 효과를 만들지 말고, 의도와 분위기·짧은 장면으로만 서술. effects는 모두 0.'});
 }
 function intentCheck(){
   const t=chipText; if(!t) return;
@@ -2521,13 +2587,29 @@ function sleepCharge(where){
   addLog('fx',gain?`🔋 ${where}에서 자고 일어나 배터리 +${gain} (${batteryPct()}%)`:`🔋 배터리가 이미 가득 차 있습니다 (${batteryPct()}%)`);
 }
 function campusRest(){
-  if(busy||spotBlock()) return;
-  if(G.loc==='campus'&&G.time==='낮') return toast('학교 일과 중에는 기숙사에서 하룻밤을 보낼 수 없습니다. 종례가 끝난 뒤(방과 후)부터 가능합니다');
-  G.hp=G.maxhp; G.day++; G.time='낮'; G.dayStep=0;
+  if(busy||!G||spotBlock()) return;
+  if(G.loc!=='campus') return toast('기숙사 취침은 중앙 캠퍼스에서만 가능합니다');
+  if(G.time==='낮') return toast('학교 일과 중에는 기숙사에서 하룻밤을 보낼 수 없습니다. 종례가 끝난 뒤(방과 후)부터 가능합니다');
+  const sleptDay=G.day; resetSoftClock();
+  advanceClock(ticksToMorning(),{resources:false,quiet:true,sleep:true}); G.hp=G.maxhp; G.district='classroom';
   addLog('sys',`기숙사에서 하룻밤을 보냈습니다. 체력이 모두 회복되었습니다. (${G.day}일째 아침)`);
   sleepCharge('기숙사');
-  if((G.demerit||0)>0){ G.demerit--; addLog('fx',`📕 점호를 정상 통과해 벌점 -1 → ${G.demerit}`) }
+  if(G._rollcallDay!==sleptDay&&(G.demerit||0)>0){ G.demerit--; addLog('fx',`📕 점호를 정상 통과해 벌점 -1 → ${G.demerit}`) }
   save(); render();
+}
+const HOOD_LODGING_FEE=15;
+async function hoodRest(){
+  if(busy||!G||G.loc!=='hood'||spotBlock()) return;
+  if(G.time==='낮') return toast('현지 숙박은 방과 후부터 가능합니다');
+  if(G.cash<HOOD_LODGING_FEE) return toast(`숙박비 💳${HOOD_LODGING_FEE}이 필요합니다`);
+  if(!(await askConfirm(`${curHood().n}에서 하룻밤 묵을까요? (💳${HOOD_LODGING_FEE} · 체력 60% 회복 · 다음 아침 · 기숙사 점호 통과 효과 없음)`))) return;
+  if(busy||G.loc!=='hood'||G.time==='낮'||G.cash<HOOD_LODGING_FEE) return;
+  G.cash-=HOOD_LODGING_FEE; outsideNightCheck('현지 숙소'); resetSoftClock();
+  advanceClock(ticksToMorning(),{resources:false,quiet:true,sleep:true});
+  G.hp=Math.min(G.maxhp,G.hp+Math.ceil(G.maxhp*0.6));
+  G.battery=Math.min(capF(),G.battery+2);
+  addLog('sys',`🏨 ${curHood().n}의 숙소에서 아침을 맞았습니다 (💳-${HOOD_LODGING_FEE} · ${G.day}일째). 학교에 가려면 귀환해야 합니다.`);
+  G.choices=[]; save(); render();
 }
 function strollHall(){
   if(busy||spotBlock()) return;
@@ -2832,15 +2914,15 @@ function build(id){
     `[건설 장면] ${id==='clubroom'?'처음으로 갖게 된 나만의 공간. 먼지 쌓인 폐 동아리실, 깨진 창문 너머 저수지 물빛, 이웃(관리인 아저씨, 야간 순찰자 등)과의 첫 만남.':`새로 들인 ${f.n}의 모습과 쓰임새. 손수 고치고 옮기는 감각, 완성된 순간.`} 2문단으로 짧게. 플레이어에게 이곳이 조금씩 '돌아올 곳'이 되어 가는 느낌. 숫자 effects는 모두 0.`);
 }
 function homeRest(){
-  if(busy) return;
+  if(busy||!G||G.loc!=='home') return;
   const first=G.home.lastRestDay!==G.day;
   G.home.lastRestDay=G.day;
-  G.hp=G.maxhp; G.day++; G.time='낮'; G.dayStep=0;
+  outsideNightCheck('아지트'); resetSoftClock();
+  advanceClock(ticksToMorning(),{resources:false,quiet:true,sleep:true}); G.hp=G.maxhp;
   if(has('charger')&&first){ const gf=Math.min(2,Math.max(0,capF()-G.battery)); G.battery+=gf; addLog('fx',gf?`충전 거치대 — 배터리 +${gf}`:'충전 거치대 — 배터리가 가득 차 있습니다') }
   { const fr=Math.min(HOME_FEAR_RECOVER,fearNow()); if(fr>0){ G.calm+=fr; addLog('fx',`🫧 아지트에서 쉬며 공포 −${fr} → ${fearNow()}`) } }
   addLog('sys',`아지트에서 푹 쉬었습니다. 체력이 모두 회복되었습니다. (${G.day}일째 아침)`);
   sleepCharge('아지트');
-  outsideNightCheck('아지트');
   if(G.ride) petGain(G.ride,1,G.ride.name);
   (G.pets||[]).forEach(p=>petGain(p,1,p.name));
   // 유민은 동행 중이거나, 휴게 소파가 있고 실제로 소파에 머물 때만 함께 쉼
@@ -2880,7 +2962,7 @@ function fragClue(){
 /* ---------- 수업 듣기 · 땡땡이 (교실, 낮에만) ----------
    낮은 학교 일과 9칸(SCHOOL): 조례 → 1교시 → 쉬는 시간 → 2교시 → 점심시간 → 3교시 → 쉬는 시간 → 4교시 → 종례. 행동 1번(tick)이 한 칸.
    수업 듣기: 일정 확률로 단서(조사 보드·교표 조각 위치) / 땡땡이: 확률로 성공하면 몰래 쉬며 단서를 얻을 수도 있지만 들키면 벌점 */
-const CLASS_CLUE_P=0.3, CLASS_ACTIONS=3;   // 수업 한 교시 = 행동 CLASS_ACTIONS번 (마지막 행동 뒤에 종이 울림)
+const CLASS_CLUE_P=0.3, CLASS_ACTIONS=2;   // 수업 한 교시 = 행동 CLASS_ACTIONS번 (마지막 행동 뒤에 종이 울림)
 const SKIP_CATCH_P=0.35, SKIP_CATCH_STEP=0.1, SKIP_CATCH_WARN=0.15, SKIP_DEMERIT=2, SKIP_FIND_P=0.25;
 /* 과목마다 단서의 성격(hint)과 교표 조각 위치 단서가 섞일 확률(frag)이 다름. 시간표는 날짜로 정해져 미리 알 수 있음 */
 const SUBJECTS=[
@@ -2977,7 +3059,7 @@ function schoolInfo(){
   if(isWeekend()) return `🔔 지금: <b>${esc(SCHOOL[i])}</b> · 다음: ${esc(SCHOOL[i+1]||'방과 후')} · ${dowName(G.day)}요일 주말 — 수업이 없습니다`;
   const c=clsSt(), nx=SCHOOL[i+1]||'방과 후';
   const tt=CLASS_SLOTS.map((_,j)=>`${j+1}교시 ${subjectAt(j).n}`).join(' · ');
-  return `🔔 지금: <b>${esc(slotLabel())}</b>${classActive()?` · 📚 수업 진행 ${classActive().n}/${CLASS_ACTIONS} (선택지·입력도 수업 행동으로 셈)`:''} · 다음: ${esc(nx)} · 오늘 시간표 ${esc(tt)} (출석 ${c.n}회${c.skip?` · 땡땡이 ${c.skip}회`:''}${c.absent?` · 결석 ${c.absent}회`:''})`;
+  return `🔔 지금: <b>${esc(slotLabel())}</b>${classActive()?` · 📚 수업 진행 ${classActive().n}/${CLASS_ACTIONS} (선택지·입력도 수업 행동으로 셈)`:''} · 다음: ${esc(nx)} · 오늘 시간표 ${esc(tt)} (출석 ${c.n}회${c.skip?` · 땡땡이 ${c.skip}회`:''}${c.absent?` · 결석 ${c.absent}회`:''})${G.attendance&&G.attendance.missed?` · 이전 누적 결석 ${G.attendance.missed}교시`:''}`;
 }
 /* 점호 시간까지 기다리기: 방과 후(수업이 끝난 뒤)에 야간(점호)이 될 때까지 시간을 보내고 기숙사 점호 장면으로 */
 function rollCallBlock(){
@@ -3261,25 +3343,26 @@ on('facts',70,(o,rules)=>{
    13. 조사 외출 · 한빛시 뒷길
    ========================================================= */
 async function startExpedition(leadId){
-  if(busy||spotBlock()) return;
+  if(busy||!G||!isHood()||spotBlock()) return;
   if(G.loc==='hood'&&curHood().branch) return toast('곁가지 구역에는 조사할 폐구역이 없습니다. 괴담을 쫓아 보세요');
   if(G.calm<1||G.battery<1) return toast('조사 외출에는 공포 여유와 배터리가 최소 1씩 필요합니다 (먼저 공포를 가라앉히거나 충전하세요)');
-  if(isDarkTime()&&!excusedToday()){   // 야간·새벽에 나가면 무단 외출 (승인된 결석일은 예외)
-    const warned=(G.demerit||0)>=DEMERIT_WARN;
-    if(warned&&!(await askConfirm(`벌점이 ${G.demerit}점이라 외출 금지 경고를 받은 상태입니다. 그래도 몰래 나갈까요? (벌점 +2)`,'몰래 나가기'))) return;
-    addDemerit(warned?2:1,'무단 외출');
-  }
   const lead=typeof leadId==='string'?(G.leads||[]).find(x=>x.id===leadId):null;   // 소문으로 알게 된 장소를 찾아가는 조사 외출
-  G._leadZone=lead?lead.id:null;
   const resume=lead?null:(G._resumeZone!=null&&G.pausedZones&&G.pausedZones[G._resumeZone]);
   const fromPos=curPos(), fromName=curPlaceName();
+  const pos=lead?lead.pos:pickPos(), days=travelDays(fromPos,pos), n=travelNeed(days);
+  const penalty=isDarkTime()&&!excusedToday()?((G.demerit||0)>=DEMERIT_WARN?2:1):0;
+  if(!(await askConfirm(`조사 외출을 떠날까요? (${needText(n)})
+${departurePlan(pos,days)}${penalty?`
+무단 외출 벌점 +${penalty}`:''}`))) return;
+  if(busy||!isHood()) return;
+  if(penalty) addDemerit(penalty,'무단 외출');
+  G._leadZone=lead?lead.id:null;
   const bonus=[];
   if(has('workbench')){ G.torch+=1; bonus.push('손전등 +1') }
   const sp=partnerName(); if(sp){ G.battery+=1; bonus.push(`${sp}${josa(sp,'이','가')} 챙겨 준 보조배터리 +1`) }
   clampSupplies(null,false);
   G._yuminHere=false;
   G.base=G.loc==='hood'?G.hood:null;   // 조사 외출을 떠난 곳 (돌아올 곳)
-  const pos=lead?lead.pos:pickPos(), days=travelDays(fromPos,pos), n=travelNeed(days);
   /* 조사 외출 길의 유민 (예전 규칙): 아직 못 만났으면 35%, 사연이 무르익었으면 50% */
   const event=!G.comp.met&&Math.random()<0.35?'yumin':yuminEventReady()&&Math.random()<0.5?'yuminEvt':null;
   const hadMount=!!G.ride;
@@ -3409,13 +3492,13 @@ function pickPos(){
   const fixed=[CAMPUS_POS,HOME_POS,LACUNA_POS,hoodPos('pierW'),hoodPos('pierE'),...MAP_PLACES,...UNKNOWN_SPOTS,...HILLS.map(([x,y])=>({x,y})),...(G.mapDone||[]),...(G.leads||[]).map(l=>l.pos)];
   let fallback=null;
   for(let i=0;i<40;i++){
-    const a=Math.random()*Math.PI*2, r=34+Math.random()*34;   // 대부분 1~2일 거리
-    const x=Math.round(C.x+Math.cos(a)*r*1.25), y=Math.round(C.y+Math.sin(a)*r*0.85);
+    const a=Math.random()*Math.PI*2, r=25+Math.random()*25;   // 일반 구역은 가까운 25~50 거리
+    const x=Math.round(C.x+Math.cos(a)*r), y=Math.round(C.y+Math.sin(a)*r);
     if(x<24||x>376||y<24||y>244||!onLand(x,y)) continue;
     if(fixed.every(f=>Math.hypot(f.x-x,f.y-y)>26)) return {x,y};
     fallback=fallback||{x,y};
   }
-  return fallback||{x:C.x+(C.x>300?-70:70),y:C.y+(C.y>150?-30:30)};
+  return fallback||{x:C.x+(C.x>300?-35:35),y:C.y+(C.y>150?-20:20)};
 }
 function dunPos(){ if(!G.site.pos) G.site.pos=pickPos(); return G.site.pos }
 function outsideZone(){ return !!G&&G.loc==='road'&&!!G.site }
@@ -3435,7 +3518,7 @@ function playerPos(){
    ========================================================= */
 /* 손전등 0 · 밤눈 특성이 없으면 '어둠' — 이동 2걸음 · 넘어질 위험 · 단서·조각 못 찾음 · 판정 -2 */
 const DARK_STUMBLE=0.35;
-const SHELTER_BLOCK_DANGER=4;   // 방 위험도가 이 값 이상이면 임시 쉼터 불가 (위험도 최대 3이므로 4면 어디서든 임시 쉼터 가능)
+const SHELTER_BLOCK_DANGER=3;   // 위험도 3에서는 임시 쉼터 불가
 function inDark(){ return !!G&&G.loc==='site'&&G.torch<=0&&!hasTrait('밤눈') }
 function moveTo(id){
   if(busy) return;
@@ -3445,33 +3528,29 @@ function moveTo(id){
   const first=!r.visited;
   r.visited=true; d.cur=id; d.depth=r.lv||0; G._yuminHere=false;
   G._mv=(G._mv||0)+1; if(G._mv%(d.terrain==='tunnel'?3:MOVE_STEPS.torch)===0&&G.torch>0) G.torch--;   // 배수 터널 구역은 손전등이 빨리 닳음
-  tick();
+  tick(true);
   if(inDark()){   // 손전등 없이: 더듬어 가느라 걸음이 두 배, 넘어질 위험
-    tick();
+    tick(true);
     let note='[어둠 속 이동] 손전등 없이 벽을 더듬어 이동했다.';
     if(Math.random()<DARK_STUMBLE){ G.hp=Math.max(0,G.hp-1); addLog('fx','🌑 어둠 속에서 발을 헛디뎠습니다 (체력 -1)'); note+=' 도중에 발을 헛디뎌 다쳤다(체력 -1은 코드가 반영함, effects의 체력은 0).'; pend(note,{checkHP:true}) }
     else pend(note);
-    addLog('sys','🌑 손전등이 없어 더듬어 이동합니다 (2걸음)');
+    addLog('sys','🌑 손전등이 없어 더듬어 이동합니다 (2행동 · 시간 1칸)');
   }
   let ev='';
   if(first&&yuminEventReady()&&Math.random()<0.2) ev=' '+yuminEventText(`구역 「${d.name}」의 ${r.name}`);
   aiTurn(`「${r.name}」(으)로 이동한다`,(first?'[처음 들어서는 공간이다. 공간의 모습과 첫인상, 눈에 띄는 것을 묘사하라.]':'[이미 와 본 공간이다. 짧게 묘사하라.]')+ev);
 }
-const SHELTER_HEAL=0.4, SHELTER_CALM=2, SHELTER_BATTERY=2;   // 임시 쉼터를 마련하면 체력(최대의 40%)·공포 −2·배터리 +2칸 회복
+const SHELTER_HEAL=0.4, SHELTER_CALM=2, SHELTER_BATTERY=2;   // 임시 쉼터에서 아침까지 쉬면 체력(최대의 40%)·공포 −2·배터리 +2칸 회복
 function shelterHere(){
-  if(busy) return;
+  if(busy||!G||!['site','road'].includes(G.loc)) return;
   const where=G.loc==='site'?curRoom():null;
   if(where&&where.danger>=SHELTER_BLOCK_DANGER) return toast('이곳은 너무 위험해서 임시 쉼터를 만들 수 없습니다');
   sfx('shelter');
-  const from=G.loc;
-  const heal=Math.ceil(G.maxhp*SHELTER_HEAL);
-  const dc=Math.min(SHELTER_CALM,fearNow()), db=Math.min(SHELTER_BATTERY,Math.max(0,capF()-G.battery));
-  G.calm=Math.min(capW(),G.calm+dc); G.battery+=db;
-  G.hp=clamp(G.hp+heal,0,G.maxhp);
-  G.time='야간'; G.dayStep=0; G.loc='shelter'; if(from!=='shelter') G._shelterFrom=from;
+  const from=G.loc; tick(true);
+  G.loc='shelter'; G._shelterFrom=from; // 시각을 되돌리지 않음. 회복은 실제 숙박을 마친 뒤에만 적용
   wardShelterReset();
-  addLog('sys',`임시 쉼터를 마련했습니다. 체력 +${heal}, 공포 −${dc}, 배터리 +${db} (${batteryPct()}%)`);
-  let ex='[임시 쉼터 장면] 구역 속이나 뒷길의 임시 쉼터. 랜턴 불빛, 환풍기 소리, 생각. 30% 확률로 작은 사건(방문자, 이상한 소리, 꿈, 점호 방송의 잡음)이 생긴다. 사건이 있으면 선택지로 대응하게 하라. 체력·공포·배터리 effects는 0으로 두라(회복은 코드가 이미 처리함; 몸과 마음이 한결 가벼워진 느낌만 서술).';
+  addLog('sys','임시 쉼터를 마련했습니다. 아침까지 쉬면 체력·공포·배터리가 회복됩니다.');
+  let ex='[임시 쉼터 장면] 구역 속이나 뒷길의 임시 쉼터. 랜턴 불빛, 환풍기 소리, 생각. 30% 확률로 작은 사건(방문자, 이상한 소리, 꿈, 점호 방송의 잡음)이 생긴다. 사건이 있으면 선택지로 대응하게 하라. 체력·공포·배터리 effects는 0으로 두라(회복은 아침까지 쉬기 버튼으로 처리함; 지금은 쉼터를 준비하는 장면만 서술).';
   if(G.comp&&G.comp.joined){ changeAff(affGate(3),null); ex+=' [유민과의 임시 쉼터] 랜턴 불빛 곁에서 유민과 나누는 대화가 장면의 중심이다. 호감도 단계에 맞게: 낮으면 농담과 가벼운 노래, 중간이면 플레이어의 몸 상태를 챙기며 진심 한 조각, 높으면 플레이어의 여정을 담은 노래와 유민 자신의 숨겨온 이야기. 선택지에 유민에게 하는 말을 포함하라.'+relArmText('유민',0.7)+(G.relEvt?'':yuminArcArm(0.7)) }
   else if(yuminEventReady()&&Math.random()<0.35) ex+=' '+yuminEventText('랜턴 불빛을 보고 찾아온 임시 쉼터');
   aiTurn('랜턴을 켜고 임시 쉼터를 마련한다',ex,false);
@@ -3480,7 +3559,8 @@ function shelterHere(){
 /* 기숙사 밖(임시 쉼터·아지트)에서 하룻밤을 보내면 점호에 빠진 것이라 확률로 적발되어 벌점. 벌점이 경고 수준이면 확률이 올라감 */
 const OUTSIDE_NIGHT_P=0.5, OUTSIDE_NIGHT_WARN=0.15;
 function outsideNightCheck(where){
-  if(excusedToday()) return false;   // 승인된 결석일의 밤
+  if(excusedToday()||G._rollcallDay===G.day) return false;   // 승인 또는 같은 밤에 이미 처리됨
+  G._rollcallDay=G.day;
   const p=Math.min(0.85,OUTSIDE_NIGHT_P+((G.demerit||0)>=DEMERIT_WARN?OUTSIDE_NIGHT_WARN:0));
   if(Math.random()>=p) return false;
   const d=Math.random()<0.5?1:2;
@@ -3490,21 +3570,25 @@ function outsideNightCheck(where){
   return true;
 }
 function breakCamp(){
+  if(busy||!G||G.loc!=='shelter') return;
   const from=G._shelterFrom; G._shelterFrom=null;
-  G.time='낮'; G.dayStep=0; G.day++;
+  outsideNightCheck('임시 쉼터'); resetSoftClock();
+  advanceClock(ticksToMorning(),{resources:false,quiet:true,sleep:true});
+  G.hp=Math.min(G.maxhp,G.hp+Math.ceil(G.maxhp*SHELTER_HEAL));
+  G.calm=Math.min(capW(),G.calm+SHELTER_CALM); G.battery=Math.min(capF(),G.battery+SHELTER_BATTERY);
   if(from==='road'){ G.loc='road'; if(!G.site) addLog('sys',G.trip?`🔦 다시 ${G.trip.dest.name}${josa(G.trip.dest.name,'으로','로')} 향하는 한빛시 뒷길에 오릅니다.`:'🔦 다시 구역을 향한 한빛시 뒷길에 오릅니다.') }
   else G.loc=G.site?'site':'campus';
   addLog('sys',`날이 밝았습니다. (${G.day}일째)`);
-  sleepCharge('임시 쉼터');
-  outsideNightCheck('임시 쉼터');
+  addLog('fx',`⛺ 숙박 완료: 체력 최대치의 ${Math.round(SHELTER_HEAL*100)}% · 공포 −${SHELTER_CALM} · 배터리 +${SHELTER_BATTERY} (용량 한도)`);
   if(G.loc==='road') rollPeddler('morning');
   G.choices=[]; save(); render();
 }
+function zoneExitTicks(d=G.site){ return d&&(d.depth||0)>=3?2:1 }
 function exitZone(){
   if(busy||!G||G.loc!=='site'||!G.site) return;
-  const d=G.site, steps=Math.min(3,Math.max(1,d.depth||0));
+  const d=G.site, steps=zoneExitTicks(d);
   for(let i=0;i<steps;i++) tick();
-  d.exitSteps=steps;
+  resetSoftClock(); d.exitSteps=steps;
   G.loc='road'; G.choices=[]; if(!(G.comp&&G.comp.joined)) G._yuminHere=false;
   addLog('action','구역 밖으로 나간다');
   addLog('sys',`🚪 「${d.name}」 입구 밖으로 나왔습니다 (${steps}걸음). 구역은 그대로 남아 있어 다시 들어갈 수 있습니다.`);
@@ -3514,9 +3598,9 @@ function exitZone(){
 }
 function reenterZone(){
   if(busy||!outsideZone()) return;
-  const d=G.site, steps=d.exitSteps||1;
+  const d=G.site, steps=Math.min(2,Math.max(1,d.exitSteps||zoneExitTicks(d)));
   for(let i=0;i<steps;i++) tick();
-  G.loc='site'; G.choices=[]; if(G.peddler) G.peddler.here=false;
+  resetSoftClock(); G.loc='site'; G.choices=[]; if(G.peddler) G.peddler.here=false;
   const r=curRoom();
   addLog('action','구역 안으로 다시 들어간다');
   addLog('sys',`🏚 다시 「${d.name}」 안으로 들어가 「${r?r.name:'입구'}」까지 돌아왔습니다 (${steps}걸음).`);
@@ -3533,12 +3617,15 @@ function siteProg(){
 }
 /* 귀환 (떠나온 지구 · 중앙 캠퍼스 지구 · 섬은 선착장). skipConfirm: 다른 기능(아지트 이동 등)이 이미 확인을 받은 경우 */
 async function returnToCampus(skipConfirm){
-  if(busy) return;
-  const d=G.site, p=d?siteProg():null, rt=returnRoute();
-  const cost=`${needText(travelNeedFed(rt.days))}${rt.reservoir?' · 보트(왕복 대여료에 포함)':''}`;
+  if(busy||!G) return;
+  if(G.loc==='shelter') return toast('먼저 아침까지 쉬고 쉼터를 정리해 주세요');
+  if(!['site','road'].includes(G.loc)) return;
+  const d=G.site, p=d?siteProg():null, rt=returnRoute(), forecast=returnForecast();
+  const cost=`${needText(travelNeedFed(rt.days))}${rt.reservoir?' · 보트(왕복 대여료에 포함)':''}${forecast?' · '+forecast.text:''}`;
   const msg=!p?`${rt.name}${josa(rt.name,'으로','로')} 돌아갈까요? (${cost})`:p.done?`모든 공간을 조사했습니다. ${rt.name}${josa(rt.name,'으로','로')} 돌아갈까요? (${cost}) 완료한 구역은 다시 올 수 없습니다.`:`아직 ${p.total-p.vis}개 공간이 미탐험입니다 (조사도 ${p.vis}/${p.total}). 돌아가도 나중에 조사 외출로 다시 와서 이어 조사할 수 있습니다. ${rt.name}${josa(rt.name,'으로','로')} 돌아갈까요? (${cost})`;
   if(skipConfirm!==true&&!(await askConfirm(msg))) return;
   closeModal();
+  if(G.loc==='site'){ advanceClock(zoneExitTicks()); resetSoftClock(); G.loc='road' }
   if(d){
     const done=d.rooms.every(r=>r.visited), vis=d.rooms.filter(r=>r.visited).length;
     const st=Math.max(0,Math.ceil(vis/2)-(d.metalGot||0)); d.metalGot=(d.metalGot||0)+st;   // 이어 조사한 구역은 새로 본 방만큼만
@@ -3809,7 +3896,7 @@ function checkState(){
     G.chronicle.push({day:G.day,text:'조사 외출 중 쓰러져 순찰 직원에게 구조되었다'});
     G.cash=Math.floor(G.cash*keep); G.hp=Math.ceil(G.maxhp/2); G.calm=Math.max(G.calm,2); G.battery=Math.max(G.battery,2);
     archiveSite();
-    G.site=null; G.trip=null; if(G.base&&HOODS[G.base]){ G.loc='hood'; G.hood=G.base } else { G.loc='campus'; G.district='gate' } G.day+=2; G.time='낮'; G.dayStep=0; G.choices=[];
+    G.spot=null; G.site=null; G.trip=null; if(G.base&&HOODS[G.base]){ G.loc='hood'; G.hood=G.base } else { G.loc='campus'; G.district='gate' } advanceClock(ticksToMorning()+SCHOOL_WD.length+3*MOVE_STEPS.quarter,{resources:false,quiet:true,sleep:true}); resetSoftClock(); G.choices=[];
   }
   if(G.fragments>=FRAG_GOAL&&G.act===1&&!G.actDone){ G.actDone=true; const w=()=>{ if(busy) return setTimeout(w,300); actComplete() }; setTimeout(w,0) }   // 진행 중인 턴이 끝난 뒤 실행 (겹침 방지)
 }
@@ -4433,7 +4520,7 @@ async function seekYumin(){
     if(!(await askConfirm(`유민은 지금 ${yuminWhereText()}에 있는 것 같습니다. 찾아 나서면 하루가 지납니다. 갈까요?`))) return;
     if(busy) return;
     if(G.loc==='campus') G.spot=null;
-    G.day++; G.time='낮'; G.dayStep=0;   // 멀리 있는 유민을 찾는 데 하루
+    advanceClock(ticksToMorning(),{resources:false,quiet:true}); resetSoftClock(); // 수소문 중에도 학교 시간표 진행
     setYuminSpot(nearPlayer()); G._yuminHere=true;
     addLog('sys',`🎵 여기저기 수소문한 끝에 유민을 찾아냈습니다. (하루가 지나 ${G.day}일째)`);
   }
@@ -4700,7 +4787,7 @@ function talkYumin(){
   if(busy) return;
   if(!G.comp.joined&&!canMeetHere('유민')) return toast(`유민은 지금 ${yuminWhereText()}에 있는 것 같습니다. 지도의 🎵 표시를 확인해 보세요.`);
   migrate();
-  G._yuminHere=true; tick();
+  G._yuminHere=true; tick(G.loc==='site'||G.loc==='shelter');
   let extra='[유민과 대화] 유민이 노래 한 곡과 함께 소식을 들려준다.', likeKey=null;
   if(G.comp.lastTalkDay!==G.day){
     const locked=Object.keys(YUMIN_LIKES).filter(k=>!G.comp.likes[k]);
@@ -5016,14 +5103,14 @@ function openYumin(){
    ========================================================= */
 function getRel(name){
   if(!G.rel) G.rel={};
-  return G.rel[name]||(G.rel[name]={aff:10,stage:0,adult:name==='유민'?true:undefined,cool:0});
+  return G.rel[name]||(G.rel[name]={aff:10,stage:0,romanceEligible:name==='유민',age:name==='유민'?17:undefined,cool:0});
 }
 function relAff(name){ return name==='유민'?G.comp.aff:getRel(name).aff }
 function relLv(name){ return affInfo(relAff(name)).lv }
 function affPct(name){ return affInfo(relAff(name)).pct }
 function addAffTo(name,d){ if(name==='유민') changeAff(d,null); else { const r=getRel(name), b=affInfo(r.aff).lv; r.aff=clamp(r.aff+Math.round(d*AFF_RATE),0,AFF_MAX); lvNotice(name,b,affInfo(r.aff).lv) } }
 function otherPartner(name){ return Object.entries(G.rel||{}).some(([n,r])=>n!==name&&r.stage>=4) }
-function partnerName(){ const e=Object.entries(G.rel||{}).find(([n,r])=>r.stage===6); return e?e[0]:null }
+function partnerName(){ const e=Object.entries(G.rel||{}).find(([n,r])=>r.stage===6&&r.romanceConfirmed); return e?e[0]:null }
 function relCheck(name){
   const r=getRel(name);
   for(;;){
@@ -5043,10 +5130,9 @@ function takeGift(){
 function relConds(name){
   const r=getRel(name), nx=STAGES[r.stage+1];
   if(!nx) return {nx:null,c:[],note:'가장 깊은 인연에 이르렀습니다.'};
-  if(nx.romance&&name!=='유민'&&r.adult!==true) return {nx,c:[],note:'이 인물과의 관계는 현재 친구 단계까지만 이어집니다.'};
+  if(nx.romance&&name!=='유민'&&r.romanceEligible!==true) return {nx,c:[],note:'이 인물과의 관계는 현재 친구 단계까지만 이어집니다.'};
   const c=[];
   if(nx.lv) c.push([`호감 레벨 Lv.${nx.lv} 이상 (현재 Lv.${relLv(name)})`,relLv(name)>=nx.lv]);
-  if(nx.romance&&name!=='유민'&&r.adult===undefined) c.push(['이 인물과 연애 가능한 관계인지 아직 확인되지 않음',false]);
   if(nx.event==='heart'||nx.event==='confess') c.push([`이벤트: ${EVT_LABEL[nx.event]} (함께 시간을 보내다 보면 일어남)`,false]);
   if(nx.event==='propose'){ c.push(['아지트가 있을 것',has('clubroom')]); c.push(['선물: 팔찌·장신구, 또는 유실물 1개',hasGift()]) }
   if(nx.event==='promise'){ c.push([`연인이 된 뒤 3일이 지날 것 (${Math.max(0,G.day-(r.engagedDay||G.day))}일 지남)`,G.day-(r.engagedDay||G.day)>=3]); c.push(['기념 외출 비용 캐시 100',G.cash>=100]) }
@@ -5058,7 +5144,7 @@ function relArmed(name){
   if(!nx||!nx.event||nx.manual||G.relEvt) return false;
   if(r.cool&&G.day<r.cool) return false;
   if(relLv(name)<nx.lv) return false;
-  if(nx.romance&&name!=='유민'&&r.adult!==true) return false;
+  if(nx.romance&&name!=='유민'&&r.romanceEligible!==true) return false;
   return true;
 }
 function yuminRomanceNote(type){
@@ -5088,12 +5174,14 @@ function relEvtText(){
 [진행 중인 인연 이벤트: ${EVT_LABEL[type]} — ${name}] 이 장면에 ${n1} 함께 있다. 플레이어의 행동과 말을 보고 결말이 났으면 effects.relation_event={"name":"${name}","result":"success"} 또는 "fail", 아직이면 "pending". 쉽게 success를 주지 말 것: 플레이어가 진심을 보이고 상대의 마음에 닿는 말이나 행동을 했을 때만 success. 무례하거나 무심하거나 장난으로 넘기면 fail.${name==='유민'?yuminRomanceNote(type):''}`;
 }
 function resolveRelEvt(ok,fx){
-  const {name}=G.relEvt, r=getRel(name);
+  if(!G.relEvt) return;
+  const {name,type}=G.relEvt, r=getRel(name), nx=STAGES[r.stage+1];
+  if(!nx||nx.event!==type||(nx.romance&&!r.romanceEligible)){ G.relEvt=null; return }
   G.relEvt=null;
   if(ok){
     r.stage=Math.min(6,r.stage+1);
     const st=STAGES[r.stage];
-    if(st.id===5) r.engagedDay=G.day;
+    if(st.id===5){ r.engagedDay=G.day; r.romanceConfirmed=true }
     addAffTo(name,5);
     G.chronicle.push({day:G.day,text:`${name}${josa(name,'과','와')} ${st.msg}`});
     fx.push(`🤝 ${name}: ${st.n}`); toast(`🤝 ${name}: ${st.n}`);
@@ -5107,7 +5195,7 @@ function relBlock(text){
   const lines=[];
   Object.keys(G.rel||{}).filter(n=>n!=='유민'&&(text.includes(n)||(G.relEvt&&G.relEvt.name===n))).slice(0,6).forEach(n=>{
     const r=G.rel[n], st=STAGES[r.stage];
-    lines.push(`- ${n}: ${st.n} (호감 Lv.${relLv(n)})${n!=='유민'&&r.adult!==true?' · 현재 친구 관계만 진행':''} — ${st.how}`);
+    lines.push(`- ${n}: ${st.n} (호감 Lv.${relLv(n)})${n!=='유민'&&r.romanceEligible!==true?' · 현재 친구 관계만 진행':''} — ${st.how}`);
   });
   if(G.comp.met){ const st=STAGES[getRel('유민').stage]; lines.push(`- 유민: ${st.n} — ${st.how}`) }
   return lines.length?`\n[인연 — 관계 단계를 지켜 서술할 것]\n${lines.join('\n')}`:'';
@@ -5136,8 +5224,8 @@ function openRel(){
     let btns='';
     if(canMeetHere(n)&&!busy) btns+=`<button class="small" data-n="${esc(n)}" onclick="visitNPC(this.dataset.n)">${n==='유민'?'🎵 이야기하기':'찾아가기'}</button>`;
     else if(n!=='유민'&&G.loc==='campus'&&npcWhere(n).startsWith('campus:')&&!busy){ const k=npcWhere(n).slice(7); btns+=`<button class="small" onclick="closeModal();goDistrict('${k}')">🚶 ${(DISTRICTS[k]||DISTRICTS.market).n}${josa((DISTRICTS[k]||DISTRICTS.market).n,'으로','로')} 가기</button>` }
-    if(nx&&nx.event==='propose'&&allOk&&canMeetHere(n)) btns+=`<button class="small primary" data-n="${esc(n)}" onclick="proposeTo(this.dataset.n)">💕 고백하기</button>`;
-    if(nx&&nx.event==='promise'&&allOk&&isHood()) btns+=`<button class="small primary" data-n="${esc(n)}" onclick="promiseWith(this.dataset.n)">💞 서로의 약속하기</button>`;
+    if(!note&&nx&&nx.event==='propose'&&allOk&&canMeetHere(n)) btns+=`<button class="small primary" data-n="${esc(n)}" onclick="proposeTo(this.dataset.n)">💕 고백하기</button>`;
+    if(!note&&nx&&nx.event==='promise'&&allOk&&isHood()) btns+=`<button class="small primary" data-n="${esc(n)}" onclick="promiseWith(this.dataset.n)">💞 서로의 약속하기</button>`;
     return `<div class="lex"><div class="h"><b>${r.stage>=3?'🤝 ':''}${esc(n)}</b><span class="cat">${st.n} · Lv.${relLv(n)}${G.relEvt&&G.relEvt.name===n?' · 이벤트 진행 중':''}</span></div>
       <div class="bar"><i style="width:${affPct(n)}%"></i></div>
       <div class="muted" style="font-size:12px">📍 ${n==='유민'?(G.comp.joined?'동행 중':yuminWhereText()):npcWhereText(n)}</div>
@@ -5149,20 +5237,22 @@ function visitNPC(name){
   closeModal();
   if(busy) return;
   if(name==='유민') return talkYumin();
-  tick();
+  tick(G.loc==='site'||G.loc==='shelter');
   aiTurn(`${name}${josa(name,'을','를')} 찾아간다`,`[인물 방문] 플레이어가 ${name}${josa(name,'을','를')} 찾아간다. 사전과 연대기에 있는 이 인물의 설정과 지난 일을 이어서, 이 인물이 등장하는 대화 장면을 써라. effects.relations에 이 인물을 반드시 포함하라.`+relArmText(name,1));
 }
 function proposeTo(name){
+  const rc=relConds(name);
+  if(busy||!getRel(name).romanceEligible||!rc.nx||rc.nx.event!=='propose'||!rc.c.every(x=>x[1])||!canMeetHere(name)||G.relEvt) return toast('고백 조건을 아직 충족하지 못했습니다');
   closeModal();
-  if(busy) return;
   const gift=takeGift();
   if(name==='유민') G._yuminHere=true;
   G.relEvt={name,type:'propose',turns:0}; G._relSetup=false;
   aiTurn(`${name}에게 ${gift}${josa(gift,'을','를')} 건네며 좋아한다고 고백한다`,`[인연 이벤트: 고백 — ${name}] 플레이어가 ${name}에게 ${gift}${josa(gift,'을','를')} 건네며 좋아하는 마음을 고백하고 연인으로 지내고 싶다는 뜻을 전한다. ${name}의 성격대로 반응하라. 그동안의 관계와 플레이어의 말에 따라 받아들이면 success, 아직 이르다고 느끼면 fail, 대답을 미루면 pending.`+(name==='유민'?yuminRomanceNote('propose'):''));
 }
 function promiseWith(name){
+  const rc=relConds(name);
+  if(busy||!getRel(name).romanceEligible||!getRel(name).romanceConfirmed||!rc.nx||rc.nx.event!=='promise'||!rc.c.every(x=>x[1])||!isHood()||G.relEvt) return toast('서로의 약속 조건을 아직 충족하지 못했습니다');
   closeModal();
-  if(busy) return;
   const r=getRel(name);
   G.cash-=100; r.stage=6; addAffTo(name,5);
   if(name==='유민') G._yuminHere=true;
@@ -5930,9 +6020,9 @@ function returnBase(){
 
 /* =========================================================
    33. 이동 — 중앙 캠퍼스 지구 · 지구 · 선착장 · 라쿠나 구역 · 출석부가 가리키는 구역 사이의 모든 이동
-   - 일수 = 지도 거리 ÷ DAY_DIST (반올림, 최소 1일)
-   - 하루마다 공포 +1·배터리 −1 (충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반) + 출발 때 탈것 충전 1회
-   - 이틀 이상 걸리는 육로에서는 가끔 길 위의 사건(이동 행상 · 유민 · 불량배) — 길 한가운데서 멈춤
+   - 이동 단계 = 지도 거리 ÷ DAY_DIST (반올림, 최소 1단계); 단계당 시간 2칸
+   - 이동 단계마다 공포 +1·배터리 −1 (충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반) + 출발 때 탈것 충전 1회
+   - 2단계 이상 걸리는 육로에서는 가끔 길 위의 사건(이동 행상 · 유민 · 불량배) — 길 한가운데서 멈춤
    ========================================================= */
 function curPos(){ return G.loc==='hood'?hoodPos(G.hood):G.loc==='home'?HOME_POS:CAMPUS_POS }
 function curPlaceName(){ return G.loc==='hood'?curHood().n:G.loc==='home'?(G.home.name||'아지트'):'중앙 캠퍼스 지구' }
@@ -5947,29 +6037,63 @@ function travelNeed(days){
 /* 이동 도중·귀환길: 탈것은 떠날 때 이미 먹였음 — 충전 없이, 먹인 전동 스쿠터면 물 절반 */
 function travelNeedFed(days){ return {days,calm:rideNoCalm()?Math.floor(days/2):days,battery:days,feed:0} }
 function needText(n){ return `${durText(n.days)} · 공포 +${n.calm} · 배터리 -${n.battery}%${n.feed?` · 충전 -${n.feed}`:''}` }
-/* 걸린 날만큼 소비. keepFed: 이동 도중(두 번째 구간)이라 탈것은 이미 먹였음. 모자라면 그만큼 체력 */
-/* 이동에 하루 이상 걸리면 학교에 갈 수 없으니, 하루를 통째로 건너뛰고 아침으로 돌아오는 대신 하루를 아침 → 낮 → 밤 세 단계로 보고
-   걸린 일수만큼 한 단계씩 시간이 흐름: 아침(낮 일과 오전)이면 낮(점심시간), 낮(점심 이후·방과 후)이면 밤(야간). 밤에서 한 단계 더 가면 다음 날 아침 */
-/* 이동 단계 수를 시간 표현으로: 단계 하나는 반나절, 셋이면 꼬박 하루 (예: 1 → 반나절, 3 → 하루, 4 → 하루 반) */
+/* days는 저장 호환성을 위한 이동 단계 수. 1단계=시간 2칸이며 모든 시간은 tick()으로 진행. */
 function durText(n){
-  n=Math.max(1,n|0); const d=Math.floor(n/3), r=n%3;
-  if(d===0) return r===1?'반나절':'거의 하루';
-  return r===0?`${d}일`:r===1?`${d}일 반`:`${d+1}일 가까이`;
+  const ticks=Math.max(0,n|0)*TRAVEL_TICKS, dayTicks=SCHOOL_WD.length+3*MOVE_STEPS.quarter;
+  if(!ticks) return '시간 경과 없음';
+  const d=Math.floor(ticks/dayTicks), r=ticks%dayTicks;
+  return (d?`${d}일`:'')+(r?`${d?' + ':''}${r}칸`:'');
 }
-function travelStage(){ if(G.time==='낮') return slotIdx()<=3?0:1; if(G.time==='방과 후') return 1; return 2 }
 function travelTimeShift(days){
-  const s=travelStage()+Math.max(1,days|0), st=s%3;
-  G.day+=Math.floor(s/3);
-  if(st===0){ G.time='낮'; G.dayStep=0 } else if(st===1){ G.time='낮'; G.dayStep=4 } else { G.time='야간'; G.dayStep=0 }
+  const n=Math.max(0,days|0); if(!n) return;
+  advanceClock(n*TRAVEL_TICKS,{resources:false,away:true,quiet:true});
+}
+/* 예측에는 돌발 사건·추가 조사·숙박이 포함되지 않는다. 현재 학교 시계와 동일한 계산. */
+function clockLabel(c){
+  const d=c.day-G.day, prefix=d===0?'오늘':d===1?'내일':`${d}일 뒤`;
+  const labels=dowIdx(c.day)>=5?SCHOOL_WE:SCHOOL_WD;
+  const slot=c.time==='낮'?`${labels[c.dayStep]}${c.dayStep===0?' 전':''}`:`${c.time} ${c.dayStep+1}/4`;
+  return `${prefix} ${dowName(c.day)}요일 ${slot}`;
+}
+function departurePlan(pos,days,big=false){
+  const origin=curPos(), toBase=travelDays(pos,origin);
+  const back=big===null?travelDays(pos,CAMPUS_POS):toBase+(G.loc==='hood'?travelDays(origin,CAMPUS_POS):0), budget=big===null?0:big?14:6;
+  const arrive=clockAfter(days*TRAVEL_TICKS), ret=clockAfter((days+back)*TRAVEL_TICKS+budget);
+  return `예상 도착: ${clockLabel(arrive)} · ${big===null?'바로 귀교':'조사 후 귀교'}: ${clockLabel(ret)} (조사·탈출 ${budget}칸 가정, 돌발 지연 제외)${big?' · 대형 구역: 주말 또는 결석 허가 권장':''}`;
+}
+on('context',57,()=>{ const f=returnForecast(); return f?`\n[귀교 예상] ${f.text}. 이동과 조사 시간을 임의로 늘리거나 도착 시각을 바꾸지 말 것. 추가 행동/사건의 지연은 게임 코드가 계산한다.`:'' });
+function returnForecast(){
+  if(!G||G.loc==='campus'||G.loc==='home') return null;
+  if(G.loc==='hood'){ const ticks=travelDays(curPos(),CAMPUS_POS)*TRAVEL_TICKS; const c=clockAfter(ticks); return {clock:c,ticks,late:dowIdx(c.day)<5&&c.time==='낮'&&c.dayStep>0,urgent:false,text:`귀교 예상: ${clockLabel(c)}`} }
+  let ticks=0;
+  if(G.trip){
+    ticks+=G.trip.left*TRAVEL_TICKS;
+    const dest=G.trip.dest;
+    if(dest.kind==='hood') ticks+=travelDays(dest.pos,CAMPUS_POS)*TRAVEL_TICKS;
+    else if(dest.kind!=='campus'){
+      const sp=dest.kind==='big'?bigSpec(dest.key):null;
+      const base=sp&&sp.terrain==='flooded'?sp.campus.pier:dest.base;
+      ticks+=(base?travelDays(dest.pos,hoodPos(base))+travelDays(hoodPos(base),CAMPUS_POS):travelDays(dest.pos,CAMPUS_POS))*TRAVEL_TICKS+1;
+    }
+  }else if(G.site){
+    const rt=returnRoute(); ticks=rt.days*TRAVEL_TICKS;
+    if(rt.hood) ticks+=travelDays(rt.pos,CAMPUS_POS)*TRAVEL_TICKS;
+    if(G.loc==='site'||(G.loc==='shelter'&&G._shelterFrom==='site')) ticks+=zoneExitTicks();
+  }else ticks=travelDays(playerPos(),CAMPUS_POS)*TRAVEL_TICKS;
+  if(G.loc==='shelter') ticks+=ticksToMorning();
+  const c=clockAfter(ticks), more=clockAfter(ticks+1);
+  const late=dowIdx(c.day)<5&&c.time==='낮'&&c.dayStep>0;
+  const urgent=!late&&dowIdx(more.day)<5&&more.time==='낮'&&more.dayStep>0;
+  return {clock:c,ticks,late,urgent,text:`귀교 예상: ${clockLabel(c)}${late?' · 조례 이후 도착':urgent?' · 지금 돌아가야 조례 전 귀교 가능':''}`};
 }
 function travelPay(n,keepFed){
   const m=rideDef();
   if(!keepFed){ G._rideFed=false; if(m&&n.feed){ G.battery-=n.feed; G._rideFed=true } }
-  const lack=Math.max(0,n.calm-G.calm)+(G.battery>0?0:n.battery);
+  const lack=Math.max(0,n.calm-G.calm)+Math.ceil(Math.max(0,n.battery-batteryPct()));
   G.calm=Math.max(0,G.calm-n.calm); textDrain(n.battery);
   if(lack){ G.hp=Math.max(1,G.hp-lack); addLog('fx',`공포와 방전 속에 걸었습니다 (체력 -${lack})`) }
-  const t0=G.time, d0=G.day; travelTimeShift(n.days);
-  addLog('sys',`🕒 이동하는 동안 시간이 흘러 지금은 ${G.day}일째 ${G.time==='낮'?slotLabel():G.time}입니다.`);
+  travelTimeShift(n.days);
+  if(n.days>0) addLog('sys',`🕒 이동하는 동안 시간이 흘러 지금은 ${G.day}일째 ${G.time==='낮'?slotLabel():G.time}입니다.`);
   G.site=null; G._yuminHere=false; G.choices=[]; G.base=null;
   return `공포 +${n.calm}, 배터리 -${n.battery}%${n.feed?`, 충전 -${n.feed}`:''}`;
 }
@@ -5986,11 +6110,11 @@ function openTravel(){
   const rows=tripDests().map(d=>{
     const n=travelNeed(travelDays(curPos(),d.pos)), ok=G.calm+G.battery>0;
     return `<div class="lex"><div class="h"><b>${d.ic} ${d.name}</b><span class="cat">${durText(n.days)} 거리${d.kind==='hood'&&!(G.hoodVisited||[]).includes(d.key)?' · 처음':''}</span></div>
-      <div class="muted" style="font-size:13px">${d.desc||''}</div>${d.perk?`<div style="font-size:13px;margin-top:4px">✨ ${d.perk}</div>`:''}
+      <div class="muted" style="font-size:13px">${d.desc||''}</div>${d.perk?`<div style="font-size:13px;margin-top:4px">✨ ${d.perk}</div>`:''}<div class="muted" style="font-size:12px">🕒 ${esc(d.kind==='campus'?`예상 귀교: ${clockLabel(clockAfter(n.days*TRAVEL_TICKS))}`:departurePlan(d.pos,n.days,d.kind==='big'?true:null))}</div>
       <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted">${needText(n)}${G.calm<n.calm||G.battery<n.feed||(n.battery>0&&G.battery<=0)?' <b style="color:var(--danger)">· 모자람 (모자란 만큼 체력 감소)</b>':''}</span>
       <button class="small primary" ${busy?'disabled':''} onclick="${d.kind==='big'?`startBig('${d.key}')`:d.kind==='campus'?'travelBack(true)':`travelTo('${d.key}')`}">떠나기</button></div></div>`;
   }).join('');
-  modal('🧭 이동하기',`${G.act<3&&MAP_PLACES.some(p=>p.far&&placeKnown(p))?'<p class="muted" style="font-size:12.5px">🗺 지도에 (소문)으로 표시된 곁가지 구역(오러리·코덱스)은 소문으로만 아는 곳이라 3막(출석부 해독)부터 갈 수 있습니다.</p>':''}<p class="muted">지금 있는 곳: <b>${curPlaceName()}</b>. 이동 일수는 지도 거리로 정해지고, 하루마다 공포가 1 쌓이고 배터리가 1 닳습니다(충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반). 이틀 이상 걸리는 길에서는 이동 행상·유민·불량배를 만날 수도 있습니다. 아지트는 중앙 캠퍼스 지구 바로 옆입니다.</p>${rows}${G.act>=3?`<div class="row" style="margin-top:8px"><button class="small" onclick="openWards()">🗺 출석부가 가리키는 구역들 보기</button></div>`:''}`);
+  modal('🧭 이동하기',`${G.act<3&&MAP_PLACES.some(p=>p.far&&placeKnown(p))?'<p class="muted" style="font-size:12.5px">🗺 지도에 (소문)으로 표시된 곁가지 구역(오러리·코덱스)은 소문으로만 아는 곳이라 3막(출석부 해독)부터 갈 수 있습니다.</p>':''}<p class="muted">지금 있는 곳: <b>${curPlaceName()}</b>. 이동은 지도 거리에 따라 1단계당 시간 2칸이 흐르고, 단계마다 공포 +1·배터리 −1%가 적용됩니다(충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반). 2단계 이상 걸리는 길에서는 이동 행상·유민·불량배를 만날 수도 있습니다. 아지트는 중앙 캠퍼스 지구 바로 옆입니다.</p>${rows}${G.act>=3?`<div class="row" style="margin-top:8px"><button class="small" onclick="openWards()">🗺 출석부가 가리키는 구역들 보기</button></div>`:''}`);
 }
 /* 이동 시작: 사건이 생기면 길 한가운데(한빛시 뒷길)에서 멈추고, 아니면 바로 도착
    dest.kind: campus · hood · big · zone(구역 조사)   dest.ret: 구역에서 돌아가는 길(조용히 도착)
@@ -6022,28 +6146,29 @@ function beginTrip(dest,days,opt){
   sfx('travel');
   if(opt.action!==false) addLog('action',opt.action||`${dest.name}${josa(dest.name,'으로','로')} 길을 떠난다`);
   dest.base=dest.base!==undefined?dest.base:base;
+  resetSoftClock(); G.loc='road'; // 출발 직후부터 학교 밖: 이동 중 수업도 결석 계산
   const cost=travelPay(n1,opt.keepFed);
   G.base=dest.kind==='zone'?dest.base:dest.ret&&dest.kind==='hood'?dest.key:null;   // 길에서 쓰러지면 돌아갈 곳
   const how=dest.reservoir?'🚤 수로로':'🔦 뒷길을 건너';
   if(!ev&&dest.kind==='zone') setTripNote(from,n.days,dest);
   if(!ev){ addLog('sys',`${how} ${durText(n.days)} 만에 ${dest.name}${dest.ret?josa(dest.name,'으로','로')+' 돌아왔습니다':'에 도착했습니다'}. (${cost})`); return arriveDest(dest) }
-  G.trip={dest,left:n.days-first,calm:n.calm-n1.calm,from,fromPos};
+  G.trip={dest,left:n.days-first,days:n.days,calm:n.calm-n1.calm,from,fromPos};
   G.loc='road'; G.nextPos=dest.ret?null:dest.pos;
   addLog('sys',first?`🔦 ${from}에서 ${durText(first)}을 걸었습니다 — ${dest.name}까지 ${durText(G.trip.left)} 더 가야 합니다. (${cost})`:`🔦 ${from}${josa(from,'을','를')} 나서자마자 — ${dest.name}까지 ${durText(G.trip.left)} 거리입니다.${n.feed?` (${cost})`:''}`);
   return tripEvent(opt.event);
 }
 async function continueTrip(){
   const t=G.trip; if(busy||!t||t.bandit) return;
-  const n=travelNeedFed(t.left);
+  const n=travelNeedFed(t.left); if(t.calm!=null) n.calm=t.calm;
   if(!(await askConfirm(`${t.dest.name}${josa(t.dest.name,'으로','로')} 계속 갈까요? (${needText(n)})`))) return;
   const cost=travelPay(n,true); G.trip=null;
-  if(t.dest.kind==='zone') setTripNote(t.from||curPlaceName(),(t.days||0)+n.days,t.dest);
+  if(t.dest.kind==='zone') setTripNote(t.from||curPlaceName(),t.days||n.days,t.dest);
   addLog('sys',`🔦 ${durText(n.days)} 더 걸어 ${t.dest.name}${t.dest.ret?josa(t.dest.name,'으로','로')+' 돌아왔습니다':'에 도착했습니다'}. (${cost})`);
   return arriveDest(t.dest);
 }
 function arriveDest(d){
   sfx('arrive');
-  G.trip=null; G.nextPos=null;
+  resetSoftClock(); G.trip=null; G.nextPos=null;
   if(d.ret){   // 구역에서 돌아옴 — 조용히 도착 (예전 귀환과 같음)
     const mc=rideCarry(); if(mc) addLog('fx',mc);
     G.base=d.kind==='hood'?d.key:null; return returnBase();
@@ -6069,14 +6194,16 @@ async function travelTo(id,skipConfirm){
   const t=HOODS[id]; if(busy||!t||!hoodOpen(id)||!isHood()) return;
   if(G.loc==='hood'&&G.hood===id) return toast(`이미 ${t.n}에 있습니다`);
   const days=travelDays(curPos(),hoodPos(id));
-  if(skipConfirm!==true&&!(await askConfirm(`${t.n}${josa(t.n,'으로','로')} 떠날까요? (${needText(travelNeed(days))})`))) return;
+  if(skipConfirm!==true&&!(await askConfirm(`${t.n}${josa(t.n,'으로','로')} 떠날까요? (${needText(travelNeed(days))})
+${departurePlan(hoodPos(id),days,null)}`))) return;
   closeModal();
   beginTrip({kind:'hood',key:id,name:t.n,pos:hoodPos(id)},days);
 }
 async function travelBack(skipConfirm){
   if(busy||G.loc!=='hood') return;
   const days=travelDays(curPos(),CAMPUS_POS);
-  if(skipConfirm!==true&&!(await askConfirm(`중앙 캠퍼스 지구로 돌아갈까요? (${needText(travelNeed(days))})`))) return;
+  if(skipConfirm!==true&&!(await askConfirm(`중앙 캠퍼스 지구로 돌아갈까요? (${needText(travelNeed(days))})
+예상 귀교: ${clockLabel(clockAfter(days*TRAVEL_TICKS))}`))) return;
   closeModal();
   beginTrip({kind:'campus',key:'campus',name:'중앙 캠퍼스 지구',pos:CAMPUS_POS},days);
 }
@@ -6152,7 +6279,7 @@ function tripFixedHTML(){
   return {mv:b('continueTrip()',`🔦 ${t.dest.name}${josa(t.dest.name,'으로','로')} 계속 가기 (${durText(t.left)})`,'primary'),mvLbl,ac,acLbl:'🧭 행동'};
 }
 on('context',93,()=>{
-  if(G.trip) return `\n[이동 중] ${G.trip.from}에서 ${G.trip.dest.name}(으)로 가는 한빛시 뒷길 (남은 ${G.trip.left}일). 목적지에 도착하는 서술은 하지 말 것(계속 가는 것은 버튼으로).${G.trip.bandit?' 불량배가 길을 막고 있다 — 대응은 플레이어가 버튼으로 한다.':''}`;
+  if(G.trip) return `\n[이동 중] ${G.trip.from}에서 ${G.trip.dest.name}(으)로 가는 한빛시 뒷길 (남은 ${durText(G.trip.left)}). 목적지에 도착하는 서술은 하지 말 것(계속 가는 것은 버튼으로).${G.trip.bandit?' 불량배가 길을 막고 있다 — 대응은 플레이어가 버튼으로 한다.':''}`;
   if(isHood()) return '\n[이동 규칙] 다른 지구로 떠나거나 그곳에 도착하는 서술은 하지 말 것(이동은 게임이 처리한다).';
   return '';
 });
@@ -6201,13 +6328,13 @@ function loungeFill(){
 }
 function hoodFixedHTML(){
   const t=curHood(), b=(on,txt,cls)=>`<button ${cls?`class="${cls}"`:''} onclick="${on}">${txt}</button>`;
-  let a=b('openShop()','🛒 상점')+b('campusRumor()','🍚 소문 듣기 (5)')+b('campusRest()','🛏 잠들기 (기숙사 · 무료)');
+  let a=b('openShop()','🛒 상점')+b('campusRumor()','🍚 소문 듣기 (5)')+b('hoodRest()',`🏨 현지 숙박 (💳${HOOD_LODGING_FEE} · 다음 아침)`);
   if(t.lounge) a+=b('loungeFill()',G.hoodLoungeDay===G.day?'🫧 휴게 정자 (오늘 사용함)':'🫧 휴게 정자에서 공포 가라앉히기 (무료 · 하루 1번)');
   if(t.keepsakeBuy) a+=b('appraise()','📦 고물상 (유실물 +20%)');
   a+=b('openRel()','👥 인연');
   if(!t.branch) a+=b('openLeads()',`📍 소문의 장소 (${(G.leads||[]).length})`);
   if(G.comp&&G.comp.met) a+=(G.comp.joined||canMeetHere('유민'))?b('talkYumin()','🎵 유민과 이야기'):b('seekYumin()',`🎵 유민 만나러 가기 (지금: ${yuminWhereText()})`);
-  const mv=(t.branch?'':b('startExpedition()',`🔦 ${t.n} 근처 구역 조사`,'primary'))+b('openTravel()','🧭 이동하기 (중앙 캠퍼스 지구·다른 지구)')+b('travelBack()',`↩ 중앙 캠퍼스 지구로 돌아가기 (${travelDays(curPos(),CAMPUS_POS)}일)`);
+  const mv=(t.branch?'':b('startExpedition()',`🔦 ${t.n} 근처 구역 조사`,'primary'))+b('openTravel()','🧭 이동하기 (중앙 캠퍼스 지구·다른 지구)')+b('travelBack()',`↩ 중앙 캠퍼스 지구로 돌아가기 (${durText(travelDays(curPos(),CAMPUS_POS))})`);
   return {mv,mvLbl:`📍 ${t.n} · ✨ ${t.perk}`,ac:a,acLbl:'🧭 행동'};
 }
 on('context',91,()=>G.loc==='hood'?`\n[지구] 지금 있는 곳은 ${curHood().n}이다. 등장인물과 분위기를 이곳에 맞춰라. 중앙 캠퍼스 지구의 장소(상점가·급식실 등)로 바로 이동하는 서술은 하지 말 것(돌아가는 것은 버튼으로 한다).`:'');
@@ -6338,7 +6465,8 @@ async function startBig(key,skipConfirm){
   if(r.torch&&G.torch<r.torch) return toast(`손전등이 ${r.torch}개 이상 필요합니다`);
   const back=sp.terrain==='flooded'?0:n.calm*2+(r.calm||0), backF=sp.terrain==='flooded'?0:n.feed;   // 돌아올 몫까지 (섬은 선착장에서 다시 보급)
   const shortTxt=back&&(G.calm<back||G.battery<backF)?`\n\n⚠ 돌아올 몫까지 합치면 공포 여유 ${back}${backF?`, 충전용 배터리 ${backF}`:''}이 필요합니다(지금 공포 여유 ${G.calm}, 배터리 ${batteryPct()}%). 그곳에는 보급할 곳이 없어, 모자라면 돌아오는 길에 체력이 깎입니다.`:'';
-  if(skipConfirm!==true&&!(await askConfirm(`${sp.name}${josa(sp.name,'으로','로')} 떠날까요? (${needText(n)}${fee?` · 보트 대여료 💳${fee}`:''})${shortTxt}`))) return;
+  if(skipConfirm!==true&&!(await askConfirm(`${sp.name}${josa(sp.name,'으로','로')} 떠날까요? (${needText(n)}${fee?` · 보트 대여료 💳${fee}`:''})${shortTxt}
+${departurePlan(sp.pos,rt.days,true)}`))) return;
   closeModal();
   if(fee){ G.cash-=fee; addLog('fx',`🚤 보트 대여료 -${fee}`) }
   if(key==='lacuna'&&G.act<2) G.act=2;
@@ -7065,7 +7193,7 @@ const BRANCH={
   checkpoint:{ic:'🛂',price:{calm:2,battery:3,torch:5},skill:'sur',dc:'normal',act:'서고 검문소 바깥 경계선의 소문을 쫓아 순찰에 따라나선다',
     kind:'고유 물건',reward:'도서관 출입증',ric:'🪪',eff:'길 위에서 불량배를 만나면 출입증을 보여 통행세 없이 지나감'},
   herbgarden:{ic:'🌿',price:{calm:2,battery:2,torch:4},skill:'sur',dc:'normal',act:'식물원 관리인들이 피하는 약초원 깊은 길로 들어가 본다',
-    kind:'탈것',reward:'오러리 전동 카트',ric:'🛴',eff:'자전거 보관대가 있으면 상점가에서 오러리 전동 카트를 들일 수 있음 — 이동 일수가 줄어듦'},
+    kind:'탈것',reward:'오러리 전동 카트',ric:'🛴',eff:'자전거 보관대가 있으면 상점가에서 오러리 전동 카트를 들일 수 있음 — 이동 시간이 줄어듦'},
   rooftop:{ic:'🏢',price:{calm:3,battery:3,torch:5},skill:'str',dc:'hard',act:'본관 외벽을 타고 옥상 서고의 무너진 아랫단으로 내려간다',
     kind:'고유 물건',reward:'관장의 인장',ric:'🗝',eff:'싸움(체력 판정)에서 +1'},
   depot:{ic:'📦',price:{calm:3,battery:2,torch:6},skill:'cha',dc:'hard',act:'반입 업자들의 휴게실에서 그들만 아는 이야기를 얻어 내려 한다',
@@ -7079,7 +7207,7 @@ Object.keys(BRANCH).forEach(id=>{
   HOODS[id]={n:p.n,ic:W.ic,branch:true,price:W.price,desc:`${p.lore} (곁가지 구역)`,perk:`📜 이 구역만의 괴담이 있음 — 쫓아가면 구역마다 다른 보상(${W.kind})`};
 });
 RIDES.cart={n:'오러리 전동 카트',price:80,feed:1,fearStep:1,noCalm:false,carry:1,rescue:true,capBonus:2,fast:true,locked:'herbgarden',
-  desc:'오러리 구역에서 온 날랜 전동 카트. 이동 일수가 줄어들고(약 4분의 3), 쓰러져도 캐시를 덜 잃습니다. 멘탈 한도·보조배터리 팩 용량 +2.'};
+  desc:'오러리 구역에서 온 날랜 전동 카트. 이동 시간이 줄어들고(약 4분의 3), 쓰러져도 캐시를 덜 잃습니다. 멘탈 한도·보조배터리 팩 용량 +2.'};
 PET_KINDS.parrot={n:'온실 앵무새',icon:'🦜',price:0,perk:'매력 판정 +1 (친근한 사이부터)',reward:'irongate'};
 function branchSt(){ if(!G.branch) G.branch={done:{},tried:{}}; return G.branch }
 function hasBranch(id){ return !!(G&&G.branch&&G.branch.done&&G.branch.done[id]) }
@@ -7272,7 +7400,7 @@ function fixedHTML(){
     mvLbl='🧭 공간 이동 · 나가기 · 귀환';
     mv=r.exits.map(id=>{ const o=d.rooms.find(x=>x.id===id); const hint=fd&&fd[id]<fd[r.id]?' ✧':''; return btn(`moveTo('${id}')`,`→ ${o.visited?esc(o.name):'❓ 미탐험 공간'}${o.fragTaken?' ★':''}${hint}`,'mv') }).join('');
     mv+=btn('exitZone()','🚪 구역 밖으로 나가기','','data-exit="1" title="구역은 그대로 두고 입구 밖으로 (이동 행상을 만날 수도 있음)"');
-    mv+=p&&p.done?btn('returnToCampus()',`✅ 조사 완료 · ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${durText(returnRoute().days)})`,'primary'):btn('returnToCampus()',`↩ 귀환 (조사 ${p?p.vis+'/'+p.total:''} · ${returnRoute().days}일)`);
+    mv+=p&&p.done?btn('returnToCampus()',`✅ 조사 완료 · ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${durText(returnRoute().days)})`,'primary'):btn('returnToCampus()',`↩ 귀환 (조사 ${p?p.vis+'/'+p.total:''} · ${durText(returnRoute().days)})`);
     if(!roomExhausted()) ac+=btn("pickFixed('주변을 둘러본다')",'👁 살펴보기')+btn("pickFixed('이곳을 꼼꼼히 조사한다')",'🔍 조사하기');
     ac+=btn('shelterHere()','⛺ 임시 쉼터');
     if(d.lore){ const all=d.rooms.filter(x=>x.clue); ac+=btn('openZoneJournal()',`📝 조사 수첩 ${all.filter(x=>x.clue.got).length}/${all.length}`,'','data-rj="1"') }
@@ -7312,6 +7440,8 @@ function fixedHTML(){
     ac+=btn('openAnimals()',`🐾 동물 친구${n?` (${n})`:''}`);
   }
   let h='';
+  const forecast=returnForecast();
+  if(forecast) h+=`<div class="lbl ${forecast.late||forecast.urgent?'warn':''}">🕒 ${esc(forecast.text)} (바로 귀환 · 돌발 지연 제외)</div>`;
   if(mv) h+=`<div class="hscroll">${mv}</div>`+(mvLbl?`<div class="lbl">${mvLbl}</div>`:'');
   if(ac) h+=`<div class="hscroll">${ac}</div>`+(acLbl?`<div class="lbl">${acLbl}</div>`:'');
   return h;
@@ -7332,8 +7462,9 @@ function renderNeed(){
   let h=`<span class="nb" title="공포는 걸음 수에 따라 자동으로 쌓입니다. 한계에 닿으면 체력이 줄어듭니다">😨 공포 ${fearNow()}/${fearMax()} <span class="pips">${pips(Math.ceil(fearNow()/fearMax()*5),5)}</span> <span class="${n.wWarn?'warn':''}">${n.wl}</span></span>`+
         `<span class="nb" title="배터리는 걸음 수에 따라 자동으로 닳습니다. 0이 되면 길을 잃어 체력이 줄어듭니다">🔋 배터리 ${batteryPct()}% <span class="pips">${pips(Math.ceil(n.f/capF()*5),5)}</span> <span class="${n.fWarn?'warn':''}">${n.fl}</span></span>`;
   if(p) h+=`<span class="nb" title="방문한 공간 / 전체 공간">🧭 조사도 <span class="pips">${pips(p.vis,p.total)}</span> <span class="${p.done?'ok':''}">${p.vis}/${p.total}공간${p.done?' · 조사 완료':''}</span>`+(!p.done?` <span class="muted">(미탐험 발견 ${p.found}${p.hidden>0?` · 아직 못 찾은 ${p.hidden}`:''})</span>`:'')+`</span>`;
+  const rf=returnForecast(); if(rf) h+=`<span class="nb ${rf.late||rf.urgent?'warn':''}">🕒 ${esc(rf.text)}</span>`;
   h+=wardStatusHTML()+fightStatusHTML();
-  if(inDark()) h+=`<span class="nb" title="손전등을 구하거나 구역 밖으로 나가세요">🌑 <span class="warn">어둠 — 이동 2걸음 · 넘어질 위험 · 단서·조각 못 찾음</span></span>`;
+  if(inDark()) h+=`<span class="nb" title="손전등을 구하거나 구역 밖으로 나가세요">🌑 <span class="warn">어둠 — 이동 2행동(시간 1칸) · 넘어질 위험 · 단서·조각 못 찾음</span></span>`;
   const m=rideDef();
   if(m&&G.ride){
     const tired=G._rideFed===false;
@@ -7863,7 +7994,7 @@ function openGuide(){
       row(`🪪 출입 권한 ${G.access||1}등급`,`1~${ACCESS_MAX}등급 · 높은 등급이 필요한 문은 열리지 않음`)+
       row('⏳ 지금 시각',`${G.day}일째(${dowName(G.day)}요일) ${timeIcon()} ${G.time} · ${toH}걸음 뒤 ${nextT==='낮'?'다음 날 낮':nextT}`);
   }
-  const S=13, ex=(extra,noW)=>{ const w=(noW?0:2)+Math.floor(S/(wBase+extra)), f=2+Math.floor(S/MOVE_STEPS.battery); return {w,f} };
+  const S=6, ex=(extra,noW)=>{ const w=(noW?0:2)+Math.floor(S/(wBase+extra)), f=2+Math.floor(S/MOVE_STEPS.battery); return {w,f} };
   const e0=ex(0,false), e1=ex(RIDES.bike.fearStep,false), e3=ex(RIDES.scooter.fearStep,true);
   modal('게임 구조 가이드',`
     <p class="muted">이 게임에서 시간이 흐르고 자원이 변하는 규칙입니다. 숫자는 지금 코드의 값입니다. 숫자·위치·시간은 게임(버튼)이 정하고, 이야기 AI는 "어떻게·왜·누구와"를 서술합니다. AI가 제안하는 변화는 한 장면에 ${fxRangeText()} 안에서만 반영되고(물건을 살 때만 배터리·손전등 +${FX_BUY_MAX}까지), 근거 없는 회복은 코드가 막습니다.</p>
@@ -7879,10 +8010,10 @@ function openGuide(){
     ${row('괴이를 만났을 때','싸우기보다 도주 · 숨기 · 교칙 지키기가 기본 대응입니다. 전투는 규율부·청소반 같은 사람이 상대일 때만 벌어집니다')}
     ${row('사건','이야기 속에서 상인이나 마음이 놓이는 곳(휴게 공간·티 코너·자판기 등)이 나오면 🧭 거래 · 🫧 공포 가라앉히기 버튼이 생깁니다. 지구의 공용 휴게 공간은 하루 한 번 무료이고, "따뜻한 차를 따라 마신다" 같은 선택지·글로도 가라앉습니다')}
     ${h3('시간대와 걸음')}
-    ${row('1걸음','공간 이동·뒷길 이동·상점가 산책·인물 방문·유민과의 대화·급식실·이야기 행동. 구역과 임시 쉼터 안에서 고른 선택지·고정 버튼(살펴보기·조사 등)은 2번에 1걸음(직접 입력은 1걸음). 중앙 캠퍼스 지구 안 이야기 선택지·직접 입력은 세지 않음. 지구·아지트에서 센 걸음은 시간만 흐르게 하고 공포·배터리는 변하지 않습니다')}
-    ${row('시간대',`낮은 학교 일과 ${SCHOOL.length}칸(${SCHOOL.join(' → ')}), 방과 후·야간·새벽은 ${MOVE_STEPS.quarter}걸음씩. 낮 → 방과 후 → 야간 → 새벽 순으로 바뀜. 기숙사·아지트에서 쉬거나 임시 쉼터에서 아침을 맞으면 낮이 처음부터 다시 시작. 임시 쉼터를 마련하면 시간이 야간이 됨. 🧭 이동(지구 이동·구역 조사 출발·귀환)은 걸음 대신 반나절 단계로 시간이 흐름(아래 참고)`)}
+    ${row('1걸음','공간 이동·뒷길 이동·상점가 산책·인물 방문·유민과의 대화·급식실·이야기 행동. 구역과 임시 쉼터 안의 이동·선택지·고정 버튼·직접 입력·유민 대화는 모두 2행동당 시간 1칸. 중앙 캠퍼스 지구 안 이야기 선택지·직접 입력은 세지 않음. 지구·아지트에서 센 걸음은 시간만 흐르게 하고 공포·배터리는 변하지 않습니다')}
+    ${row('시간대',`낮은 학교 일과 ${SCHOOL.length}칸(${SCHOOL.join(' → ')}), 방과 후·야간·새벽은 ${MOVE_STEPS.quarter}걸음씩. 낮 → 방과 후 → 야간 → 새벽 순으로 바뀜. 기숙사·아지트에서 쉬거나 임시 쉼터에서 아침을 맞으면 낮이 처음부터 다시 시작. 구역 안 이동·조사는 직접 입력·선택지·버튼 모두 2행동당 시간 1칸. 쉼터 준비는 시각을 되돌리지 않고, 숙박은 다음 아침까지 같은 시계로 진행. 🧭 이동은 단계당 시간 2칸이며 지나친 수업은 결석으로 기록됨`)}
     ${row('하루',`${SCHOOL.length+MOVE_STEPS.quarter*(TIMES.length-1)}걸음 (새벽이 지나 낮이 되면 +1일)`)}
-    ${row('점호 누락·무단 외출','야간이 되었을 때 구역·뒷길에 있으면 벌점 +1(점호 누락). 야간·새벽에 구역 조사를 나가면 벌점 +1(무단 외출 — 외출 금지 경고 중이면 +2). 기숙사에서 하룻밤 쉬면 벌점이 있을 때 -1. 기숙사 밖(임시 쉼터·아지트)에서 하룻밤을 보내면 '+Math.round(OUTSIDE_NIGHT_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(OUTSIDE_NIGHT_WARN*100)+'%p)로 점호 불참이 적발되어 벌점 +1~+2')}
+    ${row('점호 누락·무단 외출','야간이 되었을 때 학교 밖에 있으면 벌점 +1(점호 누락). 야간·새벽에 구역 조사를 나가면 벌점 +1(무단 외출 — 외출 금지 경고 중이면 +2). 점호를 놓친 그날 밤은 다시 기숙사에서 자도 벌점 감소가 적용되지 않습니다. 기숙사 밖(임시 쉼터·아지트)에서 하룻밤을 보내면 '+Math.round(OUTSIDE_NIGHT_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(OUTSIDE_NIGHT_WARN*100)+'%p)로 점호 불참이 적발되어 벌점 +1~+2')}
     ${h3('수업과 땡땡이 (교실, 낮에만)')}
     ${row('🔔 일과 칸','낮에는 행동 한 번이 일과 한 칸입니다. 교실에서 조례 → 1교시 → 쉬는 시간 → 2교시 → 점심시간 → 3교시 → 쉬는 시간 → 4교시 → 종례 순으로 흐르고, 종례가 끝나면 방과 후. 칸이 바뀔 때마다 🔔 알림이 뜨고 지금 칸에 맞는 버튼이 나옵니다. 조례·수업·종례는 교실에서, 점심시간 버튼은 급식실로 자동 이동(급식 무료, 소문을 들을 수 있음)')}
     ${row('🧭 장소 이동 인식','서술 AI가 장면이 끝났을 때의 위치를 직접 알려 주고, 선택지도 목적지(to)를 담습니다. 그래서 "자리를 옮겨", "~로 향했다" 같은 표현도 실제 장소 이동으로 반영됩니다(글 해석은 보조). 수업 칸에 교실을 벗어나면 땡땡이로 처리되어 그 칸이 지나가고 확률로 적발됩니다')}
@@ -7916,23 +8047,24 @@ function openGuide(){
     ${row('📝 결석하기',`평일 낮에 📝 오늘 학교 결석하기 버튼으로 담임 선생님께 승인을 받으면(${EXCUSE_COOLDOWN}일에 1번) 신청하면 그날 낮은 학교 일과에 묶이지 않고 자유롭게 쓸 수 있으며(수업 칸은 벌점 없이 지나감), 땡땡이·결석 기록이나 벌점이 없고, 밤에 기숙사에 들어가지 않아도(점호 누락·소등 후 외출 적발·기숙사 밖 하룻밤·무단 외출) 벌점이 없습니다. 하루가 지나면 효과가 끝납니다`)}
     ${row('🏃 땡땡이치기',`수업 한 칸을 건너뛰고 몰래 쉼. 들킬 확률은 기본 ${Math.round(SKIP_CATCH_P*100)}%에 그날 땡땡이 횟수마다 +${Math.round(SKIP_CATCH_STEP*100)}%, 벌점이 ${DEMERIT_WARN}점 이상이면 +${Math.round(SKIP_CATCH_WARN*100)}%. 안 들키면 공포 −1, ${Math.round(SKIP_FIND_P*100)}% 확률로 단서. 들키면 벌점 +${SKIP_DEMERIT}`)}
     ${h3('걸음에 따른 변화 (한빛시·구역에서만)')}
-    ${row('😨 공포',`걸을 때 ${MOVE_STEPS.calm}걸음마다 +1 (하루 꼬박 움직이면 약 ${Math.round((SCHOOL.length+MOVE_STEPS.quarter*(TIMES.length-1))/MOVE_STEPS.calm)}) · 이동은 반나절마다 +1 · 학교 안·지구·아지트에서는 쌓이지 않음<br><span class="muted">"담력" 특성: ${MOVE_STEPS.calmFrugal}걸음마다 · 떠돌이 개(친근한 사이부터) +1걸음</span>`)}
+    ${row('😨 공포',`걸을 때 ${MOVE_STEPS.calm}걸음마다 +1 (하루 꼬박 움직이면 약 ${Math.round((SCHOOL.length+MOVE_STEPS.quarter*(TIMES.length-1))/MOVE_STEPS.calm)}) · 이동은 단계마다 +1 · 학교 안·지구·아지트에서는 쌓이지 않음<br><span class="muted">"담력" 특성: ${MOVE_STEPS.calmFrugal}걸음마다 · 떠돌이 개(친근한 사이부터) +1걸음</span>`)}
     ${row('🔋 배터리',`${MOVE_STEPS.battery}걸음마다 −1% · 문자 −1% · 전화 −${CALL_DRAIN}% (시간 한 칸) · 자고 일어나면 +${SLEEP_BATTERY}칸(용량 한도까지)`)}
     ${row('🔦 손전등',`구역에서 공간을 ${MOVE_STEPS.torch}번 옮길 때마다 -1`)}
     ${row('한계에 닿으면','공포가 한계이거나 배터리가 0인 채 주기가 오면 체력 -1')}
-    ${row('🌑 손전등 0 (어둠)',`구역 안에서: 공간 이동 2걸음 · ${Math.round(DARK_STUMBLE*100)}% 확률로 넘어져 체력 -1 · 단서와 교표 조각을 찾지 못함 · 판정 -2 (매력 제외). 「밤눈」 특성이 있으면 모두 면제`)}
+    ${row('🌑 손전등 0 (어둠)',`구역 안에서: 공간 이동 2행동(시간 1칸) · ${Math.round(DARK_STUMBLE*100)}% 확률로 넘어져 체력 -1 · 단서와 교표 조각을 찾지 못함 · 판정 -2 (매력 제외). 「밤눈」 특성이 있으면 모두 면제`)}
     ${row('화면 연출','공포가 한계의 ' + Math.round(FEAR_RED*100) + '%를 넘으면 화면이 붉어지고, ' + Math.round(FEAR_NOISE*100) + '%를 넘으면 노이즈가 낍니다')}
     ${h3('행동별 비용')}
-    ${row('구역 조사 출발','떠난 곳에서 구역까지 지도 거리만큼 (반나절 단위) — 반나절마다 공포 +1·배터리 −1%, 탈것 충전 1회. 두 단계(거의 하루) 이상이면 길 위의 사건이 생길 수 있음. 아지트 작업대가 있으면 손전등 +1, 소중한 연인이 있으면 그가 챙겨 준 보조배터리 +1. 공포 여유와 배터리가 최소 1씩 필요하고, 야간·새벽에 출발하면 무단 외출 벌점')}
-    ${row('귀환','떠나온 지구(없으면 중앙 캠퍼스 지구)까지 지도 거리만큼 — 반나절마다 공포 +1·배터리 −1% (모자라면 체력), 충전은 없음. 두 단계(거의 하루) 이상이면 길 위의 사건. 수몰 구역은 보트로 선착장까지(대여료는 왕복 요금에 포함). 자재: 철제 부품 +(방문한 공간 수 ÷ 2, 올림 — 이어 조사한 구역은 새로 본 공간만큼만), 합판은 50% 확률로 +1')}
-    ${row('임시 쉼터','체력 '+Math.round(SHELTER_HEAL*100)+'% 회복, 공포 −'+SHELTER_CALM+', 배터리 +'+SHELTER_BATTERY+'칸, 시간은 야간으로. 아침이 되면 하루 경과하고 배터리가 +'+SLEEP_BATTERY+'칸(용량 한도까지) 충전되며 임시 쉼터를 시작한 곳으로. 기숙사 밖(임시 쉼터·아지트)에서 하룻밤을 보내면 '+Math.round(OUTSIDE_NIGHT_P*100)+'% 확률로 점호 불참이 적발되어 벌점 +1~+2')}
+    ${row('구역 조사 출발','떠난 곳에서 구역까지 지도 거리만큼 (1단계=시간 2칸) — 이동 단계마다 공포 +1·배터리 −1%, 탈것 충전 1회. 두 단계(시간 4칸) 이상이면 길 위의 사건이 생길 수 있음. 아지트 작업대가 있으면 손전등 +1, 소중한 연인이 있으면 그가 챙겨 준 보조배터리 +1. 공포 여유와 배터리가 최소 1씩 필요하고, 야간·새벽에 출발하면 무단 외출 벌점')}
+    ${row('귀환','떠나온 지구(없으면 중앙 캠퍼스 지구)까지 지도 거리만큼 — 이동 단계마다 공포 +1·배터리 −1% (모자라면 체력), 충전은 없음. 두 단계(시간 4칸) 이상이면 길 위의 사건. 수몰 구역은 보트로 선착장까지(대여료는 왕복 요금에 포함). 자재: 철제 부품 +(방문한 공간 수 ÷ 2, 올림 — 이어 조사한 구역은 새로 본 공간만큼만), 합판은 50% 확률로 +1')}
+    ${row('임시 쉼터','체력 '+Math.round(SHELTER_HEAL*100)+'% 회복, 공포 −'+SHELTER_CALM+', 배터리 +'+SHELTER_BATTERY+'칸(용량 한도). 준비만으로 회복되지 않고 아침까지 실제로 쉬어야 회복됩니다. 위험도 3인 방은 쉼터 불가. 다음 아침에는 임시 쉼터를 시작한 곳으로. 기숙사 밖(임시 쉼터·아지트)에서 하룻밤을 보내면 '+Math.round(OUTSIDE_NIGHT_P*100)+'% 확률로 점호 불참이 적발되어 벌점 +1~+2')}
     ${row('🏠 아지트에서 잠들기','아지트를 마련했다면 방과 후 이후 학교 안 어느 곳에서든 「아지트로 가서 잠들기」를 쓸 수 있습니다. 무료이고 체력과 공포가 회복되고 배터리 +'+SLEEP_BATTERY+'칸, 하루가 지납니다. 소등 후에는 몰래 나가는 것이라 적발될 수 있고(기숙사 문이 잠겨 이미 밖에 있다면 바로 갈 수 있음), 기숙사의 점호 벌점 감소는 없으며 기숙사 밖 하룻밤 적발 확률('+Math.round(OUTSIDE_NIGHT_P*100)+'%)이 적용됩니다')}
-    ${row('🛏 잠들기','기숙사의 「잠들기」 버튼(학교 안 어느 지점에서든 방과 후 이후에 보입니다): 무료, 체력 전부 회복, 하루 경과, 배터리 +'+SLEEP_BATTERY+'칸, 벌점이 있으면 -1. 소등 후에는 기숙사 출입 판정을 거칩니다')}
+    ${row('🏨 현지 숙박',`외부 지구에서는 기숙사 취침 대신 현지 숙박: 방과 후부터 💳${HOOD_LODGING_FEE}, 체력 60% 회복·배터리 +2, 다음 아침까지 시간 진행. 학교로 자동 이동하지 않으며 기숙사 점호 통과/벌점 감소 효과 없음`)}
+    ${row('🛏 잠들기','기숙사의 「잠들기」 버튼(학교 안 어느 지점에서든 방과 후 이후에 보입니다): 무료, 체력 전부 회복, 하루 경과, 배터리 +'+SLEEP_BATTERY+'칸, 해당 밤 점호를 놓치지 않았고 벌점이 있으면 -1. 소등 후에는 기숙사 출입 판정을 거칩니다')}
     ${row('급식실','점심시간에만 식사를 줍니다. 일과의 🍚 급식 먹기는 무료, 급식실의 🍚 식사하며 소문 듣기는 💳5 (모두 1걸음)')}
     ${row('아지트에서 쉬기',`무료, 체력 전부 회복, 공포 −${HOME_FEAR_RECOVER}, 배터리 +${SLEEP_BATTERY}칸, 하루 경과 (충전 거치대가 있으면 하루 첫 휴식에 배터리 +2 더). 기숙사 밖 하룻밤이라 점호 불참 적발 확률(${Math.round(OUTSIDE_NIGHT_P*100)}%)이 있습니다. 유민은 동행 중이거나 휴게 소파에 실제로 머물 때만 함께 쉼`)}
     ${row('쓰러졌을 때','"출석부에서 네 이름이 지워졌다…" 잠시 의식을 잃었다가 구조되어 떠나온 지구(없으면 중앙 캠퍼스 지구)로. 캐시 절반 손실(전동 스쿠터가 있으면 4분의 1), 이틀 경과, 체력 절반으로 회복')}
     ${h3('구역 입구 밖')}
-    ${row('🚪 구역 밖으로 나가기','지금 깊이만큼 걸음(1~3) 소모. 구역은 그대로 남고, 다시 들어가면 나왔던 공간으로 돌아갑니다')}
+    ${row('🚪 구역 밖으로 나가기','깊이 0~2는 시간 1칸, 깊이 3 이상은 시간 2칸 소모. 구역은 그대로 남고, 다시 들어가면 나왔던 공간으로 돌아갑니다')}
     ${row('🧭 이동 행상',`뒷길에 나올 때 가끔 나타남 (공포 여유가 바닥이면 더 자주). 진정 음료·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch}, 재고 한정. 자리를 뜨면 함께 떠남`)}
     ${row('입구 밖에서 할 수 있는 것','다시 들어가기 · 임시 쉼터(아침에도 입구 밖) · 중앙 캠퍼스 지구로 귀환 · 행상과 거래·대화')}
     ${row('중단한 구역','다 못 본 구역은 최대 3곳까지 보관되어, 나중에 마지막 공간에서 이어서 조사할 수 있습니다. 포기하거나 보관 한도에 밀려나도 밝혀낸 단서만큼은 구역의 사연이 괴담 사전에 남습니다')}
@@ -7941,9 +8073,9 @@ function openGuide(){
     ${g&&G.actDone?h3('라쿠나 구역'+(G.act>=3?' · 출석부가 가리키는 구역들':''))+row('✨ 라쿠나 구역',`중앙 캠퍼스 지구 정문(또는 다른 지구·아지트)에서 떠남 · 중앙 캠퍼스 지구에서 ${durText(travelDays(CAMPUS_POS,LACUNA_POS))}(동부 저수지 공원·학원가 골목에서는 ${durText(travelDays(hoodPos('east'),LACUNA_POS))}) · 왕복 공포 여유·배터리가 넉넉해야 함 · 큰 구역이며 가장 깊은 공간의 출석부를 🎲 지혜 판정으로 해독`)+(G.act>=3?Object.values(WARD_TYPES).map(t=>row(`${t.ic} ${t.n}`,`${t.reqText} · 심장 열기 🎲 ${SK[t.check]} 어려움<br><span class="muted">${t.rule}</span>`)).join('')+row('찾아가기','🗺 출석부가 가리키는 구역들 버튼에서 · 중간에 돌아와도 그 자리에서 이어서 조사'):''):''}
     ${h3('중앙 캠퍼스 지구 밖의 지구 (정문 → 🧭 이동하기)')}
     ${Object.entries(HOODS).filter(([id])=>!g||hoodOpen(id)).map(([id,t])=>row(`${t.ic} ${t.n} <span class="muted">(중앙 캠퍼스 지구에서 ${durText(hoodDays(id))})</span>`,`${t.perk}<br><span class="muted">진정 음료 💳${t.price.calm} · 배터리 💳${t.price.battery} · 손전등 💳${t.price.torch}</span>`)).join('')}
-    ${row('가는 길',`이동 시간은 지도 거리로 자동 계산(약 ${DAY_DIST}칸에 한 단계=반나절 · 세 단계=1일 · 반나절/거의 하루/1일 반처럼 표기) · 단계마다 공포 +1·배터리 −1% (충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반, 모자라면 그만큼 체력 감소) · 지구끼리도 바로 오감 · 지구에서 떠난 조사 외출은 그 지구로 돌아옴 · 아지트는 중앙 캠퍼스 지구 바로 옆`)}
-    ${row('🕒 이동 중의 시간','이동에는 학교에 갈 수 없으니 하루를 아침 → 낮 → 밤 세 단계로 보고 걸린 단계만큼 시간이 한 단계씩 흐릅니다. 아침(낮 일과 오전)에 떠나면 한 단계 뒤 낮(점심시간), 낮(점심 이후)·방과 후에 떠나면 한 단계 뒤 밤(야간), 밤에서 한 단계 더 가면 다음 날 아침입니다')}
-    ${row('길 위의 사건',`두 단계(거의 하루) 이상 걸리는 육로 이동에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🧭 이동 행상(거래) · 🎵 유민 · 🏴 적대 세력(전투) · 🗡 불량배(통행세 캐시의 20%, 최소 💳10 / ⚔ 체력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 한 단계 더·공포 +1·배터리 −1%)`)}
+    ${row('가는 길',`이동 시간은 지도 거리로 자동 계산(지도 거리 약 ${DAY_DIST}당 한 단계=시간 ${TRAVEL_TICKS}칸 · 낮 9칸과 방과 후/야간/새벽 각 4칸, 하루 21칸 · 조사·이동·학교가 같은 시계를 사용) · 이동 단계마다 공포 +1·배터리 −1% (충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반, 모자라면 그만큼 체력 감소) · 지구끼리도 바로 오감 · 지구에서 떠난 조사 외출은 그 지구로 돌아옴 · 아지트는 중앙 캠퍼스 지구 바로 옆`)}
+    ${row('🕒 이동 중의 시간','이동·조사·학교가 같은 시계를 사용합니다. 이동 단계 1개는 시간 2칸이고 0단계는 시간이 흐르지 않습니다. 이동 중 지나간 수업도 결석으로 기록하며 주말·승인된 결석일은 제외합니다. 출발 전 예상 도착/귀교 시각, 구역 상단에 바로 돌아갈 경우의 귀교 시각이 표시됩니다. 돌발 사건과 추가 조사로 늦어질 수 있습니다')}
+    ${row('길 위의 사건',`두 단계(시간 4칸) 이상 걸리는 육로 이동에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🧭 이동 행상(거래) · 🎵 유민 · 🏴 적대 세력(전투) · 🗡 불량배(통행세 캐시의 20%, 최소 💳10 / ⚔ 체력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 한 단계 더·공포 +1·배터리 −1%)`)}
     ${(G&&G.act>=3?row('곁가지 구역 🌿','3막부터 오러리 구역(구 식물원·천문대)과 코덱스 구역(구 본관 도서관)의 여덟 곳으로 이동할 수 있음(🧭 이동하기). 곳마다 📜 괴담 쫓기 — 하루 한 번 판정, 성공·부분 성공이면 구역마다 다른 보상(고유 물건·칭호·탈것·동물 친구·아지트 장식). 🗺 곁가지 수집품에 기록되고, 여덟 곳을 모두 모으면 칭호와 최대 체력 +1. 곁가지 구역에는 조사할 폐구역이 없어 구역 조사 버튼이 나타나지 않음'):'')}
     ${(G&&G.act>=3?row('선착장 🚤','출석부가 저수지 아래 구역을 가리킨 뒤(3막) 서쪽 저수지·동쪽 배수지 두 곳이 지도에 나타남. 수몰 구역으로 가는 보트(💳'+boatFee()+')는 가까운 선착장에서만'):'')}
     ${row('글로 쓴 이동','「학원가으로 간다」처럼 쓰면 이동 비용이 적힌 확인 칩이 뜸 · 아직 소문으로만 아는 곳은 갈 수 없음')}
@@ -7974,7 +8106,7 @@ function openGuide(){
     ${KEEPSAKE_GRADES.map((r,g)=>row(`📦 ${r.n}`,`감정가 💳${r.p} <span class="muted">(위험도 0~1 공간 ${KEEPSAKE_ODDS[1][g]}% · 3 공간 ${KEEPSAKE_ODDS[3][g]}%)</span>`)).join('')}
     ${row('등급이 정해지는 때','구역에서 유실물을 얻는 순간 코드가 정함. 위험한 공간일수록, 구 신시가 재개발지구 근처 구역일수록 좋은 등급이 잘 나옴')}
     ${row('팔기','아지트 작업대에서 감정가대로 · 재개발지구 고물상은 20% 더. 시설 꾸미기·선물에는 흔한 유실물부터 쓰임')}
-    ${h3('조사 외출 한 번의 대략적 소모 (구역 안에서 13걸음, 이동은 반나절씩 가정)')}
+    ${h3('조사 외출 한 번의 대략적 소모 (구역 안에서 12행동 = 6칸, 이동은 편도 1단계씩 가정)')}
     ${row('탈것 없음',`공포 약 +${e0.w} · 배터리 약 −${e0.f}%`)}
     ${row('자전거',`공포 약 +${e1.w} · 배터리 약 −${e1.f}%+충전 ${RIDES.bike.feed} (철제 부품 +1)`)}
     ${row('전동 스쿠터',`공포 약 +${e3.w} · 배터리 약 −${e3.f}%+충전 ${RIDES.scooter.feed} (철제 부품 +1, 합판이나 전선 +1)`)}
@@ -8444,7 +8576,7 @@ function openLeads(){
       <div class="muted" style="font-size:13px">${esc(l.hint||'가는 길을 알게 된 곳')}</div>
       <div class="row" style="justify-content:flex-end;gap:6px;margin-top:6px"><button class="small" onclick="removeLead('${l.id}')">지우기</button><button class="small primary" ${isHood()&&!busy?'':'disabled'} onclick="startLead('${l.id}')">🔦 찾아 떠나기</button></div></div>`;
   }).join('')||'<p class="muted">아직 소문으로 알게 된 장소가 없습니다. 이야기 속에서 가는 길을 알게 되면 여기에 기록되고 지도에 표시됩니다.</p>';
-  modal('📍 소문의 장소',`<p class="muted" style="font-size:13px">이야기에서 가는 길을 알게 된 곳입니다. 중앙 캠퍼스 지구나 지구에서 일반 조사 외출과 같은 비용(거리만큼 일수, 하루마다 공포 +1·배터리 −1)으로 찾아가면, 그 이름의 구역이 열립니다.</p>${rows}
+  modal('📍 소문의 장소',`<p class="muted" style="font-size:13px">이야기에서 가는 길을 알게 된 곳입니다. 중앙 캠퍼스 지구나 지구에서 일반 조사 외출과 같은 비용(지도 거리에 따른 시간, 이동 단계마다 공포 +1·배터리 −1%)으로 찾아가면, 그 이름의 구역이 열립니다.</p>${rows}
     <h4 style="margin:14px 0 4px">직접 적기</h4>
     <div class="row" style="gap:6px;flex-wrap:wrap"><input id="leadName" placeholder="장소 이름 (예: 통곡의 회랑)" maxlength="14" style="flex:1;min-width:140px"><input id="leadHint" placeholder="가는 길·소문 (선택)" maxlength="80" style="flex:2;min-width:160px"><button class="small primary" onclick="addLeadManual()">추가</button></div>
     <p class="muted" style="font-size:12px">이야기에서 알게 됐는데 지도에 안 뜬 장소가 있으면 이름을 적어 추가하세요.</p>`);
@@ -8507,7 +8639,7 @@ async function finishCreation(){
   const maxhp=10+stats.str*2;
   resetUndo();
   G={
-    v:1,
+    v:1,_relVersion:2,_clockVersion:2,
     char:{name,age:17,origin:'한빛학원 2학년 7반 전학생',region:HOME_REGION,reason,stats,traits:draft.traits.map(id=>TRAITS.find(t=>t.id===id).n),bio:document.getElementById('cBio').value.trim()},
     hp:maxhp,maxhp,calm:5,battery:CAP_BASE,torch:3,cash:30,
     items:['오래된 출석부'],
