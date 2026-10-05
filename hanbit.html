@@ -3738,6 +3738,14 @@ on('after',50,T=>{
   G.chronicle.push({day:G.day,text:`「${G.site.name}」에서 교표 조각을 찾았다 (${G.fragments}/${FRAG_GOAL})`});
   checkState();
 });
+/* 서술은 조각을 얻었다는데 게임이 인정하지 않은 경우(어둠·이 구역엔 조각이 없음 등): 이유를 알리고 직접 반영할지 물음 */
+on('after',56,T=>{
+  if(!G||G.fragments!==T.frags||G.fragments>=FRAG_GOAL||G._fragPending) return;
+  const t=lastScene(); if(!fragFoundIn(t)||G._fragAsked===t) return;
+  G._fragAsked=t;
+  const reason=inDark()?'어둠 속이라 제대로 찾지 못한 것으로 처리되었습니다':G.loc==='site'&&G.site?(G.site.rooms.some(r=>r.fragment&&!r.fragTaken)?'이야기 속 위치와 맞지 않아 반영되지 않았습니다':'이 구역에는 얻을 수 있는 교표 조각이 남아 있지 않습니다'):'조각을 얻을 수 있는 구역 안이 아니어서 반영되지 않았습니다';
+  askConfirm(`서술에는 교표 조각을 얻은 것으로 나왔지만 숫자에 반영되지 않았습니다.\n(${reason})\n\n지금 +1로 반영할까요? (그렇지 않다면 취소)`,'반영한다').then(ok=>{ if(!ok||!G||G.fragments>=FRAG_GOAL) return; fragManualDo() });
+});
 /* 한빛시 뒷길·임시 쉼터에서 아주 가끔(조사 외출마다 한 번만 굴림) 우연히 */
 on('before',20,T=>{
   if(needFrag()&&['road','shelter'].includes(G.loc)&&!G._fragTriedTrip&&Math.random()<0.04){
@@ -3763,6 +3771,9 @@ on('after',90,()=>{
 async function fragManual(){
   if(G.fragments>=FRAG_GOAL) return toast('이미 조각이 모두 모였습니다');
   if(!(await askConfirm('교표 조각을 +1 수동으로 반영할까요? (소지품의 교표 조각 아이템은 제거됩니다)'))) return;
+  fragManualDo();
+}
+function fragManualDo(){
   G.fragments++;
   G.items=G.items.filter(n=>!(/교표/.test(n)&&/조각/.test(n)));
   if(G.site){ const real=G.site.rooms.find(r=>r.fragment&&!r.fragTaken); if(real) real.fragTaken=true }
