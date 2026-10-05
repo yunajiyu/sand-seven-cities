@@ -5286,7 +5286,39 @@ function openSleuth(){
   const r=G.sleuth;
   modal('🧩 추리 도우미',`<p class="muted" style="font-size:13px">지금까지의 조사 보드·사전·연대기·소문을 AI가 정리해 줍니다. 정답이나 숨겨진 정체는 알려 주지 않고, 막혔을 때 방향을 잡도록 돕습니다. (누를 때마다 AI를 한 번 부릅니다)</p>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0"><select id="sleuthLv" style="width:auto"><option value="1" ${(+(r&&r.lv)||1)===1?'selected':''}>살짝 — 방향만</option><option value="2" ${(+(r&&r.lv)||1)===2?'selected':''}>확실히 — 다음 행동까지</option></select><button class="primary" id="sleuthBtn" onclick="runSleuth()">🧩 단서 정리하기</button></div>
-    <div id="sleuthOut">${r?sleuthHTML(r):'<p class="muted">단계를 고르고 「단서 정리하기」를 눌러 주세요.</p>'}</div>`);
+    <div id="sleuthOut">${r?sleuthHTML(r):'<p class="muted">단계를 고르고 「단서 정리하기」를 눌러 주세요.</p>'}</div>
+    <h4 style="margin:14px 0 4px">❓ 질문하기</h4>
+    <p class="muted" style="font-size:12.5px">궁금한 점을 직접 물어보세요 (예: "3번 칸 이름이 왜 지워졌을까?", "다음에 누구를 만나야 해?"). 위에서 고른 단계에 맞춰 지금까지 알려진 단서만 근거로 답하고, 정답과 숨겨진 정체는 알려 주지 않습니다. 한 번 묻는 데 AI를 한 번 부릅니다.</p>
+    <div class="row" style="gap:6px;flex-wrap:nowrap"><input id="sleuthQ" placeholder="질문 입력" maxlength="120" style="flex:1" onkeydown="if(event.key==='Enter')askSleuth()"><button class="primary" id="sleuthQBtn" onclick="askSleuth()">질문</button></div>
+    <div id="sleuthQA">${sleuthQAHTML()}</div>`);
+}
+function sleuthQAHTML(){
+  const L=(G.sleuthQA||[]).slice(-5).reverse();
+  return L.map(x=>`<div style="margin-top:8px"><div class="muted" style="font-size:12.5px">Q. ${esc(x.q)}</div><div>${esc(x.a)}</div></div>`).join('');
+}
+async function askSleuth(){
+  if(!G||_sleuthBusy) return;
+  const inp=document.getElementById('sleuthQ'), q=(inp&&inp.value||'').trim().slice(0,120); if(!q) return toast('질문을 적어 주세요');
+  const sel=document.getElementById('sleuthLv'), lv=+(sel&&sel.value)===2?2:1, g=G, btn=document.getElementById('sleuthQBtn'), box=document.getElementById('sleuthQA');
+  _sleuthBusy=true; if(btn) btn.disabled=true; if(box) box.insertAdjacentHTML('afterbegin','<p class="muted" id="sleuthQWait">생각하는 중…</p>');
+  let a='', err='';
+  try{
+    const r=parseJSON(await callAI('너는 텍스트 호러 추리 게임의 조력자다. 플레이어가 지금까지 알게 된 단서만 근거로 질문에 답하고, 사실을 지어내지 않는다. JSON 하나만 출력한다.',
+`${sleuthContext()}
+
+[플레이어의 질문] ${q}
+단계 「${SLEUTH_LV[lv].n}」: ${lv===2?'단서로 추론할 수 있는 범위에서 구체적으로 답하고 다음 행동까지 제안한다':'방향과 힌트만 주고 결론은 플레이어가 내리게 한다'}.
+규칙: 위 자료에 없는 사실을 만들지 않는다. 자료가 부족하면 부족하다고 말하고 어디서 더 알아볼지 짚는다. 숨겨진 정체·결말·정답은 쓰지 않는다. 답은 2~3문장, 한국어.
+JSON만 출력: {"answer":"…"}`,400,'lex'));
+    a=String(r&&r.answer||'').trim().slice(0,400);
+  }catch(e){ err=e&&e.message==='NO_KEY'?'AI 키가 없어 답할 수 없습니다. 설정에서 키를 입력해 주세요.':'답을 받지 못했습니다. 잠시 뒤 다시 물어봐 주세요.' }
+  _sleuthBusy=false;
+  if(G!==g) return;
+  if(btn) btn.disabled=false;
+  if(!a){ const w=document.getElementById('sleuthQWait'); if(w) w.remove(); return toast(err||'답을 받지 못했습니다') }
+  (G.sleuthQA=G.sleuthQA||[]).push({q,a,day:G.day}); G.sleuthQA=G.sleuthQA.slice(-8); save();
+  const i2=document.getElementById('sleuthQ'); if(i2) i2.value='';
+  const b2=document.getElementById('sleuthQA'); if(b2) b2.innerHTML=sleuthQAHTML();
 }
 async function runSleuth(){
   if(!G||_sleuthBusy) return;
@@ -7795,7 +7827,7 @@ function openGuide(){
     ${row('🔧 소모 부품','나사·못·테이프·붕대·건전지 같은 소모 부품은 쓰면 사라집니다. 직접 입력("나사를 사용해 …")이나 소지품의 🔧 「쓰기」로 쓰면 소지품에서 하나가 줄고, 공구(드라이버 등)는 남습니다')}
     ${row('🔒 이야기 물건 vs 팔 수 있는 물건','소지품은 두 종류입니다. AI가 물건을 줄 때 이야기에 필요한 것(단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건)에는 🔒를 붙여 팔 수 없게 하고, 값나가는 잡동사니는 바로 팔 수 있습니다. 표시가 없는 물건은 이름으로 판단하고(출석부·열쇠·서류·사진 등은 🔒), 애매하면 팔기 전에 확인 창이 뜹니다')}
     ${row('📌 확정 단서','이야기에서 얻은 구체적 단서(숫자·이름·칸 등)가 지워지지 않고 쌓여 AI가 매 턴 기억하는 목록입니다. 행동 버튼 줄의 「📌 확정 단서」나 🧵 조사 보드 창 아래쪽에서 보고, 직접 추가하거나 ✕로 지울 수 있습니다. 하루에 AI가 올리는 새 단서는 '+CANON_DAILY+'개까지이고 비슷한 말은 합쳐지며, '+CANON_MAX+'개를 넘으면 AI가 8줄 안팎으로 묶을 수 있고 최대 '+CANON_HARD+'개입니다')}
-    ${row('🧩 추리 도우미','행동 버튼 줄의 🧩 추리 도우미를 누르면 지금까지의 조사 보드·사전·연대기·소문을 AI가 한 번 정리해 줍니다. 단계는 「살짝」(방향만: 알려진 것·이어질 법한 것을 질문으로·더 찾아볼 방향)과 「확실히」(다음에 할 구체적 행동 2~3개까지) 중에 고릅니다. 숨겨진 정체나 정답은 알려 주지 않으며, 누를 때마다 AI를 한 번 부르고 마지막 결과는 저장됩니다')}
+    ${row('🧩 추리 도우미','행동 버튼 줄의 🧩 추리 도우미를 누르면 지금까지의 조사 보드·사전·연대기·소문을 AI가 한 번 정리해 줍니다. 단계는 「살짝」(방향만: 알려진 것·이어질 법한 것을 질문으로·더 찾아볼 방향)과 「확실히」(다음에 할 구체적 행동 2~3개까지) 중에 고릅니다. 숨겨진 정체나 정답은 알려 주지 않으며, 누를 때마다 AI를 한 번 부르고 마지막 결과는 저장됩니다. ❓ 질문하기에 궁금한 점을 적으면 같은 단계로 알려진 단서만 근거로 2~3문장으로 답하고(최근 5개 저장), 역시 한 번 묻는 데 AI를 한 번 부릅니다')}
     ${row('🎒 소지품',`행동 버튼 줄의 🎒 소지품에서 공포·배터리·손전등·캐시·벌점·출입 권한, 교표 조각·자재·탈것·물건을 한눈에 봅니다. 간식·소모품은 「먹기·쓰기」로 쓰고, 🔒가 없는 물건은 상점가에서 팝니다`)}
     ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기로 언제든 헤어질 수 있습니다(지도의 🎵로 위치 확인)')}
     ${row('🎵 구역 안 유민의 도움','유민이 동행 중이면 구역에서 일정 걸음마다(체력이 35% 이하거나 위험도 2 이상 공간, 또는 가끔) 노래를 불러 상황을 뒤집고, 위기에는 체력 +2, '+Math.round(YUMIN_SING_CALM_P*100)+'% 확률로 공포 −1. 그 밖에 위험한 통로 경고·조각 쪽 울림·길 안내를 해 줍니다. 곁에 있는 유민에게 "노래를 불러 달라"고 청해도(버튼·직접 입력, 어디서나) 같은 확률로 공포가 줄고 위기에는 체력 +2')}
