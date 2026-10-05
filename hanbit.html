@@ -4332,7 +4332,7 @@ function apptMissed(a){
 }
 const LEAD_APPT_WAIT=40;   // 소문의 장소 앞 약속은 약속 때부터 이틀(40) 안에 도착하면 만남
 /* 소문의 장소 앞에서 만난 인물은 그 구역을 조사하는 동안 함께함 (유민은 기존 동행 시스템). 구역을 떠나면 헤어짐 */
-function guestHere(){ const g=G&&G.guest; return !!(g&&G.loc==='site'&&G.site&&G.site.name===g.zone) }
+function guestHere(){ const g=G&&G.guest; return !!(g&&(G.loc==='site'||G.loc==='road')&&G.site&&G.site.name===g.zone) }
 function guestCheck(){ if(G&&G.guest&&!guestHere()&&G.loc!=='shelter'){ addLog('sys',`🤝 ${G.guest.name}${josa(G.guest.name,'과','와')} ${G.guest.zone} 조사를 마치고 헤어졌습니다.`); G.guest=null } }
 function partGuest(){ if(!G||!G.guest) return; const n=G.guest.name; G.guest=null; addLog('sys',`🤝 ${n}${josa(n,'과','와')} 헤어졌습니다.`); pend(` [동행 종료] 플레이어가 ${n}${josa(n,'과','와')} 헤어졌다. ${n}은(는) 이 구역에서 떠난다.`); save(); render() }
 on('context',58,()=>{ guestCheck(); if(!guestHere()) return ''; const n=G.guest.name; return `\n[함께하는 인물: ${n}] 약속대로 입구에서 합류해 「${G.guest.zone}」을 함께 조사하는 중이다. 장면에 자연스럽게 함께 등장시키고(말·반응·행동), 호감 단계(${relLv(n)})에 맞는 태도를 지켜라. 플레이어 대신 판정을 해결하거나 전투를 끝내지 말고, 구역을 떠나면 헤어진 것으로 한다.` });
@@ -4344,7 +4344,11 @@ function apptSync(){
     if(String(a.where).startsWith('lead:')){   // 소문의 장소 앞 약속: 때가 된 뒤 이틀 안에 플레이어가 그 구역에 도착하면 만남
       if(o<a.ord) return true;
       if(!a.arrived){ a.arrived=true; apptArrive(a) }
-      if(G.loc==='site'&&G.site&&G.site.name===a.where.slice(5)){ a.met=true; G._apptMeet={name:a.name,place:a.where.slice(5)}; if(a.name==='유민') G._yuminHere=true; else G.guest={name:a.name,zone:a.where.slice(5),day:G.day}; return false }
+      if((G.loc==='site'||G.loc==='road')&&G.site&&G.site.name===a.where.slice(5)){   // 구역 안이나 그 입구 밖에 있으면 만남
+        a.met=true; G._apptMeet={name:a.name,place:a.where.slice(5)};
+        if(a.name==='유민'){ setYuminSpot(spotHere()); G._yuminHere=true; if(G.comp&&!G.comp.joined&&yuminLv()>=JOIN_LV){ joinYumin(); G._apptMeet.joined=true } }
+        else G.guest={name:a.name,zone:a.where.slice(5),day:G.day};
+        return false }
       if(o>a.ord+LEAD_APPT_WAIT){ apptMissed(a); return false }
       return true;
     }
@@ -4356,7 +4360,7 @@ function apptSync(){
 }
 on('facts',79,o=>{
   apptSync();
-  if(G._apptMeet){ const m=G._apptMeet; G._apptMeet=null; o.약속만남=`${m.name}${josa(m.name,'이','가')} 약속대로 「${m.place}」 입구에서 플레이어를 기다리다 맞이한다. 이번 장면에 ${m.name}을(를) 등장시킬 것`; addLog('sys',`📌 약속한 ${m.name}${josa(m.name,'이','가')} ${m.place} 입구에서 기다리고 있었습니다.`) }
+  if(G._apptMeet){ const m=G._apptMeet; G._apptMeet=null; o.약속만남=`${m.name}${josa(m.name,'이','가')} 약속대로 「${m.place}」 입구에서 플레이어를 기다리다 맞이한다. 이번 장면에 ${m.name}을(를) 등장시킬 것${m.joined?'. 약속대로 합류해 이제 함께 구역을 조사하기로 했다(동행 확정 — 이번 장면에서 함께 가는 방향으로 서술)':''}`; addLog('sys',`📌 약속한 ${m.name}${josa(m.name,'이','가')} ${m.place} 입구에서 기다리고 있었습니다.`) }
   const ap=(G.appts||[]).map(apptText); if(ap.length) o.약속=ap.join(' / ')+' (그 때가 되면 상대는 그곳에 있고, 그 전에는 등장시키지 말 것)';
   const ms=(G.missed||[]).filter(m=>G.day-m.day<=2); G.missed=ms;
   if(ms.length) o.약속어김=ms.map(m=>`${m.name}: ${m.text} 약속을 플레이어가 어김 — 다음에 만나면 서운함을 드러내되 사과하면 풀리는 정도로`).join(' / ');
