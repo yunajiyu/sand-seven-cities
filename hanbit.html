@@ -1141,7 +1141,7 @@ const SYS_ZONE=`너는 텍스트 호러 게임 「출석부에 없는 구역」�
 const TURN_SCHEMA=`출력 JSON 형식:
 {
  "narration": "서술 (문단은 \\n\\n로 구분)",
- "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","action_id":"[실행 가능한 행동]의 ID (일반 시도는 story)","type":"move|investigate|talk|story|check|rest|shelter|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)","to":"장소를 옮기는 선택지일 때만 목적지 이름"}],
+ "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","action_id":"[실행 가능한 행동]의 ID (일반 시도는 story)","type":"move|investigate|talk|story|check|rest|shelter|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)","to":"spot:enter일 때 새 임시장소 이름, 옛 이동 선택지 호환용 목적지 이름"}],
  "위치": "", "칸종료": false, "약속": null, "단서": "", "event": null,
  "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"교표조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[],"해결단서":[],"사건진행":[]},
  "chronicle": "이번 장면이 이야기상 중요하면 한 줄 요약, 아니면 빈 문자열"
@@ -1156,7 +1156,7 @@ relation_event: 진행 중인 인연 이벤트가 있을 때만 {"name":"..","re
 yumin_arc: [유민의 사연] 장면 중일 때만 effects 안에 {"result":"success|fail|pending","canon":"새로 드러난 유민의 과거 사실 1~2문장(없으면 빈 문자열)"}.
 materials: 구역에서 실제로 쓸 만한 철제 부품·합판·전선·유실물을 챙겼을 때만(각 0~2, 유실물 0~1). 교표조각: 조각을 손에 넣는 장면에서만 true(코드가 확인).
 사전추가: 새 인물·장소·괴담 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}](핵심만, 없으면 []). 조사보드·해결단서는 옛 형식 호환용이며 새 응답에서는 빈 배열. 사건진행에 기존 사건의 증거와 다음 목표를 기록한다. 관찰 사실 추가는 사건 해결이 아니다. 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등) "항목 = 내용" 배열. 없으면 []이고 이미 적힌 것은 반복 금지.
-[행동] 선택지마다 action_id를 [실행 가능한 행동] 목록에서 고른다. 이동 표현과 무관하게 ID가 기능을 결정한다. 장소·방 ID를 새로 만들지 않는다. 일반 대사·새로운 시도는 story, 위험한 시도는 check:능력치. 이동과 조사를 한 선택지에 묶지 않는다. "위치"는 빈 문자열이며 실제 위치는 게임 실행 결과를 따른다. 없는 곳으로 이동한 서술을 만들지 않는다.
+[행동] 선택지마다 action_id를 [실행 가능한 행동] 목록에서 고른다. 이동 표현과 무관하게 ID가 기능을 결정한다. 등록된 방·조사 구역 ID를 임의로 만들지 않는다. 캠퍼스 안의 가까운 새 임시장소(강당·편의점 등)는 action_id "spot:enter"와 to:"장소 이름"으로 이동할 수 있다. 외부의 새 조사 장소는 event.place_lead로 먼저 이름과 가는 길을 등록하고, 이후 제공된 lead:ID로 떠난다. 일반 대사·새로운 시도는 story, 위험한 시도는 check:능력치. 이동과 조사를 한 선택지에 묶지 않는다. "위치"는 빈 문자열이며 실제 위치는 게임 실행 결과를 따른다. 없는 곳으로 이동한 서술을 만들지 않는다.
 [사건진행] 기존 사건을 이어 가는 것이 기본. 같은 괴담의 반복 관찰·증언은 같은 case_id에 붙인다. 대부분의 장면은 []. 새 증거는 새 사실이며 원인 후보 축소(narrows)·가설 반박(refutes)·새 조사 방향(route)·중요 관찰(observation) 중 하나여야 한다. 분위기·표현만 다른 반복은 추가하지 않는다. kind는 fact(관찰 사실), testimony(증언), rumor(소문), hypothesis(추정). 소문·추정을 사실로 단정하지 않는다.
 - 기존 사건: {"case_id":"t1","evidence":[{"text":"관찰 사실","kind":"fact","role":"narrows"}],"next":["다음 조사 방향"]}
 - 새 사건은 독립적인 질문과 목표가 생길 때만: {"new_case":true,"question":"미해결 질문","reason":"기존 사건으로 묶을 수 없는 이유","scope":"main|local|personal","topic_key":"지속해서 쓸 사건 키워드","place_id":"현재 장소 ID","evidence":[],"next":[]} (한 턴 최대 1개).
@@ -1597,7 +1597,7 @@ function sanitizeChoices(){
   let a=G.choices.slice();
   for(const h of HOOKS.choices){ try{ const r=h.fn(a); if(Array.isArray(r)) a=r }catch(e){ console.warn('[choices]',e) } }
   const ids=new Set(gameActions().map(x=>x.id));
-  G.choices=a.filter(c=>{ const m=metaOf(c); return !m||!m.actionId||ids.has(m.actionId) }).slice(0,4);
+  G.choices=a.filter(c=>{ const m=metaOf(c); if(m&&m.actionId==='spot:enter'&&!temporarySpotName(m.to)) return false; return !m||!m.actionId||ids.has(m.actionId) }).slice(0,4);
   if(!G.choices.length&&G.loc==='site'&&!G.fight&&!roomExhausted()) G.choices=['주변을 자세히 살펴본다','이곳을 꼼꼼히 조사한다'];
 }
 /* 빠진 자리를 채울 선택지 (방이 다 조사됐으면 채우지 않음) */
@@ -1671,6 +1671,25 @@ function setSpot(name){
   if(G.spot&&G.spot.name===name) return;
   G.spot={name:String(name).slice(0,16)}; G._yuminHere=false;
   addLog('sys',`📍 ${G.spot.name} (임시 장소) — 소문·숙박·상점 같은 지점 전용 기능은 지점으로 돌아가야 쓸 수 있습니다.`);
+}
+/* 임시장소는 캠퍼스 안의 새 배경이다. 조사 외출 목적지는 소문의 장소로 따로 등록한다. */
+function temporarySpotName(name){
+  name=String(name||'').trim();
+  return /^[가-힣A-Za-z0-9][가-힣A-Za-z0-9 ·-]{1,15}$/.test(name)&&validSpotName(name)&&!SPOT_EXCL.test(name)&&!leadKnown(name)?name:null;
+}
+function enterTemporarySpot(name,text='',opt={}){
+  if(busy||!G||G.loc!=='campus') return false;
+  name=temporarySpotName(name);
+  if(!name){ toast('학교 안의 임시장소 이름을 확인해 주세요. 소문의 장소는 조사 외출로 찾아갑니다'); return false }
+  if(spotOn()&&G.spot.name===name){ toast('이미 이 임시장소에 있습니다'); return false }
+  if(curfewMove(null)==='dorm'){
+    if(curDistrict()!=='dorm'||spotOn()) goDistrict('dorm');
+    save(); render(); return false;
+  }
+  classLeaveEffect(null);
+  setSpot(name); G.choices=[];
+  story(text||`${name}${josa(name,'으로','로')} 이동한다`,{src:opt.src||'choice',extra:`\n[임시장소 이동 완료] 게임이 현재 위치를 「${name}」으로 기록했다. 캠퍼스 안의 가까운 배경이며 새 조사 구역이 아니다. 위치·시간·벌점은 이미 처리했으므로 추가 이동이나 벌점 effects를 만들지 않는다.`});
+  save(); render(); return true;
 }
 /* ---------- AI가 알려 준 장소('위치'·선택지 'to') 처리 ---------- */
 /* '복도'만 말하면 지금 층의 복도, '2층 복도'처럼 층이 있으면 그 층의 복도 */
@@ -1829,7 +1848,7 @@ const INTENTS=[
   {id:'go',confirm:true,label:()=>'🔦 구역 조사 나가기 (지도 거리에 따른 시간 · 이동 단계마다 공포 +1·배터리 −1%)',
    when:t=>isHood()&&!(G.loc==='hood'&&curHood().branch)&&IX.GO.test(t), run:t=>{ addLog('action',t); startExpedition() }},
   {id:'spot',confirm:true,label:t=>`📍 ${spotMove(t)} (임시 장소)로 이동`,
-   when:t=>!!spotMove(t), run:t=>{ setSpot(spotMove(t)); return false }},   // 장소만 기록하고 이야기로 계속
+   when:t=>!!spotMove(t), run:t=>{ enterTemporarySpot(spotMove(t),t,{src:'free'}) }},
   {id:'return',confirm:true,label:()=>{ const r=returnRoute(); return `↩ ${r.name}${josa(r.name,'으로','로')} 귀환 (${durText(r.days)} · 이동 단계마다 공포 +1·배터리 −1%)` },
    when:t=>inZone()&&IX.RET.test(t), run:t=>{ addLog('action',t); returnToCampus() }},
   {id:'useItem',
@@ -1917,6 +1936,7 @@ function gameActions(){
     add('zone:return','떠나온 지구로 귀환',()=>returnToCampus(),'move');
   }else if(G.loc==='campus'){
     for(const [id,d] of Object.entries(DISTRICTS)) if(id!==curDistrict()||spotOn()) add('district:'+id,d.n,()=>goDistrict(id),'move');
+    add('spot:enter','학교 안의 새 임시장소로 이동 (to에 장소 이름)',(text,opt)=>enterTemporarySpot(opt.target,text,opt),'move');
     if(!spotOn()&&(PLACES[curDistrict()]||{}).clueP!=null) add('investigate:campus:'+curDistrict(),'현재 장소 조사하기',text=>browsePlace(curDistrict(),text),'investigate');
     if(!spotOn()&&has('clubroom')) add('home:enter','아지트로 이동',()=>goHome(),'move');
     if(!spotOn()&&G.time!=='낮') add('rest:dorm','기숙사에서 잠들기',()=>sleepAtDorm());
@@ -1955,6 +1975,7 @@ function actionAtDestination(to){
     return r?all.find(a=>a.id===roomActionId('move',r.id))||null:null;
   }
   const k=G.loc==='campus'?destKey(to):null;
+  if(G.loc==='campus'&&!k&&temporarySpotName(to)) return all.find(a=>a.id==='spot:enter')||null;
   return all.find(a=>(k&&a.id==='district:'+k)||a.label===to)||null;
 }
 /* 옛 저장 선택지·직접 입력의 제한적인 호환 해석. 명확하지 않은 문장은 이동으로 확정하지 않는다. */
@@ -2005,9 +2026,9 @@ function pickChoice(i){
   if(busy||!G) return;
   const c=G.choices&&G.choices[i]; if(!c) return;
   const m=metaOf(c);
-  if(m&&m.actionId) return dispatchGameAction(m.actionId,c,{src:'choice',narrate:true});
+  if(m&&m.actionId) return dispatchGameAction(m.actionId,c,{src:'choice',narrate:true,target:m.to});
   const id=legacyAction(m,c);
-  if(id) return dispatchGameAction(id,c,{src:'choice',narrate:true});
+  if(id) return dispatchGameAction(id,c,{src:'choice',narrate:true,target:m&&m.to});
   if(m&&m.to) return toast('선택지의 목적지로 지금 이동할 수 없습니다');
   const moves=movementCandidates(c);
   if(moves.length>1) return showMovementOptions(c,moves);
@@ -8745,7 +8766,7 @@ function leadFromText(text){
 on('facts',72,(o,rules)=>{
   if(!(G.leads||[]).length) return;
   o.소문의장소=G.leads.map(l=>`${l.name}${l.hint?'('+l.hint+')':''}`);
-  rules.push('「소문의장소」는 플레이어가 이미 가는 길을 아는 곳이다. 이 장소로 떠나거나 도착하는 서술은 하지 말 것(조사 외출 버튼이 처리). 다시 새로 알려 주는 event(place_lead)도 만들지 말 것.');
+  rules.push('「소문의장소」는 플레이어가 이미 가는 길을 아는 곳이다. 이동 선택지는 제공된 lead:ID를 사용한다. 게임이 조사 외출을 처리하기 전에는 떠나거나 도착한 서술을 만들지 않는다. 다시 새로 알려 주는 event(place_lead)도 만들지 않는다.');
 });
 function leadByText(t){
   t=String(t||'');

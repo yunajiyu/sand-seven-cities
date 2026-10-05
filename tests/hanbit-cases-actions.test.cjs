@@ -125,5 +125,28 @@ await test('Real AI response flow retains valid movement IDs and records structu
 await test('Narration-only AI replies cannot write clue progress or enqueue extraction',async({run})=>{
   run("aiTurn=liveAiTurn;const t=caseRecord('피아노 소리의 원인은?');callAI=async()=>JSON.stringify({narration:'잠시 생각을 정리한다.',choices:[],단서:'새로운 문서 사실이 있다',effects:{사건진행:[{case_id:t.id,evidence:[{text:'새로운 기록을 발견했다',kind:'fact',role:'observation'}]}]}});maybeSummarize=async()=>{};checkState=()=>{};pend('',{storyOnly:true});");await run("aiTurn('생각한다')");assert.equal(run('G.evidence.length'),0);assert.equal(run('G._lexQ||null'),null);
 });
+await test('New AI and legacy temporary-place choices match direct input and preserve return to district',({run,obj})=>{
+  const states=[];
+  for(const action of [`const response=normalizeTurn({choices:[{text:'강당으로 간다',action_id:'spot:enter',type:'move',to:'강당'}]});G.choices=response.choices;pickChoice(0)`,`dispatchGameAction('spot:enter','강당으로 간다',{target:'강당',src:'choice',narrate:true})`,`G.choices=['강당으로 간다'];G.choiceMeta={'강당으로 간다':{type:'move',to:'강당'}};pickChoice(0)`,`act('강당으로 간다',{src:'free',confirmed:true})`]){
+    run("seed('campus');G.district='classroom';G.time='낮';G.dayStep=1;syncSchedule();"+action);
+    states.push(obj('({spot:G.spot,district:G.district,loc:G.loc,slot:G.dayStep,skip:G.cls.skip,demerit:G.demerit})'));
+    assert.equal(run('calls.length'),1);assert.equal(run('calls[0][0]'),'강당으로 간다');
+  }
+  states.forEach(s=>assert.deepEqual(s,states[0]));assert.equal(states[0].spot.name,'강당');assert.equal(states[0].skip,1);
+  assert.equal(run("gameActions().some(a=>a.id==='trade:shop')"),false);assert.equal(run("gameActions().some(a=>a.id==='expedition:start')"),false);
+  run("dispatchGameAction('district:classroom')");assert.equal(run('G.spot'),null);
+});
+await test('Temporary-place movement validates targets, campus scope and nighttime gates',({run,obj})=>{
+  run("seed('campus');for(const name of ['음악실','라쿠나 구역','<>',''])dispatchGameAction('spot:enter','이동한다',{target:name})");assert.equal(run('G.spot||null'),null);assert.equal(run('calls.length'),0);
+  run("seed();dispatchGameAction('spot:enter','강당으로 간다',{target:'강당'})");assert.equal(run('G.loc'),'site');assert.equal(run('calls.length'),0);
+  run("seed('campus');G.district='dorm';G.time='야간';Math.random=()=>0;dispatchGameAction('spot:enter','강당으로 간다',{target:'강당'})");assert.equal(run('G.spot||null'),null);assert.equal(run('G.district'),'dorm');assert.ok(run('G.demerit>0'));
+  run("seed('campus');const r=normalizeTurn({choices:[{text:'강당으로 간다',type:'move',action_id:'spot:enter',to:'강당'},{text:'없는 곳으로 간다',type:'move',action_id:'spot:enter'}]});G.choices=r.choices;sanitizeChoices()");assert.ok(run("G.choices.includes('강당으로 간다')"));assert.ok(!run("G.choices.includes('없는 곳으로 간다')"));
+});
+await test('Rumored destinations register dynamically and use expedition actions instead of temporary places',async({run})=>{
+  run("seed('campus');aiTurn=liveAiTurn;callAI=async()=>JSON.stringify({narration:'행인이 담장 너머 「폐창고」로 가는 길을 알려 준다.',event:{type:'place_lead',name:'폐창고',hint:'담장 너머 골목 끝'},choices:[],effects:{}});maybeSummarize=async()=>{};checkState=()=>{};");
+  await run("aiTurn('새로운 소문을 듣는다')");assert.equal(run('G.leads.length'),1);assert.equal(run('G.leads[0].name'),'폐창고');assert.ok(run("gameActions().some(a=>a.id==='lead:l1')"));
+  assert.equal(run("dispatchGameAction('spot:enter','폐창고로 간다',{target:'폐창고'})"),false);assert.equal(run('G.spot||null'),null);
+  run("let expeditionTarget=null;startExpedition=id=>{expeditionTarget=id};");await run("startLead('l1')");assert.equal(run('expeditionTarget'),'l1');
+});
 console.log(count+' case/action scenario groups passed.');
 })().catch(e=>{console.error(e);process.exitCode=1});
