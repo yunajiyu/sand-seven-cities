@@ -4653,6 +4653,7 @@ function yuminEventText(place){
 }
 
 /* ---------- 유민의 능력: 동행 중 구역에서 노래(위기 때) · 경고 · 길 안내 ---------- */
+const YUMIN_SING_CALM_P=0.4;   // 동행 중 유민이 노래할 때 공포가 1 줄어들 확률
 function yuminSkillCheck(){
   if(!G.comp||!G.comp.joined||G.loc!=='site'||!G.site) return '';
   const d=G.site, r=curRoom(); if(!r) return '';
@@ -4662,6 +4663,7 @@ function yuminSkillCheck(){
       G.comp.lastSkill=G.steps;
       addLog('sys','🎵 유민이 노래를 부르기 시작합니다…');
       if(crisis){ G.hp=Math.min(G.maxhp,G.hp+2); addLog('fx','노랫소리가 너를 감싸 마음이 놓입니다 (체력 +2)') }
+      if(fearNow()>0&&Math.random()<YUMIN_SING_CALM_P){ G.calm=Math.min(capW(),G.calm+1); addLog('fx',`🎵 유민의 노래에 마음이 가라앉습니다 (공포 −1 → ${fearNow()})`) }
       return `
 [유민 능력 자동 발동] 유민이 노래를 불러 소리와 교내 방송, 전자기기를 흔든다. 버릇대로 과하게 써서 상황이 크게 뒤집힌다(적이 흠칫 물러나거나, 잠긴 문의 전자 자물쇠가 풀리거나, 꺼진 형광등이 일제히 깜빡이는 등 예상 못한 부작용 포함). ${crisis?'플레이어가 위기에 처해 있으니 결과적으로 플레이어를 구하는 방향으로.':''} 노래 가사 한두 줄을 직접 지어 넣어라. 발동 직후 유민다운 농담 한마디.`;
     }
