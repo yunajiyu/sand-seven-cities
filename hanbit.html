@@ -1165,7 +1165,7 @@ materials: 구역에서 실제로 쓸 만한 철제 부품·합판·전선·유�
 [급식실] 점심시간에만 식사를 준다. 그 밖에는 닫혀 있어 급식실 식사 장면·제안·선택지와 급식실 약속을 쓰지 않는다(방과 후 간식은 매점·상점가).
 [일과] 낮에는 졸기·엎드리기·잠깐 쉬기도 type "rest"가 아닌 "story"("rest"는 밤 잠자리 선택지에만). 수업은 코드가 세니 [수업 끝] 지시가 있는 장면에서만 종을 울리고 그 전엔 수업이 계속되는 것으로 쓴다. 서술에서 수업·쉬는 시간 같은 칸이 끝났다는 종이 울렸다면 "칸종료"를 true(아니면 false).
 [단서] "단서"에는 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙처럼 나중에 어긋나면 안 되는 것)만 「장소, 키워드, 단서이름: 설명」 형식 한 줄로(예: "3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다"), 숫자·이름·칸은 서술과 똑같이 적는다. 분위기 묘사·사소한 발견·이미 [확정 단서]에 있는 것의 반복은 적지 않는다. 대부분의 장면은 빈 문자열이고 하루 최대 3개다. 새 단서는 [확정 단서]와 모순되지 않게 이어 가거나 구체화한다. 새 응답에서는 핵심 증거도 사건진행.evidence에 넣고 "단서"는 빈 문자열(옛 응답만 호환).
-[약속] 플레이어가 누군가(유민 포함)와 어디서 언제 만나기로 했다면 "약속"에 {"인물":"이름","장소":"학교 안 장소·아지트·학원가 골목","때":"방과 후|점심시간|쉬는 시간|저녁|내일 아침|내일 방과 후|곧 등"}, 없으면 null. 때가 되면 코드가 그 사람을 그곳에 있게 하니 그 전에는 등장시키지 않는다. [확정 사실]에 약속어김이 있으면 만났을 때 서운함을 드러낸다. 인물 위치는 [확정 사실]의 유민위치·인물위치·약속을 따른다.
+[약속] 플레이어가 누군가(유민 포함)와 어디서 언제 만나기로 했다면 "약속"에 {"인물":"이름","장소":"학교 안 장소·아지트·학원가 골목·등록된 임시장소·소문의 장소","때":"방과 후|점심시간|쉬는 시간|저녁|내일 아침|내일 방과 후|곧 등"}, 없으면 null. 때가 되면 코드가 그 사람을 그곳에 있게 하니 그 전에는 등장시키지 않는다. [확정 사실]에 약속어김이 있으면 만났을 때 서운함을 드러낸다. 인물 위치는 [확정 사실]의 유민위치·인물위치·약속을 따른다.
 [선택지·사건]
 - choices 3~4개 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기·해독·설득·함정 피하기·몰래 지나가기 등)은 "check"+skill·dc(str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정). 쉬기/잠자기 "rest", 임시 쉼터 "shelter", 캠퍼스 귀환 "return", 구역 밖으로 "exit", 사고팔기 "trade", 그 밖의 관찰·대화·묘사는 "story". 구역 안의 이동·나가기·귀환도 제공된 action_id가 있을 때만 가능하다.
 - 괴이와 마주치면 싸움보다 도주·숨기·교칙 지키기를 우선(전투는 규율부·청소반 같은 사람이 상대일 때만).
@@ -1669,7 +1669,7 @@ function spotMove(t){
 function setSpot(name){
   if(!G||G.loc!=='campus'||!name) return;
   if(G.spot&&G.spot.name===name) return;
-  G.spot={name:String(name).slice(0,16)}; G._yuminHere=false;
+  G.spot=registerTempPlace(name,curDistrict()); G._yuminHere=false;
   addLog('sys',`📍 ${G.spot.name} (임시 장소) — 소문·숙박·상점 같은 지점 전용 기능은 지점으로 돌아가야 쓸 수 있습니다.`);
 }
 /* 임시장소는 캠퍼스 안의 새 배경이다. 조사 외출 목적지는 소문의 장소로 따로 등록한다. */
@@ -2616,7 +2616,7 @@ function campusFixedHTML(){
   if(G.comp.met){
     if(G.comp.joined) a+=`<button onclick="talkYumin()">🎵 유민과 이야기</button>`;
     else{
-      const ys=G.comp.spot, s=YUMIN_SPOTS[ys], here=!sp&&ys===d;
+      const here=canMeetHere('유민');
       a+=here?`<button onclick="talkYumin()">🎵 유민에게 말 걸기</button>`:`<button onclick="seekYumin()">🎵 유민 만나러 가기 <span class="muted">(지금: ${esc(yuminWhereText())})</span></button>`;
     }
   }
@@ -4307,7 +4307,7 @@ function clearStaleEvents(){
    ========================================================= */
 function yuminLv(){ return affInfo(G.comp.aff).lv }
 function affTier(){ const lv=yuminLv(); return [...AFF_TIERS].reverse().find(t=>lv>=t.lv) }
-function yuminHere(){ return !!(G.comp&&G.comp.met&&(G.comp.joined||G._yuminHere)) }
+function yuminHere(){ const c=G&&G.comp; if(!c||!c.met) return false; if(c.joined) return true; if(String(c.spot).startsWith('spot:')||String(c.spot).startsWith('lead:')) return c.spot===placeKey(); return !!G._yuminHere }
 function yuminHint(){
   if(!G.comp||!G.comp.met||G.comp.joined) return '';
   const a=yuminLv();
@@ -4319,7 +4319,7 @@ function yuminStatus(){
   let s;
   if(G.comp.joined) s='🔦 동행 중';
   else if(G._yuminHere) s='💬 지금 함께 있음 (동행 전)';
-  else { updateYuminSpot(); const sp=YUMIN_SPOTS[G.comp.spot]; s=`📍 ${sp?sp.n:'어딘가'}에 있음` }
+  else { updateYuminSpot(); const sp=YUMIN_SPOTS[G.comp.spot]; s=`📍 ${sp?sp.n:yuminWhereText()}에 있음` }
   const h=yuminHint();
   return h?`${s} · ${h}`:s;
 }
@@ -4420,16 +4420,18 @@ function yuminScheduleSpot(){
 }
 function updateYuminSpot(){
   if(!G||!G.comp||!G.comp.met) return;
-  apptSync();
+  apptSync(); guestCheck();
   const c=G.comp;
   if(c.joined){ c.spot='with'; c.spotDay=G.day; c.spotKey=yKey(); return }
+  if(String(c.spot).startsWith('lead:')&&validAppointmentPlace(c.spot)) return;
+  if(String(c.spot).startsWith('spot:')&&validAppointmentPlace(c.spot)&&(c.spotKey===yKey()||(G.appts||[]).some(a=>a.name==='유민'&&a.arrived&&a.where===c.spot))) return;
   if(!YUMIN_SPOTS[c.spot]){ c.spot=(c.spot==='with')?nearPlayer():'market'; c.spotDay=G.day; c.spotKey=yKey(); return }
   if(c.spotKey==null){ c.spotKey=yKey(); return }
   if(c.spotKey===yKey()) return;
   c.spotKey=yKey(); c.spotDay=G.day;
   c.spot=yuminScheduleSpot();
 }
-function yuminWhereText(){ const s=YUMIN_SPOTS[G.comp.spot]; if(!s) return '어딘가'; return s.kind==='wild'?`중앙 캠퍼스 지구 밖 「${s.n}」`:s.kind==='home'?`아지트의 「${s.n}」`:`중앙 캠퍼스 지구의 「${s.n}」` }
+function yuminWhereText(){ if(String(G.comp.spot).startsWith('spot:')||String(G.comp.spot).startsWith('lead:')) return apptWhereName(G.comp.spot); const s=YUMIN_SPOTS[G.comp.spot]; if(!s) return '어딘가'; return s.kind==='wild'?`중앙 캠퍼스 지구 밖 「${s.n}」`:s.kind==='home'?`아지트의 「${s.n}」`:`중앙 캠퍼스 지구의 「${s.n}」` }
 
 /* ---------- 약속: 스토리·문자에서 누구와 어디서 언제 만나기로 하면 그 때 그 사람이 그곳에 있음. 놓치면 서운해함 ----------
    G.appts=[{name,where('campus:지점'|'home'|'hood:south'),ord,text,arrived,met}] */
@@ -4447,7 +4449,8 @@ function apptWhen(t){
   t=String(t||''); const o=apptOrd(), d=G.day, tom=/내일|다음\s*날|이튿날/.test(t);
   const base=tom?(d+1)*20:d*20;
   let x=null;
-  if(/점심/.test(t)) x=base+4;   // '급식실' 같은 장소 이름은 때로 보지 않음
+  if(!tom&&/지금|당장|바로/.test(t)) x=o;
+  else if(/점심/.test(t)) x=base+4;   // '급식실' 같은 장소 이름은 때로 보지 않음
   else if(/쉬는\s*시간|쉬는시간/.test(t)) x=tom?base+2:(G.time==='낮'&&slotIdx()<2?d*20+2:d*20+6);
   else if(/조례|아침|등교/.test(t)) x=tom||(G.time!=='낮')?(tom?base:(d+1)*20):null;
   else if(/방과\s*후|종례|수업\s*(?:끝|마치)|끝나고|하교/.test(t)) x=base+10;
@@ -4458,28 +4461,83 @@ function apptWhen(t){
   return x;
 }
 function apptWhenText(x){ const d=Math.floor(x/20), r=x%20; const dd=d===G.day?'':(d===G.day+1?'내일 ':d+'일째 '); return dd+(r<=8?SCHOOL[r]:r===10?'방과 후':r===11?'야간':'새벽') }
-function apptWhereName(w){ if(String(w).startsWith('lead:')) return w.slice(5)+' 입구'; return w==='home'?'아지트':w==='hood:south'?'학원가 골목':(DISTRICTS[String(w).slice(7)]||{n:'학교'}).n }
-/* 글 속 장소를 약속 장소로: 가장 나중에 나온 곳. 학교 안 지점 · 아지트 · 학원가 골목 */
-function apptPlaceKey(t){
-  t=String(t||''); let best=null, bi=-1;
-  const tn=t.replace(/\s+/g,''), ld=(G&&G.leads||[]).find(l=>tn.includes(String(l.name).replace(/\s+/g,'')));
-  if(ld) return 'lead:'+ld.name;   // 소문의 장소(조사할 구역) 앞에서 만나기
-  const hit=(w,re)=>{ const g=new RegExp(re.source,'g'); let m; while((m=g.exec(t))){ if(m.index>=bi){ bi=m.index; best=w } if(m[0].length===0) g.lastIndex++ } };
+function registerTempPlace(name,parent){
+  if(!G||!DISTRICTS[parent]) return null;
+  name=String(name||'').trim().slice(0,16); if(!validSpotName(name)) return null;
+  if(!Array.isArray(G.tempPlaces)) G.tempPlaces=[];
+  const id='spot:'+parent+':'+encodeURIComponent(name);
+  let p=G.tempPlaces.find(p=>p.id===id);
+  if(!p){ p={id,name,parent}; G.tempPlaces.push(p) }
+  return {...p};
+}
+function tempPlaces(){
+  if(!Array.isArray(G.tempPlaces)) G.tempPlaces=[];
+  if(spotOn()&&!G.spot.id) G.spot=registerTempPlace(G.spot.name,curDistrict())||G.spot;
+  return G.tempPlaces;
+}
+function appointmentLeads(){
+  return [...new Set([...(G.leads||[]),...(G.pausedZones||[]),...(G.mapDone||[]),G.site].filter(Boolean).map(l=>l.name).filter(Boolean))];
+}
+function validAppointmentPlace(w){
+  if(typeof w!=='string') return false;
+  if(w.startsWith('spot:')) return tempPlaces().some(p=>p.id===w);
+  if(w.startsWith('lead:')) return appointmentLeads().includes(w.slice(5));
+  return w==='home'||w==='hood:south'||(w.startsWith('campus:')&&!!DISTRICTS[w.slice(7)]);
+}
+function yuminPlaceKey(){
+  const s=G.comp&&G.comp.spot;
+  return String(s).startsWith('spot:')||String(s).startsWith('lead:')?s:s==='sofaroom'?'home':s==='alley'?'hood:south':YUMIN_SPOTS[s]&&YUMIN_SPOTS[s].kind==='campus'?'campus:'+s:null;
+}
+function releaseAppt(a){
+  const r=G.rel&&G.rel[a.name];
+  if(r&&(r.appointmentWhere===a.where||a.arrived&&r.where===a.where)){ delete r.appointmentWhere; if(r.where===a.where){ r.where=null; r.whereKey=null } }
+  if(a.name==='유민'&&G.comp&&!G.comp.joined&&yuminPlaceKey()===a.where){ G.comp.spot=yuminScheduleSpot(); G.comp.spotKey=yKey(); G._yuminHere=false }
+}
+function apptWhereName(w){
+  if(w==='wild') return '한빛시 뒷길';
+  if(String(w).startsWith('hood:')) return (HOODS[w.slice(5)]||{n:'다른 지구'}).n;
+  if(String(w).startsWith('spot:')){ const p=tempPlaces().find(p=>p.id===w); return p?`${p.name} (${DISTRICTS[p.parent].n} 안 임시장소)`:'알 수 없는 임시장소' }
+  if(String(w).startsWith('lead:')) return w.slice(5)+' 입구';
+  return w==='home'?'아지트':w==='hood:south'?'학원가 골목':(DISTRICTS[String(w).slice(7)]||{n:'학교'}).n;
+}
+
+function apptPlaceKey(t,origin,allowNew=false){
+  t=String(t||'').trim(); if(validAppointmentPlace(t)) return t;
+  origin=origin||placeKey();
+  const tn=t.replace(/\s+/g,''), ld=appointmentLeads().find(n=>tn.includes(n.replace(/\s+/g,'')));
+  if(ld) return 'lead:'+ld;
+  const places=tempPlaces().filter(p=>tn.includes(p.name.replace(/\s+/g,'')));
+  if(places.length){ const parent=origin.startsWith('spot:')?origin.split(':')[1]:origin.startsWith('campus:')?origin.slice(7):null; const p=places.find(p=>p.id===origin)||places.find(p=>p.parent===parent); if(p) return p.id; if(places.length===1) return places[0].id; return null }
+  if(/여기|이곳|내가\s*있는\s*곳/.test(t)&&validAppointmentPlace(origin)) return origin;
+  let best=null, bi=-1;
+  const hit=(w,re)=>{ const g=new RegExp(re.source,'g'); let m; while((m=g.exec(t))){ if(m.index>=bi){bi=m.index;best=w} if(!m[0].length) g.lastIndex++ } };
   for(const [k,re] of IX.DIST_KEYS) hit('campus:'+k,re);
   hit('home',/아지트|동아리실/); hit('hood:south',/학원가/);
-  if(best&&best.startsWith('campus:')){ const k=fixHall(best.slice(7),t); best='campus:'+k }
-  return best;
+  if(best&&best.startsWith('campus:')) best='campus:'+fixHall(best.slice(7),t);
+  if(best) return best;
+  // Only concrete campus backgrounds can be registered here; external sites need a real lead.
+  const m=t.match(/(?:^|\s)([가-힣A-Za-z0-9·-]{2,16}?)(?:에서|으로|로|에)(?:\s|와|오|보|만|기)/);
+  const n=temporarySpotName(m?m[1]:allowNew?t:''), parent=origin.startsWith('spot:')?origin.split(':')[1]:origin.startsWith('campus:')?origin.slice(7):null;
+  return n&&parent?registerTempPlace(n,parent).id:null;
 }
-function apptRunnable(name,where){ if(String(where).startsWith('lead:')) return true; if(name!=='유민') return true; if(where==='home') return has('sofa'); if(where==='hood:south') return true; return !!YUMIN_SPOTS[where.slice(7)] }
+
+function apptRunnable(name,where){
+  if(!validAppointmentPlace(where)) return false;
+  if(name!=='유민') return true;
+  if(where==='home') return has('sofa');
+  return where==='hood:south'||where.startsWith('spot:')||where.startsWith('lead:')||!!YUMIN_SPOTS[where.slice(7)];
+}
+
 function apptKnown(name){ return name==='유민'?!!(G.comp&&G.comp.met):!!(G.rel&&G.rel[name]) }
 function apptText(a){ return `${a.name}: ${apptWhenText(a.ord)} ${apptWhereName(a.where)}에서 만나기로 함` }
-function setAppt(name,place,whenT,silent){
+function setAppt(name,place,whenT,silent,origin){
   if(!G||!name||!apptKnown(name)||(name==='유민'&&G.comp.joined)) return false;
-  const w=apptPlaceKey(place); if(!w||!apptRunnable(name,w)) return false;
+  const w=apptPlaceKey(place,origin,true); if(!w||!apptRunnable(name,w)) return false;
   if(w==='campus:canteen'&&apptWhen(whenT)%20!==4) return false;   // 급식실은 점심시간에만 열림
   if(!Array.isArray(G.appts)) G.appts=[];
   const ord=apptWhen(whenT), old=G.appts.find(a=>a.name===name);
   if(old&&old.where===w&&old.ord===ord) return true;   // 같은 약속을 다시 인식해도 새로 만들지 않음(로그 중복 방지)
+  G.appts.filter(a=>a.name===name).forEach(releaseAppt);
   G.appts=G.appts.filter(a=>a.name!==name);
   const a={name,where:w,ord,arrived:false,met:false}; G.appts.push(a);
   if(!silent) addLog('sys',`📌 약속: ${apptText(a)}`);
@@ -4487,7 +4545,7 @@ function setAppt(name,place,whenT,silent){
 }
 function apptNames(t){ return relList().filter(n=>n.length>=2&&t.includes(n)).slice(0,2) }
 /* 글에서 약속 찾기(AI 필드가 없을 때의 보조): 한 문장 안에 사람 이름 + 장소 + 만나자는 표현 + 때가 모두 있어야 함 */
-const APPT_CUE=/(보자|만나자|만나기로|만나요|만날까|만나러|기다릴게|기다릴 테니|모이자|모일게|올래|오렴|오너라|오세요|와 줄래|와줄래|와 줘|와줘|와라|들러|찾아와|올라와|오도록)/, APPT_TIME=/(방과\s*후|종례|점심|쉬는\s*시간|저녁|밤|아침|조례|내일|이따|나중에|수업\s*끝)/;
+const APPT_CUE=/(보자|만나자|만나기로|만나요|만날까|만나러|기다릴게|기다릴 테니|모이자|모일게|올래|오렴|오너라|오세요|와 줄래|와줄래|와 줘|와줘|와달라|와 달라|와주세요|와 주세요|와라|들러|찾아와|올라와|오도록)/, APPT_TIME=/(방과\s*후|종례|점심|쉬는\s*시간|저녁|밤|아침|조례|내일|이따|곧|지금|당장|바로|나중에|수업\s*끝)/;
 function apptParse(t,force){
   t=String(t||''); const out=[];
   const ss=t.split(/[.!?。\n]+|["”“]/).map(x=>x.trim()).filter(Boolean);
@@ -4499,10 +4557,12 @@ function apptParse(t,force){
   return out;
 }
 function applyAppt(res,action){
-  if(!G||!G.comp) return;
+  if(!G||!G.comp||curTurn&&curTurn.flags.remoteContact) return;
+  const narration=String(res&&res.narration||'');
+  if(/못\s*(?:가|오|만나)|어렵|거절|안\s*(?:갈|가|올|와)|갈\s*수\s*없|올\s*수\s*없/.test(narration)) return;
   const a=res&&res.appt&&res.appt.place?res.appt:null;
   // 글에 나온 때(이따·방과 후 등)가 AI가 적은 '때'와 다를 수 있어 글을 먼저 보고, 글에서 못 찾으면 AI 값을 씀
-  const found=apptParse((action||'')+' '+String((res&&res.narration)||''));
+  const found=apptParse(narration);
   found.forEach(f=>setAppt(f.name,f.place,f.when));
   if(a&&!found.some(f=>f.name===(a.name||'유민'))) setAppt(a.name||'유민',a.place,a.when);
 }
@@ -4515,7 +4575,7 @@ function apptOrdOptions(){
   return out;
 }
 function apptWhereOptions(){
-  const o=Object.keys(DISTRICTS).map(k=>['campus:'+k,DISTRICTS[k].n]); if(has('clubroom')) o.push(['home','아지트']); o.push(['hood:south','학원가 골목']); (G.leads||[]).forEach(l=>o.push(['lead:'+l.name,l.name+' 입구'])); (G.appts||[]).forEach(a=>{ if(String(a.where).startsWith('lead:')&&!o.some(x=>x[0]===a.where)) o.push([a.where,apptWhereName(a.where)]) }); return o;
+  const o=Object.keys(DISTRICTS).map(k=>['campus:'+k,DISTRICTS[k].n]); if(has('clubroom')) o.push(['home','아지트']); o.push(['hood:south','학원가 골목']); appointmentLeads().forEach(n=>o.push(['lead:'+n,n+' 입구'])); tempPlaces().forEach(p=>o.push([p.id,apptWhereName(p.id)])); (G.appts||[]).forEach(a=>{ if(String(a.where).startsWith('lead:')&&!o.some(x=>x[0]===a.where)) o.push([a.where,apptWhereName(a.where)]) }); return o;
 }
 function apptListHTML(){
   const L=G.appts||[]; if(!L.length) return '<p class="muted" style="font-size:13px">잡힌 약속이 없습니다.</p>';
@@ -4530,18 +4590,20 @@ function apptListHTML(){
 function apptRefresh(){ if(document.getElementById('phMsg')) openPhone(); else if(document.getElementById('canonSec')) openThreads() }
 function apptEdit(i,field,val){
   const a=(G.appts||[])[i]; if(!a) return;
+  const previous={...a};
   if(field==='ord'){ const v=+val; if(!(v>=apptOrd())) return toast('이미 지난 때입니다'); if(a.where==='campus:canteen'&&v%20!==4) { toast('급식실은 점심시간에만 열립니다'); return apptRefresh() } a.ord=v }
   else{ if(!apptRunnable(a.name,val)){ toast('그곳에서는 만날 수 없습니다'); return apptRefresh() } if(val==='campus:canteen'&&a.ord%20!==4){ toast('급식실은 점심시간에만 열립니다. 때를 먼저 점심시간으로 바꿔 주세요'); return apptRefresh() } a.where=val }
-  a.arrived=false; a.met=false; save(); toast('약속을 바꿨습니다: '+apptText(a)); apptSync(); render(); apptRefresh();
+  releaseAppt(previous); a.arrived=false; a.met=false; save(); toast('약속을 바꿨습니다: '+apptText(a)); apptSync(); render(); apptRefresh();
 }
-function apptCancel(i){ const a=(G.appts||[])[i]; if(!a) return; G.appts.splice(i,1); save(); toast(`${a.name}와(과)의 약속을 취소했습니다`); render(); apptRefresh() }
+function apptCancel(i){ const a=(G.appts||[])[i]; if(!a) return; releaseAppt(a); G.appts.splice(i,1); save(); toast(`${a.name}와(과)의 약속을 취소했습니다`); render(); apptRefresh() }
 function apptArrive(a){
-  getRel(a.name).where=a.where; getRel(a.name).whereKey=yKey();
+  getRel(a.name).where=a.where; getRel(a.name).whereKey=yKey(); getRel(a.name).appointmentWhere=a.where;
+  if(a.name==='유민') setYuminSpot(a.where.startsWith('lead:')||a.where.startsWith('spot:')?a.where:a.where==='home'?'sofaroom':a.where==='hood:south'?'alley':a.where.slice(7));
   if(String(a.where).startsWith('lead:')){ addLog('sys',`📌 약속한 시간입니다. ${a.name}${josa(a.name,'이','가')} ${apptWhereName(a.where)}에서 기다리고 있을 것입니다. (조사 외출로 그곳에 도착하면 만납니다 — 이틀 안에)`); return }
-  if(a.name==='유민'){ const m=a.where==='home'?'sofaroom':a.where==='hood:south'?'alley':a.where.slice(7); setYuminSpot(m) }
   addLog('sys',`📌 약속한 시간입니다. ${a.name}${josa(a.name,'이','가')} ${apptWhereName(a.where)}에서 기다리고 있을 것입니다.`);
 }
 function apptMissed(a){
+  releaseAppt(a);
   addAffTo(a.name,-2);
   addLog('sys',`😞 ${a.name}${josa(a.name,'은','는')} 약속 장소에서 한참 기다리다 돌아갔습니다. (호감 하락)`);
   toast(`😞 ${a.name}와(과)의 약속을 놓쳤습니다`);
@@ -4552,11 +4614,11 @@ function apptMissed(a){
 }
 const LEAD_APPT_WAIT=40;   // 소문의 장소 앞 약속은 약속 때부터 이틀(40) 안에 도착하면 만남
 /* 소문의 장소 앞에서 만난 인물은 그 구역을 조사하는 동안 함께함 (유민은 기존 동행 시스템). 구역을 떠나면 헤어짐 */
-function guestHere(){ const g=G&&G.guest; return !!(g&&(G.loc==='site'||G.loc==='road')&&G.site&&G.site.name===g.zone) }
-function guestEnd(){ if(G&&G.guest){ const r=G.rel&&G.rel[G.guest.name]; if(r&&String(r.where).startsWith('lead:')){ r.where=null; r.whereKey=null } G.guest=null } }
-function guestCheck(){ if(G&&G.guest&&!guestHere()&&G.loc!=='shelter'){ addLog('sys',`🤝 ${G.guest.name}${josa(G.guest.name,'과','와')} ${G.guest.zone} 조사를 마치고 헤어졌습니다.`); guestEnd() } }
+function guestHere(){ const g=G&&G.guest; return !!(g&&(G.loc==='site'||G.loc==='shelter'||G.loc==='road'&&!G.trip)&&G.site&&G.site.name===g.zone) }
+function guestEnd(){ if(G&&G.guest){ const zone=G.guest.zone; for(const [name,r] of Object.entries(G.rel||{})){ if(name===G.guest.name||r.visitZone===zone){ if(r.where==='lead:'+zone){ r.where=null; r.whereKey=null } delete r.visitZone; delete r.appointmentWhere } } G.guest=null } }
+function guestCheck(){ if(!G) return; const here=placeKey(); for(const r of Object.values(G.rel||{})){ if(r.visitZone&&here!=='lead:'+r.visitZone){ if(r.where==='lead:'+r.visitZone){ r.where=null; r.whereKey=null } delete r.visitZone; delete r.appointmentWhere } } if(G&&G.comp&&G.comp.visitZone&&placeKey()!=='lead:'+G.comp.visitZone){ if(!G.comp.joined){ G.comp.spot=yuminScheduleSpot(); G.comp.spotKey=yKey(); G._yuminHere=false } delete G.comp.visitZone } if(G&&G.guest&&!guestHere()&&G.loc!=='shelter'){ addLog('sys',`🤝 ${G.guest.name}${josa(G.guest.name,'과','와')} ${G.guest.zone} 조사를 마치고 헤어졌습니다.`); guestEnd() } }
 function partGuest(){ if(!G||!G.guest) return; const n=G.guest.name; guestEnd(); addLog('sys',`🤝 ${n}${josa(n,'과','와')} 헤어졌습니다.`); pend(` [동행 종료] 플레이어가 ${n}${josa(n,'과','와')} 헤어졌다. ${n}은(는) 이 구역에서 떠난다.`); save(); render() }
-on('context',58,()=>{ guestCheck(); if(!guestHere()) return ''; const n=G.guest.name; return `\n[함께하는 인물: ${n}] 약속대로 입구에서 합류해 「${G.guest.zone}」을 함께 조사하는 중이다. 장면에 자연스럽게 함께 등장시키고(말·반응·행동), 호감 단계(${relLv(n)})에 맞는 태도를 지켜라. 플레이어 대신 판정을 해결하거나 전투를 끝내지 말고, 구역을 떠나면 헤어진 것으로 한다.` });
+on('context',58,()=>{ guestCheck(); if(!guestHere()) return ''; const names=[...new Set([G.guest.name,...Object.entries(G.rel||{}).filter(([name,r])=>r.visitZone===G.guest.zone).map(([name])=>name)])], n=names.join(', '); return `\n[함께하는 인물: ${n}] 약속대로 입구에서 합류해 「${G.guest.zone}」을 함께 조사하는 중이다. 장면에 자연스럽게 함께 등장시키고(말·반응·행동), 호감 단계(${names.map(name=>name+': Lv.'+relLv(name)).join(' / ')})에 맞는 태도를 지켜라. 플레이어 대신 판정을 해결하거나 전투를 끝내지 말고, 구역을 떠나면 헤어진 것으로 한다.` });
 function apptSync(){
   if(!G||!Array.isArray(G.appts)||!G.appts.length) return;
   const o=apptOrd(), here=placeKey();
@@ -4564,18 +4626,18 @@ function apptSync(){
     if(a.name==='유민'&&G.comp&&G.comp.joined) return false;
     if(String(a.where).startsWith('lead:')){   // 소문의 장소 앞 약속: 때가 된 뒤 이틀 안에 플레이어가 그 구역에 도착하면 만남
       if(o<a.ord) return true;
-      if(!a.arrived){ a.arrived=true; apptArrive(a) }
-      if((G.loc==='site'||G.loc==='road')&&G.site&&G.site.name===a.where.slice(5)){   // 구역 안이나 그 입구 밖에 있으면 만남
-        a.met=true; G._apptMeet={name:a.name,place:a.where.slice(5)};
-        if(a.name==='유민'){ setYuminSpot(spotHere()); G._yuminHere=true; if(G.comp&&!G.comp.joined&&yuminLv()>=JOIN_LV){ joinYumin(); G._apptMeet.joined=true } }
-        else{ G.guest={name:a.name,zone:a.where.slice(5),day:G.day}; const r=getRel(a.name); r.where=a.where; r.whereKey=yKey(); G._apptMeet.joined=true }   // 다른 인물도 유민처럼: 위치 갱신 + 동행 확정
-        return false }
       if(o>a.ord+LEAD_APPT_WAIT){ apptMissed(a); return false }
+      if(!a.arrived){ a.arrived=true; apptArrive(a) }
+      if(here===a.where){   // 구역 안이나 그 입구 밖에 있으면 만남
+        a.met=true; G._apptMeet={name:a.name,place:a.where.slice(5)};
+        if(a.name==='유민'){ setYuminSpot(a.where); G.comp.visitZone=a.where.slice(5); G._yuminHere=false; if(G.comp&&!G.comp.joined&&yuminLv()>=JOIN_LV){ joinYumin(); G._apptMeet.joined=true } }
+        else{ G.guest={name:a.name,zone:a.where.slice(5),day:G.day}; const r=getRel(a.name); r.where=a.where; r.whereKey=yKey(); r.visitZone=a.where.slice(5); G._apptMeet.joined=true }   // 다른 인물도 유민처럼: 위치 갱신 + 동행 확정
+        return false }
       return true;
     }
     if(o<a.ord) return true;
     if(o===a.ord){ if(!a.arrived){ a.arrived=true; apptArrive(a) } if(here===a.where) a.met=true; return true }
-    if(!a.met) apptMissed(a);
+    if(!a.met) apptMissed(a); else releaseAppt(a);
     return false;
   });
 }
@@ -4588,9 +4650,12 @@ on('facts',79,o=>{
 });
 /* 지금 이 자리에서 만날 수 있는가 (유민 / 다른 인물) */
 /* 인물은 마지막으로 만난 곳에 머묾: 'campus:상점가' 같은 중앙 캠퍼스 지구 장소 · 'home' · 'wild'(한빛시·구역에서 만남 — 다시 찾아갈 수 없음) */
-function placeKey(){ return G.loc==='campus'?'campus:'+curDistrict():G.loc==='home'?'home':G.loc==='hood'?'hood:'+G.hood:'wild' }
-/* 인물의 위치: 방금 만난(또는 약속한) 칸에는 그 자리, 그 밖에는 역할에 맞는 일과를 따라 움직임.
-   한빛시·아지트·다른 지구에서 만난 인물은 그곳에 머묾. 정체를 모르는 존재는 위치를 알 수 없음 */
+function placeKey(){
+  if(G.loc==='campus') return spotOn()?(tempPlaces(),G.spot.id):'campus:'+curDistrict();
+  if((G.loc==='site'||G.loc==='shelter'||G.loc==='road'&&!G.trip)&&G.site) return 'lead:'+G.site.name;
+  return G.loc==='home'?'home':G.loc==='hood'?'hood:'+G.hood:'wild';
+}
+
 const NPC_UNKNOWN=/후드|정체불명|그림자|괴이|목소리|사람인지|누군가|이름 모를|수상한|낯선/;
 const NPC_TEACHER=/선생님|교사|사감|담임|교장|교감/;
 function npcScheduleSpot(name){
@@ -4621,18 +4686,22 @@ function npcScheduleSpot(name){
 }
 function npcWhere(name){
   const r=getRel(name), w=r.where;
+  if(w&&r.appointmentWhere===w&&(G.appts||[]).some(a=>a.name===name&&a.arrived&&a.where===w)) return w;
+  if(w&&w.startsWith('spot:')&&r.whereKey!==yKey()) return npcScheduleSpot(name);
   if(w&&!w.startsWith('campus:')) return w;                       // 한빛시·아지트·다른 지구에서 만난 인물
   if(w&&r.whereKey===yKey()) return w;                            // 방금 만난·약속한 칸에는 그 자리
   return npcScheduleSpot(name);
 }
-function npcWhereText(name){ const w=npcWhere(name); if(w==='unknown') return '어디 있는지 알 수 없음'; if(String(w).startsWith('lead:')) return w.slice(5)+' 입구'; if(w.startsWith('hood:')) return (HOODS[w.slice(5)]||{n:'다른 지구'}).n; return w==='home'?`아지트 「${G.home.name||'폐 동아리실'}」`:w==='wild'?'한빛시 어딘가 (만난 곳에서 헤어짐)':`중앙 캠퍼스 지구의 「${(DISTRICTS[w.slice(7)]||DISTRICTS.market).n}」` }
-on('applied',65,e=>{ (Array.isArray(e.relations)?e.relations:[]).forEach(x=>{ const nm=x&&x.name&&String(x.name).trim().slice(0,30); if(nm&&nm!=='유민'&&G.rel[nm]){ G.rel[nm].where=placeKey(); G.rel[nm].whereKey=yKey() } }) });
+function npcWhereText(name){ const w=npcWhere(name); if(w.startsWith('spot:')) return apptWhereName(w); if(w==='unknown') return '어디 있는지 알 수 없음'; if(String(w).startsWith('lead:')) return w.slice(5)+' 입구'; if(w.startsWith('hood:')) return (HOODS[w.slice(5)]||{n:'다른 지구'}).n; return w==='home'?`아지트 「${G.home.name||'폐 동아리실'}」`:w==='wild'?'한빛시 어딘가 (만난 곳에서 헤어짐)':`중앙 캠퍼스 지구의 「${(DISTRICTS[w.slice(7)]||DISTRICTS.market).n}」` }
+on('applied',65,(e,{T})=>{ if(T&&T.flags.remoteContact) return; (Array.isArray(e.relations)?e.relations:[]).forEach(x=>{ const nm=x&&x.name&&String(x.name).trim().slice(0,30); if(nm&&nm!=='유민'&&G.rel[nm]){ G.rel[nm].where=placeKey(); G.rel[nm].whereKey=yKey() } }) });
 on('facts',85,o=>{ const n=Object.keys(G.rel||{}).filter(n=>n!=='유민'&&G.rel[n].where).slice(-8); if(n.length) o.인물위치=n.map(k=>`${k}: ${npcWhereText(k)}`).join(' / ') });
 function canMeetHere(name){
-  apptSync();
-  if(name!=='유민'){ const w=npcWhere(name); return G.loc==='campus'?(!spotOn()&&w==='campus:'+curDistrict()):G.loc==='home'?w==='home':G.loc==='hood'?w==='hood:'+G.hood:false }
+  apptSync(); guestCheck();
+  if(name!=='유민'){ if(guestHere()&&G.guest.name===name) return true; const w=npcWhere(name); return w===placeKey()&&w!=='wild' }
   const c=G.comp; if(!c||!c.met) return false;
-  if(c.joined||G._yuminHere) return true;
+  if(c.joined) return true;
+  if(String(c.spot).startsWith('spot:')||String(c.spot).startsWith('lead:')) return c.spot===placeKey();
+  if(G._yuminHere) return true;
   updateYuminSpot();
   const s=YUMIN_SPOTS[c.spot]; if(!s) return false;
   if(G.loc==='campus') return !spotOn()&&s.kind==='campus'&&c.spot===curDistrict();
@@ -4646,6 +4715,8 @@ async function seekYumin(){
   if(G.comp.joined||canMeetHere('유민')) return talkYumin();
   if(isWild()&&!(G.comp&&G.comp.joined)&&G.loc!=='road') return toast('구역 안에서는 유민을 찾을 수 없습니다');
   const c=G.comp, sp=YUMIN_SPOTS[c.spot];
+  if(String(c.spot).startsWith('lead:')) return toast('약속한 소문의 장소로 조사 외출을 떠나야 유민을 만날 수 있습니다');
+  if(String(c.spot).startsWith('spot:')){ const p=tempPlaces().find(p=>p.id===c.spot); if(!p||G.loc!=='campus') return toast('캠퍼스로 돌아와 약속한 임시장소를 찾아가세요'); if(curDistrict()!==p.parent){ goDistrict(p.parent); return } return enterTemporarySpot(p.name) }
   if(G.loc==='campus'&&sp&&sp.kind==='campus'){
     G.spot=null; G.district=c.spot; G.choices=[];
     addLog('sys',`${DISTRICTS[c.spot].ic} ${DISTRICTS[c.spot].n}${josa(DISTRICTS[c.spot].n,'으로','로')} 유민을 찾아갔습니다.`);
@@ -4662,7 +4733,7 @@ async function seekYumin(){
 function yuminFindLabel(){
   updateYuminSpot();
   if(G.comp.joined) return '🎵 유민과 이야기';
-  return canMeetHere('유민')?`🎵 유민에게 가기 (${(YUMIN_SPOTS[G.comp.spot]||{n:'손님방'}).n})`:'🎵 유민 찾기 (지도에서 위치 확인)';
+  return canMeetHere('유민')?`🎵 유민에게 가기 (${(YUMIN_SPOTS[G.comp.spot]||{n:yuminWhereText()}).n})`:'🎵 유민 찾기 (지도에서 위치 확인)';
 }
 on('facts',82,o=>{
   const all=[]; Object.keys(G.chats||{}).forEach(n=>(G.chats[n]||[]).forEach(m=>{ if(m.n) all.push(m) }));
@@ -4734,8 +4805,8 @@ function chatDecide(name,incomingTopic){
   if(lastMe&&APPT_CUE.test(lastMe.t)) return {propose:true,meet:Math.random()<chatRefuseP(name)?'refuse':'accept'};
   return {propose:Math.random()<chatProposeP(name),meet:null};
 }
-function chatPrompt(name,incomingTopic,rumor){
-  const dec=chatPrompt.last=chatDecide(name,incomingTopic);
+function chatPrompt(name,incomingTopic,rumor,request={}){
+  const dec=chatPrompt.last=request.decision||chatDecide(name,incomingTopic);
   const r=getRel(name), isY=name==='유민', lex=(G.lexicon||[]).find(e=>e.name===name);
   const hist=chatSt(name).slice(-8).map(m=>`${m.f==='me'?G.char.name:name}: ${m.t}`).join('\n')||'(첫 문자)';
   const inZone=!!(G.site||G.loc==='site'||G.loc==='shelter'), rs=phoneRestricted();
@@ -4744,36 +4815,41 @@ function chatPrompt(name,incomingTopic,rumor){
   return `${prof}
 플레이어: ${G.char.name} (${G.char.age}세 고등학교 2학년 전학생)
 관계: ${STAGES[r.stage].n} (호감 Lv.${relLv(name)})
-지금: ${G.day}일째 ${dowName(G.day)}요일 ${G.time}${G.time==='낮'&&slotIdx()>=0?' '+slotLabel():''}. ${name}의 위치: ${contactWhere(name)}. 플레이어의 위치: ${G.loc==='campus'?DISTRICTS[curDistrict()].n:G.loc}.
+지금: ${G.day}일째 ${dowName(G.day)}요일 ${G.time}${G.time==='낮'&&slotIdx()>=0?' '+slotLabel():''}. ${name}의 위치: ${contactWhere(name)}. 플레이어의 위치: ${apptWhereName(request.origin||placeKey())}.
+약속 가능한 장소: ${apptWhereOptions().map(([id,n])=>n).join(' / ')}. 임시장소는 해당 캠퍼스 지점 안의 별도 위치이고 소문의 장소는 조사 외출 목적지 입구다. 위치 변경은 게임 코드가 약속 시각에 실행한다. 아직 도착하지 않았다면 왔다고 쓰지 마라.
 ${inZone?'플레이어는 구역 안이라 신호가 약해 문자가 끊기고 느리다.':''}${rs?`플레이어는 ${rs}이라 몰래 문자 중이다(짧게, 속삭이듯).`:''}
 최근 문자:
 ${hist}
 ${incomingTopic?`${name}이(가) 플레이어에게 먼저 문자를 보낸다. 내용: ${top}.`:'플레이어의 마지막 문자에 대한 답장을 쓴다.'}
-규칙: ${dec.meet==='refuse'?'[플레이어가 만나자고 했다 — 이번에는 사정이 있어 거절한다. 인물다운 말투로 짧게 이유를 대고, 다른 때를 약속으로 잡지는 않는다. appointment는 null]':dec.meet==='accept'?'[플레이어가 만나자고 했다 — 이번에는 수락한다. 학교 안 장소와 때를 구체적으로 정해 답한다(급식실은 점심시간에만)]':dec.propose?'이번 답장에서는 자연스러우면 만나자고 먼저 제안해도 좋다(학교 안 장소와 때를 구체적으로, 급식실은 점심시간에만).':'이번 답장에는 만나자는 제안·약속을 넣지 않고 대화로 끝낸다.'} 급식실은 점심시간에만 열리니 다른 때에 급식실에서 밥을 먹거나 만나자고 하지 않는다. 학생·교직원 인물의 말투로 문자답게 1~2문장(40자 안팎). 숨겨진 진실을 직접 밝히지 않는다. 관계 단계가 연애 단계라면 설렘·다정한 말·데이트 제안은 가능하다. 새로운 사실을 만들 때는 사소한 것만.
-플레이어가 먼저 만나자고 했거나 네가 한 제안을 플레이어가 받아들여 장소와 때가 정해졌을 때만 appointment에 {"place":"학교 안 장소·아지트·학원가 골목 중 하나","when":"방과 후|점심시간|쉬는 시간|저녁|내일 아침 등"}을 적는다(없으면 null). 
+규칙: ${dec.meet==='refuse'?'[플레이어가 만나자고 했다 — 이번에는 사정이 있어 거절한다. 인물다운 말투로 짧게 이유를 대고, 다른 때를 약속으로 잡지는 않는다. appointment는 null]':dec.meet==='accept'?'[플레이어가 만나자고 했다 — 이번에는 수락한다. 플레이어가 요청한 장소와 때를 우선하여 수락한다. 장소를 임의로 학교 안 다른 곳으로 바꾸지 마라. 때가 없으면 곧으로 정한다(급식실은 점심시간에만)]':dec.propose?'이번 답장에서는 자연스러우면 만나자고 먼저 제안해도 좋다(약속 가능한 장소와 때를 구체적으로, 급식실은 점심시간에만).':'이번 답장에는 만나자는 제안·약속을 넣지 않고 대화로 끝낸다.'} 급식실은 점심시간에만 열리니 다른 때에 급식실에서 밥을 먹거나 만나자고 하지 않는다. 학생·교직원 인물의 말투로 문자답게 1~2문장(40자 안팎). 숨겨진 진실을 직접 밝히지 않는다. 관계 단계가 연애 단계라면 설렘·다정한 말·데이트 제안은 가능하다. 새로운 사실을 만들 때는 사소한 것만.
+플레이어가 먼저 만나자고 했거나 네가 한 제안을 플레이어가 받아들여 장소와 때가 정해졌을 때만 appointment에 {"place":"약속 가능한 장소의 정확한 이름(임시장소·소문의 장소 포함)","when":"방과 후|점심시간|쉬는 시간|저녁|내일 아침 등"}을 적는다(없으면 null).
 JSON만: {"reply":"문자 내용","affinity":0 또는 1,"hint":"상대가 실제로 알려 주는 단서·소문이 있으면 한 문장, 없으면 빈 문자열","appointment":null}`;
 }
-async function chatAI(name,incomingTopic,rumor){
+async function chatAI(name,incomingTopic,rumor,request={}){
+  const decision=request.decision||chatDecide(name,incomingTopic);
   let j=null;
-  try{ j=parseJSON(await callAI('너는 텍스트 탐험 게임의 NPC 문자 답장 작성기다. JSON만 출력한다.',chatPrompt(name,incomingTopic,rumor),300,'lex')) }
+  try{ j=parseJSON(await callAI('너는 텍스트 탐험 게임의 NPC 문자 답장 작성기다. JSON만 출력한다.',chatPrompt(name,incomingTopic,rumor,{...request,decision}),300,'lex')) }
   catch(e){ if(e.message!=='NO_KEY') console.warn(e) }
   const reply=j&&j.reply?String(j.reply).trim().slice(0,160):'';
-  return {reply:reply||rand(CHAT_FALLBACK),aff:j&&+j.affinity>0?1:0,hint:j&&j.hint?String(j.hint).trim().slice(0,120):'',appt:j&&j.appointment&&typeof j.appointment==='object'?{place:String(j.appointment.place||''),when:String(j.appointment.when||'')}:null};
+  return {decision,confirmed:!!reply,reply:reply||rand(CHAT_FALLBACK),aff:j&&+j.affinity>0?1:0,hint:j&&j.hint?String(j.hint).trim().slice(0,120):'',appt:j&&j.appointment&&typeof j.appointment==='object'?{place:String(j.appointment.place||''),when:String(j.appointment.when||'')}:null};
 }
 /* 문자 약속: 플레이어가 만나자고 했거나, 상대가 먼저 제안한 약속을 플레이어가 받아들였을 때만 기록 (상대가 혼자 제안한 것은 약속이 아님) */
 const ACCEPT_RX=/^\s*(응|네|넵|예|좋아|좋지|좋아요|오케이|ㅇㅋ|ok|그래|그러자|알겠|알았|갈게|간다|가자|콜|ㄱㄱ)/i;
-function chatAppt(name,msg,o){
+function chatAppt(name,msg,o,origin){
   if(!G||!G.comp||!msg) return;
-  if(chatPrompt.last&&chatPrompt.last.meet==='refuse'){ addLog('sys',`😔 ${name}${josa(name,'은','는')} 지금은 어렵다고 합니다 (약속이 잡히지 않았습니다)`); return }
+  const decision=o.decision;
+  if(!o.confirmed||decision&&decision.meet==='refuse'||/못\s*(?:가|오|만나)|거절|어렵|갈\s*수\s*없|올\s*수\s*없/.test(o.reply)) return;
   const a=chatSt(name), prev=a.slice(0,-2).reverse().find(m=>m.f==='them');
-  const asked=APPT_CUE.test(msg);
-  const accepted=!asked&&prev&&ACCEPT_RX.test(msg)&&APPT_CUE.test(prev.t)&&APPT_TIME.test(prev.t);
+  const asked=APPT_CUE.test(msg), accepted=!asked&&prev&&ACCEPT_RX.test(msg)&&APPT_CUE.test(prev.t)&&APPT_TIME.test(prev.t);
   if(!asked&&!accepted) return;
-  const text=(accepted?prev.t+'. ':'')+msg+'. '+o.reply;
-  const found=apptParse(text,name);   // 문자 상대가 곧 약속 상대. 글에 나온 때를 먼저 쓰고 없으면 AI가 적은 값
-  found.forEach(f=>setAppt(name,f.place,f.when));
-  if(!found.length&&asked&&o.appt&&o.appt.place) setAppt(name,o.appt.place,o.appt.when);
+  if(asked&&(!decision||decision.meet!=='accept')) return;
+  const source=accepted?prev.t:msg;
+  const place=apptPlaceKey(source,origin)||o.appt&&apptPlaceKey(o.appt.place,origin,true);
+  const when=APPT_TIME.test(source)?source:o.appt&&o.appt.when||'곧';
+  if(place) setAppt(name,place,when,false,origin);
+  apptSync();
 }
+
 function renderChat(name){
   const log=document.getElementById('chatLog'); if(!log) return;
   log.innerHTML=chatSt(name).map(m=>bubbleHTML(m,name)).join('')||'<div class="muted" style="font-size:13px">아직 주고받은 문자가 없습니다.</div>';
@@ -4818,16 +4894,18 @@ async function sendChat(){
     addLog('sys','📵 휴대폰을 몰래 쓰다 들켜 압수당했습니다. 이 시간대가 지나면 돌려받습니다.');
     return aiTurn('몰래 문자를 보낸다',`[휴대폰 압수]${phoneSceneNote()} 플레이어가 ${rs}에 몰래 휴대폰을 꺼내다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
   }
+  const requestGame=G, origin=placeKey();
   textDrain(); try{ render() }catch(e){}   // 문자 1통마다 배터리 −1%
   const cb=document.getElementById('chatBat'); if(cb) cb.textContent=`🔋 ${batteryPct()}%`;
   inp.value=''; chatPush(name,'me',msg); renderChat(name);
   const log=document.getElementById('chatLog'); log.insertAdjacentHTML('beforeend','<div class="bub them typing" id="chatTyping">…</div>'); log.scrollTop=log.scrollHeight;
   _chatBusy=true; chatPrompt.last=null;
-  const o=await chatAI(name,null,'');
+  const o=await chatAI(name,null,'',{origin});
   _chatBusy=false;
+  if(G!==requestGame) return;
   chatPush(name,'them',o.reply);
   G.recent.push({role:'scene',text:`[문자] ${G.char.name}: "${msg}" / ${name}: "${o.reply}"`});
-  chatAppt(name,msg,o);
+  chatAppt(name,msg,o,origin);
   const dd=G.chatDay&&G.chatDay.day===G.day?G.chatDay:(G.chatDay={day:G.day,aff:{},hint:0});
   if(o.aff&&!dd.aff[name]){ dd.aff[name]=1; addAffTo(name,1) }
   if(o.hint&&dd.hint<2){ dd.hint++; applyThreads(G,{threads_new:[o.hint]}); addLog('fx','🧵 문자에서 단서를 얻었습니다 (조사 보드)') }
@@ -4891,6 +4969,7 @@ function phoneAct(name,kind){
   if(caught){
     return aiTurn(kind==='call'?`${name}에게 전화를 건다`:`${name}에게 문자를 보낸다`,`[휴대폰 압수]${phoneSceneNote()} 플레이어가 ${rs}에 몰래 휴대폰을 꺼내다가 들켜 압수당했다(벌점은 이미 반영되었으니 effects.벌점은 0). 연락은 닿지 않았다. 선생님이나 사감의 가벼운 꾸중으로 짧게.`);
   }
+  pend('',{remoteContact:true});
   if(kind==='call'){ textDrain(CALL_DRAIN); tick() }
   G._yuminHere=false;
   const inZone=!!(G.site||G.loc==='site'||G.loc==='shelter');
@@ -4899,7 +4978,7 @@ function phoneAct(name,kind){
   if(kind==='meet'){
     textDrain();   // 연락 문자 1통 = 배터리 −1%
     const ok=!rs&&G.loc!=='road'&&Math.random()<MEET_OK_P;
-    if(ok){ setYuminSpot(nearPlayer()); addLog('sys','🎵 유민이 이쪽으로 오겠다고 합니다. 곧 만날 수 있습니다.') }
+    if(ok){ const target=apptPlaceKey(msg)||placeKey(); if(setAppt('유민',target,APPT_TIME.test(msg)?msg:'곧')) addLog('sys','🎵 유민이 약속한 장소로 오겠다고 합니다. 도착은 약속 시각에 처리됩니다.') }
     return aiTurn('유민에게 만나자고 연락한다',`[만나자는 연락] 플레이어가 유민에게 만나자고 연락한다${msg?`: "${msg}"`:''}.${secret}${common} `+(ok?'유민은 흔쾌히 곧 오겠다고 한다. 도착은 이번 장면에서 쓰지 말고 연락이 끝나는 데서 마칠 것.':'유민은 사정이 있어 지금은 오기 어렵다고 둘러대며 다른 때를 제안한다.'));
   }
   if(kind==='call') return aiTurn(`${name}에게 전화를 건다`,`[전화] 플레이어가 ${name}에게 전화를 건다${msg?` (용건: "${msg}")`:''}.${secret}${common} 통화 대사를 3~6줄의 대화체로 쓰고 통화가 끝나면 플레이어 주변으로 돌아온다.`);
@@ -4919,8 +4998,10 @@ async function meetYumin(place){
 function talkYumin(){
   if(busy) return;
   if(!G.comp.joined&&!canMeetHere('유민')) return toast(`유민은 지금 ${yuminWhereText()}에 있는 것 같습니다. 지도의 🎵 표시를 확인해 보세요.`);
-  migrate();
-  G._yuminHere=true; tick(G.loc==='site'||G.loc==='shelter');
+  const meetingSpot=G.comp.spot;
+  migrate(); tick(G.loc==='site'||G.loc==='shelter');
+  if(!G.comp.joined) setYuminSpot(meetingSpot);
+  G._yuminHere=true;
   let extra='[유민과 대화] 유민이 노래 한 곡과 함께 소식을 들려준다.', likeKey=null;
   if(G.comp.lastTalkDay!==G.day){
     const locked=Object.keys(YUMIN_LIKES).filter(k=>!G.comp.likes[k]);
@@ -5370,7 +5451,10 @@ function visitNPC(name){
   closeModal();
   if(busy) return;
   if(name==='유민') return talkYumin();
+  if(!canMeetHere(name)) return toast(`${name}${josa(name,'은','는')} 지금 이곳에 없습니다 (${npcWhereText(name)})`);
+  const meetingPlace=placeKey();
   tick(G.loc==='site'||G.loc==='shelter');
+  const r=getRel(name); r.where=meetingPlace; r.whereKey=yKey();
   aiTurn(`${name}${josa(name,'을','를')} 찾아간다`,`[인물 방문] 플레이어가 ${name}${josa(name,'을','를')} 찾아간다. 사전과 연대기에 있는 이 인물의 설정과 지난 일을 이어서, 이 인물이 등장하는 대화 장면을 써라. effects.relations에 이 인물을 반드시 포함하라.`+relArmText(name,1));
 }
 function proposeTo(name){
