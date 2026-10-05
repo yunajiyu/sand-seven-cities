@@ -1131,7 +1131,7 @@ materials: 구역에서 실제로 쓸 만한 철제 부품·합판·전선·유�
 [위치] 캠퍼스에서만. "위치"에는 장면이 끝났을 때 플레이어가 실제로 있는 곳(${placeNames()} 중 하나, 또는 옥상·매점 앞 같은 지점 밖 장소)을 장소가 실제로 바뀐 경우에만 적고('자리를 옮겨'·'~로 향했다'·'~에 도착했다'도 변경) 그대로면 빈 문자열. 다른 곳으로 가는 선택지는 "to"에 목적지를 적는다. 수업 중 교실을 벗어나면 땡땡이로 다룬다.
 [급식실] 점심시간에만 식사를 준다. 그 밖에는 닫혀 있어 급식실 식사 장면·제안·선택지와 급식실 약속을 쓰지 않는다(방과 후 간식은 매점·상점가).
 [일과] 낮에는 졸기·엎드리기·잠깐 쉬기도 type "rest"가 아닌 "story"("rest"는 밤 잠자리 선택지에만). 수업은 코드가 세니 [수업 끝] 지시가 있는 장면에서만 종을 울리고 그 전엔 수업이 계속되는 것으로 쓴다. 서술에서 수업·쉬는 시간 같은 칸이 끝났다는 종이 울렸다면 "칸종료"를 true(아니면 false).
-[단서] "단서"에는 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙처럼 나중에 어긋나면 안 되는 것)만 「키워드: 내용 설명」 형식 한 줄로(예: "출석부 3번 칸: 이름이 지워져 있다"), 숫자·이름·칸은 서술과 똑같이 적는다. 분위기 묘사·사소한 발견·이미 [확정 단서]에 있는 것의 반복은 적지 않는다. 대부분의 장면은 빈 문자열이고 하루 최대 3개다. 새 단서는 [확정 단서]와 모순되지 않게 이어 가거나 구체화한다.
+[단서] "단서"에는 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙처럼 나중에 어긋나면 안 되는 것)만 「장소, 키워드, 단서이름: 설명」 형식 한 줄로(예: "3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다"), 숫자·이름·칸은 서술과 똑같이 적는다. 분위기 묘사·사소한 발견·이미 [확정 단서]에 있는 것의 반복은 적지 않는다. 대부분의 장면은 빈 문자열이고 하루 최대 3개다. 새 단서는 [확정 단서]와 모순되지 않게 이어 가거나 구체화한다.
 [약속] 플레이어가 누군가(유민 포함)와 어디서 언제 만나기로 했다면 "약속"에 {"인물":"이름","장소":"학교 안 장소·아지트·학원가 골목","때":"방과 후|점심시간|쉬는 시간|저녁|내일 아침|내일 방과 후|곧 등"}, 없으면 null. 때가 되면 코드가 그 사람을 그곳에 있게 하니 그 전에는 등장시키지 않는다. [확정 사실]에 약속어김이 있으면 만났을 때 서운함을 드러낸다. 인물 위치는 [확정 사실]의 유민위치·인물위치·약속을 따른다.
 [선택지·사건]
 - choices 3~4개 객체. type: 결과가 불확실하고 실패하면 대가가 있는 행동(기어오르기·해독·설득·함정 피하기·몰래 지나가기 등)은 "check"+skill·dc(str=힘·몸, wis=지식·해독·추리, cha=설득·흥정·속임, sur=생존·추적·은신·함정). 쉬기/잠자기 "rest", 임시 쉼터 "shelter", 캠퍼스 귀환 "return", 구역 밖으로 "exit", 사고팔기 "trade", 그 밖의 관찰·대화·묘사는 "story". 구역 안에서는 return·exit를 만들지 않는다(고정 버튼이 있음).
@@ -2302,12 +2302,27 @@ function useItem(i){
   addLog('fx',`${it} 사용 → ${k==='calm'?`공포 −${n}`:`${NM[k]} +${n}`}`);
   save(); render(); if(document.querySelector('#modalRoot .modal')) openInv();
 }
-function itemChipHTML(it,i){
+function itemChipBase(it,i){
   if(!SNACKS[it]&&!consKind(it)&&CONSUME_RX.test(it)) return `<span class="chip">🔧 ${esc(it)} <a href="#" onclick="event.preventDefault();useGeneric(${i})" style="color:var(--accent2);text-decoration:none" title="쓰면 사라집니다">쓰기</a></span>`;
   if(!SNACKS[it]&&!consKind(it)&&isKeyItem(it)) return `<span class="chip" title="이야기에 필요한 물건 — 팔 수 없습니다">🔒 ${esc(it)}</span>`;
   if(SNACKS[it]) return `<span class="chip">🍫 ${esc(it)} <a href="#" onclick="event.preventDefault();eatSnack(${i})" style="color:var(--accent2);text-decoration:none" title="공포 누적 ${SNACKS[it]}회 늦춤">먹기</a></span>`;
   const k=consKind(it);
   return `<span class="chip">${esc(it)}${k?` <a href="#" onclick="event.preventDefault();useItem(${i})" style="color:var(--accent2);text-decoration:none" title="${k==='calm'?'공포 가라앉히기':NM[k]+'(으)로 바꾸기'}">사용</a>`:''}</span>`;
+}
+/* 모든 소지품 칩에 🗑 버리기를 붙임 */
+function itemChipHTML(it,i){
+  const base=itemChipBase(it,i);
+  return base.replace(/<\/span>$/,` <a href="#" onclick="event.preventDefault();dropItem(${i})" style="color:var(--danger);text-decoration:none" title="버립니다">🗑</a></span>`);
+}
+async function dropItem(i){
+  if(busy||!G||!G.items||i<0||i>=G.items.length) return;
+  const it=G.items[i], key=!SNACKS[it]&&!consKind(it)&&!CONSUME_RX.test(it)&&isKeyItem(it);
+  if(!(await askConfirm(`「${it}」을(를) 버릴까요?${key?'\n(이야기에 필요한 물건일 수 있습니다. 버리면 되찾기 어렵습니다)':''}`,'버리기'))) return;
+  const j=G.items.indexOf(it); if(j<0) return;
+  G.items.splice(j,1);
+  addLog('fx',`🗑 「${it}」을(를) 버렸습니다`);
+  pend(` [소지품 버림] 플레이어가 「${it}」을(를) 버렸다. 이 물건은 더 이상 가지고 있지 않다(소지품 effects는 이미 반영되었으니 items_remove는 비울 것).`);
+  save(); render(); const h=document.querySelector('#modalRoot h3'); if(h&&h.textContent==='소지품') openInv();
 }
 function itemSellPrice(name){
   let h=0; for(const ch of String(name)) h=(h*31+ch.charCodeAt(0))>>>0;
@@ -5205,7 +5220,7 @@ function canonSimilar(a,b){
   if(na!==nb) return false;   // 숫자가 다르면(3번 칸 ↔ 5번 칸) 다른 단서
   const A=bigrams(a), B=bigrams(b); if(!A.size||!B.size) return false; let n=0; A.forEach(x=>{ if(B.has(x)) n++ }); return n/Math.min(A.size,B.size)>=0.6 }
 function addCanon(t,quiet,force){
-  if(!G) return; t=String(t||'').replace(/\s+/g,' ').trim().slice(0,90); if(t.length<4) return;
+  if(!G) return; t=String(t||'').replace(/\s+/g,' ').trim().slice(0,120); if(t.length<4) return;
   if(!Array.isArray(G.canon)) G.canon=[];
   const key=t.replace(/[^가-힣0-9]/g,'').slice(0,14);
   if(G.canon.some(c=>c.key===key)) return;
@@ -5226,12 +5241,12 @@ async function canonCompact(){
   try{
     const r=parseJSON(await callAI('너는 게임 기록을 정리하는 서기다. 사실을 지어내지 말고 주어진 내용만 합친다. JSON만 출력한다.',
 `다음은 플레이어가 얻은 단서 ${part.length}개다. 서로 관련 있는 것끼리 묶어 2~3줄로 합쳐라.
-- 각 줄은 반드시 「키워드: 내용 설명」 형식이다. 키워드는 대상을 가리키는 짧은 말(예: 출석부 3번 칸, 방송실 문, 칠판 숫자), 설명은 알려진 사실만 간단히.
+- 각 줄은 반드시 「장소, 키워드, 단서이름: 설명」 형식이다. 장소는 단서가 나온 곳, 키워드는 대상을 가리키는 짧은 말, 단서이름은 이 단서를 부르는 이름이다(예: 3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다). 설명은 알려진 사실만 간단히.
 - 숫자·이름·칸·방향·장소는 원문 그대로 유지한다. 단서를 새로 만들거나 풀이를 덧붙이지 않는다.
-- 각 줄은 110자 이내.
+- 각 줄은 130자 이내.
 ${part.map(c=>`- (${c.day}일) ${c.text}`).join('\n')}
 JSON만 출력: {"lines":["…","…"]}`,400,'lex'));
-    const lines=(r&&Array.isArray(r.lines)?r.lines:[]).map(x=>String(x||'').replace(/\s+/g,' ').trim().slice(0,120)).filter(x=>x.length>=4).slice(0,3);
+    const lines=(r&&Array.isArray(r.lines)?r.lines:[]).map(x=>String(x||'').replace(/\s+/g,' ').trim().slice(0,140)).filter(x=>x.length>=4).slice(0,3);
     if(G!==g||!lines.length) return;
     const day=part[part.length-1].day;
     g.canon=[...lines.map(t=>({day,text:t,key:t.replace(/[^가-힣0-9]/g,'').slice(0,14),sum:true})),...g.canon.slice(CANON_BATCH)];
@@ -5248,7 +5263,7 @@ function addCanonUser(){
 /* 과목 단서를 새로 만들 때: 같은 과목에서 이미 얻은 단서(없으면 최근 단서)를 이어 가게 함 */
 function canonHint(subj){
   const all=G.canon||[]; if(!all.length) return '';
-  const same=all.filter(c=>c.text.startsWith(subj)), pick=(same.length?same:all).slice(-3);
+  const same=all.filter(c=>c.text.includes(subj)), pick=(same.length?same:all).slice(-3);
   return ` [이어 가기] 이미 얻은 단서: ${pick.map(c=>c.text).join(' / ')}. 새 단서는 이 중 하나를 한 걸음 더 구체화하거나 이어서 풀어 주는 내용으로 하고, 같은 주제의 번호·이름·칸·방향을 새로 지어 바꾸지 말 것.`;
 }
 /* 확정 단서가 너무 많을 때: 전체를 AI가 8줄 안팎으로 묶어 정리(호출 1회) */
@@ -5259,20 +5274,25 @@ async function canonTidy(){
   try{
     const r=parseJSON(await callAI('너는 게임 기록을 정리하는 서기다. 사실을 지어내지 말고 주어진 내용만 합친다. JSON만 출력한다.',
 `다음은 플레이어가 얻은 단서 ${all.length}개다. 이야기의 수수께끼에 쓰일 핵심만 남기고, 중복·사소한 것은 버리고, 관련된 것은 묶어 8줄 안팎으로 정리하라.
-- 각 줄은 반드시 「키워드: 내용 설명」 형식이다. 키워드는 대상을 가리키는 짧은 말(예: 출석부 3번 칸, 방송실 문, 칠판 숫자), 설명은 알려진 사실만 간단히.
+- 각 줄은 반드시 「장소, 키워드, 단서이름: 설명」 형식이다. 장소는 단서가 나온 곳, 키워드는 대상을 가리키는 짧은 말, 단서이름은 이 단서를 부르는 이름이다(예: 3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다). 설명은 알려진 사실만 간단히.
 - 숫자·이름·칸·방향·장소는 원문 그대로 유지한다. 새 단서를 만들거나 풀이를 덧붙이지 않는다.
-- 각 줄은 110자 이내.
+- 각 줄은 130자 이내.
 ${all.map(c=>`- (${c.day}일) ${c.text}`).join('\n')}
 JSON만 출력: {"lines":["…"]}`,600,'lex'));
-    const lines=(r&&Array.isArray(r.lines)?r.lines:[]).map(x=>String(x||'').replace(/\s+/g,' ').trim().slice(0,120)).filter(x=>x.length>=4).slice(0,10);
+    const lines=(r&&Array.isArray(r.lines)?r.lines:[]).map(x=>String(x||'').replace(/\s+/g,' ').trim().slice(0,140)).filter(x=>x.length>=4).slice(0,10);
     if(G!==g||!lines.length){ toast('정리를 받지 못했습니다. 잠시 뒤 다시 눌러 주세요'); return }
     g.canon=lines.map(t=>({day:g.day,text:t,key:t.replace(/[^가-힣0-9]/g,'').slice(0,14),sum:true}));
     save(); toast(`🧹 확정 단서를 ${all.length}개에서 ${lines.length}개로 정리했습니다`); render(); openCanon();
   }catch(e){ toast(e&&e.message==='NO_KEY'?'AI 키가 없어 정리할 수 없습니다':'정리 중 오류가 났습니다') }
   finally{ _canonBusy=false }
 }
-/* 「키워드: 내용 설명」은 키워드를 굵게 */
-function canonHTML(t){ t=String(t||''); const i=t.indexOf(':'); return i>0&&i<=24?`<b>${esc(t.slice(0,i))}</b>:${esc(t.slice(i+1))}`:esc(t) }
+/* 「장소, 키워드, 단서이름: 설명」 — 장소·키워드는 흐리게, 단서이름은 굵게 (옛 「키워드: 설명」 형식도 그대로 보임) */
+function canonHTML(t){
+  t=String(t||''); const i=t.indexOf(':'); if(!(i>0&&i<=48)) return esc(t);
+  const parts=t.slice(0,i).split(/\s*,\s*/).filter(Boolean), rest=esc(t.slice(i+1));
+  if(parts.length>=3){ const name=parts.pop(); return `<span class="muted" style="font-size:12px">${esc(parts.join(' · '))}</span> <b>${esc(name)}</b>:${rest}` }
+  return `<b>${esc(t.slice(0,i))}</b>:${rest}`;
+}
 function delCanon(i){ if(!G.canon) return; G.canon.splice(i,1); save(); openThreads() }
 /* ---------- 🧩 추리 도우미: 지금까지의 단서를 AI가 정리해 방향만(살짝) 또는 다음 행동까지(확실히) 알려 줌. 숨겨진 정체·정답은 말하지 않음 ---------- */
 let _sleuthBusy=false;
@@ -5359,7 +5379,7 @@ function openThreads(){
     <div class="row" style="margin-top:10px;flex-wrap:nowrap"><input id="thrNew" placeholder="직접 적기 (예: 하킴이 은화를 갚겠다고 했다)" maxlength="60"><button class="small" onclick="addThread()">추가</button></div>
     <h4 style="margin:14px 0 4px">📅 약속</h4>${apptListHTML()}
     <h4 id="canonSec" style="margin:14px 0 4px">📌 확정된 단서 <span class="muted" style="font-size:12px">(AI가 항상 기억합니다. 틀린 것은 ✕로 지우세요)</span> <button class="small" onclick="canonTidy()">🧹 AI로 정리</button></h4>${(G.canon||[]).map((c,i)=>`<div class="shop-row" style="gap:8px"><span><span class="muted">${c.day}일 ·</span> ${canonHTML(c.text)}</span><button class="small" onclick="delCanon(${i})">✕</button></div>`).join('')||'<p class="muted" style="font-size:13px">아직 없습니다. 이야기에서 얻은 단서가 자동으로 쌓입니다.</p>'}
-    <div class="row" style="margin-top:8px;flex-wrap:nowrap"><input id="canonNew" placeholder="직접 적기 (예: 출석부 3번 칸의 이름이 지워져 있다)" maxlength="90"><button class="small" onclick="addCanonUser()">추가</button></div>
+    <div class="row" style="margin-top:8px;flex-wrap:nowrap"><input id="canonNew" placeholder="직접 적기 (예: 3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다)" maxlength="120"><button class="small" onclick="addCanonUser()">추가</button></div>
     ${done.length?`<h4 style="margin:14px 0 4px">최근에 닫힌 것</h4>${done.map(t=>`<div class="shop-row muted" style="gap:8px"><span>${t.status==='faded'?'💨':'✓'} ${esc(t.text)}</span><button class="small" onclick="reopenThread('${t.id}')">다시 열기</button></div>`).join('')}`:''}`);
 }
 
@@ -5431,7 +5451,7 @@ ${relevantLex(scenes)}
 [장면]
 ${scenes}
 ${threadsRequest(g)}
-- clues: 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙 등 나중에 어긋나면 안 되는 것)만 「키워드: 내용 설명」 형식으로, 숫자·이름·칸은 장면에 나온 그대로 최대 1개. 분위기 묘사·사소한 발견·[확정 단서]에 이미 있는 것은 빼고, 대부분은 빈 배열.
+- clues: 수수께끼를 푸는 데 쓰일 핵심 단서(숫자·이름·칸·규칙 등 나중에 어긋나면 안 되는 것)만 「장소, 키워드, 단서이름: 설명」 형식으로(예: 3층 교무실, 출석부, 지워진 이름: 3번 칸의 이름이 지워져 있다), 숫자·이름·칸은 장면에 나온 그대로 최대 1개. 분위기 묘사·사소한 발견·[확정 단서]에 이미 있는 것은 빼고, 대부분은 빈 배열.
 [확정 단서(최근 12개)]
 ${canonBlock(12)}
 JSON만 출력: {"lexicon":[{"name":"이름","cat":"인물|장소|괴담|물건|세력","desc":"플레이어가 알게 된 내용 1~2문장"}],"clues":["…"],"threads_new":[{"text":"조사 보드 한 줄"}],"threads_closed":["t1"]}`;
@@ -7835,9 +7855,9 @@ function openGuide(){
     ${row('🎉 주말 전용','토·일 자유시간에는 🧑‍🤝‍🧑 주말 외출(유민이나 아는 사람 한 명과 상점가·운동장·도서관·저수지 둑길 중 한 곳, 💳5·두 칸, 하루 한 번 성사, 유민은 항상 수락, 인연이 아는 사이 이상인 다른 사람은 호감에 따라 60~90%), 상점가의 🎸 버스킹 구경(공포 −1, 하루 한 번), 정문의 📮 면회 시간(점심 이후, 용돈 💳10~20과 간식 하나, 하루 한 번)이 열립니다')}
     ${row('🔧 소모 부품','나사·못·테이프·붕대·건전지 같은 소모 부품은 쓰면 사라집니다. 직접 입력("나사를 사용해 …")이나 소지품의 🔧 「쓰기」로 쓰면 소지품에서 하나가 줄고, 공구(드라이버 등)는 남습니다')}
     ${row('🔒 이야기 물건 vs 팔 수 있는 물건','소지품은 두 종류입니다. AI가 물건을 줄 때 이야기에 필요한 것(단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건)에는 🔒를 붙여 팔 수 없게 하고, 값나가는 잡동사니는 바로 팔 수 있습니다. 표시가 없는 물건은 이름으로 판단하고(출석부·열쇠·서류·사진 등은 🔒), 애매하면 팔기 전에 확인 창이 뜹니다')}
-    ${row('📌 확정 단서','이야기에서 얻은 구체적 단서(숫자·이름·칸 등)가 지워지지 않고 쌓여 AI가 매 턴 기억하는 목록입니다. 행동 버튼 줄의 「📌 확정 단서」나 🧵 조사 보드 창 아래쪽에서 보고, 직접 추가하거나 ✕로 지울 수 있습니다. 하루에 AI가 올리는 새 단서는 '+CANON_DAILY+'개까지이고 비슷한 말은 합쳐지며, '+CANON_MAX+'개를 넘으면 AI가 8줄 안팎으로 묶을 수 있고 최대 '+CANON_HARD+'개입니다')}
+    ${row('📌 확정 단서','이야기에서 얻은 구체적 단서(숫자·이름·칸 등)가 지워지지 않고 쌓여 AI가 매 턴 기억하는 목록입니다. 행동 버튼 줄의 「📌 확정 단서」나 🧵 조사 보드 창 아래쪽에서 보고, 직접 추가하거나 ✕로 지울 수 있습니다. 하루에 AI가 올리는 새 단서는 '+CANON_DAILY+'개까지이고 비슷한 말은 합쳐지며, '+CANON_MAX+'개를 넘으면 AI가 8줄 안팎으로 묶을 수 있고 최대 '+CANON_HARD+'개입니다. 각 단서는 「장소, 키워드, 단서이름: 설명」 형식으로 적히고, 장소·키워드는 흐리게, 단서이름은 굵게 보입니다')}
     ${row('🧩 추리 도우미','행동 버튼 줄의 🧩 추리 도우미를 누르면 지금까지의 조사 보드·사전·연대기·소문을 AI가 한 번 정리해 줍니다. 단계는 「살짝」(방향만: 알려진 것·이어질 법한 것을 질문으로·더 찾아볼 방향)과 「확실히」(다음에 할 구체적 행동 2~3개까지) 중에 고릅니다. 숨겨진 정체나 정답은 알려 주지 않으며, 누를 때마다 AI를 한 번 부르고 마지막 결과는 저장됩니다. ❓ 질문하기에 궁금한 점을 적으면 같은 단계로 알려진 단서만 근거로 2~3문장으로 답하고(최근 5개 저장), 역시 한 번 묻는 데 AI를 한 번 부릅니다')}
-    ${row('🎒 소지품',`행동 버튼 줄의 🎒 소지품에서 공포·배터리·손전등·캐시·벌점·출입 권한, 교표 조각·자재·탈것·물건을 한눈에 봅니다. 간식·소모품은 「먹기·쓰기」로 쓰고, 🔒가 없는 물건은 상점가에서 팝니다`)}
+    ${row('🎒 소지품',`행동 버튼 줄의 🎒 소지품에서 공포·배터리·손전등·캐시·벌점·출입 권한, 교표 조각·자재·탈것·물건을 한눈에 봅니다. 간식·소모품은 「먹기·쓰기」로 쓰고, 🔒가 없는 물건은 상점가에서 팝니다. 모든 물건 옆의 🗑를 누르면 확인 후 버릴 수 있습니다(🔒 물건은 이야기에 필요할 수 있어 경고가 뜹니다)`)}
     ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기로 언제든 헤어질 수 있습니다(지도의 🎵로 위치 확인)')}
     ${row('🎵 구역 안 유민의 도움','유민이 동행 중이면 구역에서 일정 걸음마다(체력이 35% 이하거나 위험도 2 이상 공간, 또는 가끔) 노래를 불러 상황을 뒤집고, 위기에는 체력 +2, '+Math.round(YUMIN_SING_CALM_P*100)+'% 확률로 공포 −1. 그 밖에 위험한 통로 경고·조각 쪽 울림·길 안내를 해 줍니다. 곁에 있는 유민에게 "노래를 불러 달라"고 청해도(버튼·직접 입력, 어디서나) 같은 확률로 공포가 줄고 위기에는 체력 +2')}
     ${row('📱 휴대폰',`행동 버튼 줄의 📱 휴대폰에서 연락처(유민과 이야기에서 만난 사람들)에게 💬 문자나 📞 전화를 할 수 있습니다. 문자는 시간이 흐르지 않지만 1통을 보낼 때마다 배터리가 1% 닳고(칸으로는 모았다가 소모), 💬 문자를 누르면 팝업 대화창(말풍선)이 열려 주고받은 내용이 연락처마다 기록됩니다. 빠른 문구를 누르거나 직접 써서 보내면 상대가 곧바로 답장하고(AI), 가끔 단서가 조사 보드에 적히고(하루 2번까지) 호감이 오릅니다(연락처마다 하루 한 번). 전화는 배터리 ${CALL_DRAIN}%와 시간 한 칸을 쓰며 이야기 본문으로 진행됩니다. 유민에게는 📍 만나자고 하기(성공 ${Math.round(MEET_OK_P*100)}%)도 있습니다. 소등 후와 교실에서 수업 중에는 몰래 써야 하고(수업 중 전화는 불가, 교실 밖이면 제한 없음) 약 ${Math.round(PHONE_CATCH_P*100)}%(벌점 ${DEMERIT_WARN}점 이상이면 +${Math.round(PHONE_CATCH_WARN*100)}%p) 확률로 들켜 벌점 +${PHONE_DEMERIT}과 그 시간대 압수. 점호에서는 휴대폰을 걷지 않습니다. 구역 안에서는 전화가 안 터지고 문자만 보낼 수 있습니다(신호가 약해 답이 끊겨 옵니다)`)}
