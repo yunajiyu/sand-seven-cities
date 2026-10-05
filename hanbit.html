@@ -4327,15 +4327,21 @@ function chatSt(n){ G.chats=G.chats||{}; return G.chats[n]||(G.chats[n]=[]) }
 function bubbleHTML(m,name){ return `<div class="bub ${m.f==='me'?'me':'them'}">${esc(m.t)}<small>${esc(m.when||'')}</small></div>` }
 function chatWhen(){ return `${G.day}일째 ${isWeekend()?'(주말) ':''}${G.time==='낮'&&slotIdx()>=0?slotLabel():G.time}` }
 function chatPush(name,f,t){ const a=chatSt(name); G.chatSeq=(G.chatSeq||0)+1; a.push({f,t:String(t).slice(0,200),when:chatWhen(),n:G.chatSeq,who:name}); while(a.length>24) a.shift() }
-/* 상대가 먼저 만나자고 제안할 확률: 기본 20%에 호감 레벨당 +0.5%p(최대 35%). 플레이어가 만나자고 했거나 '제안' 주제의 먼저 온 문자는 항상 허용 */
-const CHAT_PROPOSE_P=0.2;
-function chatMayPropose(name,incomingTopic){
-  if(incomingTopic==='invite') return true;
+/* 약속 결정은 코드가 정해 AI에게 알림.
+   - 상대가 먼저 제안할 확률: 호감 레벨 0에서 5%, 레벨당 +0.8%p, 최대 45%. 먼저 온 「제안」 문자는 항상 허용
+   - 플레이어가 만나자고 했을 때 거절할 확률: 호감 레벨 0에서 50%, 레벨당 −0.8%p, 최소 5% */
+const CHAT_PROPOSE_BASE=0.05, CHAT_PROPOSE_STEP=0.008, CHAT_PROPOSE_MAX=0.45;
+const CHAT_REFUSE_BASE=0.5, CHAT_REFUSE_STEP=0.008, CHAT_REFUSE_MIN=0.05;
+const chatProposeP=n=>Math.min(CHAT_PROPOSE_MAX,CHAT_PROPOSE_BASE+CHAT_PROPOSE_STEP*relLv(n));
+const chatRefuseP=n=>Math.max(CHAT_REFUSE_MIN,CHAT_REFUSE_BASE-CHAT_REFUSE_STEP*relLv(n));
+function chatDecide(name,incomingTopic){
+  if(incomingTopic==='invite') return {propose:true,meet:null};
   const lastMe=[...chatSt(name)].reverse().find(m=>m.f==='me');
-  if(lastMe&&APPT_CUE.test(lastMe.t)) return true;
-  return Math.random()<Math.min(0.35,CHAT_PROPOSE_P+0.005*relLv(name));
+  if(lastMe&&APPT_CUE.test(lastMe.t)) return {propose:true,meet:Math.random()<chatRefuseP(name)?'refuse':'accept'};
+  return {propose:Math.random()<chatProposeP(name),meet:null};
 }
 function chatPrompt(name,incomingTopic,rumor){
+  const dec=chatPrompt.last=chatDecide(name,incomingTopic);
   const r=getRel(name), isY=name==='유민', lex=(G.lexicon||[]).find(e=>e.name===name);
   const hist=chatSt(name).slice(-8).map(m=>`${m.f==='me'?G.char.name:name}: ${m.t}`).join('\n')||'(첫 문자)';
   const inZone=!!(G.site||G.loc==='site'||G.loc==='shelter'), rs=phoneRestricted();
@@ -4349,7 +4355,7 @@ ${inZone?'플레이어는 구역 안이라 신호가 약해 문자가 끊기고 
 최근 문자:
 ${hist}
 ${incomingTopic?`${name}이(가) 플레이어에게 먼저 문자를 보낸다. 내용: ${top}.`:'플레이어의 마지막 문자에 대한 답장을 쓴다.'}
-규칙: ${chatMayPropose(name,incomingTopic)?'이번 답장에서는 자연스러우면 만나자고 먼저 제안해도 좋다(학교 안 장소와 때를 구체적으로, 급식실은 점심시간에만).':'이번 답장에는 만나자는 제안·약속을 넣지 않고 대화로 끝낸다.'} 급식실은 점심시간에만 열리니 다른 때에 급식실에서 밥을 먹거나 만나자고 하지 않는다. 학생·교직원 인물의 말투로 문자답게 1~2문장(40자 안팎). 숨겨진 진실을 직접 밝히지 않는다. 관계 단계가 연애 단계라면 설렘·다정한 말·데이트 제안은 가능하다. 새로운 사실을 만들 때는 사소한 것만.
+규칙: ${dec.meet==='refuse'?'[플레이어가 만나자고 했다 — 이번에는 사정이 있어 거절한다. 인물다운 말투로 짧게 이유를 대고, 다른 때를 약속으로 잡지는 않는다. appointment는 null]':dec.meet==='accept'?'[플레이어가 만나자고 했다 — 이번에는 수락한다. 학교 안 장소와 때를 구체적으로 정해 답한다(급식실은 점심시간에만)]':dec.propose?'이번 답장에서는 자연스러우면 만나자고 먼저 제안해도 좋다(학교 안 장소와 때를 구체적으로, 급식실은 점심시간에만).':'이번 답장에는 만나자는 제안·약속을 넣지 않고 대화로 끝낸다.'} 급식실은 점심시간에만 열리니 다른 때에 급식실에서 밥을 먹거나 만나자고 하지 않는다. 학생·교직원 인물의 말투로 문자답게 1~2문장(40자 안팎). 숨겨진 진실을 직접 밝히지 않는다. 관계 단계가 연애 단계라면 설렘·다정한 말·데이트 제안은 가능하다. 새로운 사실을 만들 때는 사소한 것만.
 플레이어가 먼저 만나자고 했거나 네가 한 제안을 플레이어가 받아들여 장소와 때가 정해졌을 때만 appointment에 {"place":"학교 안 장소·아지트·학원가 골목 중 하나","when":"방과 후|점심시간|쉬는 시간|저녁|내일 아침 등"}을 적는다(없으면 null). 
 JSON만: {"reply":"문자 내용","affinity":0 또는 1,"hint":"상대가 실제로 알려 주는 단서·소문이 있으면 한 문장, 없으면 빈 문자열","appointment":null}`;
 }
@@ -4364,6 +4370,7 @@ async function chatAI(name,incomingTopic,rumor){
 const ACCEPT_RX=/^\s*(응|네|넵|예|좋아|좋지|좋아요|오케이|ㅇㅋ|ok|그래|그러자|알겠|알았|갈게|간다|가자|콜|ㄱㄱ)/i;
 function chatAppt(name,msg,o){
   if(!G||!G.comp||!msg) return;
+  if(chatPrompt.last&&chatPrompt.last.meet==='refuse'){ addLog('sys',`😔 ${name}${josa(name,'은','는')} 지금은 어렵다고 합니다 (약속이 잡히지 않았습니다)`); return }
   const a=chatSt(name), prev=a.slice(0,-2).reverse().find(m=>m.f==='them');
   const asked=APPT_CUE.test(msg);
   const accepted=!asked&&prev&&ACCEPT_RX.test(msg)&&APPT_CUE.test(prev.t)&&APPT_TIME.test(prev.t);
@@ -4418,7 +4425,7 @@ async function sendChat(){
   }
   inp.value=''; chatPush(name,'me',msg); renderChat(name);
   const log=document.getElementById('chatLog'); log.insertAdjacentHTML('beforeend','<div class="bub them typing" id="chatTyping">…</div>'); log.scrollTop=log.scrollHeight;
-  _chatBusy=true;
+  _chatBusy=true; chatPrompt.last=null;
   const o=await chatAI(name,null,'');
   _chatBusy=false;
   chatPush(name,'them',o.reply);
