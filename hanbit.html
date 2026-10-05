@@ -4333,8 +4333,9 @@ function apptMissed(a){
 const LEAD_APPT_WAIT=40;   // 소문의 장소 앞 약속은 약속 때부터 이틀(40) 안에 도착하면 만남
 /* 소문의 장소 앞에서 만난 인물은 그 구역을 조사하는 동안 함께함 (유민은 기존 동행 시스템). 구역을 떠나면 헤어짐 */
 function guestHere(){ const g=G&&G.guest; return !!(g&&(G.loc==='site'||G.loc==='road')&&G.site&&G.site.name===g.zone) }
-function guestCheck(){ if(G&&G.guest&&!guestHere()&&G.loc!=='shelter'){ addLog('sys',`🤝 ${G.guest.name}${josa(G.guest.name,'과','와')} ${G.guest.zone} 조사를 마치고 헤어졌습니다.`); G.guest=null } }
-function partGuest(){ if(!G||!G.guest) return; const n=G.guest.name; G.guest=null; addLog('sys',`🤝 ${n}${josa(n,'과','와')} 헤어졌습니다.`); pend(` [동행 종료] 플레이어가 ${n}${josa(n,'과','와')} 헤어졌다. ${n}은(는) 이 구역에서 떠난다.`); save(); render() }
+function guestEnd(){ if(G&&G.guest){ const r=G.rel&&G.rel[G.guest.name]; if(r&&String(r.where).startsWith('lead:')){ r.where=null; r.whereKey=null } G.guest=null } }
+function guestCheck(){ if(G&&G.guest&&!guestHere()&&G.loc!=='shelter'){ addLog('sys',`🤝 ${G.guest.name}${josa(G.guest.name,'과','와')} ${G.guest.zone} 조사를 마치고 헤어졌습니다.`); guestEnd() } }
+function partGuest(){ if(!G||!G.guest) return; const n=G.guest.name; guestEnd(); addLog('sys',`🤝 ${n}${josa(n,'과','와')} 헤어졌습니다.`); pend(` [동행 종료] 플레이어가 ${n}${josa(n,'과','와')} 헤어졌다. ${n}은(는) 이 구역에서 떠난다.`); save(); render() }
 on('context',58,()=>{ guestCheck(); if(!guestHere()) return ''; const n=G.guest.name; return `\n[함께하는 인물: ${n}] 약속대로 입구에서 합류해 「${G.guest.zone}」을 함께 조사하는 중이다. 장면에 자연스럽게 함께 등장시키고(말·반응·행동), 호감 단계(${relLv(n)})에 맞는 태도를 지켜라. 플레이어 대신 판정을 해결하거나 전투를 끝내지 말고, 구역을 떠나면 헤어진 것으로 한다.` });
 function apptSync(){
   if(!G||!Array.isArray(G.appts)||!G.appts.length) return;
@@ -4347,7 +4348,7 @@ function apptSync(){
       if((G.loc==='site'||G.loc==='road')&&G.site&&G.site.name===a.where.slice(5)){   // 구역 안이나 그 입구 밖에 있으면 만남
         a.met=true; G._apptMeet={name:a.name,place:a.where.slice(5)};
         if(a.name==='유민'){ setYuminSpot(spotHere()); G._yuminHere=true; if(G.comp&&!G.comp.joined&&yuminLv()>=JOIN_LV){ joinYumin(); G._apptMeet.joined=true } }
-        else G.guest={name:a.name,zone:a.where.slice(5),day:G.day};
+        else{ G.guest={name:a.name,zone:a.where.slice(5),day:G.day}; const r=getRel(a.name); r.where=a.where; r.whereKey=yKey(); G._apptMeet.joined=true }   // 다른 인물도 유민처럼: 위치 갱신 + 동행 확정
         return false }
       if(o>a.ord+LEAD_APPT_WAIT){ apptMissed(a); return false }
       return true;
