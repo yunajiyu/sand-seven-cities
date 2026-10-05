@@ -5369,7 +5369,7 @@ async function chooseSocialActivity(id,choiceId){
  a.scenes.push(choice.text+' — '+result);const s=socialState();s.day.activity=true;s.history.push({day:G.day,name:a.name,kind:a.kind,result,aff:delta,where:a.where});
  s.plans.filter(p=>p.name===a.name&&p.where===a.where&&p.status==='met').forEach(p=>p.status='done');
  G.chronicle.push({day:G.day,text:`${a.name}${josa(a.name,'과','와')} ${a.kind==='date'?'데이트':'외출'}을 마쳤다 — ${result}`});
- recordDateProgress(a);addLog('fx',`${a.name} ${a.kind==='date'?'데이트':'외출'} 완료 · 호감 ${delta>=0?'+':''}${delta}`);save();
+ const closenessChange=recordDateProgress(a);if(typeof closenessChange==='number')a.dateFeeling=dateFeeling(closenessChange);addLog('fx',`${a.name} ${a.kind==='date'?'데이트':'외출'} 완료 · 호감 ${delta>=0?'+':''}${delta}`);save();
  if(a.kind==='date')await socialClosingScene(a);else render();return true;
 }
 function cancelSocialActivity(id,reason='플레이어가 활동을 중단했다'){
@@ -5395,7 +5395,10 @@ function recordDateProgress(a){
  if(a.kind!=='date'||a.status!=='done'||a.choices.length!==3)return;
  const p=romanceProgress(a.name);if(p.completed.includes(a.id))return;
  let score=0;for(let i=0;i<3;i++){const c=SOCIAL_PHASES[i].choices.find(c=>c.id===a.choices[i]?.id);if(!c||a.choices[i].phase!==i)return;score+=c.score}
- p.closeness=clamp(p.closeness+score,0,12);p.completed.push(a.id);
+ const before=p.closeness;p.closeness=clamp(before+score,0,12);p.completed.push(a.id);return p.closeness-before;
+}
+function dateFeeling(change){
+ return change>=2?'오늘 함께한 시간을 돌아보니, 서로의 마음이 한층 가까워진 것 같다.':change>0?'오늘은 상대와 조금 더 가까워진 것 같다.':change<0?'마음을 전하려 했지만, 오늘은 서로 조금 멀어진 듯한 느낌이 남는다.':'함께한 시간은 남았지만, 둘 사이의 거리에는 아직 큰 변화가 없는 것 같다.';
 }
 function romanceReady(name){
  if(!G||G.fight||G.relEvt||activeSocial()||!['campus','hood','home'].includes(G.loc)||!socialKnown(name)||!canMeetHere(name))return false;
@@ -5418,6 +5421,7 @@ async function socialClosingScene(a){
   const c=Array.isArray(result?.choices)&&result.choices.find(c=>c&&c.action_id===id&&typeof c.text==='string'&&c.text.trim());
   a.confessionChoice=c?fixCalling(stripMd(c.text.trim())).slice(0,180):`${a.name}에게 함께했던 시간이 특별했다며 좋아하는 마음을 전한다`;
  }
+ if(a.dateFeeling&&!a.scenes.includes(a.dateFeeling))a.scenes.push(a.dateFeeling);
  busy=false;sanitizeChoices();save();render();
 }
 on('choices',95,arr=>{
