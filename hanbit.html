@@ -7090,7 +7090,7 @@ function fixedHTML(){
     if(G.comp&&G.comp.joined) ac+=btn('talkYumin()','🎵 유민과 이야기');
   }
   for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }
-  ac+=inboxHTML()+btn('openPhone()','📱 휴대폰')+btn('openSleuth()','🧩 추리 도우미')+btn('openCanon()',`📌 확정 단서 (${(G.canon||[]).length})`);
+  ac+=inboxHTML()+btn('openPhone()','📱 휴대폰')+btn('openInv()',`🎒 소지품 (${(G.items||[]).length})`)+btn('openSleuth()','🧩 추리 도우미')+btn('openCanon()',`📌 확정 단서 (${(G.canon||[]).length})`);
   if(G.comp&&G.comp.joined) ac+=btn('partYumin()','🤝 유민과 헤어지기');   // 기능 모듈이 덧붙이는 버튼
   // 사건으로 생긴 버튼
   if(G.calmSrc&&!G.calmSrc.used) ac+=btn('fillCalmSrc()',`🫧 「${esc(G.calmSrc.name)}」에서 공포 가라앉히기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
