@@ -4187,7 +4187,7 @@ function setAppt(name,place,whenT,silent){
 }
 function apptNames(t){ return relList().filter(n=>n.length>=2&&t.includes(n)).slice(0,2) }
 /* 글에서 약속 찾기(AI 필드가 없을 때의 보조): 한 문장 안에 사람 이름 + 장소 + 만나자는 표현 + 때가 모두 있어야 함 */
-const APPT_CUE=/(보자|만나자|만나기로|만나요|만날까|만나러|기다릴게|기다릴 테니|모이자|모일게)/, APPT_TIME=/(방과\s*후|종례|점심|쉬는\s*시간|저녁|밤|아침|조례|내일|이따|나중에|수업\s*끝)/;
+const APPT_CUE=/(보자|만나자|만나기로|만나요|만날까|만나러|기다릴게|기다릴 테니|모이자|모일게|올래|오렴|오너라|오세요|와 줄래|와줄래|와 줘|와줘|와라|들러|찾아와|올라와|오도록)/, APPT_TIME=/(방과\s*후|종례|점심|쉬는\s*시간|저녁|밤|아침|조례|내일|이따|나중에|수업\s*끝)/;
 function apptParse(t,force){
   t=String(t||''); const out=[];
   const ss=t.split(/[.!?。\n]+|["”“]/).map(x=>x.trim()).filter(Boolean);
