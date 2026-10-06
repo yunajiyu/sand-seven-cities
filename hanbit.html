@@ -543,16 +543,16 @@ const FRAG_SKIP=0.35, FRAG_MAX_MISS=2;    // 새 구역에 기념 메달 조각�
 const ZONE_MAT_CAP=6;                     // 구역 한 곳에서 이야기로 얻는 돌·목재·천 합계 상한
 const ZONE_CASH_CAP=90;                   // 구역 한 곳에서 이야기로 얻는 캐시 합계 상한
 /* AI가 한 장면에 제안할 수 있는 변화 — 프롬프트·코드·가이드가 모두 이 표를 씀 */
-const FX_LIMIT={hp:[-6,4],calm:[-2,2],battery:[-2,2],torch:[-1,1],cash:[-30,40],demerit:[-2,3],access:[0,1]};
+const FX_LIMIT={hp:[-6,4],calm:[-1,2],battery:[-2,2],torch:[-1,1],cash:[-30,40],demerit:[-2,3],access:[0,1]};
 const FX_BUY_MAX=8;                       // 물건을 살 때만 공포·배터리·손전등 +8까지 (용량·소지금은 코드가 다시 자름)
 const FX_NAME={hp:'체력',calm:'공포',battery:'배터리',torch:'손전등',cash:'캐시',demerit:'벌점',access:'출입권한'};   // calm는 내부적으로 '진정 여력'이고, 화면과 AI에는 뒤집어 '공포'로 보임(공포 = 한도 − calm)
-function fxRangeText(){ return Object.entries(FX_LIMIT).map(([k,[a,b]])=>`${FX_NAME[k]} ${a}~+${b}`).join(', ') }   // 공포(calm)는 범위가 좌우 대칭이라 그대로 읽으면 됨
+function fxRangeText(){ return Object.entries(FX_LIMIT).filter(([k])=>k!=='torch').map(([k,[a,b]])=>`${FX_NAME[k]} ${k==='calm'?-b:a}~+${k==='calm'?-a:b}`).join(', ') }   // 공포는 내부 calm의 부호를 뒤집어 표시
 const GAME_TITLE='출석부에 없는 구역', GAME_TITLE_FULL='출석부에 없는 구역';
 const POINTS=6;
 /* ---------- 새 상태값: 공포 · 벌점 · 출입 권한 · 시간대 ---------- */
 const TIMES=['낮','방과 후','야간','새벽'];                  // 시간대 (낮 → 방과 후 → 야간 → 새벽 → 다음 날 낮)
 const TIME_ICON={'낮':'☀','방과 후':'🌆','야간':'🌙','새벽':'🌌'};
-const HOME_FEAR_RECOVER=4;                                      // 아지트에서 쉴 때 가라앉는 공포
+const HOME_FEAR_RECOVER=5;                                      // 아지트에서 쉴 때 가라앉는 공포
 const DEMERIT_WARN=10;                                         // 벌점이 이 값 이상이면 외출 금지 경고
 const ACCESS_MAX=3;                                            // 출입 권한 등급 1~3
 const FEAR_RED=0.6, FEAR_NOISE=0.85;                           // 공포 비율이 넘으면 화면이 붉어짐 · 노이즈
@@ -607,11 +607,11 @@ const MATS=[{k:'metal',n:'철제 부품',i:'🔩'},{k:'ply',n:'합판',i:'🪵'}
 const FAC=[
   {id:'clubroom',n:'폐 동아리실',cost:{cash:60},desc:'중앙 캠퍼스 지구 외곽 저수지 둑길 옆, 아무도 쓰지 않는 폐 동아리실. 아지트에서 무료로 쉴 수 있습니다.'},
   {id:'tea',n:'티 코너',req:'clubroom',cost:{metal:4,cash:15},desc:'아지트에서 따뜻한 차로 공포를 무료로 가라앉힘 (하루 3회)'},
-  {id:'locker',n:'사물함',req:'clubroom',cost:{metal:3,ply:2},desc:'배터리 15·진정 음료 10·손전등 6까지 보관하고 꺼내 쓸 수 있음'},
+  {id:'locker',n:'사물함',req:'clubroom',cost:{metal:3,ply:2},desc:'배터리 15·진정 음료 10까지 보관하고 꺼내 쓸 수 있음'},
   {id:'bikerack',n:'자전거 보관대',req:'clubroom',cost:{metal:2,ply:3,cash:25},desc:'탈것을 들일 수 있음 · 상점가에서 자전거와 전동 스쿠터를 살 수 있게 됩니다'},
   {id:'tea2',n:'전기포트 세트',req:'tea',cost:{metal:6,ply:2,cash:40},desc:'티 코너 이용 횟수 하루 3회 → 6회'},
-  {id:'locker2',n:'큰 사물함',req:'locker',cost:{metal:5,ply:4,cash:40},desc:'사물함 용량 확대 (배터리 25·진정 음료 16·손전등 10)'},
-  {id:'workbench',n:'작업대',req:'clubroom',cost:{ply:3,wire:2,cash:20},desc:'조사 외출 출발 때 손전등 +1 · 유실물 감정 (등급별 캐시 15·25·45·80)'},
+  {id:'locker2',n:'큰 사물함',req:'locker',cost:{metal:5,ply:4,cash:40},desc:'사물함 용량 확대 (배터리 25·진정 음료 16)'},
+  {id:'workbench',n:'작업대',req:'clubroom',cost:{ply:3,wire:2,cash:20},desc:'조사 외출 출발 때 배터리 +1칸 · 유실물 감정 (등급별 캐시 15·25·45·80)'},
   {id:'charger',n:'충전 거치대',req:'tea',cost:{ply:2,wire:1,cash:15},desc:'아지트에서 낮에도 충전 가능 (+50%, 하루 2번, 시간 한 칸)'},
   {id:'sofa',n:'휴게 소파',req:'clubroom',cost:{ply:3,wire:3,cash:30},desc:'유민이 머물 수 있는 자리. 유민이 소파에 있을 때 아지트에서 함께 쉬면 호감이 오름'},
   {id:'lab',n:'메달 연구실',req:'workbench',cost:{keepsake:2,ply:2},desc:'구역에서 기념 메달 조각 쪽 통로에 ✧ 표시 · 메달 연구로 단서 얻기'},
@@ -621,8 +621,9 @@ const LOCKER_CAPS={base:{battery:15,calm:10,torch:6},big:{battery:25,calm:16,tor
 /* ---------- 상점·가격 ---------- */
 const PRICE_HOOD={calm:2,battery:3,torch:5};       // 중앙 캠퍼스 지구·아지트
 const PRICE_ROAD={calm:4,battery:4,torch:7};       // 한빛시 뒷길·임시 쉼터·구역 (이동 행상)
-const SHOP_GOODS=[['따뜻한 차 (공포 −1)','calm',2],['초코바 (먹으면 공포 누적 2회 늦춤)','i_초코바',4],['캐러멜 사탕 (공포 누적 1회 늦춤)','i_캐러멜 사탕',2],['에너지 젤리 (공포 누적 3회 늦춤)','i_에너지 젤리',6],['보조배터리 충전 (최대 1칸 회복)','battery',3],['손전등 건전지','torch',5],['철제 부품','m_metal',10],['합판','m_ply',6],['전선 한 롤','m_wire',6],['기념 팔찌 (선물용)','i_기념 팔찌',40]];
-const CAP_BASE=6, CAP_STEP=2;
+const SHOP_GOODS=[['따뜻한 차 (공포 −1)','calm',2],['초코바 (먹으면 공포 누적 2회 늦춤)','i_초코바',4],['캐러멜 사탕 (공포 누적 1회 늦춤)','i_캐러멜 사탕',2],['에너지 젤리 (공포 누적 3회 늦춤)','i_에너지 젤리',6],['보조배터리 충전 (최대 1칸 회복)','battery',3],['철제 부품','m_metal',10],['합판','m_ply',6],['전선 한 롤','m_wire',6],['기념 팔찌 (선물용)','i_기념 팔찌',40]];
+const CAP_BASE=6, FEAR_BASE=10, CAP_STEP=2;
+const PHONE_LIGHT_DRAIN=1, TUNNEL_LIGHT_DRAIN=2, DARK_FEAR_ACTIONS=4;
 const CAP_PRICE={w:[30,60,100,150],f:[30,60,100,150],t:[30,60,100]};
 const CAP_NAME={w:'멘탈 한도(공포 여유)',f:'보조배터리 팩',t:'건전지 케이스'};
 const CAP_ICON={w:'🫧',f:'🔋',t:'🔦'};
@@ -915,11 +916,24 @@ function migrate(){
   if(!G._capInit){   // 용량 제도 이전 저장본: 갖고 있는 양에 맞춰 용량 단계를 한 번 올림
     G._capInit=true;
     const c=G.cap;
-    if(G.calm>CAP_BASE+rideCap()) c.w=Math.max(c.w,Math.ceil((G.calm-CAP_BASE-rideCap())/CAP_STEP));
+    const oldFearBase=G._fearBalanceVersion===1?FEAR_BASE:CAP_BASE;
+    if(G.calm>oldFearBase+rideCap())c.w=Math.max(c.w,Math.ceil((G.calm-oldFearBase-rideCap())/CAP_STEP));
     if(G.battery>CAP_BASE+rideCap()) c.f=Math.max(c.f,Math.ceil((G.battery-CAP_BASE-rideCap())/CAP_STEP));
     if(G.torch>CAP_BASE) c.t=Math.max(c.t,Math.ceil((G.torch-CAP_BASE)/CAP_STEP));
   }
   if(!Number.isFinite(G._batteryResidueCap)||G._batteryResidueCap<=0)G._batteryResidueCap=capF();
+  migratePhoneLight();
+}
+function migratePhoneLight(){
+  if(G._fearBalanceVersion!==1){G.calm=Math.max(0,(Number(G.calm)||0)+FEAR_BASE-CAP_BASE);G._fearBalanceVersion=1}
+  if(G._phoneLightVersion===1)return;
+  const carried=Math.max(0,Math.floor(Number(G.torch)||0)), stock=G.home.stock;
+  G.reservePacks=Math.max(0,Math.floor(Number(G.reservePacks)||0))+carried;
+  if(stock){stock.battery=(Number(stock.battery)||0)+Math.max(0,Math.floor(Number(stock.torch)||0));delete stock.torch}
+  const lv=clamp(Math.floor(Number(G.cap.t)||0),0,CAP_PRICE.t.length);
+  const refund=CAP_PRICE.t.slice(0,lv).reduce((n,x)=>n+x,0);
+  G.cash+=refund;G.cap.t=0;G.torch=0;G._phoneLightVersion=1;
+  if(carried||refund)addLog('sys',`📱 조명을 휴대폰으로 통합했습니다. 기존 손전등 보급 ${carried}개는 보조배터리로 이전${refund?`, 건전지 케이스 확장비 캐시 ${refund} 환불`:''}.`);
 }
 function migrateRelationships(){
   const old=G._relVersion!==2;
@@ -1264,16 +1278,16 @@ const TURN_SCHEMA=`출력 JSON 형식:
  "narration": "서술 (문단은 \\n\\n로 구분)",
  "choices": [{"text":"다음 행동 15자 안팎(최대 20자)","action_id":"[실행 가능한 행동]의 ID (일반 시도는 story)","type":"move|investigate|talk|story|check|rest|shelter|return|exit|trade","skill":"str|wis|cha|sur (check일 때만)","dc":"easy|normal|hard (check일 때만)","to":"spot:enter일 때 새 임시장소 이름, 옛 이동 선택지 호환용 목적지 이름"}],
  "위치": "", "칸종료": false, "약속": null, "단서": "", "event": null,
- "effects": {"체력":0,"공포":0,"배터리":0,"손전등":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"안심접촉":null,"메달조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[],"해결단서":[],"사건진행":[]},
+ "effects": {"체력":0,"공포":0,"배터리":0,"캐시":0,"벌점":0,"출입권한":0,"유민호감":0,"안심접촉":null,"메달조각":false,"companion_join":false,"relations":[],"relation_event":null,"materials":{"metal":0,"ply":0,"wire":0,"keepsake":0},"items_add":[],"items_remove":[],"사전추가":[],"조사보드":[],"떡밥장부":[],"해결단서":[],"사건진행":[]},
  "chronicle": "이번 장면이 이야기상 중요하면 한 줄 요약, 아니면 빈 문자열"
 }
-[effects] 한 장면 범위: ${fxRangeText()}(넘으면 코드가 자름). 공포: 괴이·교칙 위반·어둠·고립 +1~2, 진정 장소·동행·따뜻한 음료 −1~−2(서술의 공포 묘사와 맞춤). 배터리·손전등은 물건을 살 때만 산 만큼, 공포는 진정 음료를 샀을 때만 그만큼 음수.
+[effects] 한 장면 범위: ${fxRangeText()}(넘으면 코드가 자름). 공포: 실제 괴이·교칙 위반·고립 사건 +1까지. 조명 없는 어둠의 기본 공포는 코드가 자동 누적하므로 별도 효과 금지, 진정 장소·동행·따뜻한 음료 −1~−2(서술의 공포 묘사와 맞춤). 배터리는 물건을 살 때만 산 만큼, 공포는 진정 음료를 샀을 때만 그만큼 음수.
 벌점: 교칙 위반이 실제로 적발됐을 때만 +1~+3(점호 누락·무단 외출은 코드가 처리하니 중복 금지). 출입권한: 출입 카드·권한 상향을 분명히 얻었을 때만 +1(1~3등급).
 캐시는 절제: 작은 발견 +5~15, 큰 발견 +20~40, 구역 한 곳 합계 ${ZONE_CASH_CAP} 이하. 재물을 얻은 장면이 아니면 0.
-배터리·손전등·캐시·공포는 수치로만(보조배터리·건전지·따뜻한 차 같은 소모품도 items_add 금지). items_add는 {"name":"물건 이름","key":true 또는 false}: 단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건은 key:true(팔 수 없음), 값나가는 잡동사니는 false. 물건을 쓰거나 바꾸거나 잃거나 쓰면 사라지는 물건(나사·못·테이프·붕대)을 쓰면 그 장면의 items_remove에 소지품에 적힌 이름 그대로 넣는다. 실제로 얻거나 잃을 때만.
+배터리·캐시·공포는 수치로만(보조배터리·따뜻한 차 같은 소모품도 items_add 금지). items_add는 {"name":"물건 이름","key":true 또는 false}: 단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건은 key:true(팔 수 없음), 값나가는 잡동사니는 false. 물건을 쓰거나 바꾸거나 잃거나 쓰면 사라지는 물건(나사·못·테이프·붕대)을 쓰면 그 장면의 items_remove에 소지품에 적힌 이름 그대로 넣는다. 실제로 얻거나 잃을 때만.
 companion_join: 유민이 장면에 있고 함께 가기로 분명히 정해진 순간에만 true. 유민호감: 진심·도움·특별한 순간에만 양수, 평범한 교류는 0(-5~+5; 코드가 확률·하루 횟수로 걸러 반영).
 relations: 실제로 대화·교류한 인물(유민 제외)마다 {"name":"사전과 같은 이름","delta":호감 변화}, 없으면 []. 스쳐 가는 대화 0, 즐거운 대화 1, 도움·진심 2~3, 큰 은혜 4~5, 무례 -2~-5. 대화가 통하는 사람만(괴이·동물·사물 제외).
-[안심접촉] 손잡기·어깨 토닥임으로 서로 안심시키는 실제 접촉이 성립했을 때 effects.안심접촉에 {"name":"상대 이름","kind":"hand_hold|shoulder_touch|hug","accepted":true}, 아니면 null. 손잡기·토닥임은 친구 이상, 짧은 포옹은 확인된 연인만. 상대는 실제 곁에 있어야 하고 명시적으로 수락해야 한다. 제안·거절·통화·문자·상상은 접촉 성립이 아니다. 코드가 공포 진정 1을 적용하므로 이 접촉만으로 effects.공포를 음수로 추가하지 않는다. 하루 전체 2회, 상대별 1회이며 반복은 묘사만 한다. 체력·배터리·손전등은 회복하지 않는다. 관계 단계는 접촉만으로 바뀌지 않는다.
+[안심접촉] 손잡기·어깨 토닥임으로 서로 안심시키는 실제 접촉이 성립했을 때 effects.안심접촉에 {"name":"상대 이름","kind":"hand_hold|shoulder_touch|hug","accepted":true}, 아니면 null. 손잡기·토닥임은 친구 이상, 짧은 포옹은 확인된 연인만. 상대는 실제 곁에 있어야 하고 명시적으로 수락해야 한다. 제안·거절·통화·문자·상상은 접촉 성립이 아니다. 코드가 공포 진정 1을 적용하므로 이 접촉만으로 effects.공포를 음수로 추가하지 않는다. 하루 전체 2회, 상대별 1회이며 반복은 묘사만 한다. 체력·배터리는 회복하지 않는다. 관계 단계는 접촉만으로 바뀌지 않는다.
 relation_event: 진행 중인 인연 이벤트가 있을 때만 {"name":"..","result":"success|fail|pending"}, 아니면 null.
 yumin_arc: [유민의 사연] 장면 중일 때만 effects 안에 {"result":"success|fail|pending","canon":"새로 드러난 유민의 과거 사실 1~2문장(없으면 빈 문자열)"}.
 materials: 구역에서 실제로 쓸 만한 철제 부품·합판·전선·유실물을 챙겼을 때만(각 0~2, 유실물 0~1). 메달조각: 조각을 손에 넣는 장면에서만 true(코드가 확인).
@@ -1331,7 +1345,7 @@ function stateFacts(){
   const c=G.char;
   const o={
     캐릭터:{이름:c.name,나이:c.age||17,신분:c.origin,전학이유:c.reason||c.reasonAI||'(미정 — AI가 정해 서서히 드러낼 것)',능력치:{체력:c.stats.str,지혜:c.stats.wis,매력:c.stats.cha,생존술:c.stats.sur},특성:c.traits,배경:c.bio||'(없음)'},
-    상태:{체력:`${G.hp}/${G.maxhp}`,공포:`${fearNow()}/${fearMax()}`,배터리:`${batteryPct()}%`,손전등:`${G.torch}/${capT()}`,캐시:G.cash,벌점:`${G.demerit||0}/${DEMERIT_WARN}`,출입권한:`${G.access||1}/${ACCESS_MAX}등급`,소지품:G.items,메달조각:`${G.fragments}/${FRAG_GOAL}`},
+    상태:{체력:`${G.hp}/${G.maxhp}`,공포:`${fearNow()}/${fearMax()}`,배터리:`${batteryPct()}%`,조명:lightStatus(),캐시:G.cash,벌점:`${G.demerit||0}/${DEMERIT_WARN}`,출입권한:`${G.access||1}/${ACCESS_MAX}등급`,소지품:G.items,메달조각:`${G.fragments}/${FRAG_GOAL}`},
     날짜:`${G.day}일째(${dowName(G.day)}요일${dowIdx(G.day)>=5?' 주말':''}) ${G.time}`,
     알려진지명:MAP_PLACES.filter(p=>p.far&&G.discovered.includes(p.id)).map(p=>`${p.n}(소문으로만 아는 곁가지 구역)`).join(' / ')||'없음',
     아지트:has('clubroom')?`${G.home.name||'폐 동아리실'} — 시설: ${FAC.filter(f=>has(f.id)).map(f=>f.n).join(', ')}`:'없음',
@@ -1354,9 +1368,10 @@ function sceneContext(){
   else{
     const d=G.site, r=curRoom();
     const exits=r.exits.map(id=>(d.rooms.find(x=>x.id===id)||{}).name).join(', ');
-    s=`현재 위치: 구역 「${d.name}」 (주제: ${d.mystery?(mysteryPlan(d)?.question||'사건 준비 중'):d.theme}) / 구역 내부 공간: ${r.name} (깊이 ${d.depth}, 위험도 ${r.danger}/3, 조명: ${ambientLight()?'주변 빛 있음':G.torch>0?'손전등 사용':hasTrait('밤눈')?'밤눈으로 관찰':'어둠'})\n공간의 공개 묘사: ${d.mystery?(mysteryPlan(d)?.room_views.find(x=>x.room===r.id)?.text||'사건 준비 중 — 숨은 정보를 묘사하지 않는다'):r.desc}\n연결된 공간: ${exits}`;
+    s=`현재 위치: 구역 「${d.name}」 (주제: ${d.mystery?(mysteryPlan(d)?.question||'사건 준비 중'):d.theme}) / 구역 내부 공간: ${r.name} (깊이 ${d.depth}, 위험도 ${r.danger}/3, 조명: ${lightStatus()})\n공간의 공개 묘사: ${d.mystery?(mysteryPlan(d)?.room_views.find(x=>x.room===r.id)?.text||'사건 준비 중 — 숨은 정보를 묘사하지 않는다'):r.desc}\n연결된 공간: ${exits}`;
     if(r.fragment&&!r.fragTaken) s+=`\n[비밀] 이 공간에는 기념 메달 조각이 숨어 있다. 플레이어가 주의 깊게 조사하거나 장애물(교칙, 수수께끼, 괴이)을 넘기면 발견하게 하고, 그때 effects의 메달조각을 true로 하라. 쉽게 주지는 말 것.`;
-    if(needsTorch()&&G.torch<=0) s+=hasTrait('밤눈')?'\n손전등이 다 떨어졌지만 플레이어는 밤눈이 밝아 희미하게나마 볼 수 있다.':'\n[어둠] 손전등이 꺼져 거의 아무것도 보이지 않는다(휴대폰 화면 불빛만 겨우). 손으로 더듬어 움직인다. 이 상태에서는 단서나 기념 메달 조각을 찾아내지 못한다(메달조각은 false). 빛을 구하는 선택지를 하나 넣어라.';
+    if(inDark())s+='\n[어둠] 휴대폰이 방전되었거나 압수되어 조명을 쓸 수 없다. 새 단서·메달 발견은 불가. 어둠 자체의 공포는 코드가 누적하므로 effects 공포로 중복시키지 말고 복귀·충전·보조배터리 사용을 안내한다.';
+    else if(phoneLightOn())s+='\n[휴대폰 자동 조명] 휴대폰 조명으로 관찰한다. 조명 전력은 코드가 이미 소모했으므로 effects 배터리는 0. 손전등 보급·건전지를 만들지 않는다.';
   }
   for(const h of HOOKS.context){ try{ const add=h.fn(); if(add) s+=add }catch(e){ console.warn('[context]',e) } }
   return s;
@@ -1532,7 +1547,7 @@ function fallbackTurn(action){
     home:{lines:['폐 동아리실 창밖으로 저수지의 물빛이 흔들린다. 곰팡이와 오래된 종이 냄새에 돌아올 곳의 안도감이 섞여 있다.','복도 끝에서 수도꼭지 떨어지는 소리가 들린다. 이곳에서는 잠시 숨을 돌려도 좋다.'],choices:['아지트 주변을 둘러본다','잠시 쉬며 생각을 정리한다']},
     shelter:{lines:['랜턴 불빛이 낮게 떨린다. 불빛 너머 어둠 속에서 무언가 바닥을 스치는 소리가 난다.','벽에 기대어 앉자 하루의 피로가 천천히 가라앉는다. 멀리서 환풍기 소리만 들린다.'],choices:['랜턴 곁에서 쉬며 상황을 정리한다','장비를 점검한다','주변 소리에 귀를 기울인다']},
     road:{lines:['깜빡이는 가로등 아래로 네 그림자가 길게 늘어진다. 발소리가 어딘가 한 박자 늦게 따라온다.','저 멀리 폐건물의 창문이 어둠 속에서 하얗게 번득인다.'],choices:['주변 골목을 살핀다','잠시 쉬며 마음을 가라앉힌다','방향을 가늠해 본다']},
-    site:{lines:['손전등 불빛이 흔들리며 벽의 낙서가 살아 움직이는 듯 보인다. 천장에서 물방울이 느리게 떨어진다.','어디선가 끊긴 교내 방송 같은 잡음이 지나간다. 이 구역은 아직 무언가를 숨기고 있다.','발밑의 타일이 살짝 꺼진다. 너는 숨을 멈추고 주위를 살핀다.'],choices:['주변을 자세히 조사한다','벽의 글씨를 읽어본다','조용히 귀를 기울인다']},
+    site:{lines:['휴대폰 조명 빛이 흔들리며 벽의 낙서가 살아 움직이는 듯 보인다. 천장에서 물방울이 느리게 떨어진다.','어디선가 끊긴 교내 방송 같은 잡음이 지나간다. 이 구역은 아직 무언가를 숨기고 있다.','발밑의 타일이 살짝 꺼진다. 너는 숨을 멈추고 주위를 살핀다.'],choices:['주변을 자세히 조사한다','벽의 글씨를 읽어본다','조용히 귀를 기울인다']},
   };
   const T=SET_[L]||SET_.campus;
   const effects={}, r=curRoom();
@@ -1544,7 +1559,7 @@ function fallbackTurn(action){
   return {narration,choices:T.choices.slice(),effects,chronicle:''};
 }
 
-/* AI가 새 항목명(한글 키)으로 준 효과를 내부 키로 옮김: 체력·공포·배터리·손전등·캐시·벌점·출입권한·유민호감·메달조각·사전추가·조사보드·떡밥장부 */
+/* AI가 새 항목명(한글 키)으로 준 효과를 내부 키로 옮김: 체력·공포·배터리·캐시·벌점·출입권한·유민호감·메달조각·사전추가·조사보드·떡밥장부 */
 function koEffects(e){
   const m={체력:'hp',배터리:'battery',손전등:'torch',캐시:'cash',벌점:'demerit',출입권한:'access',유민호감:'affinity',메달조각:'fragment',교표조각:'fragment',사전추가:'lexAdd',조사보드:'board',떡밥장부:'ledgerAdd',해결단서:'threadsDone',사건진행:'caseUpdates',안심접촉:'comfortContact'};
   for(const k in m){ if(e[k]!==undefined){ if(e[m[k]]===undefined) e[m[k]]=e[k]; delete e[k] } }
@@ -1687,7 +1702,7 @@ function finishAttendance(){
 function tick(soft,opt={}){
   if(G.site?.intro) opt={...opt,resources:false};
   syncSchedule();
-  if(opt.resources!==false)useLight();
+  if(opt.resources!==false&&!opt.lightHandled)useLight();
   if(soft){
     const key=`${G.day}:${G.site?G.site.name:G.loc}`;
     if(G._softContext!==key){ G._softContext=key; G._softN=0 }
@@ -1705,7 +1720,7 @@ function tick(soft,opt={}){
     if(G.steps%MOVE_STEPS.battery===0){
       if(G._fCredit>0) G._fCredit--;
       else if(G.battery>0) textDrain(1);   // 걸음으로 닳는 배터리도 1%씩
-      else { addLog('fx','📱 배터리가 방전되어 문자·전화를 사용할 수 없습니다. 조명은 현재 공간과 손전등 상태를 따릅니다.') }
+      else { addLog('fx','📱 배터리가 방전되어 문자·전화를 사용할 수 없습니다. 어두운 공간에서는 휴대폰 조명도 꺼집니다.') }
     }
   }
   // 낮·밤은 따로 센다: 쉬거나 임시 쉼터하면 이 카운터가 0부터 다시 시작 (일어나자마자 밤이 되지 않게)
@@ -2303,8 +2318,8 @@ function checkBonus(skill,text){
   if(hasTrait('싸움 경험')&&skill==='str'&&/(싸|공격|베|휘두|막아|맞서|찌르|때리|제압)/.test(t)) add(2,'싸움 경험');
   if(hasTrait('동물 친화')&&/(전동 스쿠터|자전거|동물|짐승|말을|가축)/.test(t)) add(2,'동물 친화');
   if(hasTrait('지독한 호기심')&&skill==='wis') add(1,'지독한 호기심');
-  if(hasTrait('밤눈')&&skill==='sur'&&(isDarkTime()||(G.loc==='site'&&G.torch<=0))) add(1,'밤눈');
-  if(inDark()&&skill!=='cha') add(-2,'손전등 없음');
+  if(hasTrait('밤눈')&&skill==='sur'&&(isDarkTime()||(G.loc==='site'&&!ambientLight()))) add(1,'밤눈');
+  if(inDark()&&skill!=='cha') add(-2,'불빛 없음');
   if(G.hp<=Math.ceil(G.maxhp*0.3)) add(-1,'부상');
   try{ branchBonus(skill,t,add) }catch(e){}
   return {b,parts};
@@ -2385,7 +2400,7 @@ on('facts',10,(o,rules)=>{
   o.상태.공포상태=`${n.wl} (공포 ${fearNow()}/${fearMax()})`;
   o.상태.배터리상태=`${n.fl} (배터리 ${batteryPct()}%)`;
   rules.push(`공포는 이동하며 자동으로 쌓이고 배터리는 자동으로 닳는다. 공포 여유(한계−현재)가 2 이상이면 심한 공포 증상(떨림·식은땀·호흡 곤란)을 쓰지 말 것(여유가 1이면 '한계에 가까워진다'까지). 공포가 한계에 닿았을 때만 공황 증상을 묘사한다. 배터리도 같다: 0일 때만 방전·연락 두절을 묘사한다.`);
-  rules.push(`휴대 용량은 공포 한계 ${capW()}, 보조배터리 팩 ${capF()}, 건전지 ${capT()}이다. 용량을 넘겨 얻는 서술은 하지 말고, '가득 채운다'는 용량까지만 채우는 것이다(effects 수치도 용량 이내).`);
+  rules.push(`휴대 용량은 공포 한계 ${capW()}, 보조배터리 팩 ${capF()} (조명은 휴대폰에 통합됨)이다. 용량을 넘겨 얻는 서술은 하지 말고, '가득 채운다'는 용량까지만 채우는 것이다(effects 수치도 용량 이내).`);
   if(isHood()) rules.push('중앙 캠퍼스 지구·다른 지구·아지트에서는 공포가 쌓이지 않고 배터리도 닳지 않는다(충전기와 사람이 가까이 있다).');
   if((G.demerit||0)>=DEMERIT_WARN) rules.push(`[벌점 ${G.demerit}점 — 외출 금지 경고] 담임과 규율부가 플레이어를 주시한다. 외출·무단 이탈은 더 크게 적발되고 감시가 따라붙는 서술로 반영하라(조사 자체를 막지는 말 것).`);
   rules.push(`[출입 권한 ${G.access||1}등급] 이보다 높은 등급이 필요한 문·구역은 열리지 않는다(서술로 처리하고, 올릴 방법을 단서로 흘릴 것).`);
@@ -2410,7 +2425,7 @@ on('effects',10,(e,{T})=>{
   if(f.parting){ e.affinity=0; e.relations=[]; e.relation_event=null; e.companion_join=false }
   const ev=T.res&&T.res.event;
   if(ev&&ev.type==='calm_source'&&+e.calm>0) e.calm=0;
-  if(ev&&ev.type==='merchant'){ ['calm','battery','torch'].forEach(k=>{ if(+e[k]>0) e[k]=0 }); if(+e.cash<0) e.cash=0 }
+  if(ev&&ev.type==='merchant'){ ['calm','battery'].forEach(k=>{ if(+e[k]>0) e[k]=0 }); if(+e.cash<0) e.cash=0 }
 });
 /* 19: 실제 곁에 있는 상대의 수락된 비성적 접촉은 진정 근거. 하루 총 2회, 상대별 1회. */
 const CONTACT_CALM_DAILY=2;
@@ -2442,7 +2457,7 @@ on('facts',86,(o,rules)=>{
   const st=contactCalmState();
   o.안심접촉=`손잡기·어깨 토닥임은 친구 이상, 짧은 포옹은 확인된 연인과 가능. 실제 이곳에 있고 상대가 수락해야 공포 진정 1. 오늘 ${st.total}/${CONTACT_CALM_DAILY}회 사용, 이미 회복한 상대: ${st.used.join('·')||'없음'}. 반복 접촉은 묘사만 하고 회복하지 않는다.`;
 });
-on('effects',-5,(e,{T})=>{ if(T.flags.noMoney)e.cash=0; if(T.flags.codeResources){ ['hp','calm','battery','torch','cash','demerit'].forEach(k=>e[k]=0); e.items_add=[];e.items_remove=[];e.materials={};e.fragment=false;e.comfortContact=null } });
+on('effects',-5,(e,{T})=>{ e.torch=0;if(needsPhoneLight()&&+e.battery<0)e.battery=0;if(inDark()&&+e.calm<0)e.calm=0; if(T.flags.noMoney)e.cash=0; if(T.flags.codeResources){ ['hp','calm','battery','torch','cash','demerit'].forEach(k=>e[k]=0); e.items_add=[];e.items_remove=[];e.materials={};e.fragment=false;e.comfortContact=null } });
 /* 20: 한빛시에서 근거 없는 회복·보급 차단, 구역 한 곳 캐시 상한 90 */
 on('effects',20,(e,{T})=>{
   if(!isWild()) return;
@@ -2487,12 +2502,12 @@ on('effects',30,(e,{T})=>{
     });
   }
 });
-/* 40: 진정 음료·배터리·손전등 구매는 게임 정가로 (구역 밖) */
+/* 40: 진정 음료·배터리 구매는 게임 정가로 (구역 밖) */
 on('effects',40,(e,ctx)=>{
   if(G.loc==='site'||!(+e.cash<0||isBuyText(lastAction()))) return;
   const U=k=>priceHere(k);
   const gains={};
-  ['calm','battery','torch'].forEach(k=>{ const v=Math.round(+e[k]||0); if(v>0) gains[k]=v });
+  ['calm','battery'].forEach(k=>{ const v=Math.round(+e[k]||0); if(v>0) gains[k]=v });
   if(!Object.keys(gains).length) return;
   let budget=G.cash, cost=0; const got={};
   Object.keys(gains).forEach(k=>{
@@ -2541,7 +2556,7 @@ on('effects',70,(e,ctx)=>{
     e.items_add=keep;
   }
   const removed=new Set((Array.isArray(e.items_remove)?e.items_remove:[]).map(String));
-  ['calm','battery','torch'].forEach(k=>{
+  ['calm','battery'].forEach(k=>{
     let gain=Math.max(0,Math.round(+e[k]||0));
     if(!gain||!CONS_USE_RE.test(ctx.T.action||'')) return;
     for(let i=0;i<G.items.length&&gain>0;i++){
@@ -2582,7 +2597,7 @@ on('applied',40,(e,{snap})=>{   // 한빛시 뒷길·임시 쉼터의 우연한 
 });
 on('applied',50,(e,{snap})=>{   // 휴대 용량: 넘친 만큼 버리고, 캐시를 냈으면 그만큼 환불
   let req=0, over=0;
-  ['calm','battery','torch'].forEach(k=>{ const d=G[k]-snap[k]; if(d>0){ req+=d; over+=Math.max(0,G[k]-Math.max(capOf(k),snap[k])) } });
+  ['calm','battery'].forEach(k=>{ const d=G[k]-snap[k]; if(d>0){ req+=d; over+=Math.max(0,G[k]-Math.max(capOf(k),snap[k])) } });
   const spent=snap.cash-G.cash;
   if(over>0&&req>0&&spent>0){ const ref=Math.min(spent,Math.floor(spent*over/req)); if(ref>0){ G.cash+=ref; addLog('fx',`💳 담지 못한 만큼 환불 +${ref}`) } }
   clampSupplies(snap);
@@ -2596,19 +2611,19 @@ on('applied',70,(e,ctx)=>{
 });
 on('facts',60,(o,rules)=>{
   const FULLN={calm:'공포 진정(공포가 이미 0)',battery:'배터리(이미 가득)',torch:'손전등 건전지(이미 가득)'};
-  const full=['calm','battery','torch'].filter(k=>supplyNeed(k)<=0).map(k=>FULLN[k]);
-  rules.push(`진정 음료·배터리·손전등 구매 가격은 게임이 개당 정가로 자동 결제(지금 이곳: 진정 음료${priceHere('calm')}·배터리${priceHere('battery')}·손전등${priceHere('torch')} / 중앙 캠퍼스 지구·아지트: ${PRICE_HOOD.calm}·${PRICE_HOOD.battery}·${PRICE_HOOD.torch} / 뒷길 행상·임시 쉼터: ${PRICE_ROAD.calm}·${PRICE_ROAD.battery}·${PRICE_ROAD.torch})하므로 effects의 캐시는 0으로 두고, 산 만큼만 effects의 공포(진정 음료는 음수)/배터리/손전등에 넣어라(용량 이내).`+(full.length?` 지금 ${full.join('·')} 상태이니 그것을 더 사거나 채우는 선택지·서술을 만들지 말 것.`:''));
+  const full=['calm','battery'].filter(k=>supplyNeed(k)<=0).map(k=>FULLN[k]);
+  rules.push(`진정 음료·배터리 구매 가격은 게임이 개당 정가로 자동 결제(지금 이곳: 진정 음료${priceHere('calm')}·배터리${priceHere('battery')} / 중앙 캠퍼스 지구·아지트: ${PRICE_HOOD.calm}·${PRICE_HOOD.battery} / 뒷길 행상·임시 쉼터: ${PRICE_ROAD.calm}·${PRICE_ROAD.battery}·${PRICE_ROAD.torch})하므로 effects의 캐시는 0으로 두고, 산 만큼만 effects의 공포(진정 음료는 음수)/배터리에 넣어라(용량 이내).`+(full.length?` 지금 ${full.join('·')} 상태이니 그것을 더 사거나 채우는 선택지·서술을 만들지 말 것.`:''));
   rules.push(`[거래] 소지금(${G.cash})을 넘는 구매·지불 서술은 성사시키지 말고(돈이 모자란다고 하거나 흥정만), 실제로 지불한 금액을 effects의 캐시에 음수로 정확히 쓴다. [탈것·동물] 전동 스쿠터·자전거·동물 친구는 서술로 얻거나 잃게 하지 말고 상점가와 입양 기능으로만 다룬다(소문·구경은 가능). [체력] 부상의 크기를 effects의 체력과 맞춘다: 경상 -1~-2, 중상 -3~-4, 치명상 -5~-6. 체력 회복은 기숙사·아지트·임시 쉼터·치료 도구를 쓴 경우에만 서술한다.`);
 });
 /* 가득 찬 품목의 구매 선택지 제거 · 가격 표시 */
 on('choices',60,arr=>{
-  const RES={calm:/차|음료|커피|진정제|진정/,battery:/배터리|충전|충전기|케이블/,torch:/손전등|건전지|랜턴|조명/};
+  const RES={calm:/차|음료|커피|진정제|진정/,battery:/배터리|충전|충전기|케이블|보조전원/};
   const U=k=>priceHere(k);
   const out=[];
   arr.forEach(c=>{
     c=String(c);
     if(!isBuyText(c)){ out.push(c); return }
-    const k=['calm','battery','torch'].find(x=>RES[x].test(c));
+    const k=['calm','battery'].find(x=>RES[x].test(c));
     if(!k){ out.push(c); return }
     const room=supplyNeed(k);
     if(room<=0) return;
@@ -2631,13 +2646,13 @@ function rideCap(){
     return (m.capBonus||0)+(i>=3?2:i>=2?1:0);
   }catch(_){ return 0 }
 }
-function capW(){ return CAP_BASE+CAP_STEP*capLv().w+rideCap()+capLv().g*GROW_CAP_STEP }
+function capW(){ return FEAR_BASE+CAP_STEP*capLv().w+rideCap()+capLv().g*GROW_CAP_STEP }
 function capF(){ return CAP_BASE+CAP_STEP*capLv().f+rideCap()+(petPerk('cat')?1:0) }
-function capT(){ return CAP_BASE+CAP_STEP*capLv().t }
+function capT(){ return 0 }
 function capOf(k){ return k==='calm'?capW():k==='battery'?capF():capT() }
 function clampSupplies(before,silent){
   const lost=[];
-  ['calm','battery','torch'].forEach(k=>{
+  ['calm','battery'].forEach(k=>{
     const mx=Math.max(capOf(k),(before&&before[k])||0);
     if(G[k]>mx){ lost.push(`${NM[k]} ${G[k]-mx}`); G[k]=mx }
   });
@@ -2649,7 +2664,7 @@ function clampSupplies(before,silent){
 /* =========================================================
    8. 소지품
    ========================================================= */
-const CONS_RE={calm:/따뜻한\s?차|캔\s?커피|진정\s?음료|진정제|핫팩|음료수?/,battery:/보조\s?배터리|배터리|충전기|충전\s?케이블/,torch:/손전등|건전지/};
+const CONS_RE={calm:/따뜻한\s?차|캔\s?커피|진정\s?음료|진정제|핫팩|음료수?/,battery:/보조\s?배터리|배터리|충전기|충전\s?케이블|손전등|건전지/};
 const CONS_USE_RE=/바꾸|바꿔|바꾼|변환|마신|마시|마셔|채운|채우|채워|연결|꽂|사용|쓴다|쓰고|먹는|먹어|먹고|꺼내|소비|보충|충전/;
 /* 간식: 먹으면 다음 공포 누적 n회를 건너뜀(_wCredit) — 구역·뒷길 같은 밖에서 공포가 오르는 걸 늦춤 */
 const SNACKS={'초코바':2,'캐러멜 사탕':1,'에너지 젤리':3};
@@ -2816,7 +2831,7 @@ on('context',90,()=>{
   const look=Object.values(PLACES).map(p=>`${p.n}: ${p.look}`).join(', ');
   return ` 지금 있는 곳은 중앙 캠퍼스 지구의 「${DISTRICTS[curDistrict()].n}」(${floorName(floorOf(curDistrict()))})이다. 장면의 배경과 등장인물을 이 장소에 맞출 것(${look}). 중앙 캠퍼스 지구의 지점은 ${fl}이다. 층을 옮기려면 복도·계단을 지나는 것으로 서술한다. 지점 밖의 장소(편의점, 골목 등)로 가는 것도 가능하며 그때는 게임이 '임시 장소'로 기록한다. 소문 듣기·숙박·상점 거래·조사 외출 출발은 지점에서만 가능하다.`;
 });
-on('context',90.1,()=>spotOn()?` [임시 장소] 플레이어는 중앙 캠퍼스 지구 「${DISTRICTS[curDistrict()].n}」 지점에서 벗어나 「${G.spot.name}」에 있다. 이 장소의 풍경·인물 이야기를 하되, 소문 듣기·숙박·상점 거래·휴식은 지점으로 돌아가야 가능하다 — 이 장면에서 물건을 사고팔거나 쉬는 서술을 성사시키지 말고 effects의 체력·공포·배터리·손전등·캐시는 0으로 둘 것. 여러 지점 중 하나로 가는 선택지는 허용한다.`:'');
+on('context',90.1,()=>spotOn()?` [임시 장소] 플레이어는 중앙 캠퍼스 지구 「${DISTRICTS[curDistrict()].n}」 지점에서 벗어나 「${G.spot.name}」에 있다. 이 장소의 풍경·인물 이야기를 하되, 소문 듣기·숙박·상점 거래·휴식은 지점으로 돌아가야 가능하다 — 이 장면에서 물건을 사고팔거나 쉬는 서술을 성사시키지 말고 effects의 체력·공포·배터리·캐시는 0으로 둘 것. 여러 지점 중 하나로 가는 선택지는 허용한다.`:'');
 /* 급식실은 점심시간(평일·주말)에만 식사를 줌 */
 on('choices',60,a=>{ if(!G||G.loc!=='campus'||canteenOpen()) return a; const b=a.filter(c=>!CANTEEN_RX.test(String(c&&c.text||c))); return b.length?b:a });
 function canteenOpen(){ return !!G&&G.time==='낮'&&slotIdx()===4 }
@@ -2907,7 +2922,7 @@ function campusRest(){
   if(G.time==='낮') return toast('학교 일과 중에는 기숙사에서 하룻밤을 보낼 수 없습니다. 종례가 끝난 뒤(방과 후)부터 가능합니다');
   const sleptDay=G.day; resetSoftClock();
   advanceClock(ticksToMorning(),{resources:false,quiet:true,sleep:true}); G.hp=G.maxhp; G.district='classroom';
-  const recovered=Math.min(2,fearNow());G.calm+=recovered;
+  const recovered=Math.min(3,fearNow());G.calm+=recovered;
   if(recovered)addLog('fx',`🛏 기숙사에서 쉬며 공포 −${recovered}`);
   addLog('sys',`기숙사에서 하룻밤을 보냈습니다. 체력이 모두 회복되었습니다. (${G.day}일째 아침)`);
   sleepCharge('기숙사');
@@ -2919,13 +2934,13 @@ async function hoodRest(){
   if(busy||!G||G.loc!=='hood'||spotBlock()) return;
   if(G.time==='낮') return toast('현지 숙박은 방과 후부터 가능합니다');
   if(G.cash<HOOD_LODGING_FEE) return toast(`숙박비 💳${HOOD_LODGING_FEE}이 필요합니다`);
-  if(!(await askConfirm(`${curHood().n}에서 하룻밤 묵을까요? (💳${HOOD_LODGING_FEE} · 체력 60%·공포 2 회복 · 다음 아침 · 기숙사 점호 통과 효과 없음)`))) return;
+  if(!(await askConfirm(`${curHood().n}에서 하룻밤 묵을까요? (💳${HOOD_LODGING_FEE} · 체력 60%·공포 3 회복 · 다음 아침 · 기숙사 점호 통과 효과 없음)`))) return;
   if(busy||G.loc!=='hood'||G.time==='낮'||G.cash<HOOD_LODGING_FEE) return;
   G.cash-=HOOD_LODGING_FEE; outsideNightCheck('현지 숙소'); resetSoftClock();
   advanceClock(ticksToMorning(),{resources:false,quiet:true,sleep:true});
   G.hp=Math.min(G.maxhp,G.hp+Math.ceil(G.maxhp*0.6));
   addBattery(2);
-  G.calm=Math.min(capW(),G.calm+2);
+  G.calm=Math.min(capW(),G.calm+3);
   addLog('sys',`🏨 ${curHood().n}의 숙소에서 아침을 맞았습니다 (💳-${HOOD_LODGING_FEE} · ${G.day}일째). 학교에 가려면 귀환해야 합니다.`);
   G.choices=[]; save(); render();
 }
@@ -3111,14 +3126,16 @@ function strollMarket(){
    ========================================================= */
 function getQ(k){ return k.startsWith('i_')?G.items.filter(x=>x===k.slice(2)).length:k.startsWith('m_')?G.mat[k.slice(2)]:G[k] }
 function buy(k,p){
+  if(k==='torch')return toast('조명은 휴대폰을 사용합니다. 배터리를 충전하세요');
   try{ if(G.cash>=p) sfx('coin') }catch(e){}
-  if(['calm','battery','torch'].includes(k)&&supplyNeed(k)<=0) return toast(`${CAP_NAME[k==='calm'?'w':k==='battery'?'f':'t']}이(가) 가득 찼습니다 (${capOf(k)}/${capOf(k)})`);
+  if(['calm','battery'].includes(k)&&supplyNeed(k)<=0) return toast(`${CAP_NAME[k==='calm'?'w':k==='battery'?'f':'t']}이(가) 가득 찼습니다 (${capOf(k)}/${capOf(k)})`);
   if(G.cash<p) return toast('캐시가 부족합니다');
   G.cash-=p;
   if(k.startsWith('i_')) G.items.push(k.slice(2)); else if(k.startsWith('m_')) G.mat[k.slice(2)]++; else supplyGain(k,1);
   save(); render(); openShop();
 }
 function fillSupply(k){
+  if(k==='torch')return;
   const cap=capOf(k), need=supplyNeed(k);
   if(need<=0) return toast('이미 가득 찼습니다');
   const price=need*priceHere(k);
@@ -3128,6 +3145,7 @@ function fillSupply(k){
   save(); render(); openShop();
 }
 function buyCap(t){
+  if(t==='t')return;
   const c=capLv(), lv=c[t], tbl=CAP_PRICE[t];
   if(lv>=tbl.length) return;
   const price=tbl[lv];
@@ -3138,7 +3156,7 @@ function buyCap(t){
 }
 function openShop(){
   if(spotBlock()) return;
-  const goods=`<div class="shop-row"><span>🫧 진정 음료 (보관용 · 보유 ${G.calmDrinks||0})</span><button onclick="buyCalmDrink()">캐시 ${priceHere('calm')}</button></div>`+SHOP_GOODS.map(([n,k,p])=>[n,k,['calm','battery','torch'].includes(k)?priceHere(k):p]).map(([n,k,p])=>`<div class="shop-row"><span>${n} <span class="muted">(보유 ${k==='battery'?batteryPct()+'%':getQ(k)})</span></span><button class="small" onclick="buy('${k}',${p})">캐시 ${p}</button></div>`).join('');
+  const goods=`<div class="shop-row"><span>🫧 진정 음료 (보관용 · 보유 ${G.calmDrinks||0})</span><button onclick="buyCalmDrink()">캐시 ${priceHere('calm')}</button></div>`+SHOP_GOODS.map(([n,k,p])=>[n,k,['calm','battery'].includes(k)?priceHere(k):p]).map(([n,k,p])=>`<div class="shop-row"><span>${n} <span class="muted">(보유 ${k==='battery'?batteryPct()+'%':getQ(k)})</span></span><button class="small" onclick="buy('${k}',${p})">캐시 ${p}</button></div>`).join('');
   const capRow=t=>{
     const key=CAP_KEY[t], cap=capOf(key), lv=capLv()[t], tbl=CAP_PRICE[t], max=lv>=tbl.length, price=tbl[lv];
     const fill=supplyNeed(key), fp=fill*priceHere(key);
@@ -3155,8 +3173,8 @@ function openShop(){
   else mt+=Object.entries(RIDES).filter(([k,d])=>!d.locked||hasBranch(d.locked)).map(([k,d])=>`<div class="shop-row" style="gap:10px;align-items:flex-start"><div><b>${d.n}</b><br><span class="muted">${d.desc}<br>충전: 조사 외출마다 배터리 ${d.feed}</span></div><button class="small ${G.cash>=ridePrice(k)?'primary':''}" onclick="buyMount('${k}')">캐시 ${ridePrice(k)}${ridePrice(k)<d.price?' (할인)':''}</button></div>`).join('');
   const sells=G.items.map((it,i)=>(consKind(it)||SNACKS[it])?'':isKeyItem(it)?`<div class="shop-row"><span>🔒 ${esc(it)} <span class="muted">(이야기 물건 · 팔 수 없음)</span></span></div>`:`<div class="shop-row"><span>${esc(it)}${itemFlag(it)==='goods'?'':' <span class="muted">(팔기 전에 확인)</span>'}</span><button class="small" onclick="sellItem(${i})">팔기 💳${itemSellPrice(it)}</button></div>`).join('');
   modal('상점가',`<p class="muted">캐시: <b id="shopCash">${G.cash}</b></p>${goods}
-    <h4 style="margin:14px 0 4px">휴대 용량</h4>${capRow('w')}${capRow('f')}${capRow('t')}
-    <p class="muted" style="font-size:12px">공포 한계·배터리·손전등은 용량까지만 유지되고 초과분은 사라집니다.${G.loc==='hood'?` ${curHood().n}: ${curHood().perk}.`:''} 가격(개당) — 중앙 캠퍼스 지구·아지트: 진정 음료 💳${PRICE_HOOD.calm} · 배터리 💳${PRICE_HOOD.battery} · 손전등 💳${PRICE_HOOD.torch}. 뒷길에서 가끔 만나는 이동 행상(🧭 버튼)이나 이야기 속 상인에게 사면 진정 음료·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch}.</p>
+    <h4 style="margin:14px 0 4px">휴대 용량</h4>${capRow('w')}${capRow('f')}
+    <p class="muted" style="font-size:12px">공포 한계·배터리은 용량까지만 유지되고 초과분은 사라집니다.${G.loc==='hood'?` ${curHood().n}: ${curHood().perk}.`:''} 가격(개당) — 중앙 캠퍼스 지구·아지트: 진정 음료 💳${PRICE_HOOD.calm} · 배터리 💳${PRICE_HOOD.battery}. 뒷길에서 가끔 만나는 이동 행상(🧭 버튼)이나 이야기 속 상인에게 사면 진정 음료·배터리 💳${PRICE_ROAD.calm}.</p>
     ${mt}
     ${decorShopHTML()}
     <h4 style="margin:14px 0 4px">물건 팔기</h4>${sells||'<p class="muted">팔 수 있는 물건이 없습니다.</p>'}
@@ -3518,8 +3536,10 @@ function teaFill(){
   addLog('fx',`🫧 티 코너에서 따뜻한 차를 마시며 공포를 가라앉혔습니다 (−${need}, 무료 · 오늘 ${teaLeft()}회 남음)`);
   save(); render();
 }
-function lockerStock(){ const s=G.home.stock||(G.home.stock={}); ['battery','calm','torch'].forEach(k=>{ if(typeof s[k]!=='number') s[k]=0 }); return s }
+function lockerStock(){ const s=G.home.stock||(G.home.stock={}); ['battery','calm'].forEach(k=>{ if(typeof s[k]!=='number') s[k]=0 }); return s }
 function lockerCaps(){ return has('locker2')?LOCKER_CAPS.big:LOCKER_CAPS.base }
+function reserveBatteryHTML(){return G.reservePacks>0?`<span class="chip">🔋 보조배터리 ${G.reservePacks}개 <button class="small" ${supplyNeed('battery')>0?'':'disabled'} onclick="useReserveBattery()">충전</button></span>`:''}
+function useReserveBattery(){if(busy||!G||!(G.reservePacks>0)||supplyNeed('battery')<=0)return;G.reservePacks--;addBattery(1);addLog('fx',`🔋 보조배터리 사용 (${batteryPct()}%)`);save();render();if(document.querySelector('#modalRoot .modal'))openInv()}
 function calmDrinkHTML(){return `<span class="chip">🫧 진정 음료 ${G.calmDrinks||0}개 <button class="small" ${(G.calmDrinks||0)>0&&fearNow()>0?'':'disabled'} onclick="useCalmDrink()">마시기 (공포 −1)</button></span>`}
 function useCalmDrink(){
   if(busy||!G||(G.calmDrinks||0)<=0||fearNow()<=0)return;
@@ -3534,7 +3554,7 @@ function buyCalmDrink(){
 }
 function lockerHTML(){
   const s=lockerStock(),C=lockerCaps();
-  const rows=['battery','calm','torch'].map(k=>{
+  const rows=['battery','calm'].map(k=>{
     const carried=k==='calm'?(G.calmDrinks||0):Math.floor(supplyAmount(k)+1e-9),room=k==='calm'?Math.max(0,capW()-carried):supplyNeed(k);
     const canIn=carried>0&&s[k]<C[k],canOut=s[k]>0&&room>0;
     return `<div class="shop-row"><span>${NMI[k]}<br><span class="muted">소지 ${carried} · 보관 ${s[k]}/${C[k]}</span></span><span>
@@ -3543,11 +3563,11 @@ function lockerHTML(){
     <button class="small" ${canOut?'':'disabled'} onclick="lockerMove('${k}','out',1)">꺼냄 1</button>
     <button class="small" ${canOut?'':'disabled'} onclick="lockerMove('${k}','out',99)">가득 꺼냄</button></span></div>`;
   }).join('');
-  return `<p class="muted">실제 보급품을 보관합니다. 진정 음료를 맡기거나 꺼내도 공포는 바뀌지 않으며, 마실 때 공포가 1 내려갑니다. 배터리는 온전한 충전 1칸씩 맡깁니다.</p>${rows}${calmDrinkHTML()}`;
+  return `<p class="muted">실제 보급품을 보관합니다. 진정 음료를 맡기거나 꺼내도 공포는 바뀌지 않으며, 마실 때 공포가 1 내려갑니다. 배터리는 온전한 충전 1칸씩 맡깁니다.</p>${rows}${reserveBatteryHTML()}${calmDrinkHTML()}`;
 }
 function openLocker(){if(has('locker'))modal('📦 사물함',lockerHTML())}
 function lockerMove(k,dir,n){
-  if(busy||!G||!has('locker')||!['battery','calm','torch'].includes(k)||!['in','out'].includes(dir))return;
+  if(busy||!G||!has('locker')||!['battery','calm'].includes(k)||!['in','out'].includes(dir))return;
   n=Math.max(0,Math.floor(Number(n)||0));if(!n)return;
   const s=lockerStock(),C=lockerCaps();
   const carried=k==='calm'?(G.calmDrinks||0):Math.floor(supplyAmount(k)+1e-9);
@@ -3669,7 +3689,7 @@ ${departurePlan(pos,days)}${penalty?`
   if(penalty) addDemerit(penalty,'무단 외출');
   G._leadZone=lead?lead.id:null;
   const bonus=[];
-  if(has('workbench')){ G.torch+=1; bonus.push('손전등 +1') }
+  if(has('workbench')){ addBattery(1); bonus.push('배터리 +1칸') }
   const sp=partnerName(); if(sp){ addBattery(1); bonus.push(`${sp}${josa(sp,'이','가')} 챙겨 준 보조배터리 +1`) }
   clampSupplies(null,false);
   G._yuminHere=false;
@@ -3704,7 +3724,7 @@ async function arriveSite(){
     d.cur=cur.id; d.depth=cur.lv||0; d.memoLeft=3;
     G.site=d; G.nextPos=null; G.loc='site'; busy=false;
     const vis=d.rooms.filter(r=>r.visited).length;
-    let intro=(tripLine()?tripLine()+' ':'')+`다시 「${d.name}」에 도착했다. 손전등을 고쳐 쥐고, 지난번 멈췄던 「${cur.name}」까지 익숙한 길을 따라 되짚어 들어간다. 지금까지 둘러본 공간은 ${vis}곳, 아직 어둠 속에 남은 곳이 있다.`;
+    let intro=(tripLine()?tripLine()+' ':'')+`다시 「${d.name}」에 도착했다. 휴대폰을 고쳐 쥐고, 지난번 멈췄던 「${cur.name}」까지 익숙한 길을 따라 되짚어 들어간다. 지금까지 둘러본 공간은 ${vis}곳, 아직 어둠 속에 남은 곳이 있다.`;
     G._tripNote=null; G._tripInfo=null;
     intro=fitNarr(intro);
     addLog('scene',intro); G.recent.push({role:'scene',text:intro});
@@ -3835,13 +3855,22 @@ function playerPos(){
 /* 손전등 0 · 밤눈 특성이 없으면 '어둠' — 이동 2걸음 · 넘어질 위험 · 단서·조각 못 찾음 · 판정 -2 */
 const DARK_STUMBLE=0.35;
 const SHELTER_BLOCK_DANGER=3;   // 위험도 3에서는 임시 쉼터 불가
-function ambientLight(){ const r=curRoom();return !!G.site?.intro||r?.light==='lit'||(r?.light==='outdoor'&&!isDarkTime()) }
-function needsTorch(){return !!G&&G.loc==='site'&&!G.site?.intro&&!ambientLight()}
-function inDark(){ return needsTorch()&&G.torch<=0&&!hasTrait('밤눈') }
+function ambientLight(){ const r=curRoom();return !!G?.site?.intro||r?.light==='lit'||(r?.light==='outdoor'&&!isDarkTime()) }
+function needsPhoneLight(){return !!G&&G.loc==='site'&&!G.site?.intro&&!ambientLight()&&!hasTrait('밤눈')}
+function phoneLightOn(){return needsPhoneLight()&&batteryEnergy()>0&&G.phoneBan!==G.day+':'+G.time}
+function lightStatus(){if(!G||G.loc!=='site')return '휴대폰 조명 꺼짐';return ambientLight()?'주변 조명':hasTrait('밤눈')?'밤눈':phoneLightOn()?'휴대폰 조명 켜짐':needsPhoneLight()?'불빛 없음':'휴대폰 조명 꺼짐'}
+function inDark(){ return needsPhoneLight()&&!phoneLightOn() }
 function useLight(){
-  if(!needsTorch()||G.torch<=0||hasTrait('밤눈'))return;
-  const d=G.site;d.lightActions=(d.lightActions||0)+1;
-  if(d.lightActions%(d.terrain==='tunnel'?3:MOVE_STEPS.torch)===0){G.torch--;addLog('fx','🔦 조사에 사용한 손전등 건전지 −1')}
+  if(!needsPhoneLight())return;
+  if(phoneLightOn())textDrain(G.site.terrain==='tunnel'?TUNNEL_LIGHT_DRAIN:PHONE_LIGHT_DRAIN);
+  else {
+    G.site.darkActions=(G.site.darkActions||0)+1;
+    if(G.site.darkActions%DARK_FEAR_ACTIONS===0){
+      if(G._wCredit>0)G._wCredit--;
+      else if(G.calm>0){G.calm--;addLog('fx','🌑 불빛 없는 어둠 속에서 공포 +1')}
+      else {G.hp=Math.max(0,G.hp-1);addLog('fx','🌑 어둠 속에서 공포를 견디지 못했습니다 (체력 −1)')}
+    }
+  }
 }
 function moveTo(id){
   if(busy) return;
@@ -3853,17 +3882,17 @@ function moveTo(id){
   r.visited=true; d.cur=id; d.depth=r.lv||0; G._yuminHere=false;
   tick(true);
   if(inDark()){   // 손전등 없이: 더듬어 가느라 걸음이 두 배, 넘어질 위험
-    tick(true);
-    let note='[어둠 속 이동] 손전등 없이 벽을 더듬어 이동했다.';
+    tick(true,{lightHandled:true});
+    let note='[어둠 속 이동] 휴대폰 조명을 쓸 수 없어 벽을 더듬어 이동했다.';
     if(Math.random()<DARK_STUMBLE){ G.hp=Math.max(0,G.hp-1); addLog('fx','🌑 어둠 속에서 발을 헛디뎠습니다 (체력 -1)'); note+=' 도중에 발을 헛디뎌 다쳤다(체력 -1은 코드가 반영함, effects의 체력은 0).'; pend(note,{checkHP:true}) }
     else pend(note);
-    addLog('sys','🌑 손전등이 없어 더듬어 이동합니다 (2행동 · 시간 1칸)');
+    addLog('sys','🌑 불빛이 없어 더듬어 이동합니다 (2행동 · 시간 1칸)');
   }
   let ev='';
   if(first&&yuminEventReady()&&Math.random()<0.2) ev=' '+yuminEventText(`구역 「${d.name}」의 ${r.name}`);
   aiTurn(`「${r.name}」(으)로 이동한다`,(first?'[처음 들어서는 공간이다. 공간의 모습과 첫인상, 눈에 띄는 것을 묘사하라.]':'[이미 와 본 공간이다. 짧게 묘사하라.]')+ev);
 }
-const SHELTER_HEAL=0.4, SHELTER_CALM=2, SHELTER_BATTERY=2;   // 임시 쉼터에서 아침까지 쉬면 체력(최대의 40%)·공포 −2·배터리 +2칸 회복
+const SHELTER_HEAL=0.4, SHELTER_CALM=3, SHELTER_BATTERY=2;   // 임시 쉼터에서 아침까지 쉬면 체력(최대의 40%)·공포 −3·배터리 +2칸 회복
 function shelterHere(){
   if(G?.site?.intro)return toast('입문 사건은 교내에서 진행합니다. 교내로 돌아가 휴식할 수 있습니다');
   if(busy||!G||!['site','road'].includes(G.loc)) return;
@@ -4757,7 +4786,7 @@ function rollPeddler(reason){
 function peddlerHere(){ const c=G&&G.peddler; return !!(c&&c.here&&G.loc===(c.loc||'road')) }
 function openPeddler(){
   const c=G.peddler; if(!peddlerHere()) return;
-  const rows=['calm','battery','torch'].map(k=>{
+  const rows=['calm','battery'].map(k=>{
     const cap=capOf(k), rm=supplyNeed(k), can=Math.min(rm,c.stock[k],Math.floor(G.cash/PRICE_ROAD[k]));
     return `<div class="shop-row" style="align-items:center;gap:8px;flex-wrap:wrap"><span>${NMI[k]} <span class="muted">개당 💳${PRICE_ROAD[k]} · 소지 ${k==='battery'?batteryPct()+'%':G[k]+'/'+cap} · 상인 재고 ${c.stock[k]}</span></span>
       <span style="display:flex;gap:6px"><button class="small" ${can>0?'':'disabled'} onclick="peddlerBuy('${k}',1)">+1</button>
@@ -4781,7 +4810,7 @@ function peddlerBuy(k,n){
 function peddlerTalk(){
   const c=G.peddler; if(busy||!c||!c.here||c.talked) return;
   c.talked=true; closeModal(); tick();
-  aiTurn(`「${c.name}」 사람들과 이야기를 나눈다`,`[행상과의 대화] 뒷길에 멈춰 선 「${c.name}」 사람들과 이야기를 나눈다. 이들이 지나온 길의 소문(근처 구역의 위험, 규율부·청소반의 움직임, 괴담, 지워진 구역에 관한 엇갈린 믿음 중 하나)을 들려준다. 물건 거래는 플레이어가 상인 버튼으로 하므로 이 장면에서는 effects의 공포·배터리·손전등·캐시를 모두 0으로 둘 것.`+(rivalOn()&&Math.random()<0.6?rivalRumorText():''));
+  aiTurn(`「${c.name}」 사람들과 이야기를 나눈다`,`[행상과의 대화] 뒷길에 멈춰 선 「${c.name}」 사람들과 이야기를 나눈다. 이들이 지나온 길의 소문(근처 구역의 위험, 규율부·청소반의 움직임, 괴담, 지워진 구역에 관한 엇갈린 믿음 중 하나)을 들려준다. 물건 거래는 플레이어가 상인 버튼으로 하므로 이 장면에서는 effects의 공포·배터리·캐시를 모두 0으로 둘 것.`+(rivalOn()&&Math.random()<0.6?rivalRumorText():''));
 }
 /* AI가 낸 사건 → 버튼 */
 on('after',60,T=>{
@@ -4795,7 +4824,7 @@ on('after',60,T=>{
   if(ev.type==='merchant'&&!(G.peddler&&G.peddler.here)){
     const r=()=>Math.floor(Math.random()*3);
     G.peddler={here:true,loc:G.loc==='shelter'?'road':G.loc,room:G.site&&G.loc==='site'?G.site.cur:null,day:G.day,name:ev.name||'이동 행상',stock:{calm:3+r(),battery:3+r(),torch:1+r()},talked:true};
-    addLog('sys',`🧭 「${G.peddler.name}」과(와) 거래할 수 있습니다 (🧭 버튼 · 공포·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch})`);
+    addLog('sys',`🧭 「${G.peddler.name}」과(와) 거래할 수 있습니다 (🧭 버튼 · 공포·배터리 💳${PRICE_ROAD.calm})`);
   }
 });
 function fillCalmSrc(viaStory){
@@ -7516,7 +7545,7 @@ function tripFixedHTML(){
       +b("banditCheck('sur')",`🏃 따돌린다 <span class="cbadge ck">🎲 생존술 · 보통 · ${checkChance('sur','normal','')}%</span>`),mvLbl,ac:'',acLbl:''};
   }
   let ac='';
-  if(peddlerHere()) ac+=b('openPeddler()',`🧭 이동 행상 (진정 음료·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch})`);
+  if(peddlerHere()) ac+=b('openPeddler()',`🧭 이동 행상 (진정 음료·배터리 💳${PRICE_ROAD.calm})`);
   ac+=b('shelterHere()','⛺ 임시 쉼터');
   if(G.comp&&G.comp.met&&!G.comp.joined&&G._yuminHere) ac+=b('talkYumin()','🎵 유민에게 말 걸기');
   return {mv:b('continueTrip()',`🔦 ${t.dest.name}${josa(t.dest.name,'으로','로')} 계속 가기 (${durText(t.left)})`,'primary'),mvLbl,ac,acLbl:'🧭 행동'};
@@ -7622,7 +7651,7 @@ const VB={x:-40,y:-27,w:480,h:320};      // 지도에 보이는 범위 (바깥 �
 const WARD_TYPES={
   flooded:     {n:'수몰 구역',ic:'🌊',req:{cash:BOAT_FEE},check:'sur',get reqText(){ return `가까운 선착장에서 보트 대여료 💳${boatFee()}` },rule:'🌊 수위 — 안에서 행동할수록 저수지 물이 차오름. 물이 차면 깊은 공간(깊이 2 이상)에 들어갈 수 없고, 그곳에 있으면 행동마다 체력 -1. 임시 쉼터하면 밤사이 물이 빠짐',
                desc:'저수지 속에 잠긴 지워진 구역. 보트를 빌려 건너야 하고, 수위와 습기가 건물을 갉아 먹었다.'},
-  tunnel:{n:'배수 터널 구역',ic:'🕳',req:{torch:4}, check:'wis',reqText:'손전등 4개 이상 · 안에서는 손전등이 빨리 닳음',rule:'👂 소음 — 판정에 실패하거나 위험한 공간에 처음 들어가면 소음이 쌓임. 3이 넘으면 무언가 뒤를 밟아, 이동할 때마다 🎲 생존술(은신) 판정. 임시 쉼터하면 소음이 가라앉음',
+  tunnel:{n:'배수 터널 구역',ic:'🕳',req:{batteryPct:20}, check:'wis',reqText:'배터리 20% 이상 · 휴대폰 조명에 행동당 2% 소모',rule:'👂 소음 — 판정에 실패하거나 위험한 공간에 처음 들어가면 소음이 쌓임. 3이 넘으면 무언가 뒤를 밟아, 이동할 때마다 🎲 생존술(은신) 판정. 임시 쉼터하면 소음이 가라앉음',
                desc:'한빛시 아래로 뚫린 배수 터널과 지하 시설로 이어진 구역. 빛이 없으면 한 걸음도 갈 수 없다.'},
   highrise:   {n:'고지대 단지',ic:'🏢',req:{calm:3},check:'str',reqText:'공포 여유 3 더 필요 · 가파른 계단과 외벽 통로',rule:'🧗 등반 — 처음 가는 더 높은(깊은) 공간으로 갈 때마다 🎲 체력 판정. 실패하면 오르지 못하고 제자리',
                desc:'언덕 위에 선 고층 단지. 계단과 외벽 통로가 험하고 바람이 거세다.'},
@@ -7712,7 +7741,7 @@ async function startBig(key,skipConfirm){
   if(G.calm<n.calm+(r.calm||0)||batteryEnergy()<n.feed||G.battery<=0) return toast(`가는 데 공포 여유 ${n.calm+(r.calm||0)}${n.feed?`, 충전용 배터리 ${n.feed}`:''}이 필요합니다 (배터리가 남아 있어야 합니다)`);
   const fee=r.cash?boatFee():0;
   if(fee&&G.cash<fee) return toast(`보트 대여료 💳${fee}이 필요합니다`);
-  if(r.torch&&G.torch<r.torch) return toast(`손전등이 ${r.torch}개 이상 필요합니다`);
+  if(r.batteryPct&&batteryPct()<r.batteryPct)return toast(`배터리 ${r.batteryPct}% 이상이 필요합니다`);
   const back=sp.terrain==='flooded'?0:n.calm*2+(r.calm||0), backF=sp.terrain==='flooded'?0:n.feed;   // 돌아올 몫까지 (섬은 선착장에서 다시 보급)
   const shortTxt=back&&(G.calm<back||G.battery<backF)?`\n\n⚠ 돌아올 몫까지 합치면 공포 여유 ${back}${backF?`, 충전용 배터리 ${backF}`:''}이 필요합니다(지금 공포 여유 ${G.calm}, 배터리 ${batteryPct()}%). 그곳에는 보급할 곳이 없습니다. 공포 여유가 부족하면 귀환 중 다칠 수 있고, 방전되면 연락할 수 없습니다.`:'';
   if(skipConfirm!==true&&!(await askConfirm(`${sp.name}${josa(sp.name,'으로','로')} 떠날까요? (${needText(n)}${fee?` · 보트 대여료 💳${fee}`:''})${shortTxt}
@@ -8244,7 +8273,7 @@ function fightSong(){
   if(Math.random()<FIGHT_SONG_SIDE){
     const opts=['supply','hurt']; if(G.site&&G.loc==='site') opts.push('collapse');
     const k=rand(opts);
-    if(k==='supply'){ const w=Math.min(1,G.calm), t=Math.min(1,G.torch); G.calm-=w; G.torch-=t; addLog('fx',`🌪 요란한 노랫소리의 진동에 짐이 흩어졌습니다 (공포 +${w} · 손전등 -${t})`); side=' 부작용: 노랫소리의 진동에 플레이어의 짐이 흩어져 진정 음료와 손전등을 잃는다.' }
+    if(k==='supply'){ const w=Math.min(1,G.calm), t=Math.min(2,batteryPct()); G.calm-=w; textDrain(t); addLog('fx',`🌪 요란한 노랫소리의 진동에 짐이 흩어졌습니다 (공포 +${w} · 배터리 −${t}%)`); side=' 부작용: 노랫소리의 진동에 플레이어의 짐이 흩어져 휴대폰을 떨어뜨려 마음이 흔들리고 배터리가 소모된다.' }
     if(k==='hurt'){ hurt(1,'유민의 노래가 만든 소음이 나까지 덮친다'); side=' 부작용: 유민이 일으킨 소음이 플레이어까지 덮친다.' }
     if(k==='collapse'){ const r=curRoom(); if(r) r.exhausted=true; addLog('fx','🪨 진동에 천장이 무너져 이 공간은 더 조사할 수 없게 되었습니다'); side=' 부작용: 진동에 천장 일부가 무너져 이 공간이 잔해에 묻힌다.' }
   }
@@ -8453,7 +8482,7 @@ function rivalSideHTML(){
    ========================================================= */
 const BRANCH={
   observatory:{ic:'🔭',price:{calm:3,battery:3,torch:3},skill:'wis',dc:'normal',act:'천문대 관리인들이 남긴 관측 기록을 따라가 본다',
-    kind:'고유 물건',reward:'천문대의 렌즈',ric:'🔭',eff:'손전등 없는 어둠 속에서도 판정 벌칙이 절반(-1)'},
+    kind:'고유 물건',reward:'천문대의 렌즈',ric:'🔭',eff:'불빛 없는 어둠 속에서도 판정 벌칙이 절반(-1)'},
   pier:{ic:'🚤',price:{calm:2,battery:2,torch:5},skill:'cha',dc:'normal',act:'온실 관리인들 사이에 도는 옛이야기를 캐묻는다',
     kind:'아지트 장식',reward:'온실 유리 등잔',ric:'🏮',eff:'수몰 구역으로 가는 보트 대여료가 절반 · 아지트에 놓을 수 있음',decor:true},
   reading:{ic:'📚',price:{calm:3,battery:3,torch:5},skill:'str',dc:'hard',act:'대열람실 사서들이 내는 열람 시험에 나선다',
@@ -8527,7 +8556,7 @@ function branchGrant(id){
 /* 효과: 판정 보너스 (checkBonus에서 부름) */
 function branchBonus(skill,text,add){
   if(!G||!G.branch) return;
-  if(hasBranch('observatory')&&G.loc==='site'&&G.torch<=0&&!hasTrait('밤눈')&&skill!=='cha') add(1,'천문대의 렌즈');
+  if(hasBranch('observatory')&&inDark()&&skill!=='cha') add(1,'천문대의 렌즈');
   if(hasBranch('rooftop')&&skill==='str'&&(G.fight||/(싸|공격|베|휘두|막아|맞서|찌르|때리|제압|불량배)/.test(String(text||'')))) add(1,'관장의 인장');
   if(skill==='cha'&&(G.pets||[]).some(p=>p.kind==='parrot'&&p.aff>=45)) add(1,'앵무새');
 }
@@ -8600,7 +8629,7 @@ function render(){
     `<span class="st ${low(G.hp,3)}">❤ ${G.hp}/${G.maxhp}</span>
      <span class="st ${fearRatio()>=FEAR_RED?'low':''}" title="공포 — 높을수록 위험합니다. 한계에 닿으면 체력이 줄고, 아지트에서 쉬면 가라앉습니다">😨 공포 ${fearNow()}/${fearMax()}${G._wCredit>0?` 🍫${G._wCredit}`:''}</span>
      <span class="st ${low(G.battery,1)}" title="휴대폰 배터리">🔋 배터리 ${batteryPct()}%</span>
-     <span class="st ${low(G.torch,0)}" title="손전등 건전지">🔦 ${G.torch}/${capT()}</span>
+     <span class="st" title="어두운 구역에서는 휴대폰 조명이 자동으로 켜집니다">📱 ${lightStatus()}</span>
      <span class="st">💳 ${G.cash}</span>
      <span class="st ${(G.demerit||0)>=DEMERIT_WARN?'low':''}" title="벌점 — 점호 누락·무단 외출로 늘어납니다. ${DEMERIT_WARN}점 이상이면 외출 금지 경고">📕 벌점 ${G.demerit||0}</span>
      <span class="st" title="출입 권한 등급 (1~${ACCESS_MAX})">🪪 권한 ${G.access||1}등급</span>
@@ -8685,7 +8714,7 @@ function fixedHTML(){
     mvLbl='🧭 이동 (시간·자원이 정확히 계산됩니다)';
     mv=d?btn('reenterZone()',`🏚 「${esc(d.name)}」 안으로 다시 들어가기`,'primary'):btn('continueRoad()','🔦 구역으로 계속 가기','primary');
     if(d) mv+=btn('returnToCampus()',`↩ ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${durText(returnRoute().days)})`);
-    if(peddlerHere()) ac+=btn('openPeddler()',`🧭 이동 행상 (진정 음료·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch})`);
+    if(peddlerHere()) ac+=btn('openPeddler()',`🧭 이동 행상 (진정 음료·배터리 💳${PRICE_ROAD.calm})`);
     if(!d?.intro)ac+=btn('shelterHere()','⛺ 임시 쉼터');
     if(G.comp&&G.comp.met&&!G.comp.joined&&G._yuminHere) ac+=btn('talkYumin()','🎵 유민에게 말 걸기');
   }else if(L==='shelter'){
@@ -8699,7 +8728,7 @@ function fixedHTML(){
   if(guestHere()) ac+=btn('partGuest()',`🤝 ${esc(G.guest.name)}${josa(G.guest.name,'과','와')} 헤어지기`);   // 기능 모듈이 덧붙이는 버튼
   // 사건으로 생긴 버튼
   if(G.calmSrc&&!G.calmSrc.used) ac+=btn('fillCalmSrc()',`🫧 「${esc(G.calmSrc.name)}」에서 공포 가라앉히기 (무료 · ${isWild()?'1걸음':'하루 한 번'})`,'','data-ws="1"');
-  if(L!=='road'&&peddlerHere()) ac+=btn('openPeddler()',`🧭 ${esc(G.peddler.name)} (공포·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch})`,'','data-cv="1"');
+  if(L!=='road'&&peddlerHere()) ac+=btn('openPeddler()',`🧭 ${esc(G.peddler.name)} (공포·배터리 💳${PRICE_ROAD.calm})`,'','data-cv="1"');
   // 캠퍼스·아지트에서만
   if(isHood()){
     if(G.pausedZones&&G.pausedZones.length) ac+=btn('openZones()',`🏚 중단한 구역 (${G.pausedZones.length}) — 이어서/관리`,'primary');
@@ -8728,11 +8757,11 @@ function renderNeed(){
   const pips=(n,max)=>'●'.repeat(Math.max(0,Math.min(n,max)))+'○'.repeat(Math.max(0,max-n));
   const n=needState(), p=G.loc==='site'?siteProg():null;
   let h=`<span class="nb" title="공포는 걸음 수에 따라 자동으로 쌓입니다. 한계에 닿으면 체력이 줄어듭니다">😨 공포 ${fearNow()}/${fearMax()} <span class="pips">${pips(Math.ceil(fearNow()/fearMax()*5),5)}</span> <span class="${n.wWarn?'warn':''}">${n.wl}</span></span>`+
-        `<span class="nb" title="배터리는 이동·문자·전화로 닳습니다. 방전 시 연락할 수 없지만 조명은 손전등과 공간의 빛을 따릅니다">🔋 배터리 ${batteryPct()}% <span class="pips">${pips(Math.ceil(n.f/capF()*5),5)}</span> <span class="${n.fWarn?'warn':''}">${n.fl}</span></span>`;
+        `<span class="nb" title="배터리는 이동·문자·전화로 닳습니다. 어두운 곳에서는 자동 조명이 행동당 1% (터널 2%)를 사용합니다. 방전되면 연락과 휴대폰 조명을 쓸 수 없습니다">🔋 배터리 ${batteryPct()}% <span class="pips">${pips(Math.ceil(n.f/capF()*5),5)}</span> <span class="${n.fWarn?'warn':''}">${n.fl}</span></span>`;
   if(p) h+=`<span class="nb" title="방문한 공간 / 전체 공간">🧭 조사도 <span class="pips">${pips(p.vis,p.total)}</span> <span class="${p.done?'ok':''}">${p.vis}/${p.total}공간${p.done?' · 조사 완료':''}</span>`+(!p.done?` <span class="muted">(미탐험 발견 ${p.found}${p.hidden>0?` · 아직 못 찾은 ${p.hidden}`:''})</span>`:'')+`</span>`;
   const rf=returnForecast(); if(rf) h+=`<span class="nb ${rf.late||rf.urgent?'warn':''}">🕒 ${esc(rf.text)}</span>`;
   h+=wardStatusHTML()+fightStatusHTML();
-  if(inDark()) h+=`<span class="nb" title="손전등을 구하거나 구역 밖으로 나가세요">🌑 <span class="warn">어둠 — 이동 2행동(시간 1칸) · 넘어질 위험 · 단서·조각 못 찾음</span></span>`;
+  if(inDark()) h+=`<span class="nb" title="보조배터리로 충전하거나 구역 밖으로 나가세요">🌑 <span class="warn">어둠 — 4행동마다 공포 +1 · 이동 2행동(시간 1칸) · 넘어질 위험 · 단서·조각 못 찾음</span></span>`;
   const m=rideDef();
   if(m&&G.ride){
     const tired=G._rideFed===false;
@@ -8972,12 +9001,12 @@ function leftHTML(){
   if(compactCampaign())h+=`<div class="sec"><h4>🧭 현재 목표</h4><b>${esc(campaignPublic().stage)}</b><p>${esc(campaignPublic().next)}</p><button class="small" onclick="openCampaign()">본편 연결 ${campaignPublic().links.length}/3 보기</button></div>`;
   h+=`<div class="sec"><h4>소지품</h4>
     <div style="display:flex;justify-content:space-between;align-items:center">❤ 체력 <b>${G.hp}/${G.maxhp}</b><button class="small ${(G.growth||0)>0?'primary':''}" onclick="openGrowth()">🌟 성장${(G.growth||0)>0?` (${G.growth})`:` ${(G.xp||0)%GROW_XP}/${GROW_XP}`}</button></div><div class="bar"><i style="width:${hpP}%"></i></div>
-    <div class="grid2"><div><span>😨 공포</span><b>${fearNow()}/${fearMax()}</b></div><div><span>🔋 배터리</span><b>${batteryPct()}%</b></div><div><span>🔦 손전등</span><b>${G.torch}/${capT()}</b></div><div><span>💳 캐시</span><b>${G.cash}</b></div><div><span>📕 벌점</span><b>${G.demerit||0}</b></div><div><span>🪪 출입 권한</span><b>${G.access||1}등급</b></div></div>
+    <div class="grid2"><div><span>😨 공포</span><b>${fearNow()}/${fearMax()}</b></div><div><span>🔋 배터리</span><b>${batteryPct()}%</b></div><div><span>📱 조명</span><b>${lightStatus()}</b></div><div><span>💳 캐시</span><b>${G.cash}</b></div><div><span>📕 벌점</span><b>${G.demerit||0}</b></div><div><span>🪪 출입 권한</span><b>${G.access||1}등급</b></div></div>
     <div class="grid2" style="margin-top:6px">${MATS.map(m=>`<div><span>${m.i} ${m.n}</span><b>${G.mat[m.k]}</b></div>`).join('')}</div>
     ${G.mat.keepsake?`<div class="muted" style="font-size:12px;margin-top:2px">📦 ${keepsakeText()}</div>`:''}
     <div style="margin-top:8px;font-size:14px">기념 메달 조각${compactCampaign()?' (선택 수집)':''} ${'★'.repeat(G.fragments)}${'☆'.repeat(Math.max(0,FRAG_GOAL-G.fragments))}</div>
     <div class="muted">${G.medalRewardClaimed?'🏅 완성 보상 지급 완료':`6개 완성 보상: 캐시 +${MEDAL_REWARD_CASH} · 경험 +${MEDAL_REWARD_XP} (한 번)`}</div>
-    <div class="chips" style="margin-top:6px">${G.ride?`<span class="chip">🚲 ${esc(G.ride.name)}${G._rideFed===false?' (지침)':''}</span>`:''}${calmDrinkHTML()}${G.items.map((i,n)=>itemChipHTML(i,n)).join('')||(G.ride?'':'<span class="muted">보관품 없음</span>')}</div></div>`;
+    <div class="chips" style="margin-top:6px">${G.ride?`<span class="chip">🚲 ${esc(G.ride.name)}${G._rideFed===false?' (지침)':''}</span>`:''}${reserveBatteryHTML()}${calmDrinkHTML()}${G.items.map((i,n)=>itemChipHTML(i,n)).join('')||(G.ride?'':'<span class="muted">보관품 없음</span>')}</div></div>`;
   const d=rideDef();
   if(d) h+=`<div class="sec"><h4>탈것</h4><div><b>${esc(G.ride.name)}</b> <span class="muted">${d.n}</span></div>
     <div class="muted">${G._rideFed===false?'지쳐 있음 (다음 조사 외출에서 충전을 주면 회복)':'상태 좋음'} · 조사 외출마다 배터리 ${d.feed}</div>
@@ -9013,7 +9042,7 @@ function renderSides(){
   if(!G) return;
   if(_lastG!==G){ _lastG=G; _sigL=_sigR=_sigM='' }
   const L=document.querySelector('#sideL .sbody'), R=document.querySelector('#sideR .sbody');
-  const sl=JSON.stringify([G.xp,G.growth,G.char,G.hp,G.maxhp,G.calm,G.battery,G.torch,G.cash,G.demerit,G.access,G.time,G.items,G.mat,G.fragments,G.medalRewardClaimed,G.comp,G.home,G.rel,G.relEvt,G.keepsakeG,G.ride,G._rideFed,G.pets,G._yuminHere,G.loc,G.district,G.day,busy,campaignPublic(),G.site?.mystery?.state]);
+  const sl=JSON.stringify([G.xp,G.growth,G.char,G.hp,G.maxhp,G.calm,G.battery,G.textUse,G.reservePacks,lightStatus(),G.site?.darkActions,G.cash,G.demerit,G.access,G.time,G.items,G.mat,G.fragments,G.medalRewardClaimed,G.comp,G.home,G.rel,G.relEvt,G.keepsakeG,G.ride,G._rideFed,G.pets,G._yuminHere,G.loc,G.district,G.day,busy,campaignPublic(),G.site?.mystery?.state]);
   if(sl!==_sigL){ _sigL=sl; L.innerHTML=leftHTML() }
   const sr=JSON.stringify([(G.canon||[]).length,G.chronicle.slice(-10),G.lexicon,G.rival&&[G.rival.known,G.rival.log.length,G.rival.frags,G.rival.stolen,G.rival.wards,G.rival.leader_st],threadsOpen().map(t=>t.id),sideLexTab,sideLexN,themeMode,fontScale,SET.narrLen,SET.narrMin,SET.narrMax]);
   if(sr!==_sigR){ _sigR=sr; R.innerHTML=rightHTML() }
@@ -9166,12 +9195,12 @@ function openChar(){
     <div class="row" style="margin-top:8px"><button class="small" onclick="G.char.bio=document.getElementById('bioEdit').value;save();toast('저장했습니다')">배경 저장</button></div>`);
 }
 function openInv(){
-  modal('소지품',`<p>😨 공포 ${fearNow()}/${fearMax()} · 🔋 배터리 ${batteryPct()}% · 🔦 손전등 ${G.torch} · 💳 캐시 ${G.cash} · 📕 벌점 ${G.demerit||0} · 🪪 출입 권한 ${G.access||1}등급</p>
+  modal('소지품',`<p>😨 공포 ${fearNow()}/${fearMax()} · 🔋 배터리 ${batteryPct()}% · 📱 ${lightStatus()} · 💳 캐시 ${G.cash} · 📕 벌점 ${G.demerit||0} · 🪪 출입 권한 ${G.access||1}등급</p>
     <p class="muted" style="font-size:12px">🔒 표시는 이야기에 필요한 물건이라 팔 수 없습니다.</p>
     <p>기념 메달 조각: ${G.fragments}/${FRAG_GOAL}${G._wCredit>0?` · 🍫 공포 누적 늦춤 ${G._wCredit}회`:''} ${medalManualSource()?`<button class="small" onclick="fragManual()" title="이미 얻었는데 숫자에 반영되지 않았을 때">★ 이미 얻은 조각 +1 반영</button>`:''}</p>
     <p class="muted">${G.medalRewardClaimed?'🏅 기념 메달 완성 보상을 받았습니다.':`6개를 모으면 캐시 ${MEDAL_REWARD_CASH}과 경험 ${MEDAL_REWARD_XP}을 한 번 받습니다.`}</p>
     <p>자재: ${MATS.map(m=>`${m.i} ${m.n} ${G.mat[m.k]}`).join(' · ')}</p>
-    ${calmDrinkHTML()}<ul>${G.ride?`<li><span class="chip">🚲 ${esc(G.ride.name)} (${RIDES[G.ride.type].n}${G._rideFed===false?' · 지침':''})</span></li>`:''}${G.items.map((i,n)=>`<li>${itemChipHTML(i,n)}</li>`).join('')||(G.ride?'':'<li class="muted">없음</li>')}</ul>`);
+    ${reserveBatteryHTML()}${calmDrinkHTML()}<ul>${G.ride?`<li><span class="chip">🚲 ${esc(G.ride.name)} (${RIDES[G.ride.type].n}${G._rideFed===false?' · 지침':''})</span></li>`:''}${G.items.map((i,n)=>`<li>${itemChipHTML(i,n)}</li>`).join('')||(G.ride?'':'<li class="muted">없음</li>')}</ul>`);
 }
 function openChron(){
   modal('연대기',`<p class="muted">중요한 사건 기록입니다. 하루가 지나면 그날의 기록이 한 줄 요약으로, 한 주·한 달이 지나면 더 크게 합쳐집니다. AI가 매번 이 기록을 참고합니다. 틀린 내용은 직접 고칠 수 있습니다.</p>
@@ -9302,8 +9331,8 @@ function openGuide(){
   const wBase=g&&hasTrait('담력')?MOVE_STEPS.calmFrugal:MOVE_STEPS.calm;
   const row=(a,b)=>`<div class="shop-row" style="gap:12px;align-items:flex-start"><span style="flex:0 0 auto;max-width:48%">${a}</span><span style="text-align:right;flex:1">${b}</span></div>`;
   const h3=t=>`<h4 style="margin:16px 0 4px">${t}</h4>`;
-  const priceHood=`중앙 캠퍼스 지구·아지트: 진정 음료 💳${PRICE_HOOD.calm} · 배터리 💳${PRICE_HOOD.battery} · 손전등 💳${PRICE_HOOD.torch}`;
-  const priceRoad=`뒷길에서 가끔 만나는 이동 행상(🧭 버튼)이나 이야기 속 상인에게 사면 진정 음료·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch}`;
+  const priceHood=`중앙 캠퍼스 지구·아지트: 진정 음료 💳${PRICE_HOOD.calm} · 배터리 💳${PRICE_HOOD.battery}`;
+  const priceRoad=`뒷길에서 가끔 만나는 이동 행상(🧭 버튼)이나 이야기 속 상인에게 사면 진정 음료·배터리 💳${PRICE_ROAD.calm}`;
   let live='';
   if(g){
     const iv=fearInterval(), toW=iv-(G.steps%iv), toF=MOVE_STEPS.battery-(G.steps%MOVE_STEPS.battery), toH=blockLen()-(G.dayStep||0);
@@ -9313,7 +9342,7 @@ function openGuide(){
       (isHood()?row('😨 공포 · 🔋 배터리',`${fearNow()}/${fearMax()} · ${batteryPct()}% — 지구·아지트에서는 변하지 않음`):
        row(`😨 공포 ${fearNow()}/${fearMax()}`,G.calm>0?`약 ${wLast}걸음 뒤 한계`:'<span style="color:var(--danger)">한계 — 다음 주기부터 체력 -1</span>')+
        row(`🔋 배터리 ${batteryPct()}%`,G.battery>0?`약 ${fLast}걸음 뒤 방전`:'<span style="color:var(--danger)">방전 — 문자·전화 불가</span>'))+
-      row(`🔦 손전등 ${G.torch}`,'빛 없는 공간의 이동·조사 5행동마다 소모 (터널 3행동)')+
+      row('📱 자동 조명',`${lightStatus()} · 어두운 곳에서 행동당 1% (터널 2%)`)+
       row(`📕 벌점 ${G.demerit||0}`,`${DEMERIT_WARN}점 이상이면 외출 금지 경고`)+
       row(`🪪 출입 권한 ${G.access||1}등급`,`1~${ACCESS_MAX}등급 · 높은 등급이 필요한 문은 열리지 않음`)+
       row('⏳ 지금 시각',`${G.day}일째(${dowName(G.day)}요일) ${timeIcon()} ${G.time} · ${toH}걸음 뒤 ${nextT==='낮'?'다음 날 낮':nextT}`);
@@ -9321,15 +9350,15 @@ function openGuide(){
   const S=6, ex=(extra,noW)=>{ const w=(noW?0:2)+Math.floor(S/(wBase+extra)), f=2+Math.floor(S/MOVE_STEPS.battery); return {w,f} };
   const e0=ex(0,false), e1=ex(RIDES.bike.fearStep,false), e3=ex(RIDES.scooter.fearStep,true);
   modal('게임 구조 가이드',`
-    <p class="muted">이 게임에서 시간이 흐르고 자원이 변하는 규칙입니다. 숫자는 지금 코드의 값입니다. 숫자·위치·시간은 게임(버튼)이 정하고, 이야기 AI는 "어떻게·왜·누구와"를 서술합니다. AI가 제안하는 변화는 한 장면에 ${fxRangeText()} 안에서만 반영되고(물건을 살 때만 배터리·손전등 +${FX_BUY_MAX}까지), 근거 없는 회복은 코드가 막습니다.</p>
+    <p class="muted">이 게임에서 시간이 흐르고 자원이 변하는 규칙입니다. 숫자는 지금 코드의 값입니다. 숫자·위치·시간은 게임(버튼)이 정하고, 이야기 AI는 "어떻게·왜·누구와"를 서술합니다. AI가 제안하는 변화는 한 장면에 ${fxRangeText()} 안에서만 반영되고(물건을 살 때만 배터리 +${FX_BUY_MAX}까지), 근거 없는 회복은 코드가 막습니다.</p>
     ${live}
     ${h3('행동 방식 — 버튼 · 이야기 · 판정')}
     ${row('🧭 버튼 (게임 기능)','이동·휴식·귀환·거래·공포 가라앉히기처럼 시간·자원·위치가 바뀌는 행동. 정확히 계산됩니다')}
     ${row('💬 이야기 선택지','화면에 제시된 행동을 골라 관찰·대화·조사를 진행합니다. 이동 같은 기능 선택지는 저장된 장소 ID와 현재 조건을 검증해 실행합니다.')}
     ${row('🎲 판정',`결과가 불확실한 행동. 주사위 2개 + 능력치 + 특성 보너스 ≥ 난이도(쉬움 ${DCV.easy} · 보통 ${DCV.normal} · 어려움 ${DCV.hard})면 성공, 2 모자라면 부분 성공(대가 있음), 그보다 낮으면 실패. 능력치가 7 이상이면 난이도 숫자가 올라갑니다(성장 참고)`)}
     ${row('판정 능력치','체력=힘·몸 · 지혜=지식·해독·추리 · 매력=설득·흥정 · 생존술=추적·은신·함정')}
-    ${row('특성 보너스','옛 서류 해독(글·낙서 해독 +2) · 말발(매력 +2) · 싸움 경험(싸움 +2) · 동물 친화(동물 +2) · 지독한 호기심(지혜 +1) · 밤눈(야간·어둠 생존술 +1, 손전등 없음 불이익 무시) · 묘한 운(하루 한 번 크게 실패하면 다시 굴림)')}
-    ${row('불이익','구역에서 손전등 0: 매력 외 -2 · 체력 30% 이하: -1')}
+    ${row('특성 보너스','옛 서류 해독(글·낙서 해독 +2) · 말발(매력 +2) · 싸움 경험(싸움 +2) · 동물 친화(동물 +2) · 지독한 호기심(지혜 +1) · 밤눈(야간·어둠 생존술 +1, 불빛 없음 불이익 무시) · 묘한 운(하루 한 번 크게 실패하면 다시 굴림)')}
+    ${row('불이익','휴대폰 조명을 사용할 수 없는 어둠: 매력 외 -2 · 체력 30% 이하: -1')}
     ${row('실패의 대가','구역·뒷길·전투에서 매력 외 판정 실패: 체력 -(공간 위험도, 최소 1) · 위험도 2 이상 공간에서 부분 성공: 체력 -1 (지구·아지트·학교 안에서는 체력이 깎이지 않음)')}
     ${row('괴이를 만났을 때','싸우기보다 도주 · 숨기 · 교칙 지키기가 기본 대응입니다. 전투는 규율부·청소반 같은 사람이 상대일 때만 벌어집니다')}
     ${row('사건','이야기 속에서 상인이나 마음이 놓이는 곳(휴게 공간·티 코너·자판기 등)이 나오면 🧭 거래 · 🫧 공포 가라앉히기 버튼이 생깁니다. 지구의 공용 휴게 공간은 하루 한 번 무료이고, "따뜻한 차를 따라 마신다" 같은 선택지·글로도 가라앉습니다')}
@@ -9351,7 +9380,7 @@ function openGuide(){
     ${row('🔔 점호 시간까지 기다리기','종례가 끝난 방과 후에 캠퍼스에서 🔔 버튼을 누르면 야간이 될 때까지 시간을 보내고 기숙사 점호 장면으로 넘어갑니다. 점호에서 휴대폰을 걷지는 않습니다. 낮(수업 중)에는 쓸 수 없습니다')}
     ${row('🌙 소등 후 외출','야간·새벽(소등 후)에 기숙사 밖으로 나가면 그날 밤 처음 한 번 '+Math.round(CURFEW_CATCH_P*100)+'% 확률(벌점 '+DEMERIT_WARN+'점 이상이면 +'+Math.round(CURFEW_CATCH_WARN*100)+'%)로 들켜 기숙사로 돌려보내지고 벌점 +'+CURFEW_DEMERIT+'. 들키지 않으면 그날 밤은 자유롭게 다닐 수 있습니다. 구역 조사를 나가는 무단 외출 벌점은 따로 붙습니다')}
     ${row('🚪 소등 후 기숙사 출입 판정','야간·새벽(소등 후)에 기숙사로 들어가는 버튼·선택지로 이동 행동을 실행하면 같은 출입 판정을 합니다. 생존술 2d6 + 출입 권한 등급 보너스(2등급 +1, 3등급 +2)를 무작위 난이도와 겨루고, 성공하면 조용히 들어가고, 부분 성공이면 들어가지만 벌점 +1(늦은 귀가), 실패하면 문이 잠겨 못 들어가고 벌점 +1에 시간이 한 칸 흐릅니다(다시 시도 가능). 실패한 뒤에는 대안 버튼이 나옵니다 — 🙏 사감 선생님께 사정하기(매력 판정: 성공 시 벌점 없이 입장, 부분 성공 벌점 +1 입장, 실패 벌점 +1)와 📱 유민에게 몰래 문을 열어 달라고 문자(호감 레벨이 높을수록 성공 확률이 오르는 50~85%, 문자도 몰래 쓰는 것이라 적발될 수 있음). 이미 기숙사 안에 있을 때는 판정하지 않습니다. 출입 권한을 올리면 판정이 유리해집니다')}
-    ${row('🍵 기숙사에서 공포 낮추기','기숙사에서는 휴게실 차 마시기(공포 −1, 하루 3번)와 따뜻한 샤워(공포 −2, 하루 1번), 🔌 휴대폰 충전(배터리 +'+Math.round(DORM_CHARGE_PCT*100)+'%, 하루 '+DORM_CHARGE_DAILY+'번, 시간 한 칸)을 쓸 수 있고, 잠들기(무료)로 하룻밤을 보내면 체력 전부·공포 2를 회복합니다. 자고 일어나면 배터리 +'+SLEEP_BATTERY+'(용량 한도까지)')}
+    ${row('🍵 기숙사에서 공포 낮추기','기숙사에서는 휴게실 차 마시기(공포 −1, 하루 3번)와 따뜻한 샤워(공포 −2, 하루 1번), 🔌 휴대폰 충전(배터리 +'+Math.round(DORM_CHARGE_PCT*100)+'%, 하루 '+DORM_CHARGE_DAILY+'번, 시간 한 칸)을 쓸 수 있고, 잠들기(무료)로 하룻밤을 보내면 체력 전부·공포 3을 회복합니다. 자고 일어나면 배터리 +'+SLEEP_BATTERY+'(용량 한도까지)')}
     ${row('💼 학교 안 아르바이트','쉬는 시간·점심시간·방과 후에 한 칸을 써서 캐시를 벌 수 있습니다(수업 중·조례·종례·소등 후는 불가). 매점 아르바이트(💳'+JOBS.snack.pay.join('~')+'), 배식 도우미(급식실, 점심시간·방과 후, 💳'+JOBS.canteen.pay.join('~')+'), 선생님 심부름(교무실, 💳'+JOBS.office.pay.join('~')+', 벌점이 있으면 '+Math.round(JOBS.office.scold*100)+'%로 −1), 도서관 정리(💳'+JOBS.library.pay.join('~')+'). 하루 '+JOB_DAILY_LIMIT+'번까지(같은 일을 반복해도 됨)')}
     ${row('📝 벌점 줄이기','교무실의 📝 반성문 쓰기(벌점 −'+PENANCE.write.cut+'), 교실의 🧹 청소 봉사(벌점 −'+PENANCE.clean.cut+')를 각각 하루 한 번, 한 칸을 써서 할 수 있습니다(수업 중·소등 후 불가, 벌점이 있어야 함). 평일에 네 교시를 모두 출석하고 땡땡이·결석이 없으면 종례에서 모범 출석으로 벌점 −1. 그 밖에 기숙사 하룻밤(−1), 선생님 심부름('+Math.round(JOBS.office.scold*100)+'%로 −1)이 있습니다')}
     ${row('🎉 주말 전용','상점가의 버스킹 구경(공포 −1, 하루 한 번)과 정문의 면회 시간(점심 이후, 용돈과 간식)이 열립니다. 친구 외출·데이트는 별도 탭에서 방과 후나 주말 자유시간에 진행합니다.')}
@@ -9359,7 +9388,7 @@ function openGuide(){
     ${row('🔒 이야기 물건 vs 팔 수 있는 물건','소지품은 두 종류입니다. AI가 물건을 줄 때 이야기에 필요한 것(단서·증거·열쇠·서류·출입증·누군가의 소지품·약속이 걸린 물건)에는 🔒를 붙여 팔 수 없게 하고, 값나가는 잡동사니는 바로 팔 수 있습니다. 표시가 없는 물건은 이름으로 판단하고(출석부·열쇠·서류·사진 등은 🔒), 애매하면 팔기 전에 확인 창이 뜹니다')}
     ${row('📌 증거 기록','발견한 원문은 관찰 사실·증언·소문·추정으로 나누어 사건에 모읍니다. 같은 장소를 여러 번 조사해도 증거가 새 사건 칸을 차지하지 않습니다. 자동 기록은 하루 '+CANON_DAILY+'개까지이며, 원문 보관량과 AI 전달량은 별개입니다. AI에는 본편·현재 장소·다른 장소·인물의 기록을 배분해 최대 '+EVIDENCE_PROMPT_LIMIT+'개 전달합니다. 정리는 원문을 삭제하지 않으며, 관찰 추가만으로 사건이 해결되지 않습니다. 결론 기록에는 관찰·증언 증거를 직접 선택해야 합니다') }
     ${row('🧩 추리 도우미','행동 버튼 줄의 🧩 추리 도우미를 누르면 지금까지의 조사 보드·사전·연대기·소문을 AI가 한 번 정리해 줍니다. 단계는 「살짝」(방향만: 알려진 것·이어질 법한 것을 질문으로·더 찾아볼 방향)과 「확실히」(다음에 할 구체적 행동 2~3개까지) 중에 고릅니다. 숨겨진 정체나 정답은 알려 주지 않으며, 누를 때마다 AI를 한 번 부르고 마지막 결과는 저장됩니다. ❓ 질문하기에 궁금한 점을 적으면 같은 단계로 알려진 단서만 근거로 2~3문장으로 답하고(최근 5개 저장), 역시 한 번 묻는 데 AI를 한 번 부릅니다')}
-    ${row('🎒 소지품',`행동 버튼 줄의 🎒 소지품에서 공포·배터리·손전등·캐시·벌점·출입 권한, 기념 메달 조각·자재·탈것·물건을 한눈에 봅니다. 간식·소모품은 「먹기·쓰기」로 쓰고, 🔒가 없는 물건은 상점가에서 팝니다. 모든 물건 옆의 🗑를 누르면 확인 후 버릴 수 있습니다(🔒 물건은 이야기에 필요할 수 있어 경고가 뜹니다)`)}
+    ${row('🎒 소지품',`행동 버튼 줄의 🎒 소지품에서 공포·배터리·캐시·벌점·출입 권한, 기념 메달 조각·자재·탈것·물건을 한눈에 봅니다. 간식·소모품은 「먹기·쓰기」로 쓰고, 🔒가 없는 물건은 상점가에서 팝니다. 모든 물건 옆의 🗑를 누르면 확인 후 버릴 수 있습니다(🔒 물건은 이야기에 필요할 수 있어 경고가 뜹니다)`)}
     ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기를 누르면 작별 장면이 나온 뒤 동행이 종료됩니다(지도의 🎵로 위치 확인)')}
     ${row('🤝 안심 접촉','곁에 있는 친구 이상 NPC에게 선택지로 손잡기·어깨 토닥임을 청할 수 있습니다. 상대가 수락하면 공포 −1. 짧은 포옹은 확인된 연인과 가능합니다. 같은 상대는 하루 1회, 전체 하루 2회까지 회복하며 거절·문자·전화·상상은 회복하지 않습니다. 반복 접촉은 묘사만 이어집니다.')}
     ${row('🔎 사건 조사','새 구역의 원인·핵심 증거·검증 방법은 AI가 비공개로 생성하고 검토한 뒤 고정합니다. 조사 직후 새 증거·기여 또는 추가 발견 없음을 표시합니다. 조사 수첩에서 다음 후보를 보고, 필요한 근거를 확보한 뒤 지정 공간의 원인 검증 버튼으로 해결합니다. 방을 모두 방문하거나 단서를 일정 비율 모은 것만으로 해결되지 않습니다. 생성에 실패하면 사건 준비 재시도로 다시 준비합니다.')}
@@ -9376,23 +9405,23 @@ function openGuide(){
     ${h3('걸음에 따른 변화 (한빛시·구역에서만)')}
     ${row('😨 공포',`걸을 때 ${MOVE_STEPS.calm}걸음마다 +1 (하루 꼬박 움직이면 약 ${Math.round((SCHOOL.length+MOVE_STEPS.quarter*(TIMES.length-1))/MOVE_STEPS.calm)}) · 이동은 단계마다 +1 · 학교 안·지구·아지트에서는 쌓이지 않음<br><span class="muted">"담력" 특성: ${MOVE_STEPS.calmFrugal}걸음마다 · 떠돌이 개(친근한 사이부터) +1걸음</span>`)}
     ${row('🔋 배터리',`${MOVE_STEPS.battery}걸음마다 −1% · 문자 −1% · 전화 −${CALL_DRAIN}% (시간 한 칸) · 자고 일어나면 +${SLEEP_BATTERY}칸(용량 한도까지)`)}
-    ${row('🔦 손전등',`빛 없는 구역에서 이동·조사 ${MOVE_STEPS.torch}행동마다 −1 (배수 터널은 3행동). 고정 조명·낮의 야외·밤눈은 소비하지 않음`)}
+    ${row('📱 자동 조명',`어두운 구역의 이동·조사에 휴대폰 조명을 자동 사용: 행동당 ${PHONE_LIGHT_DRAIN}% (배수 터널 ${TUNNEL_LIGHT_DRAIN}%). 밝은 곳·밤눈은 조명 전력 불필요. 방전·압수로 불빛이 없으면 ${DARK_FEAR_ACTIONS}행동마다 공포 +1. 가만히 두면 소비·공포 누적 없음`)}
     ${row('한계에 닿으면','공포 한계에서 다음 누적 주기가 오면 체력 −1. 휴대폰 방전은 문자·전화만 막으며 그 자체로 다치지 않음')}
-    ${row('🌑 손전등 0 (어둠)',`주변 조명이 없는 구역에서: 공간 이동 2행동(시간 1칸) · ${Math.round(DARK_STUMBLE*100)}% 확률로 넘어져 체력 -1 · 단서와 기념 메달 조각을 찾지 못함 · 판정 -2 (매력 제외). 「밤눈」 특성이 있으면 모두 면제`)}
+    ${row('🌑 휴대폰 조명 불가 (어둠)',`주변 조명이 없는 구역에서: 4행동마다 공포 +1 · 공간 이동 2행동(시간 1칸) · ${Math.round(DARK_STUMBLE*100)}% 확률로 넘어져 체력 -1 · 단서와 기념 메달 조각을 찾지 못함 · 판정 -2 (매력 제외). 「밤눈」 특성이 있으면 모두 면제`)}
     ${row('화면 연출','공포가 한계의 ' + Math.round(FEAR_RED*100) + '%를 넘으면 화면이 붉어지고, ' + Math.round(FEAR_NOISE*100) + '%를 넘으면 노이즈가 낍니다')}
     ${h3('행동별 비용')}
-    ${row('구역 조사 출발','떠난 곳에서 구역까지 지도 거리만큼 (1단계=시간 2칸) — 이동 단계마다 공포 +1·배터리 −1%, 탈것 충전 1회. 두 단계(시간 4칸) 이상이면 길 위의 사건이 생길 수 있음. 아지트 작업대가 있으면 손전등 +1, 소중한 연인이 있으면 그가 챙겨 준 보조배터리 +1. 공포 여유와 배터리가 최소 1씩 필요하고, 야간·새벽에 출발하면 무단 외출 벌점')}
+    ${row('구역 조사 출발','떠난 곳에서 구역까지 지도 거리만큼 (1단계=시간 2칸) — 이동 단계마다 공포 +1·배터리 −1%, 탈것 충전 1회. 두 단계(시간 4칸) 이상이면 길 위의 사건이 생길 수 있음. 아지트 작업대가 있으면 배터리 +1칸, 소중한 연인이 있으면 그가 챙겨 준 보조배터리 +1. 공포 여유와 배터리가 최소 1씩 필요하고, 야간·새벽에 출발하면 무단 외출 벌점')}
     ${row('귀환','떠나온 지구(없으면 중앙 캠퍼스 지구)까지 지도 거리만큼 — 이동 단계마다 공포 +1·배터리 −1% (공포 여유가 모자라면 체력 감소), 충전은 없음. 두 단계(시간 4칸) 이상이면 길 위의 사건. 수몰 구역은 보트로 선착장까지(대여료는 왕복 요금에 포함). 자재: 철제 부품 +(방문한 공간 수 ÷ 2, 올림 — 이어 조사한 구역은 새로 본 공간만큼만), 합판은 50% 확률로 +1')}
     ${row('임시 쉼터','체력 '+Math.round(SHELTER_HEAL*100)+'% 회복, 공포 −'+SHELTER_CALM+', 배터리 +'+SHELTER_BATTERY+'칸(용량 한도). 준비만으로 회복되지 않고 아침까지 실제로 쉬어야 회복됩니다. 위험도 3인 방은 쉼터 불가. 다음 아침에는 임시 쉼터를 시작한 곳으로. 기숙사 밖(임시 쉼터·아지트)에서 하룻밤을 보내면 '+Math.round(OUTSIDE_NIGHT_P*100)+'% 확률로 점호 불참이 적발되어 벌점 +1~+2')}
     ${row('🏠 아지트에서 잠들기','아지트를 마련했다면 방과 후 이후 학교 안 어느 곳에서든 「아지트로 가서 잠들기」를 쓸 수 있습니다. 무료이고 체력과 공포가 회복되고 배터리 +'+SLEEP_BATTERY+'칸, 하루가 지납니다. 소등 후에는 몰래 나가는 것이라 적발될 수 있고(기숙사 문이 잠겨 이미 밖에 있다면 바로 갈 수 있음), 기숙사의 점호 벌점 감소는 없으며 기숙사 밖 하룻밤 적발 확률('+Math.round(OUTSIDE_NIGHT_P*100)+'%)이 적용됩니다')}
-    ${row('🏨 현지 숙박',`외부 지구에서는 기숙사 취침 대신 현지 숙박: 방과 후부터 💳${HOOD_LODGING_FEE}, 체력 60%·공포 2 회복·배터리 +2, 다음 아침까지 시간 진행. 학교로 자동 이동하지 않으며 기숙사 점호 통과/벌점 감소 효과 없음`)}
+    ${row('🏨 현지 숙박',`외부 지구에서는 기숙사 취침 대신 현지 숙박: 방과 후부터 💳${HOOD_LODGING_FEE}, 체력 60%·공포 3 회복·배터리 +2, 다음 아침까지 시간 진행. 학교로 자동 이동하지 않으며 기숙사 점호 통과/벌점 감소 효과 없음`)}
     ${row('🛏 잠들기','기숙사의 「잠들기」 버튼(학교 안 어느 지점에서든 방과 후 이후에 보입니다): 무료, 체력 전부 회복, 하루 경과, 배터리 +'+SLEEP_BATTERY+'칸, 해당 밤 점호를 놓치지 않았고 벌점이 있으면 -1. 소등 후에는 기숙사 출입 판정을 거칩니다')}
     ${row('급식실','점심시간에만 식사를 줍니다. 일과의 🍚 급식 먹기는 무료, 급식실의 🍚 식사하며 소문 듣기는 💳5 (모두 1걸음)')}
     ${row('아지트에서 쉬기',`무료, 체력 전부 회복, 공포 −${HOME_FEAR_RECOVER}, 배터리 +${SLEEP_BATTERY}칸, 하루 경과. 충전 거치대는 낮에도 +50% 충전 가능(하루 2번, 시간 한 칸). 기숙사 밖 하룻밤이라 점호 불참 적발 확률(${Math.round(OUTSIDE_NIGHT_P*100)}%)이 있습니다. 유민은 동행 중이거나 휴게 소파에 실제로 머물 때만 함께 쉼`)}
     ${row('쓰러졌을 때','"출석부에서 네 이름이 지워졌다…" 잠시 의식을 잃었다가 구조되어 떠나온 지구(없으면 중앙 캠퍼스 지구)로. 캐시 절반 손실(전동 스쿠터가 있으면 4분의 1), 이틀 경과, 체력 절반으로 회복')}
     ${h3('구역 입구 밖')}
     ${row('🚪 구역 밖으로 나가기','깊이 0~2는 시간 1칸, 깊이 3 이상은 시간 2칸 소모. 구역은 그대로 남고, 다시 들어가면 나왔던 공간으로 돌아갑니다')}
-    ${row('🧭 이동 행상',`뒷길에 나올 때 가끔 나타남 (공포 여유가 바닥이면 더 자주). 진정 음료·배터리 💳${PRICE_ROAD.calm} · 손전등 💳${PRICE_ROAD.torch}, 재고 한정. 자리를 뜨면 함께 떠남`)}
+    ${row('🧭 이동 행상',`뒷길에 나올 때 가끔 나타남 (공포 여유가 바닥이면 더 자주). 진정 음료·배터리 💳${PRICE_ROAD.calm}, 재고 한정. 자리를 뜨면 함께 떠남`)}
     ${row('입구 밖에서 할 수 있는 것','다시 들어가기 · 임시 쉼터(아침에도 입구 밖) · 중앙 캠퍼스 지구로 귀환 · 행상과 거래·대화')}
     ${row('중단한 구역','다 못 본 구역은 최대 3곳까지 보관되어, 나중에 마지막 공간에서 이어서 조사할 수 있습니다. 포기하거나 보관 한도에 밀려나도 밝혀낸 단서만큼은 구역의 사연이 괴담 사전에 남습니다')}
     ${row('👥 인물의 위치','인물은 역할에 맞는 일과를 따라 움직입니다(교사는 담당 교실·교무실, 사감은 기숙사, 학생은 교실·복도·급식실 등, 소등 후엔 기숙사). 방금 만나거나 약속한 칸에는 그 자리에 있고, 다른 지구·아지트에서 만난 인물은 그곳에 머뭅니다. 위치는 📱 연락처에 표시되고, 정체를 알 수 없는 존재는 위치를 모릅니다. 뒷길·구역에서 만난 인물은 다시 찾아갈 수 없습니다')}
@@ -9400,7 +9429,7 @@ function openGuide(){
     ${row('기념 메달 조각',`6개 완성 시 캐시 ${MEDAL_REWARD_CASH}과 경험 ${MEDAL_REWARD_XP}을 한 번 지급합니다. 본편 핵심 증거와 별개의 수집물입니다. 새 구역의 약 ${Math.round((1-FRAG_SKIP)*100)}%에 하나 (${FRAG_MAX_MISS}곳 연속 없었으면 다음 구역에는 반드시). 메달 연구실 연구로 미리 알 수도 있음`)}
     ${g&&G.actDone?h3('라쿠나 구역'+(G.act>=3?' · 출석부가 가리키는 구역들':''))+row('✨ 라쿠나 구역',`중앙 캠퍼스 지구 정문(또는 다른 지구·아지트)에서 떠남 · 중앙 캠퍼스 지구에서 ${durText(travelDays(CAMPUS_POS,LACUNA_POS))}(동부 저수지 공원·학원가 골목에서는 ${durText(travelDays(hoodPos('east'),LACUNA_POS))}) · 왕복 공포 여유·배터리가 넉넉해야 함 · ${compactCampaign()?'4개 공간의 사건을 추론·검증한 뒤 출석부 해독(추가 주사위 없음)':'큰 구역이며 가장 깊은 공간의 출석부를 🎲 지혜 판정으로 해독'}`)+(G.act>=3?Object.values(WARD_TYPES).map(t=>row(`${t.ic} ${t.n}`,`${t.reqText} · ${compactCampaign()?'사건 검증 후 본편 연결(추가 주사위 없음)':`심장 열기 🎲 ${SK[t.check]} 어려움`}<br><span class="muted">${t.rule}</span>`)).join('')+row('찾아가기','🗺 출석부가 가리키는 구역들 버튼에서 · 중간에 돌아와도 그 자리에서 이어서 조사'):''):''}
     ${h3('중앙 캠퍼스 지구 밖의 지구 (정문 → 🧭 이동하기)')}
-    ${Object.entries(HOODS).filter(([id])=>!g||hoodOpen(id)).map(([id,t])=>row(`${t.ic} ${t.n} <span class="muted">(중앙 캠퍼스 지구에서 ${durText(hoodDays(id))})</span>`,`${t.perk}<br><span class="muted">진정 음료 💳${t.price.calm} · 배터리 💳${t.price.battery} · 손전등 💳${t.price.torch}</span>`)).join('')}
+    ${Object.entries(HOODS).filter(([id])=>!g||hoodOpen(id)).map(([id,t])=>row(`${t.ic} ${t.n} <span class="muted">(중앙 캠퍼스 지구에서 ${durText(hoodDays(id))})</span>`,`${t.perk}<br><span class="muted">진정 음료 💳${t.price.calm} · 배터리 💳${t.price.battery}</span>`)).join('')}
     ${row('가는 길',`이동 시간은 지도 거리로 자동 계산(지도 거리 약 ${DAY_DIST}당 한 단계=시간 ${TRAVEL_TICKS}칸 · 낮 9칸과 방과 후/야간/새벽 각 4칸, 하루 21칸 · 조사·이동·학교가 같은 시계를 사용) · 이동 단계마다 공포 +1·배터리 −1% (충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반, 공포 여유가 모자라면 그만큼 체력 감소) · 지구끼리도 바로 오감 · 지구에서 떠난 조사 외출은 그 지구로 돌아옴 · 아지트는 중앙 캠퍼스 지구 바로 옆`)}
     ${row('🕒 이동 중의 시간','이동·조사·학교가 같은 시계를 사용합니다. 이동 단계 1개는 시간 2칸이고 0단계는 시간이 흐르지 않습니다. 이동 중 지나간 수업도 결석으로 기록하며 주말·승인된 결석일은 제외합니다. 출발 전 예상 도착/귀교 시각, 구역 상단에 바로 돌아갈 경우의 귀교 시각이 표시됩니다. 돌발 사건과 추가 조사로 늦어질 수 있습니다')}
     ${row('길 위의 사건',`두 단계(시간 4칸) 이상 걸리는 육로 이동에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🧭 이동 행상(거래) · 🎵 유민 · 🏴 적대 세력(전투) · 🗡 불량배(통행세 캐시의 20%, 최소 💳10 / ⚔ 체력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 한 단계 더·공포 +1·배터리 −1%)`)}
@@ -9438,14 +9467,14 @@ function openGuide(){
     ${row('탈것 없음',`공포 약 +${e0.w} · 배터리 약 −${e0.f}%`)}
     ${row('자전거',`공포 약 +${e1.w} · 배터리 약 −${e1.f}%+충전 ${RIDES.bike.feed} (철제 부품 +1)`)}
     ${row('전동 스쿠터',`공포 약 +${e3.w} · 배터리 약 −${e3.f}%+충전 ${RIDES.scooter.feed} (철제 부품 +1, 합판이나 전선 +1)`)}
-    <p class="muted">손전등은 별도로 약 2~3개. 전동 스쿠터: 걸음당 공포 누적 주기가 ${RIDES.scooter.fearStep}걸음 늘고, 이동·조사 외출 출발과 귀환 때 공포가 절반만 쌓입니다(이동 단계 수÷2, 내림). 임시 쉼터를 마련할 때는 공포가 쌓입니다.</p>
+    <p class="muted">어두운 곳에서 12행동을 조사하면 조명에 배터리 12% (배수 터널 24%)가 추가로 듭니다. 불빛 없이 조사하면 4행동마다 공포 +1이 더 쌓입니다. 전동 스쿠터: 걸음당 공포 누적 주기가 ${RIDES.scooter.fearStep}걸음 늘고, 이동·조사 외출 출발과 귀환 때 공포가 절반만 쌓입니다(이동 단계 수÷2, 내림). 임시 쉼터를 마련할 때는 공포가 쌓입니다.</p>
     ${h3('휴대 용량')}
-    ${row('기본 용량',`공포 한계 ${CAP_BASE} · 배터리 ${CAP_BASE} · 손전등 ${CAP_BASE} (공포 한계는 👤 학생 칸의 성장 포인트로도 +${GROW_CAP_STEP}씩 최대 ${GROW_CAP_MAX}번 늘릴 수 있음)`)}
+    ${row('기본 용량',`공포 한계 ${FEAR_BASE} · 휴대폰 배터리 ${CAP_BASE}칸 (조명 통합) (공포 한계는 👤 학생 칸의 성장 포인트로도 +${GROW_CAP_STEP}씩 최대 ${GROW_CAP_MAX}번 늘릴 수 있음)`)}
     ${row('상점 확장 (멘탈 한도·보조배터리 팩)',`단계마다 +${CAP_STEP} · ${CAP_PRICE.w.length}단계까지 · 💳${CAP_PRICE.w.join(' / ')}`)}
     ${row('상점 확장 (건전지 케이스)',`단계마다 +${CAP_STEP} · ${CAP_PRICE.t.length}단계까지 · 💳${CAP_PRICE.t.join(' / ')}`)}
     ${row('탈것 보너스',`자전거 공포 한계·배터리 +${RIDES.bike.capBonus} · 전동 스쿠터 +${RIDES.scooter.capBonus} (충전해 상태가 좋을 때, 친근한 사이 +1 · 단짝 +2)`)}
     ${row('가격',`${priceHood} / ${priceRoad}`)}
-    <p class="muted" style="font-size:12px">용량을 넘겨 얻은 진정 음료·배터리·손전등은 사라집니다.</p>
+    <p class="muted" style="font-size:12px">용량을 넘겨 얻은 진정 음료·배터리은 사라집니다.</p>
     ${h3('캐시 수입')}
     ${row('구역 조사 보상',`이야기 AI가 정함. 한 장면 💳${FX_LIMIT.cash[1]}까지, 구역 한 곳을 통틀어 💳${ZONE_CASH_CAP}까지`)}
     ${row('유실물 감정','작업대나 재개발지구 고물상에서 등급별 감정가 (💳'+KEEPSAKE_GRADES.map(r=>r.p).join('·')+')')}
@@ -9969,7 +9998,7 @@ async function finishCreation(){
   G={
     v:1,_relVersion:2,_clockVersion:2,_privateMysteryVersion:1,_deductionVersion:1,campaign:{version:1,links:{},introSolved:false},
     char:{name,age:17,origin:'한빛학원 2학년 7반 전학생',region:HOME_REGION,reason,stats,traits:draft.traits.map(id=>TRAITS.find(t=>t.id===id).n),bio:document.getElementById('cBio').value.trim()},
-    hp:maxhp,maxhp,calm:5,battery:CAP_BASE,torch:3,cash:30,
+    hp:maxhp,maxhp,calm:FEAR_BASE-1,battery:CAP_BASE,torch:0,cash:30,_phoneLightVersion:1,_fearBalanceVersion:1,
     items:['오래된 출석부'],
     demerit:0,access:1,ledger:[],
     fragments:0,act:1,day:1,time:'낮',loc:'campus',steps:0,
