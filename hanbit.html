@@ -1254,7 +1254,7 @@ function updateUsageChip(){
 
 /* ---------- 4-4. 프롬프트 ---------- */
 const SYS_BASE=`너는 텍스트 탐험 게임 「출석부에 없는 구역」의 게임 마스터이자 서술자다. 현대 한국 학원물 + 조사 + 호러 탐험이다.
-플레이어의 행동을 받아 장면을 2인칭 현재형("너는 ~한다")으로 서술하고, 동행 NPC 유민의 대사를 쓰고, 게임 상태 변화를 effects로 제안한다. 플레이어 캐릭터의 대사·감정·결정을 대신 정하지 않고, 장면 끝에는 플레이어가 고를 행동 여지를 남긴다.
+플레이어의 행동을 받아 장면을 2인칭 현재형("당신은 ~한다")으로 서술하고, 동행 NPC 유민의 대사를 쓰고, 게임 상태 변화를 effects로 제안한다. 플레이어 캐릭터의 대사·감정·결정을 대신 정하지 않고, 장면 끝에는 플레이어가 고를 행동 여지를 남긴다.
 
 [절대 규칙]
 - 주요 학생 인물(플레이어, 유민)은 고등학교 2학년(만 17세)이다. 또래 학생 사이의 연애는 [인연] 단계에 따라 서서히 발전시킨다. 학생 간 연애는 관계 단계에 맞춰 자연스럽고 자유롭게 묘사하되 성적 내용은 제외한다. 폭력과 공포 묘사는 수위를 지킨다.
@@ -1280,7 +1280,7 @@ const SYS_BASE=`너는 텍스트 탐험 게임 「출석부에 없는 구역」�
 - 호감 단계는 [인연]·유민 프로필의 지시를 따르고 호감 수치는 코드가 관리한다. 유민과의 관계·연애 서사와 개인 사연 서사는 본편과 별개이며 본편 진상을 대신 풀어 주지 않는다. 실패해도 바로 닫지 말고 나중에 다시 열릴 기회를 만든다.
 
 [서술 규칙]
-- 반드시 한국어, 플레이어를 2인칭 현재형("너는 ~한다")으로 서술한다.
+- 반드시 한국어, 플레이어를 2인칭 현재형("당신은 ~한다")으로 서술한다. 서술문에서 플레이어는 항상 "당신"(당신은·당신의·당신을·당신에게)으로 지칭하고 "너"·"네"로 쓰지 않는다. 단, 유민 등 인물의 대사 안에서 플레이어를 부르는 말은 인물의 말투대로 둔다.
 - 공포는 괴물을 직접 묘사하기보다 소리·흔적·빛·규칙 위반의 결과로 보여준다. 일상은 짧고 가볍게, 조사는 감각 묘사를 촘촘하게. 현대 한국 학원의 생활감(형광등, 자습실, 급식, 단톡방, 점호 방송)을 살린다. 공포 수치가 높으면 서술이 왜곡되고(문장 반복, 착각, 시간 감각 혼란) 선택지가 좁아진다.
 - 서술은 3~6문단 정도, 500~900자. 감각적 묘사(빛, 소리, 냄새, 온도)를 쓰되 장황하지 않게.
 - 한 장면에 새로 드러나는 단서는 하나만. 장치·글귀·물건의 비밀, 수수께끼의 답, 작동 원리를 한 번에 다 보여 주지 말고 플레이어가 한 걸음씩 다가갈 때마다 하나씩 드러낸다. 아직 읽지 않은 글이나 열지 않은 것의 내용은 서술하지 않는다.
@@ -1567,12 +1567,12 @@ function fallbackTurn(action){
   /* AI 없이 진행할 때의 기본 서술·선택지 — 위치(중앙 캠퍼스 지구·지구·아지트·임시 쉼터·한빛시 뒷길·구역)에 맞춰 고름 */
   const L=G.loc;
   const SET_={
-    campus:{lines:['형광등 소리가 낮게 웅웅거린다. 상점가 쪽에서 누군가 지워진 구역 이야기를 낮게 속삭인다.','급식실 아주머니가 국자를 닦으며 너를 흘끗 본다. "밤에 복도를 돌아다니는 애들, 꼭 한 명씩 사라지더라."'],choices:['상점가를 둘러본다','급식실에 들른다']},
-    hood:{lines:['낯선 거리의 사람들이 너를 흘끗거린다. 이곳에도 지워진 구역의 소문이 닿아 있는 듯하다.','골목 끝에서 누군가 급히 짐을 꾸리고 있다.'],choices:['이 지구 사람들의 이야기를 엿듣는다','주변을 둘러본다']},
+    campus:{lines:['형광등 소리가 낮게 웅웅거린다. 상점가 쪽에서 누군가 지워진 구역 이야기를 낮게 속삭인다.','급식실 아주머니가 국자를 닦으며 당신을 흘끗 본다. "밤에 복도를 돌아다니는 애들, 꼭 한 명씩 사라지더라."'],choices:['상점가를 둘러본다','급식실에 들른다']},
+    hood:{lines:['낯선 거리의 사람들이 당신을 흘끗거린다. 이곳에도 지워진 구역의 소문이 닿아 있는 듯하다.','골목 끝에서 누군가 급히 짐을 꾸리고 있다.'],choices:['이 지구 사람들의 이야기를 엿듣는다','주변을 둘러본다']},
     home:{lines:['폐 동아리실 창밖으로 저수지의 물빛이 흔들린다. 곰팡이와 오래된 종이 냄새에 돌아올 곳의 안도감이 섞여 있다.','복도 끝에서 수도꼭지 떨어지는 소리가 들린다. 이곳에서는 잠시 숨을 돌려도 좋다.'],choices:['아지트 주변을 둘러본다','잠시 쉬며 생각을 정리한다']},
     shelter:{lines:['랜턴 불빛이 낮게 떨린다. 불빛 너머 어둠 속에서 무언가 바닥을 스치는 소리가 난다.','벽에 기대어 앉자 하루의 피로가 천천히 가라앉는다. 멀리서 환풍기 소리만 들린다.'],choices:['랜턴 곁에서 쉬며 상황을 정리한다','장비를 점검한다','주변 소리에 귀를 기울인다']},
-    road:{lines:['깜빡이는 가로등 아래로 네 그림자가 길게 늘어진다. 발소리가 어딘가 한 박자 늦게 따라온다.','저 멀리 폐건물의 창문이 어둠 속에서 하얗게 번득인다.'],choices:['주변 골목을 살핀다','잠시 쉬며 마음을 가라앉힌다','방향을 가늠해 본다']},
-    site:{lines:['휴대폰 조명 빛이 흔들리며 벽의 낙서가 살아 움직이는 듯 보인다. 천장에서 물방울이 느리게 떨어진다.','어디선가 끊긴 교내 방송 같은 잡음이 지나간다. 이 구역은 아직 무언가를 숨기고 있다.','발밑의 타일이 살짝 꺼진다. 너는 숨을 멈추고 주위를 살핀다.'],choices:['주변을 자세히 조사한다','벽의 글씨를 읽어본다','조용히 귀를 기울인다']},
+    road:{lines:['깜빡이는 가로등 아래로 당신의 그림자가 길게 늘어진다. 발소리가 어딘가 한 박자 늦게 따라온다.','저 멀리 폐건물의 창문이 어둠 속에서 하얗게 번득인다.'],choices:['주변 골목을 살핀다','잠시 쉬며 마음을 가라앉힌다','방향을 가늠해 본다']},
+    site:{lines:['휴대폰 조명 빛이 흔들리며 벽의 낙서가 살아 움직이는 듯 보인다. 천장에서 물방울이 느리게 떨어진다.','어디선가 끊긴 교내 방송 같은 잡음이 지나간다. 이 구역은 아직 무언가를 숨기고 있다.','발밑의 타일이 살짝 꺼진다. 당신은 숨을 멈추고 주위를 살핀다.'],choices:['주변을 자세히 조사한다','벽의 글씨를 읽어본다','조용히 귀를 기울인다']},
   };
   const T=SET_[L]||SET_.campus;
   const effects={}, r=curRoom();
@@ -3808,7 +3808,7 @@ ${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}\n[확정 단서 — 모순�
 - 세계의 진상을 직접 밝히지 않는다.
 공간 이름과 주제에는 원인/범인/정답을 쓰지 말고 현상과 배경만 쓴다.
 JSON만 출력:
-{"name":"구역 이름","theme":"주제 한 줄","intro":"구역에 도착했을 때의 서술 ${narrCfg().s[0]}~${narrCfg().s[1]}문장(${narrCfg().p}, 이동 메모가 있으면 첫 문장에 이동 과정), 2인칭 현재형","rooms":[{"id":"r1","name":"공간 이름","desc":"비밀 메모","hook":"단서 또는 위험 요소 하나","light":"dark","exits":["r2"],"danger":0}]}`;
+{"name":"구역 이름","theme":"주제 한 줄","intro":"구역에 도착했을 때의 서술 ${narrCfg().s[0]}~${narrCfg().s[1]}문장(${narrCfg().p}, 이동 메모가 있으면 첫 문장에 이동 과정), 2인칭 현재형(당신)","rooms":[{"id":"r1","name":"공간 이름","desc":"비밀 메모","hook":"단서 또는 위험 요소 하나","light":"dark","exits":["r2"],"danger":0}]}`;
   if(compactCampaign())prompt+='\n개편 구조: 내부 공간은 정확히 4개. 위험도 0~1. 중심 사건 하나만 구성한다.';
   if(era) prompt+=loreRequest(era,hasFrag);
   const lead=G._leadZone&&(G.leads||[]).find(x=>x.id===G._leadZone); G._leadZone=null;
@@ -4288,7 +4288,7 @@ function checkState(){
   if(G.hp<=0){
     sfx('collapse');
     const keep=rideRescueKeep();
-    addLog('sys',`출석부에서 네 이름이 지워졌다… 잠시 의식을 잃었다가 ${keep>0.5?G.ride.name+'의 도움으로 ':'순찰 중이던 직원에게 '}구조되어 ${baseName()}${josa(baseName(),'으로','로')} 돌아옵니다. 캐시의 ${keep>0.5?'4분의 1':'절반'}을 잃었습니다.`);
+    addLog('sys',`출석부에서 당신의 이름이 지워졌다… 잠시 의식을 잃었다가 ${keep>0.5?G.ride.name+'의 도움으로 ':'순찰 중이던 직원에게 '}구조되어 ${baseName()}${josa(baseName(),'으로','로')} 돌아옵니다. 캐시의 ${keep>0.5?'4분의 1':'절반'}을 잃었습니다.`);
     G.chronicle.push({day:G.day,text:'조사 외출 중 쓰러져 순찰 직원에게 구조되었다'});
     G.cash=Math.floor(G.cash*keep); G.hp=Math.ceil(G.maxhp/2); G.calm=Math.max(G.calm,2); G.battery=Math.max(G.battery,2);
     archiveSite();
@@ -4371,6 +4371,12 @@ function validateCampaign(p){
   if(!Array.isArray(p?.rumors)||p.rumors.length!==4||p.rumors.some(r=>!r||typeof r.region!=='string'||!txt(r.belief,400))) errs.push('지역 소문');
   return [...new Set(errs)];
 }
+/* 사건·본편 준비 실패 원인을 짧게 정리해 알려 줍니다 (키 없음·시간 초과·응답 형식 등을 구분) */
+function prepFailText(e){
+  const m=String(e&&e.message||e||'').replace(/\s+/g,' ').trim();
+  if(m==='NO_KEY') return 'AI 키가 설정되어 있지 않습니다';
+  return m.slice(0,90)||'알 수 없는 오류';
+}
 let campaignWorldJob=null;
 async function genCampaignWorld(){
   if(campaignPlan()) return true;
@@ -4380,19 +4386,19 @@ async function genCampaignWorld(){
   const prompt=`제작자도 정답을 모르는 학원 공포 추리 게임의 본편을 비공개로 설계한다. 새 게임마다 원인·관계·증거의 조합이 다른 사건을 만들되 추론 가능한 하나의 진상을 고정한다. 입문 사건은 본편과 독립된 작은 사건이고, 이후 주요 지역은 라쿠나(lacuna), 안개 기숙사(c0), 방송·음악 시설의 배수 터널(c1) 정확히 세 곳이다. 세 곳은 각각 본편 진상의 다른 부분(누가/어떤 과정으로/왜 지웠는지 등)을 증명한다. fragment는 비공개 담당 사실, link는 그 지역 사건을 해결한 후 공개할 관찰·기록의 연결 사실이다. link 세 개를 합치면 truth/detail을 설명해야 한다. 처음부터 전체 정답을 말하는 link는 금지한다. 아직 방문하지 않은 지역에 대한 증거를 대신 공개하지 않는다. opening/roster/rumors/riddle은 비밀을 누설하지 않는다. 공개 소문은 서로 다른 관점을 담고 증언과 사실을 구분한다. 기념 메달 조각 6개 수집이나 일곱 지역은 요구하지 않는다. 캐릭터: ${JSON.stringify(G.char)}. 소문 지역: ${JSON.stringify(regions)}. 공개 경로의 실제 좌표: ${JSON.stringify(wardPositions())}. 방위를 쓰면 이 좌표와 모순되지 않게 하라. 캐릭터의 전학 이유가 미정이면 entry_reason에 공개 가능한 한 문장을 적는다. 정답을 암시하지 않는다. JSON만: {"truth":"정체","detail":"진상의 경위","entry_reason":"전학 이유(기존 설정 유지)","opening":"전학 첫날 교실 문 앞 장면, 2인칭 현재형. 친구와 만남은 아직 없다","roster":"라쿠나에서 해독 후 공개할 두 다른 구역의 방향만","rumors":[{"region":"지역명","belief":"소문"}],"chapters":[{"key":"lacuna","role":"증명할 부분","fragment":"비공개 사실","link":"해결 후 공개할 연결 사실","riddle":"공개 현상","lore":"숨은 사연과 교칙"},{"key":"c0","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."},{"key":"c1","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."}]}`;
   const token={g};campaignWorldJob=token;
   token.promise=(async()=>{
-    let issues=[];
-    for(let n=0;n<2;n++)try{
-      const p=parseJSON(await callAI('너는 비공개 본편 설계자다. JSON만 출력한다.',prompt+'\n수정 사항: '+JSON.stringify(issues),3500,'world'));
-      if(G!==g)return false;issues=validateCampaign(p);if(issues.length)continue;
-      if(regions.some(r=>!p.rumors.some(x=>x.region===r))){issues=['소문 지역 불일치'];continue}
+    let issues=[],why='';
+    for(let n=0;n<3;n++)try{
+      const p=parseJSON(await callAI('너는 비공개 본편 설계자다. JSON만 출력한다.',prompt+'\n수정 사항: '+JSON.stringify(issues),5000,'world'));
+      if(G!==g)return false;if(!p){issues=['응답이 JSON 형식이 아니거나 중간에 잘림'];why=issues[0];continue}issues=validateCampaign(p);if(issues.length){why='구성 검증 실패: '+issues.slice(0,3).join(', ');continue}
+      if(regions.some(r=>!p.rumors.some(x=>x.region===r))){issues=['소문 지역 불일치'];why=issues[0];continue}
       const review=parseJSON(await callAI('너는 본편의 독립 검토자다. JSON만 출력한다.',`세 구역의 fragment/link가 서로 모순 없이 하나의 truth/detail을 뒷받침하는지 검사한다. 세 연결 사실로 진상을 추론할 수 있어야 한다. 하나의 link나 공개 opening/entry_reason/roster/rumors/riddle이 전체 정답 또는 미방문 구역의 사실을 미리 누설하면 거절한다. 새 단서를 무한히 추가하거나 플레이어 행동에 맞춰 정답을 바꾸는 설계는 거절한다. JSON {"valid":true,"issues":[]}만.\n${JSON.stringify(p)}`,1200,'world'));
-      if(G!==g)return false;if(review?.valid!==true){issues=Array.isArray(review?.issues)?review.issues:['본편 의미 검토 실패'];continue}
+      if(G!==g)return false;if(review?.valid!==true){issues=Array.isArray(review?.issues)?review.issues:['본편 의미 검토 실패'];why='검토 불합격: '+issues.slice(0,2).join(', ');continue}
       const sealed=JSON.stringify(p);g.campaign.world={status:'ready',sealed,hash:mysteryHash(sealed)};
       g.secret={truth:p.truth,detail:p.detail};if(!g.char.reason&&typeof p.entry_reason==='string')g.char.reasonAI=p.entry_reason.slice(0,80);g.rumors=p.rumors;g.openingText=p.opening;upsertLex('라쿠나 구역','장소','입문 사건의 검증 후 출석부를 따라 조사할 첫 주요 지역');
       const home=p.rumors.find(r=>r.region===HOME_REGION);if(home){upsertLex(home.region+'의 괴담','괴담',home.belief);if(!g.heardRumors.includes(home.region))g.heardRumors.push(home.region)}
       save();return true;
-    }catch(e){if(G!==g)return false;if(e.message==='NO_KEY')break;issues=['본편 응답 오류']}
-    if(G===g){g.campaign.world={status:'pending'};addLog('sys','본편 구성을 검증하지 못했습니다. 본편 준비 재시도로 다시 준비할 수 있습니다.');save()}
+    }catch(e){if(G!==g)return false;why=prepFailText(e);if(e.message==='NO_KEY')break;issues=['본편 응답 오류']}
+    if(G===g){g.campaign.world={status:'pending'};addLog('sys',`본편을 준비하지 못했습니다${why?` (${why})`:''}. 「본편 준비 재시도」로 다시 시도할 수 있습니다.`);save()}
     return false;
   })();
   try{return await token.promise}finally{if(campaignWorldJob===token)campaignWorldJob=null}
@@ -4408,7 +4414,7 @@ async function startIntroMystery(){
   G.campaign.introOrigin={district:G.district,spot:G.spot,spotKey:G.spotKey};
   const d=G.campaign.introSite||{intro:true,name:'방과 후 특별교실동',theme:'닫힌 특별교실에서 반복되는 현상',pos:{...CAMPUS_POS},rooms:normRooms([{id:'r1',name:'특별교실동 입구',danger:0,exits:['r2']},{id:'r2',name:'비어 있는 준비실',danger:0,exits:['r1','r3']},{id:'r3',name:'방송 장비실',danger:0,exits:['r2']}],3),cur:'r1',depth:0};
   G.campaign.introSite=d;G.site=d;G.loc='site';G.spot=null;G.spotKey=null;d.rooms[0].visited=true;render();
-  try{await ensureMystery(d);if(G===g)addLog('scene',mysteryPlan(d)?.opening||'특별교실동 입구에서 사건 구성을 기다린다.')}finally{if(G===g){busy=false;save();render()}}
+  try{await ensureMystery(d);const opening=mysteryPlan(d)?.opening;if(G===g&&opening)addLog('scene',opening)}finally{if(G===g){busy=false;save();render()}}
 }
 function leaveIntroMystery(){
   if(busy||!G.site?.intro)return;const d=G.site,origin=G.campaign.introOrigin||{};
@@ -4489,17 +4495,18 @@ async function ensureMystery(d=G&&G.site){
   const token={g,d}; mysteryJob=token;
   d.mystery=d.mystery||{version:MYSTERY_VERSION,status:'pending'};
   token.promise=(async()=>{
-    let issues=[];
-    for(let attempt=0;attempt<2;attempt++){
+    let issues=[],why='';
+    for(let attempt=0;attempt<3;attempt++){
       let p,review;
       try{
-        p=parseJSON(await callAI('너는 비공개 미스터리 설계자다. JSON만 출력한다.',mysteryPrompt(d)+(issues.length?'\n수정해야 할 검증 문제: '+JSON.stringify(issues):''),3200,'site'));
+        p=parseJSON(await callAI('너는 비공개 미스터리 설계자다. JSON만 출력한다.',mysteryPrompt(d)+(issues.length?'\n수정해야 할 검증 문제: '+JSON.stringify(issues):''),5000,'site'));
         if(G!==g) return null;
-        issues=validateMystery(p,d); if(issues.length) continue;
+        if(!p){ issues=['응답이 JSON 형식이 아니거나 중간에 잘림']; why=issues[0]; continue }
+        issues=validateMystery(p,d); if(issues.length){ why='구성 검증 실패: '+issues.slice(0,3).join(', '); continue }
         review=parseJSON(await callAI('너는 미스터리의 독립 검토자다. 내용은 플레이어에게 공개하지 않는다. JSON만 출력한다.',`사건의 원인과 증거가 모순 없는지, 증거를 통해 추론 가능한지, 검증 행동이 원인을 확인하는지, 공개 question/opening/room_views/meaning이 숨겨진 답과 미발견 증거를 누설하지 않는지 검토하라. 기존 공개 사실을 지키는지도 확인한다. deduction이 있으면 정답 후보가 공개 증거로 구별 가능하고 supports가 실제 추론 근거인지, 오답이 증거로 반박 가능한지 확인한다. main_link가 있으면 사건의 결론과 증거가 그 사실을 입증하고 미방문 구역이나 전체 진상을 누설하지 않는지 확인한다. 문제가 있으면 valid:false와 구체적인 issues를 적는다. 단순 칭찬 금지.\n${mysteryPrompt(d)}\n후보: ${JSON.stringify(p)}\nJSON: {"valid":true,"issues":[]}`,900,'world'));
         if(G!==g) return null;
-        if(!review||review.valid!==true){ issues=Array.isArray(review&&review.issues)?review.issues.slice(0,6):['의미 검토 실패']; continue }
-      }catch(e){ if(e.message==='NO_KEY') break; issues=['생성 또는 검토 응답 오류']; continue }
+        if(!review||review.valid!==true){ issues=Array.isArray(review&&review.issues)?review.issues.slice(0,6):['의미 검토 실패']; why='검토 불합격: '+issues.slice(0,2).join(', '); continue }
+      }catch(e){ why=prepFailText(e); if(e.message==='NO_KEY') break; issues=['생성 또는 검토 응답 오류']; continue }
       if(p.deduction){for(let i=p.deduction.hypotheses.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[p.deduction.hypotheses[i],p.deduction.hypotheses[j]]=[p.deduction.hypotheses[j],p.deduction.hypotheses[i]]}}
       const sealed=JSON.stringify(p), old=(g.threads||[]).find(t=>t.id===d.caseId&&t.status==='open');
       const t=old||caseRecord(p.question,{scope:'local',placeId:'zone:'+siteIdentity(d),key:'mystery:'+siteIdentity(d),newCase:true,force:true});
@@ -4509,7 +4516,7 @@ async function ensureMystery(d=G&&G.site){
       d.mystery={version:MYSTERY_VERSION,status:'ready',sealed,hash:mysteryHash(sealed),state:{found:[],evidenceIds:{},solved:false,attempts:[]}};
       save(); return d.mystery;
     }
-    if(G===g){ d.mystery.status='pending'; addLog('sys','사건 구성을 검증하지 못했습니다. 비공개 답을 임의로 만들지 않고 대기합니다. 사건 준비 재시도로 다시 생성할 수 있습니다.'); save() }
+    if(G===g){ d.mystery.status='pending'; addLog('sys',`사건을 준비하지 못했습니다${why?` (${why})`:''}. 「사건 준비 재시도」로 다시 시도할 수 있습니다.`); save() }
     return null;
   })();
   try{ return await token.promise }finally{ if(mysteryJob===token) mysteryJob=null }
@@ -4544,11 +4551,11 @@ function mysteryNarrationScope(T){
 }
 function fixedMysteryNarration(scope){
   const x=scope.public;
-  if(scope.current) return `너는 이곳을 조사하고 다음 사실을 확인한다.\n\n${scope.current.text}\n\n${scope.current.meaning}`;
-  if(scope.verified) return `너는 선택한 가설과 증거의 연결을 검증한다.\n\n${x.outcome.result}\n\n${x.outcome.conclusion}`;
+  if(scope.current) return `당신은 이곳을 조사하고 다음 사실을 확인한다.\n\n${scope.current.text}\n\n${scope.current.meaning}`;
+  if(scope.verified) return `당신은 선택한 가설과 증거의 연결을 검증한다.\n\n${x.outcome.result}\n\n${x.outcome.conclusion}`;
   if(x.outcome.type==='dark') return '빛이 부족해 새로운 증거를 확인하지 못한다. 먼저 빛을 확보해야 한다.';
   if(x.outcome.type==='refuted') return '선택한 가설 또는 증거 연결이 확인된 사실을 충분히 설명하지 못한다. 이미 확인한 핵심 증거를 다시 비교할 수 있다.';
-  return (x.view?x.view+'\n\n':'')+'너는 현재 공간에서 행동을 이어 간다. 이번 행동으로 새롭게 확정된 핵심 증거는 없다.';
+  return (x.view?x.view+'\n\n':'')+'당신은 현재 공간에서 행동을 이어 간다. 이번 행동으로 새롭게 확정된 핵심 증거는 없다.';
 }
 async function guardMysteryNarration(res,T,generated){
   const scope=mysteryNarrationScope(T);if(!scope)return res;
@@ -5843,7 +5850,7 @@ async function socialScene(a,choice){
  try{
   const n=a.name,r=getRel(n),phase=socialPhaseAt(a,Math.min(a.step,2));
   const prompt=`친구 외출 또는 서로의 마음을 나누는 데이트의 짧은 장면 2~3문장을 쓴다. ${n}과 플레이어는 실제로 ${apptWhereName(a.where)}에서 함께 있다. 활동: ${a.kind==='date'?(r.romanceConfirmed?'연인 데이트':'고백 전 서로 알아가는 데이트'):'친구 외출'}. 관계: ${STAGES[r.stage].n}. ${n==='유민'?yuminProfile()+yuminGrowthText():((G.lexicon||[]).find(e=>e.name===n)?.desc||'이미 알게 된 사람')}. 지금 단계: ${phase.title}. 확정된 현재 상황: ${phase.cue||phase.title}. 플레이어가 고른 행동: ${choice||'함께 시간을 시작한다'}. 코드가 정한 직전 반응: ${a.lastReaction||'아직 없음'}. ${a.kind==='date'?dateMemoryText(n):''} 이전 장면: ${a.scenes.slice(-2).join(' ')}. 감정 교류를 중심으로 상대도 자기 말과 작은 행동으로 응답한다. 취향은 보조 소재이며 알려진 취향만 쓴다. 없었던 추억·약속·과거·취향을 만들지 않는다. 현재 상황을 다른 상황으로 바꾸거나 선택을 미리 대신하지 않는다. 상대의 성격과 관계 단계에 맞춰 반응한다. 고백 전에는 연인으로 부르거나 고백·연애 선언을 하지 않고 연인은 비성적인 일상의 다정함을 보여 준다. 공포 사건의 진상·새 단서·아이템·위치 변화·약속 확정을 만들지 않는다. 숨은 점수·기준은 쓰지 않는다. choices와 effects는 코드가 결정하므로 JSON {"narration":"장면"}만.`;
-  text=String(parseJSON(await callAI('너는 선택지 기반 관계 활동의 장면 작성기다.',prompt,650,'story'))?.narration||'').slice(0,1800);
+  text=String(parseJSON(await callAI('너는 선택지 기반 관계 활동의 장면 작성기다. 서술에서 플레이어는 "당신"으로 지칭한다(인물의 대사 속 호칭은 그대로).',prompt,650,'story'))?.narration||'').slice(0,1800);
  }catch(e){}
  if(G!==g)return;if(G.social.session!==a||a.status!=='active'){busy=false;render();return}
  const phase=socialPhaseAt(a);a.scenes.push((phase.cue?phase.cue+'\n':'')+(text||`${a.name}${josa(a.name,'과','와')} ${apptWhereName(a.where)}에서 ${choice||'함께할 시간을 천천히 시작한다'}.`));save();busy=false;render();
@@ -5927,7 +5934,7 @@ function startStoryConfession(id){if(busy)return false;const name=relList().find
 async function socialClosingScene(a){
  if(a.closingDone)return;
  const g=G,ready=romanceReady(a.name),id=romanceActionId(a.name);busy=true;render();let result;
- try{result=parseJSON(await callAI('너는 관계 장면 작성기다. 상태 변화는 코드가 담당한다.',
+ try{result=parseJSON(await callAI('너는 관계 장면 작성기다. 상태 변화는 코드가 담당한다. 서술에서 플레이어는 "당신"으로 지칭한다(인물의 대사 속 호칭은 그대로).',
   `${a.name}과 ${apptWhereName(a.where)}에서 데이트를 마치는 짧은 장면 2~3문장. 관계는 ${STAGES[getRel(a.name).stage].n}. ${a.name==='유민'?yuminProfile()+yuminGrowthText():((G.lexicon||[]).find(e=>e.name===a.name)?.desc||'이미 알게 된 사람')}. 방금 고른 행동: ${a.choices.map(c=>c.text).join(' / ')}. 직전 반응: ${a.lastReaction||'함께 시간을 마쳤다'}. 마무리 느낌의 방향: ${a.dateFeeling||'선택에 맞는 여운'}. ${dateMemoryText(a.name)}. 감정 교류를 중심으로 상대도 자기 마음과 작은 행동으로 응답한다. ${getRel(a.name).romanceConfirmed?'확정 연인의 비성적인 일상과 다정함을 묘사한다.':'아직 연인이 아니며 서로 알아가는 거리와 조심스러운 온기를 유지한다.'} 상대의 성격과 실제 선택에 맞는 여운을 보여 주며 서먹함을 무조건 행복한 결말로 바꾸지 않는다. 없었던 추억·취향·과거·약속을 만들지 않는다. 마무리 느낌 문장은 코드가 덧붙이므로 그대로 반복하지 않는다. ${ready?`좋아하는 마음을 말할 기회가 생겼다. 플레이어가 직접 고를 고백 행동 한 개를 choices에 {"text":"현재 장면에 맞는 자연스러운 행동 문장","action_id":"${id}"}로 작성한다. 고백은 아직 하지 않았으며 상대의 수락이나 연인 성사를 미리 쓰지 않는다.`:'이번 장면에 고백 선택지를 제시하지 않는다.'} 숨은 점수·기준치·조건 충족·해금 같은 설명을 하지 않는다. 새 단서·아이템·이동·effects는 없다. JSON {"narration":"장면","choices":[]}만.`,900,'story'))}catch(e){}
  if(G!==g)return;if(G.social?.session!==a||a.status!=='done'){busy=false;render();return}
  if(result?.narration)a.scenes.push(String(result.narration).slice(0,1800));
@@ -6026,7 +6033,7 @@ const YUMIN_SING_CALM_P=0.4;   // 동행 중 유민이 노래할 때 공포가 1
 /* 노래의 실제 효과 — 구역의 자동 발동과 플레이어가 청한 노래가 같은 확률을 씀 */
 function yuminSingEffect(crisis){
   let gained=false;
-  if(crisis){ G.hp=Math.min(G.maxhp,G.hp+2); addLog('fx','노랫소리가 너를 감싸 마음이 놓입니다 (체력 +2)') }
+  if(crisis){ G.hp=Math.min(G.maxhp,G.hp+2); addLog('fx','노랫소리가 당신을 감싸 마음이 놓입니다 (체력 +2)') }
   if(fearNow()>0&&Math.random()<YUMIN_SING_CALM_P){ G.calm=Math.min(capW(),G.calm+1); gained=true; addLog('fx',`🎵 유민의 노래에 마음이 가라앉습니다 (공포 −1 → ${fearNow()})`) }
   return gained;
 }
@@ -7813,7 +7820,7 @@ ${(G.ledger||[]).slice(-20).join('\n')||'(없음)'}\n[확정 단서 — 모순�
 - 첫 공간 id는 "r1"(입구). 각 공간은 1~3개 공간과 연결. 깊을수록 위험도 높게(0~3). 공간마다 floor(층 이름 짧게).
 - desc는 AI 서술용 비밀 메모(교칙의 흔적, 수수께끼, 괴이, 사연) 1~2문장, hook은 단서 또는 위험 요소 하나. 기념 메달 조각은 없다.
 JSON만 출력:
-{"name":"${lacuna?'라쿠나 구역':c.name}","theme":"주제 한 줄","intro":"도착했을 때 서술 ${narrCfg().s[0]}~${narrCfg().s[1]}문장(${narrCfg().p}), 2인칭 현재형","rooms":[{"id":"r1","name":"공간 이름","floor":"층 이름","desc":"비밀 메모","hook":"단서 또는 위험 요소 하나","light":"dark","exits":["r2"],"danger":0}]}`;
+{"name":"${lacuna?'라쿠나 구역':c.name}","theme":"주제 한 줄","intro":"도착했을 때 서술 ${narrCfg().s[0]}~${narrCfg().s[1]}문장(${narrCfg().p}), 2인칭 현재형(당신)","rooms":[{"id":"r1","name":"공간 이름","floor":"층 이름","desc":"비밀 메모","hook":"단서 또는 위험 요소 하나","light":"dark","exits":["r2"],"danger":0}]}`;
   const zonePrompt=compactCampaign()?prompt.replace('9~11개','4개').replace('8~10개','4개')+'\n내부 공간은 정확히 4개, 위험도 0~1, 검증으로 풀 수 있는 중심 사건 하나만.':'';
   let d=null;
   try{ d=parseJSON(await callAI(SYS_ZONE+actNote(),zonePrompt||prompt,3000,'site')) }catch(e){ if(e.message!=='NO_KEY') addLog('sys','AI 연결 실패: '+e.message) }
@@ -9445,7 +9452,7 @@ function openGuide(){
     ${row('🛏 잠들기','기숙사의 「잠들기」 버튼(학교 안 어느 지점에서든 방과 후 이후에 보입니다): 무료, 체력 전부 회복, 하루 경과, 배터리 +'+SLEEP_BATTERY+'칸, 해당 밤 점호를 놓치지 않았고 벌점이 있으면 -1. 소등 후에는 기숙사 출입 판정을 거칩니다')}
     ${row('급식실','점심시간에만 식사를 줍니다. 일과의 🍚 급식 먹기는 무료, 급식실의 🍚 식사하며 소문 듣기는 💳5 (모두 1걸음)')}
     ${row('아지트에서 쉬기',`무료, 체력 전부 회복, 공포 −${HOME_FEAR_RECOVER}, 배터리 +${SLEEP_BATTERY}칸, 하루 경과. 충전 거치대는 낮에도 +50% 충전 가능(하루 2번, 시간 한 칸). 기숙사 밖 하룻밤이라 점호 불참 적발 확률(${Math.round(OUTSIDE_NIGHT_P*100)}%)이 있습니다. 유민은 동행 중이거나 휴게 소파에 실제로 머물 때만 함께 쉼`)}
-    ${row('쓰러졌을 때','"출석부에서 네 이름이 지워졌다…" 잠시 의식을 잃었다가 구조되어 떠나온 지구(없으면 중앙 캠퍼스 지구)로. 캐시 절반 손실(전동 스쿠터가 있으면 4분의 1), 이틀 경과, 체력 절반으로 회복')}
+    ${row('쓰러졌을 때','"출석부에서 당신의 이름이 지워졌다…" 잠시 의식을 잃었다가 구조되어 떠나온 지구(없으면 중앙 캠퍼스 지구)로. 캐시 절반 손실(전동 스쿠터가 있으면 4분의 1), 이틀 경과, 체력 절반으로 회복')}
     ${h3('구역 입구 밖')}
     ${row('🚪 구역 밖으로 나가기','깊이 0~2는 시간 1칸, 깊이 3 이상은 시간 2칸 소모. 구역은 그대로 남고, 다시 들어가면 나왔던 공간으로 돌아갑니다')}
     ${row('🧭 이동 행상',`뒷길에 나올 때 가끔 나타남 (공포 여유가 바닥이면 더 자주). 진정 음료·배터리 💳${PRICE_ROAD.calm}, 재고 한정. 자리를 뜨면 함께 떠남`)}
@@ -10050,7 +10057,7 @@ async function genWorld(){
 2) 다음 네 지역 사람들은 그 정체를 각기 다르게 믿는다. 지역마다 그 지역 사람들 사이에 도는 소문을 2문장으로 써라. 어떤 소문은 진실의 조각을, 어떤 소문은 오해를 담게 하라: ${regions.join(', ')}
 3) 플레이어 캐릭터: ${G.char.name} (${G.char.age}세, ${G.char.origin}). 중간 전학 이유: ${G.char.reason||'미정 — 네가 정해 entry_reason에 한 문장으로 적고, opening에서는 서서히 암시만'}. 배경: ${G.char.bio||'없음'}
 출력은 JSON만:
-{"truth":"정체 한 줄","detail":"구체 사연","rumors":[{"region":"지역명","belief":"소문"}],"entry_reason":"중간 전학 이유 한 문장(위에 이미 있으면 그대로)","opening":"전학 첫날 아침, 조례 직전 한빛학원 2학년 7반 교실 문 앞의 첫 장면 서술 2~3문단, 2인칭 현재형(\"너는 ~한다\"). 담임 선생님을 기다리며 문 너머 아이들의 웅성거림이 들리고, 서류 사이에 섞여 든 오래된 출석부를 발견하는 순간을 담을 것. 아직 교실에 들어가기 전이므로 유민을 포함한 반 친구와의 만남은 쓰지 말고, 플레이어 배경을 엮을 것"}`;
+{"truth":"정체 한 줄","detail":"구체 사연","rumors":[{"region":"지역명","belief":"소문"}],"entry_reason":"중간 전학 이유 한 문장(위에 이미 있으면 그대로)","opening":"전학 첫날 아침, 조례 직전 한빛학원 2학년 7반 교실 문 앞의 첫 장면 서술 2~3문단, 2인칭 현재형(\"당신은 ~한다\"). 담임 선생님을 기다리며 문 너머 아이들의 웅성거림이 들리고, 서류 사이에 섞여 든 오래된 출석부를 발견하는 순간을 담을 것. 아직 교실에 들어가기 전이므로 유민을 포함한 반 친구와의 만남은 쓰지 말고, 플레이어 배경을 엮을 것"}`;
   let w=null;
   try{ w=parseJSON(await callAI(SYS_BASE,prompt,1500,'world')) }catch(e){ if(e.message!=='NO_KEY') addLog('sys','AI 연결 실패: '+e.message+' (기본 설정으로 진행합니다)') }
   if(!w||!w.truth){
