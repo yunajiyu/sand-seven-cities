@@ -1141,6 +1141,23 @@ function vertexRelayBase(raw=SET.vertexRelayUrl){
 }
 function aiProviderReady(p){return p==='vertex'?(vertexMode()==='browser'?!!VERTEX_BROWSER:!!(SET.keys||{}).vertex&&!!SET.vertexRelayUrl):!!(SET.keys||{})[p]}
 function roleName(k){ const r=AI_ROLES.find(x=>x.k===k); return r?r.n:k }
+/* AI 요청 공통: 응답이 없으면 115초 뒤 끊고(게임이 '기다리는 중'에 멈추지 않게), 일시 오류(429·502·503·504·접속 끊김)는 한 번만 다시 시도하며, JSON이 아닌 응답은 알아볼 수 있는 안내로 바꿉니다. */
+async function aiRequest(url,init){
+  let r=null,d=null,fail=null;
+  for(let attempt=0;attempt<2;attempt++){
+    fail=null;
+    try{ r=await fetch(url,{...init,...(typeof AbortSignal!=='undefined'&&AbortSignal.timeout?{signal:AbortSignal.timeout(115000)}:{})}) }
+    catch(e){ fail=e&&(e.name==='TimeoutError'||e.name==='AbortError')?'AI 응답이 115초 안에 오지 않아 요청을 멈췄습니다. 잠시 뒤 다시 시도해 주세요.':'AI 서버에 연결하지 못했습니다. 인터넷 연결과 주소를 확인해 주세요.'; if(e&&(e.name==='TimeoutError'||e.name==='AbortError'))break }
+    if(!fail){
+      try{ d=await r.json() }catch{ d=null }
+      if(![429,502,503,504].includes(r.status)||attempt) break;
+    }
+    await new Promise(res=>setTimeout(res,1500));
+  }
+  if(fail) throw new Error(fail);
+  if(d===null&&r.ok) throw new Error('AI 서버가 올바른 응답을 주지 않았습니다. 잠시 뒤 다시 시도해 주세요.');
+  return {r,d};
+}
 /* opt.cache: 시스템 프롬프트(매 턴 같은 앞부분)를 캐시 — 서술 턴에서만 씀 (짧거나 한 번뿐인 호출에 붙이면 쓰기 비용만 늘어남) */
 async function callAI(system,user,maxTokens=1200,role='story',opt){
   opt=opt||{};
@@ -1171,9 +1188,9 @@ async function callAI(system,user,maxTokens=1200,role='story',opt){
     if(is5) body.output_config={effort:c.effort||'low'};
     const hdr={'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
     if(SET.wsId) hdr['anthropic-workspace-id']=SET.wsId;
-    const send=()=>fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:hdr,body:JSON.stringify(body)});
-    let r=await send(), d=await r.json();
-    if(!r.ok&&body.output_config&&/output_config|effort/i.test(errMsg(d,r))){ delete body.output_config; r=await send(); d=await r.json() }
+    const send=()=>aiRequest('https://api.anthropic.com/v1/messages',{method:'POST',headers:hdr,body:JSON.stringify(body)});
+    let {r,d}=await send();
+    if(!r.ok&&body.output_config&&/output_config|effort/i.test(errMsg(d,r))){ delete body.output_config; ({r,d}=await send()) }
     if(!r.ok) throw new Error(errMsg(d,r));
     try{ const u=d.usage||{}; trackUsage(role,c.model,u.input_tokens,u.output_tokens,u.cache_read_input_tokens,u.cache_creation_input_tokens) }catch(e){}
     return (d.content||[]).map(x=>x.text||'').join('');
@@ -1181,9 +1198,9 @@ async function callAI(system,user,maxTokens=1200,role='story',opt){
   const base=(c.provider==='custom'?(SET.baseUrl||''):(PRESETS[c.provider]&&PRESETS[c.provider].baseUrl)||'').replace(/\/$/,'');
   const body={model:c.model,max_tokens:maxTokens,temperature:0.9,messages:[{role:'system',content:system},{role:'user',content:user}]};
   if(c.provider==='gemini'){ body.max_tokens=Math.max(maxTokens*2,3000); body.reasoning_effort=c.effort||'low' }
-  const send=()=>fetch(base+'/chat/completions',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+key},body:JSON.stringify(body)});
-  let r=await send(), d=await r.json();
-  if(!r.ok&&body.reasoning_effort&&/reasoning|thinking/i.test(JSON.stringify(d))){ delete body.reasoning_effort; r=await send(); d=await r.json() }
+  const send=()=>aiRequest(base+'/chat/completions',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+key},body:JSON.stringify(body)});
+  let {r,d}=await send();
+  if(!r.ok&&body.reasoning_effort&&/reasoning|thinking/i.test(JSON.stringify(d))){ delete body.reasoning_effort; ({r,d}=await send()) }
   if(!r.ok) throw new Error(errMsg(d,r));
   try{ const u=d.usage||{}, ct=(u.prompt_tokens_details&&u.prompt_tokens_details.cached_tokens)||0; trackUsage(role,c.model,u.prompt_tokens,(u.total_tokens&&u.prompt_tokens)?Math.max(u.total_tokens-u.prompt_tokens,u.completion_tokens||0):u.completion_tokens,0,0,ct) }catch(e){}
   return (d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';
