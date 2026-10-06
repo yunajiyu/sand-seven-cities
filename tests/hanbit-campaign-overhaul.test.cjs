@@ -28,7 +28,7 @@ function setupAI(f){f.run(`
  function caseDraft(){const d=G.site;return {question:d.name+'의 반복 현상은 왜 일어나는가?',opening:'문틀과 낡은 바닥이 조용히 빛을 받는다.',truth:'CASE_SECRET_'+d.name+'의 원인은 예약 장치다.',conclusion:'예약된 기록이 선을 통해 다른 공간으로 전달되었다.',room_views:d.rooms.map(r=>({room:r.id,text:'바닥과 벽에 오래된 흔적이 남아 있다.'})),evidence:[{id:'e1',room:'r1',text:d.name+' 입구의 시간표에는 같은 시각이 세 번 적혀 있다.',meaning:'반복 주기를 비교할 기준이다.'},{id:'e2',room:'r2',text:d.name+' 준비실의 음원은 매번 같은 구간에서 끊긴다.',meaning:'동일한 기록이 반복된다는 근거다.'},{id:'e3',room:'r3',text:d.name+' 장비실의 전송선에 같은 번호가 붙어 있다.',meaning:'음원의 이동 경로를 확인할 근거다.'}],verification:{room:'r3',action:'같은 번호의 전송선을 분리하고 소리가 멎는지 확인한다',requires:['e1','e2','e3'],result:'선을 분리하자 반복되는 소리가 함께 멎었다.'},deduction:{hypotheses:[{id:'h1',text:'빈 공간에서 새 연주가 시작된다'},{id:'h2',text:'기록된 음원이 정해진 경로로 반복 전송된다'},{id:'h3',text:'바람이 울려 소리가 반복된다'}],answer_id:'h2',supports:['e2','e3'],explanation:'같은 구간의 반복과 번호가 같은 선이 기록의 전송을 입증한다.'},...(d.big?{main_link:campaignChapter(d.key).link}:{})}}
  callAI=async(sys,user)=>{api.push({sys,user});if(sys.includes('독립 검토자'))return JSON.stringify({valid:true,issues:[]});if(sys.includes('비공개 본편 설계자'))return JSON.stringify(worldDraft());if(sys.includes('비공개 미스터리 설계자'))return JSON.stringify(caseDraft());if(sys.includes('공간 생성')||sys.includes('구역 생성')||user.includes('JSON만 출력:'))return JSON.stringify({name:'새 시설',theme:'반복 현상',rooms:smallRooms()});return JSON.stringify({narration:'남은 기록을 조용히 비교한다.',choices:[],effects:{}})};
  aiTurn=liveAiTurn;maybeSummarize=async()=>{};checkState=checkState;
- seed('campus');G.campaign={version:1,links:{},introSolved:false};G._deductionVersion=1;G._privateMysteryVersion=1;
+ seed('campus');G.campaign={version:1,links:{},introSolved:false,introHeard:true};G._deductionVersion=1;G._privateMysteryVersion=1;
  `)}
 async function root(f){setupAI(f);assert.equal(await f.run('genCampaignWorld()'),true)}
 async function intro(f){await root(f);await f.run('startIntroMystery()')}
@@ -76,6 +76,37 @@ await test('No confirmation outside class time (break, after school, weekend, ex
     f.run('G.loc="campus";G.site=null;G.campaign.introSite=null;G.district="classroom";'+setup);await f.run('startIntroMystery()');assert.equal(f.run('G.loc'),'site',setup);
   }
   assert.equal(f.run('asks.length'),0);
+});
+const unheard=async f=>{await root(f);f.run('G.campaign.introHeard=false;G.heardRumors=G.heardRumors.filter(r=>r!==HOME_REGION)')};
+await test('Before the rumor is heard the place is not offered, named or revealed',async f=>{
+  await unheard(f);
+  assert.doesNotMatch(f.run('fixedHTML()'),/소문의 장소|특별교실동|입문/);assert.equal(f.run("gameActions().some(a=>a.id==='campaign:intro')"),false);
+  const next=f.run('campaignPublic().next');assert.doesNotMatch(next,/특별교실동|입문/);assert.match(next,/귀를 기울여/);
+  await f.run('startIntroMystery()');assert.equal(f.run('G.loc'),'campus');assert.equal(f.run('G.site'),null);
+  const ctx=f.run("buildPrompt('교실을 바라본다','')");assert.match(ctx,/\[교내 소문 미청취\]/);assert.doesNotMatch(ctx,/\[입문 사건 장소\]/);
+  assert.equal(f.run('G.lexicon.some(l=>l.name===HOME_REGION+"의 괴담")'),false);assert.equal(f.run('G.heardRumors.includes(HOME_REGION)'),false);
+});
+await test('Homeroom from day 2 tells the rumor once and then opens the trip',async f=>{
+  await unheard(f);f.run('G.day=2;G.time="낮";G.dayStep=0;G.loc="campus";G.district="classroom";G.comp.met=true;syncSchedule();const told=[];aiTurn=async(a,e)=>{told.push(e)}');
+  f.run('homeroom()');assert.equal(f.run('G.campaign.introHeard'),true);
+  assert.match(f.run('told[0]'),/방과 후 특별교실동.*소문이 돈다.*특별교실동 이야기라는 것이 서술에서 분명히 드러나게/s);
+  assert.equal(f.run('G.lexicon.some(l=>l.name===HOME_REGION+"의 괴담")'),true);
+  f.run('G.dayStep=0;G.cls.done=[];homeroom()');assert.doesNotMatch(f.run('told[1]'),/소문이 돈다.*특별교실동/s);
+  f.run('G.time="방과 후";G.dayStep=0');assert.match(f.run('fixedHTML()'),/소문의 장소로 가기 · 방과 후 특별교실동/);
+  assert.equal(f.run("gameActions().some(a=>a.id==='campaign:intro')"),true);
+});
+await test('Day 1 homeroom does not tell it; the first break time does',async f=>{
+  await unheard(f);f.run('G.day=2;G.time="낮";G.dayStep=2;G.loc="campus";G.district="classroom";syncSchedule();const told=[];aiTurn=async(a,e)=>{told.push(e)};homeroom=()=>{}');
+  f.run('breakTime()');assert.equal(f.run('G.campaign.introHeard'),true);assert.match(f.run('told[0]'),/복도에서 아이들이 수군거린다.*방과 후 특별교실동/s);
+});
+await test('The canteen rumor also tells it first',async f=>{
+  await unheard(f);f.run('G.time="낮";G.dayStep=4;G.loc="campus";G.district="canteen";syncSchedule();const told=[];aiTurn=async(a,e)=>{told.push(e)}');
+  f.run('campusRumor(true)');assert.equal(f.run('G.campaign.introHeard'),true);assert.match(f.run('told[0]'),/교내에 도는 소문을 들려준다.*방과 후 특별교실동/s);
+});
+await test('Saves made before this rule keep working: started games count as heard, unstarted ones do not',async f=>{
+  await root(f);f.run('delete G.campaign.introHeard;G.campaign.introSite=null;migrate()');assert.equal(f.run('G.campaign.introHeard'),false);
+  f.run('delete G.campaign.introHeard;G.campaign.introSite={intro:true};migrate()');assert.equal(f.run('G.campaign.introHeard'),true);
+  f.run('delete G.campaign.introHeard;G.campaign.introSite=null;G.campaign.introSolved=true;migrate()');assert.equal(f.run('G.campaign.introHeard'),true);
 });
 await test('Failed world preparation tells the player the cause in plain words',async f=>{
   setupAI(f);f.run('callAI=async()=>{throw new Error("NO_KEY")}');assert.equal(await f.run('genCampaignWorld()'),false);
