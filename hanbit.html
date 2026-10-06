@@ -771,6 +771,7 @@ const PRESETS={
   openrouter:{baseUrl:'https://openrouter.ai/api/v1',model:'deepseek/deepseek-chat'},
   deepseek:{baseUrl:'https://api.deepseek.com',model:'deepseek-chat'},
   gemini:{baseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-3.8-flash'},
+  vertex:{baseUrl:'',model:'gemini-3.5-flash'},
   openai:{baseUrl:'https://api.openai.com/v1',model:'gpt-5.4-mini'},
   custom:{baseUrl:'',model:''},
 };
@@ -1004,12 +1005,94 @@ function run(point,...args){
 
 /* ---------- 4-2. AI 호출 (역할별 제공자·모델) ---------- */
 function roleCfg(role){ return Object.assign({},AI_ROLE_DEFAULT[role]||AI_ROLE_DEFAULT.story,(SET.roles||{})[role]||{}) }
-function provLabel(p){ return ({anthropic:'Anthropic',openrouter:'OpenRouter',deepseek:'DeepSeek',gemini:'Google Gemini',openai:'OpenAI',custom:'사용자 지정'})[p]||p }
+function provLabel(p){ return ({anthropic:'Anthropic',openrouter:'OpenRouter',deepseek:'DeepSeek',gemini:'Google Gemini',vertex:'Google Vertex AI (JSON 파일)',openai:'OpenAI',custom:'사용자 지정'})[p]||p }
+// JSON and imported signing keys stay only in memory, never in SET or game saves.
+let VERTEX_BROWSER=null,vertexSelection=0;
+function vertexMode(){return SET.vertexMode||(SET.vertexRelayUrl?'relay':'browser')}
+function vertexB64(bytes){return btoa(Array.from(new Uint8Array(bytes),b=>String.fromCharCode(b)).join('')).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')}
+async function vertexImport(text){
+ if(!globalThis.crypto?.subtle)throw new Error('JSON 키 연결은 HTTPS 사이트에서 지원됩니다.');
+ let raw;try{raw=JSON.parse(String(text).replace(/^\uFEFF/,''))}catch{throw new Error('올바른 JSON 파일을 선택하세요.')}
+ if(raw?.type!=='service_account'||!/^\S+@\S+\.iam\.gserviceaccount\.com$/.test(raw.client_email||'')||!/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(raw.project_id||'')||typeof raw.private_key!=='string')throw new Error('서비스 계정 JSON 키 파일을 선택하세요.');
+ const match=raw.private_key.match(/^-----BEGIN PRIVATE KEY-----\s*([A-Za-z0-9+/=\s]+)\s*-----END PRIVATE KEY-----\s*$/);
+ let key;try{if(!match)throw Error();key=await crypto.subtle.importKey('pkcs8',Uint8Array.from(atob(match[1].replace(/\s/g,'')),c=>c.charCodeAt(0)),{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign']);if(key.algorithm.modulusLength<2048)throw Error()}catch{throw new Error('JSON 파일의 RSA 비공개 키 형식을 확인하세요.')}
+ return {key,email:raw.client_email,project:raw.project_id,keyId:String(raw.private_key_id||''),token:null,pending:null};
+}
+async function vertexBrowserToken(state){
+ if(state.token&&state.token.expires>Date.now()+60000)return state.token.value;
+ if(state.pending)return state.pending;
+ state.pending=(async()=>{
+  const enc=o=>vertexB64(new TextEncoder().encode(JSON.stringify(o))),iat=Math.floor(Date.now()/1000);
+  const unsigned=enc({alg:'RS256',typ:'JWT',...(state.keyId?{kid:state.keyId}:{})})+'.'+enc({iss:state.email,scope:'https://www.googleapis.com/auth/cloud-platform',aud:'https://oauth2.googleapis.com/token',iat,exp:iat+3600});
+  const signature=await crypto.subtle.sign('RSASSA-PKCS1-v1_5',state.key,new TextEncoder().encode(unsigned));
+  let r,d;try{r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',credentials:'omit',referrerPolicy:'no-referrer',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion:unsigned+'.'+vertexB64(signature)}).toString(),signal:AbortSignal.timeout(20000)});d=await r.json()}catch{throw new Error('Google 인증에 연결하지 못했습니다. 네트워크 또는 브라우저 연결 제한을 확인하세요.')}
+  if(!r.ok||!d||typeof d.access_token!=='string'||!d.access_token||!(Number(d.expires_in)>0)||String(d.token_type).toLowerCase()!=='bearer')throw new Error('Google 인증 실패: JSON 키의 유효성과 PC 시각을 확인하세요.');
+  state.token={value:d.access_token,expires:Date.now()+Number(d.expires_in)*1000};return state.token.value;
+ })();
+ try{return await state.pending}finally{state.pending=null}
+}
+function vertexConnectionStatus(text){const el=document.getElementById('vertexStatus');if(el)el.textContent=text}
+function disconnectVertex(){vertexSelection++;VERTEX_BROWSER=null;vertexConnectionStatus('연결 해제됨 · JSON 파일을 선택하세요.');if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle()}
+async function selectVertexJSON(input){
+ const file=input.files?.[0];if(!file)return;
+ const selection=++vertexSelection;vertexConnectionStatus('JSON 키 확인·Google 인증 중…');
+ try{
+  if(file.size>65536)throw new Error('서비스 계정 JSON 파일은 64KB 이하만 선택할 수 있습니다.');
+  const state=await vertexImport(await file.text());await vertexBrowserToken(state);
+  if(selection!==vertexSelection)return;
+  VERTEX_BROWSER=state;const mode=document.getElementById('sVertexMode');if(mode)mode.value='browser';SET.vertexMode='browser';
+  applyVertexModels();SET.roles=SET.roles||{};
+  AI_ROLES.forEach(r=>{const effort=document.getElementById('re_'+r.k)?.value||roleCfg(r.k).effort||'low';SET.roles[r.k]={provider:'vertex',model:['lex','chron'].includes(r.k)?'gemini-3.5-flash-lite':PRESETS.vertex.model,effort:['low','medium','high'].includes(effort)?effort:'low'}});
+  SET.provider='vertex';SET.model=SET.roles.story.model;SET.apiKey='';saveSettings();
+  vertexConnectionStatus('인증 완료 · '+state.project+' · 모든 역할을 Vertex AI로 설정했습니다.');toast('JSON 키 연결 완료. 이제 게임을 진행하세요.');
+  if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle();
+ }catch(e){if(selection===vertexSelection)vertexConnectionStatus('연결 실패 · '+e.message)}finally{input.value=''}
+}
+async function callVertexBrowser(system,user,maxTokens,c,role){
+ const state=VERTEX_BROWSER;if(!state)throw new Error('AI 설정에서 서비스 계정 JSON 파일을 선택하세요. 새로고침 후에는 다시 선택해야 합니다.');
+ const location=SET.vertexLocation||'global';
+ if(!/^[a-z][a-z0-9-]{1,62}$/.test(location)||!/^gemini-[a-z0-9.-]+$/.test(c.model))throw new Error('Vertex AI 모델 이름 또는 리전을 확인하세요.');
+ const config={maxOutputTokens:Math.min(16384,Math.max(3000,maxTokens*2))},effort=['low','medium','high'].includes(c.effort)?c.effort:'low';
+ if(/^gemini-3\./.test(c.model))config.thinkingConfig={thinkingLevel:effort.toUpperCase()};
+ else if(/^gemini-2\.5-flash/.test(c.model))config.thinkingConfig={thinkingBudget:{low:0,medium:1024,high:4096}[effort]};
+ const host=location==='global'?'aiplatform.googleapis.com':location+'-aiplatform.googleapis.com';
+ for(let attempt=0;attempt<2;attempt++){
+  const token=await vertexBrowserToken(state);if(state!==VERTEX_BROWSER)throw new Error('JSON 키 연결이 변경되었습니다. 다시 시도하세요.');
+  let r,d;try{r=await fetch('https://'+host+'/v1/projects/'+state.project+'/locations/'+location+'/publishers/google/models/'+c.model+':generateContent',{method:'POST',credentials:'omit',referrerPolicy:'no-referrer',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}],generationConfig:config}),signal:AbortSignal.timeout(90000)});d=await r.json()}catch{throw new Error('Vertex AI 연결이 중단되었습니다. 네트워크 또는 브라우저 연결 제한을 확인하세요.')}
+  if(state!==VERTEX_BROWSER)throw new Error('JSON 키 연결이 변경되었습니다. 다시 시도하세요.');
+  if(r.status===401&&attempt===0){if(state.token?.value===token)state.token=null;continue}
+  if(!r.ok)throw new Error(({401:'JSON 키 인증이 만료되었거나 취소되었습니다. 파일을 다시 선택하세요.',403:'Vertex AI 권한·API 활성화·결제 연결을 확인하세요.',404:'Vertex AI 모델 이름과 리전을 확인하세요.',429:'Vertex AI 호출 한도에 도달했습니다. 잠시 뒤 다시 시도하세요.'})[r.status]||'Vertex AI 요청 오류 (HTTP '+r.status+')');
+  const candidate=d?.candidates?.[0],reason=candidate?.finishReason;
+  if(d?.promptFeedback?.blockReason||reason&&reason!=='STOP')throw new Error(reason==='MAX_TOKENS'?'응답이 길이 제한으로 중단되었습니다. 생각 강도를 낮춰 주세요.':'Vertex AI가 장면 응답을 완료하지 못했습니다.');
+  const text=(candidate?.content?.parts||[]).filter(p=>!p.thought&&typeof p.text==='string').map(p=>p.text).join('');if(!text.trim())throw new Error('Vertex AI가 빈 응답을 반환했습니다.');
+  const u=d.usageMetadata||{},num=x=>Math.max(0,Number(x)||0);trackUsage(role,'vertex/'+c.model,num(u.promptTokenCount),num(u.candidatesTokenCount)+num(u.thoughtsTokenCount),0,0,num(u.cachedContentTokenCount));return text;
+ }
+}
+function vertexRelayBase(raw=SET.vertexRelayUrl){
+ let u;try{u=new URL(String(raw||'').trim())}catch{throw new Error('Vertex AI 중계 서버 주소를 입력해 주세요.')}
+ if(u.username||u.password||u.search||u.hash||!(u.protocol==='https:'||u.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(u.hostname)))throw new Error('중계 주소는 HTTPS 또는 localhost HTTP 주소를 사용하세요.');
+ return u.href.replace(/\/$/,'');
+}
+function aiProviderReady(p){return p==='vertex'?(vertexMode()==='browser'?!!VERTEX_BROWSER:!!(SET.keys||{}).vertex&&!!SET.vertexRelayUrl):!!(SET.keys||{})[p]}
 function roleName(k){ const r=AI_ROLES.find(x=>x.k===k); return r?r.n:k }
 /* opt.cache: 시스템 프롬프트(매 턴 같은 앞부분)를 캐시 — 서술 턴에서만 씀 (짧거나 한 번뿐인 호출에 붙이면 쓰기 비용만 늘어남) */
 async function callAI(system,user,maxTokens=1200,role='story',opt){
   opt=opt||{};
   const c=roleCfg(role), key=(SET.keys||{})[c.provider];
+  if(c.provider==='vertex'){
+    if(vertexMode()==='browser')return callVertexBrowser(system,user,maxTokens,c,role);
+    const base=vertexRelayBase();
+    if(!key)throw new Error('Vertex AI 중계 접속 토큰을 AI 설정에 입력해 주세요.');
+    if(/^\s*\{/.test(key)||/PRIVATE KEY|private_key/.test(key))throw new Error('서비스 계정 JSON 키는 중계 서버에서만 읽습니다. 여기에는 중계 접속 토큰을 입력하세요.');
+    let r,d;try{
+      r=await fetch(base+'/api/vertex/generate',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+key},body:JSON.stringify({model:c.model,system,user,maxTokens,role,effort:c.effort||'low'}),...(typeof AbortSignal!=='undefined'&&AbortSignal.timeout?{signal:AbortSignal.timeout(115000)}:{})});
+      d=await r.json();
+    }catch{throw new Error('Vertex AI 중계 서버에 연결하지 못했습니다. 서버 실행·주소·허용 Origin을 확인하세요.')}
+    if(!r.ok)throw new Error(d?.error?.message||'Vertex AI 중계 오류 (HTTP '+r.status+')');
+    if(!d||typeof d.text!=='string'||!d.text.trim())throw new Error('Vertex AI가 빈 응답을 반환했습니다.');
+    try{const u=d.usage||{};trackUsage(role,'vertex/'+c.model,u.inputTokens,u.outputTokens,0,0,u.cachedTokens)}catch(e){}
+    return d.text;
+  }
   if(!key){
     const any=Object.values(SET.keys||{}).some(Boolean);
     throw new Error(any?`「${roleName(role)}」에 쓸 ${provLabel(c.provider)} 키가 없습니다 (AI 설정에서 입력)`:'NO_KEY');
@@ -1044,6 +1127,7 @@ async function callAI(system,user,maxTokens=1200,role='story',opt){
 const USAGE_KEY='sand7_usage';
 function priceOf(model){   // 100만 토큰당 [입력, 출력] 달러. 없는 모델은 비용 "?"
   const m=String(model||'');
+  if(m.startsWith('vertex/'))return null; // Vertex 요금은 Cloud Billing에서 확인하며 다른 제공자 단가를 재사용하지 않는다.
   if(/claude-sonnet-5/.test(m)) return [2,10];
   if(/claude-opus-5/.test(m)) return [4,20];
   if(/claude-opus-4-6/.test(m)) return [5,25];
@@ -8890,26 +8974,50 @@ function openSettings(){
     <label>Anthropic 워크스페이스 ID (키가 워크스페이스에 묶여 있지 않다는 오류가 날 때만 입력)</label>
     <input id="sWs" value="${esc(SET.wsId||'')}" placeholder="콘솔의 워크스페이스 설정에서 확인한 ID">
     ${keyRow('gemini')}
+    <h4>Google Vertex AI · 서비스 계정 JSON 키</h4>
+    <p class="muted">JSON 파일을 선택하면 인증과 모델 설정을 자동으로 적용합니다. 키는 현재 페이지에서만 사용하며 저장하지 않습니다. 새로고침하면 다시 선택하세요. 이 사이트의 스크립트가 선택한 키를 사용할 수 있으므로 신뢰하는 사이트에서만 연결하세요.</p>
+    <label>연결 방식</label><select id="sVertexMode"><option value="browser" ${vertexMode()==='browser'?'selected':''}>JSON 파일 선택 (설치 없이 연결)</option><option value="relay" ${vertexMode()==='relay'?'selected':''}>중계 서버 (고급 설정)</option></select>
+    <label>서비스 계정 JSON 파일</label><input type="file" accept=".json,application/json" onchange="selectVertexJSON(this)">
+    <p class="muted" id="vertexStatus">${VERTEX_BROWSER?'인증 완료 · '+esc(VERTEX_BROWSER.project):'JSON 파일을 선택하세요.'}</p>
+    <button class="small" onclick="disconnectVertex()">JSON 키 연결 해제</button>
+    <details style="margin-top:10px"><summary>리전 · 중계 서버 고급 설정</summary>
+    <label>Vertex AI 리전</label><input id="sVertexLocation" value="${esc(SET.vertexLocation||'global')}" placeholder="global">
+    <label>Vertex AI 중계 서버 주소</label><input id="sVertex" value="${esc(SET.vertexRelayUrl||'')}" placeholder="http://127.0.0.1:8899 또는 HTTPS 중계 주소">
+    <label>중계 접속 토큰</label><input id="k_vertex" type="password" value="${esc((SET.keys||{}).vertex||'')}" placeholder="중계 서버 실행 시 표시되는 토큰" autocomplete="off">
+    </details>
+    <button class="small" onclick="applyVertexModels()">모든 역할을 Vertex AI로 설정</button>
     <details style="margin-top:10px"><summary>다른 제공자 키 · 사용자 지정 주소</summary>
-      ${provs.filter(p=>p!=='anthropic'&&p!=='gemini').map(keyRow).join('')}
+      ${provs.filter(p=>!['anthropic','gemini','vertex'].includes(p)).map(keyRow).join('')}
       <label>사용자 지정 API 주소 (OpenAI 호환)</label><input id="sBase" value="${esc(SET.baseUrl||'')}">
     </details>
     <div class="row" style="margin-top:12px"><button class="primary" onclick="saveSet()">저장</button></div>
     <p class="muted" style="margin-top:12px">브라우저에서 직접 연결이 막히는 회사가 있을 수 있습니다. 그럴 때는 OpenRouter를 쓰면 대부분 해결됩니다. 모델 이름은 각 회사 문서의 최신 목록으로 확인하세요.</p>`);
 }
 function applySavingModels(){
-  ['lex','chron'].forEach(k=>{ const p=document.getElementById('rp_'+k), m=document.getElementById('rm_'+k), e=document.getElementById('re_'+k); if(p) p.value='gemini'; if(m) m.value='gemini-3.5-flash-lite'; if(e) e.value='low' });
-  toast('사전 추출·연대기 압축 모델을 채웠습니다. 아래 「저장」을 눌러 주세요 (Gemini 키가 필요합니다)');
+  ['lex','chron'].forEach(k=>{ const p=document.getElementById('rp_'+k), m=document.getElementById('rm_'+k), e=document.getElementById('re_'+k); if(p) p.value=p.value==='vertex'?'vertex':'gemini'; if(m) m.value='gemini-3.5-flash-lite'; if(e) e.value='low' });
+  toast('사전 추출·연대기 압축 모델을 채웠습니다. 아래 「저장」을 눌러 주세요 (해당 제공자 연결이 필요합니다)');
+}
+function applyVertexModels(){
+ AI_ROLES.forEach(r=>{const p=document.getElementById('rp_'+r.k),m=document.getElementById('rm_'+r.k);if(p)p.value='vertex';if(m)m.value=['lex','chron'].includes(r.k)?'gemini-3.5-flash-lite':PRESETS.vertex.model});
+ toast('역할을 Vertex AI로 채웠습니다. 연결 방식을 선택하고 저장하세요.');
 }
 function onRoleProv(k){
   const p=document.getElementById('rp_'+k).value, d=AI_ROLE_DEFAULT[k];
   document.getElementById('rm_'+k).value=d.provider===p?d.model:((PRESETS[p]&&PRESETS[p].model)||'');
 }
 function saveSetQuiet(){
+  const mode=document.getElementById('sVertexMode')?.value,location=document.getElementById('sVertexLocation')?.value?.trim();
+  if(mode&&!['browser','relay'].includes(mode)){toast('Vertex AI 연결 방식을 확인하세요.');return false}
+  if(location&&!/^[a-z][a-z0-9-]{1,62}$/.test(location)){toast('Vertex AI 리전을 확인하세요.');return false}
+  const vt=document.getElementById('k_vertex')?.value?.trim(),vu=document.getElementById('sVertex')?.value?.trim();
+  if(vt&&(/^\s*\{/.test(vt)||/PRIVATE KEY|private_key/.test(vt))){toast('JSON 키는 파일 선택 버튼으로 연결하세요. 이 칸에는 중계 접속 토큰만 입력합니다.');return false}
+  if(vu){try{vertexRelayBase(vu)}catch(e){toast(e.message);return false}}
   SET.keys=SET.keys||{};
   Object.keys(PRESETS).forEach(p=>{ const el=document.getElementById('k_'+p); if(el) SET.keys[p]=el.value.trim() });
   const b=document.getElementById('sBase'); if(b) SET.baseUrl=b.value.trim();
   const ws=document.getElementById('sWs'); if(ws) SET.wsId=ws.value.trim();
+  const v=document.getElementById('sVertex');if(v)SET.vertexRelayUrl=v.value.trim();
+  if(mode)SET.vertexMode=mode;if(location)SET.vertexLocation=location;
   SET.roles=SET.roles||{};
   AI_ROLES.forEach(r=>{
     const p=document.getElementById('rp_'+r.k), m=document.getElementById('rm_'+r.k), e=document.getElementById('re_'+r.k);
@@ -8917,13 +9025,14 @@ function saveSetQuiet(){
   });
   const s=roleCfg('story'); SET.provider=s.provider; SET.model=s.model; SET.apiKey=SET.keys[s.provider]||'';   // 예전 형식과의 호환
   saveSettings();
+  return true;
 }
 function saveSet(){
-  saveSetQuiet(); toast('설정을 저장했습니다'); closeModal();
+  if(saveSetQuiet()===false)return;toast('설정을 저장했습니다'); closeModal();
   if(document.getElementById('game').classList.contains('hidden')) refreshTitle();
 }
 async function testRole(k){
-  saveSetQuiet();
+  if(saveSetQuiet()===false)return;
   const out=document.getElementById('to_'+k); if(out) out.textContent='테스트 중…';
   try{ const t=await callAI('짧게 답하라.','한빛시를 한 문장으로 묘사해줘.',100,k); if(out) out.textContent='✅ '+t.slice(0,50) }
   catch(e){ if(out) out.textContent='❌ '+(e.message==='NO_KEY'?'키가 없습니다':e.message) }
@@ -8935,10 +9044,10 @@ function refreshTitle(){
   document.getElementById('btnContinue').disabled=!hasSave();
   try{ }catch(e){}
   setTitle(false);
-  const hasKey=Object.values(SET.keys||{}).some(Boolean);
-  const miss=[...new Set(AI_ROLES.map(r=>roleCfg(r.k).provider))].filter(p=>!(SET.keys||{})[p]);
+  const hasKey=Object.keys(PRESETS).some(aiProviderReady);
+  const miss=[...new Set(AI_ROLES.map(r=>roleCfg(r.k).provider))].filter(p=>!aiProviderReady(p));
   document.getElementById('aiStatus').textContent=hasKey
-    ?`AI: 서술 ${roleCfg('story').model} · 구역 조사 ${roleCfg('site').model} · 사전 ${roleCfg('lex').model}`+(miss.length?` (키 없음: ${miss.map(provLabel).join(', ')})`:'')
+    ?`AI: 서술 ${roleCfg('story').model} · 구역 조사 ${roleCfg('site').model} · 사전 ${roleCfg('lex').model}`+(miss.length?` (연결 설정 없음: ${miss.map(provLabel).join(', ')})`:'')
     :'AI 키가 없으면 사건 생성은 대기하고 기본 일상 서술만 제공됩니다.';
 }
 function openUsage(){
@@ -8949,7 +9058,7 @@ function openUsage(){
   }).join('');
   modal('토큰 사용량',`
     <p class="muted">이 브라우저에서 AI를 호출한 누적 기록입니다 (${new Date(USAGE.since).toLocaleDateString('ko-KR')}부터). 비용은 공개 단가로 계산한 추정치이며, 정확한 청구액은 각 회사 콘솔에서 확인하세요. '출력'에는 생각(추론) 토큰이 포함됩니다.</p>
-    ${(()=>{ const cr=Object.values(USAGE.roles).reduce((a,u)=>a+(u.cr||0),0), ins=Object.values(USAGE.roles).reduce((a,u)=>a+u.in,0); return cr?`<p class="muted">♻ 캐시에서 다시 읽은 입력: 누적 ${fmtTok(cr)} 토큰 (입력의 ${Math.round(cr/Math.max(1,ins)*100)}% · 이 부분은 단가의 10%만 듭니다)</p>`:'' })()}
+    ${(()=>{ const cr=Object.values(USAGE.roles).reduce((a,u)=>a+(u.cr||0),0), ins=Object.values(USAGE.roles).reduce((a,u)=>a+u.in,0); return cr?`<p class="muted">♻ 캐시에서 다시 읽은 입력: 누적 ${fmtTok(cr)} 토큰 (입력의 ${Math.round(cr/Math.max(1,ins)*100)}% · 캐시 요금은 제공자·모델별로 다릅니다)</p>`:'' })()}
     <p><b>이번 턴</b> 입력 ${USAGE_TURN.in} · 출력 ${USAGE_TURN.out} 토큰 · ${fmtCost(USAGE_TURN.cost)}${USAGE_TURN.unk?' (단가 미등록 모델 포함)':''}</p>
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
       <tr style="text-align:left;color:var(--muted)"><th>역할</th><th>호출</th><th>입력</th><th>출력</th><th>비용</th></tr>
