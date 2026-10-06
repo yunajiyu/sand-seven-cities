@@ -5641,7 +5641,44 @@ function chatIncoming(name,topic){
  const text=topic==='missed'?'약속 장소에서 기다렸어. 다음에는 시간과 장소를 다시 확인해 줘.':topic==='invite'?'시간이 맞으면 함께 보자. 약속 요청에서 장소와 시간을 골라 줘.':topic==='warn'?'휴대폰을 쓸 수 있는 시간인지 확인하고 조심해.':topic==='rumor'?socialHelpText():'필요한 일이 있으면 약속이나 도움 요청으로 알려 줘.';
  chatPush(name,'them',text);save();renderSocialTabs();
 }
-function sendChat(){return toast('약속·도움 요청 등 문자 기능을 선택해 주세요')}
+function sendChat(){return toast('약속·도움 요청 등 문자 기능을 선택해 주세요')}   // 옛 입력창 호환용 — 자유 문자는 sendFreeMessage가 맡음
+/* ---------- 자유 문자: 연락처에게 하고 싶은 말을 직접 써서 보내고 AI가 답장함 ---------- */
+const FREE_MSG_MAX=120;
+function freeMessageHTML(name,why){
+  const off=!!why||busy||_chatBusy;
+  return `<div class="lex"><b>✍ 자유롭게 문자 보내기</b><p class="muted">하고 싶은 말을 직접 써서 보냅니다. 문자 1통은 배터리 1%를 쓰고 시간은 흐르지 않습니다. 호감 보상은 상대마다 하루 한 번입니다.</p><div class="row"><input id="freeMsg" data-name="${esc(name)}" maxlength="${FREE_MSG_MAX}" placeholder="${esc(name)}에게 보낼 문자" ${off?'disabled':''} onkeydown="if(event.key==='Enter'){event.preventDefault();sendFreeFromInput()}" style="flex:1;min-width:140px"><button class="primary" ${off?'disabled':''} onclick="sendFreeFromInput()">보내기</button></div></div>`;
+}
+function sendFreeFromInput(){
+  const el=document.getElementById('freeMsg'); if(!el) return false;
+  return sendFreeMessage(el.dataset.name,el.value);
+}
+async function sendFreeMessage(name,raw){
+  if(!G||busy||_chatBusy) return false;
+  const text=String(raw==null?'':raw).replace(/\s+/g,' ').trim().slice(0,FREE_MSG_MAX);
+  if(!socialKnown(name)){ toast('연락처에 없는 사람입니다'); return false }
+  if(!text){ toast('보낼 문자를 입력해 주세요'); return false }
+  const why=phoneBlock('text'); if(why){ toast(why); return false }
+  const rs=phoneRestricted();
+  if(rs&&Math.random()<phoneCatchP()){
+    addDemerit(PHONE_DEMERIT,`${rs} 휴대폰 사용 적발`); G.phoneBan=G.day+':'+G.time;
+    addLog('sys','휴대폰 사용이 적발되어 이 시간대에는 연락할 수 없습니다.'); save(); render(); return false;
+  }
+  const g=G, origin=placeKey(); _chatBusy=true; busy=true;
+  textDrain(); chatPush(name,'me',text); renderSocialTabs();
+  let o=null;
+  try{ o=await chatAI(name,null,'',{origin}) }catch(e){ console.warn(e) }
+  if(G!==g){ _chatBusy=false; return false }   // 그 사이 다른 게임으로 바뀜
+  if(!o) o={confirmed:false,reply:rand(CHAT_FALLBACK),aff:0,hint:'',appt:null,decision:null};
+  chatPush(name,'them',o.reply);
+  try{ chatAppt(name,text,o,origin) }catch(e){ console.warn(e) }
+  G.recent.push({role:'scene',text:`[문자] ${G.char.name}: ${text} / ${name}: ${o.reply}`});
+  const s=socialState();
+  if(o.aff&&!s.day.messages[name]){ s.day.messages[name]=true; addAffTo(name,1); relCheck(name); addLog('fx',`${name} 문자 교류 · 호감 +1 (오늘 보상 완료)`) }
+  if(o.hint) addLog('fx',`💬 ${name}의 귀띔: ${o.hint}`);
+  _chatBusy=false; busy=false; save(); render(); renderSocialTabs();
+  try{ const log=document.getElementById('chatLog'); if(log) log.scrollTop=log.scrollHeight; const box=document.getElementById('freeMsg'); if(box){ box.scrollIntoView({block:'nearest'}); box.focus({preventScroll:true}) } }catch(e){}   // 채팅처럼 새 답장과 입력창이 바로 보이게
+  return true;
+}
 
 function showPhoneBanner(from){
   try{ const old=document.getElementById('phoneBanner'); if(old) old.remove();
@@ -5911,10 +5948,10 @@ function socialMessageFormHTML(name,purpose='meet'){
 }
 function phonePanelHTML(){
  const contacts=socialContactsHTML(),name=socialContact,why=phoneBlock('text');
- const head=`<h3>💬 기능 문자</h3><p class="muted">약속·도움 요청·위치 확인·약속 취소 중에서 고릅니다. 문자 1통은 배터리 1%를 쓰고 시간은 흐르지 않습니다. 수락한 약속이나 도움 요청의 호감 보상은 상대마다 하루 한 번입니다.</p><div class="row">${contacts}</div>`;
+ const head=`<h3>💬 문자</h3><p class="muted">약속·도움 요청·위치 확인·약속 취소를 고르거나, 문자 기록 아래 입력창에 하고 싶은 말을 직접 써서 보낼 수 있습니다. 문자 1통은 배터리 1%를 쓰고 시간은 흐르지 않습니다. 수락한 약속이나 도움 요청의 호감 보상은 상대마다 하루 한 번입니다.</p><div class="row">${contacts}</div>`;
  if(!name)return head;
  const r=getRel(name),ap=(G.appts||[]).find(a=>a.name===name);
- return head+`<div class="lex"><b>${esc(name)} · ${esc(STAGES[r.stage].n)} · Lv.${relLv(name)}</b><p>📍 ${esc(contactWhere(name))}</p>${why?`<p class="warn">${esc(why)}</p>`:''}${socialMessageFormHTML(name)}<div class="row"><button data-name="${esc(name)}" onclick="sendSocialMessage(this.dataset.name,'help')">🧩 조사 방향 도움 요청</button><button data-name="${esc(name)}" onclick="sendSocialMessage(this.dataset.name,'location')">📍 현재 위치 확인</button>${ap?`<button data-name="${esc(name)}" onclick="sendSocialMessage(this.dataset.name,'cancel')">약속 취소</button>`:''}</div></div><details open><summary>📅 약속 ${(G.appts||[]).length}건</summary>${apptListHTML()}</details><h4>문자 기록</h4><div id="chatLog" class="chat">${chatSt(name).map(m=>bubbleHTML(m,name)).join('')||'<p class="muted">아직 문자가 없습니다.</p>'}</div>`;
+ return head+`<div class="lex"><b>${esc(name)} · ${esc(STAGES[r.stage].n)} · Lv.${relLv(name)}</b><p>📍 ${esc(contactWhere(name))}</p>${why?`<p class="warn">${esc(why)}</p>`:''}${socialMessageFormHTML(name)}<div class="row"><button data-name="${esc(name)}" onclick="sendSocialMessage(this.dataset.name,'help')">🧩 조사 방향 도움 요청</button><button data-name="${esc(name)}" onclick="sendSocialMessage(this.dataset.name,'location')">📍 현재 위치 확인</button>${ap?`<button data-name="${esc(name)}" onclick="sendSocialMessage(this.dataset.name,'cancel')">약속 취소</button>`:''}</div></div><details open><summary>📅 약속 ${(G.appts||[]).length}건</summary>${apptListHTML()}</details><h4>문자 기록</h4><div id="chatLog" class="chat">${chatSt(name).map(m=>bubbleHTML(m,name)).join('')||'<p class="muted">아직 문자가 없습니다.</p>'}</div>${freeMessageHTML(name,why)}`;
 }
 function sendSocialForm(name,purpose){return sendSocialMessage(name,purpose,{where:document.getElementById('socialPlace:'+encodeURIComponent(name)+':'+purpose)?.value,ord:Number(document.getElementById('socialWhen:'+encodeURIComponent(name)+':'+purpose)?.value)})}
 function socialHelpText(){
