@@ -15,8 +15,8 @@ vm.runInContext(`
   maybeIncoming=()=>{}; apptSync=()=>{}; askConfirm=async()=>true;
   aiTurn=async()=>{};
   function seed(day=1,time='방과 후',dayStep=0,loc='site'){
-    G={v:1,_relVersion:2,_clockVersion:2,char:{name:'테스트',age:17,stats:{str:1,wis:1,cha:1,sur:1},traits:[]},
-      day,time,dayStep,loc,steps:0,hp:12,maxhp:12,calm:6,battery:6,torch:5,cash:100,
+    G={v:1,_phoneLightVersion:1,_fearBalanceVersion:1,_relVersion:2,_clockVersion:2,char:{name:'테스트',age:17,stats:{str:1,wis:1,cha:1,sur:1},traits:[]},
+      day,time,dayStep,loc,steps:0,hp:12,maxhp:12,calm:10,battery:6,torch:0,cash:100,
       items:[],mat:{metal:0,ply:0,wire:0,keepsake:0},act:1,fragments:0,sitesDone:0,
       comp:{met:true,joined:false,aff:10},rel:{},chronicle:[],site:{name:'검증 구역',pos:{x:225,y:180},depth:1,
         cur:'r1',rooms:[{id:'r1',name:'입구',lv:0,danger:0,visited:true,exits:['r2']},{id:'r2',name:'복도',lv:1,danger:0,visited:false,exits:['r1']}]}};
@@ -55,7 +55,7 @@ await test('Direct input, choice and fixed investigations have identical time co
 });
 await test('Room move costs half a tick; dark room move costs one full tick',()=>{
   run("seed(); moveTo('r2')"); assert.equal(run('G.dayStep'),0); run("moveTo('r1')");assert.equal(run('G.dayStep'),1);
-  run("seed(); G.torch=0; Math.random=()=>0.99; moveTo('r2')");assert.equal(run('G.dayStep'),1);
+  run("seed(); G.battery=0;G.textUse=0; Math.random=()=>0.99; moveTo('r2')");assert.equal(run('G.dayStep'),1);
 });
 await test('A small weekday expedition fits before next morning',()=>{
   run("seed(1,'방과 후',0,'road'); travelTimeShift(1); G.loc='site'; for(let i=0;i<10;i++) tick(true); advanceClock(1); G.loc='road'; travelTimeShift(1)");
