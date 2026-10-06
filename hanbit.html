@@ -4371,6 +4371,12 @@ function validateCampaign(p){
   if(!Array.isArray(p?.rumors)||p.rumors.length!==4||p.rumors.some(r=>!r||typeof r.region!=='string'||!txt(r.belief,400))) errs.push('지역 소문');
   return [...new Set(errs)];
 }
+/* 사건·본편 준비 실패 원인을 짧게 정리해 알려 줍니다 (키 없음·시간 초과·응답 형식 등을 구분) */
+function prepFailText(e){
+  const m=String(e&&e.message||e||'').replace(/\s+/g,' ').trim();
+  if(m==='NO_KEY') return 'AI 키가 설정되어 있지 않습니다';
+  return m.slice(0,90)||'알 수 없는 오류';
+}
 let campaignWorldJob=null;
 async function genCampaignWorld(){
   if(campaignPlan()) return true;
@@ -4380,19 +4386,19 @@ async function genCampaignWorld(){
   const prompt=`제작자도 정답을 모르는 학원 공포 추리 게임의 본편을 비공개로 설계한다. 새 게임마다 원인·관계·증거의 조합이 다른 사건을 만들되 추론 가능한 하나의 진상을 고정한다. 입문 사건은 본편과 독립된 작은 사건이고, 이후 주요 지역은 라쿠나(lacuna), 안개 기숙사(c0), 방송·음악 시설의 배수 터널(c1) 정확히 세 곳이다. 세 곳은 각각 본편 진상의 다른 부분(누가/어떤 과정으로/왜 지웠는지 등)을 증명한다. fragment는 비공개 담당 사실, link는 그 지역 사건을 해결한 후 공개할 관찰·기록의 연결 사실이다. link 세 개를 합치면 truth/detail을 설명해야 한다. 처음부터 전체 정답을 말하는 link는 금지한다. 아직 방문하지 않은 지역에 대한 증거를 대신 공개하지 않는다. opening/roster/rumors/riddle은 비밀을 누설하지 않는다. 공개 소문은 서로 다른 관점을 담고 증언과 사실을 구분한다. 기념 메달 조각 6개 수집이나 일곱 지역은 요구하지 않는다. 캐릭터: ${JSON.stringify(G.char)}. 소문 지역: ${JSON.stringify(regions)}. 공개 경로의 실제 좌표: ${JSON.stringify(wardPositions())}. 방위를 쓰면 이 좌표와 모순되지 않게 하라. 캐릭터의 전학 이유가 미정이면 entry_reason에 공개 가능한 한 문장을 적는다. 정답을 암시하지 않는다. JSON만: {"truth":"정체","detail":"진상의 경위","entry_reason":"전학 이유(기존 설정 유지)","opening":"전학 첫날 교실 문 앞 장면, 2인칭 현재형. 친구와 만남은 아직 없다","roster":"라쿠나에서 해독 후 공개할 두 다른 구역의 방향만","rumors":[{"region":"지역명","belief":"소문"}],"chapters":[{"key":"lacuna","role":"증명할 부분","fragment":"비공개 사실","link":"해결 후 공개할 연결 사실","riddle":"공개 현상","lore":"숨은 사연과 교칙"},{"key":"c0","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."},{"key":"c1","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."}]}`;
   const token={g};campaignWorldJob=token;
   token.promise=(async()=>{
-    let issues=[];
-    for(let n=0;n<2;n++)try{
-      const p=parseJSON(await callAI('너는 비공개 본편 설계자다. JSON만 출력한다.',prompt+'\n수정 사항: '+JSON.stringify(issues),3500,'world'));
-      if(G!==g)return false;issues=validateCampaign(p);if(issues.length)continue;
-      if(regions.some(r=>!p.rumors.some(x=>x.region===r))){issues=['소문 지역 불일치'];continue}
+    let issues=[],why='';
+    for(let n=0;n<3;n++)try{
+      const p=parseJSON(await callAI('너는 비공개 본편 설계자다. JSON만 출력한다.',prompt+'\n수정 사항: '+JSON.stringify(issues),5000,'world'));
+      if(G!==g)return false;if(!p){issues=['응답이 JSON 형식이 아니거나 중간에 잘림'];why=issues[0];continue}issues=validateCampaign(p);if(issues.length){why='구성 검증 실패: '+issues.slice(0,3).join(', ');continue}
+      if(regions.some(r=>!p.rumors.some(x=>x.region===r))){issues=['소문 지역 불일치'];why=issues[0];continue}
       const review=parseJSON(await callAI('너는 본편의 독립 검토자다. JSON만 출력한다.',`세 구역의 fragment/link가 서로 모순 없이 하나의 truth/detail을 뒷받침하는지 검사한다. 세 연결 사실로 진상을 추론할 수 있어야 한다. 하나의 link나 공개 opening/entry_reason/roster/rumors/riddle이 전체 정답 또는 미방문 구역의 사실을 미리 누설하면 거절한다. 새 단서를 무한히 추가하거나 플레이어 행동에 맞춰 정답을 바꾸는 설계는 거절한다. JSON {"valid":true,"issues":[]}만.\n${JSON.stringify(p)}`,1200,'world'));
-      if(G!==g)return false;if(review?.valid!==true){issues=Array.isArray(review?.issues)?review.issues:['본편 의미 검토 실패'];continue}
+      if(G!==g)return false;if(review?.valid!==true){issues=Array.isArray(review?.issues)?review.issues:['본편 의미 검토 실패'];why='검토 불합격: '+issues.slice(0,2).join(', ');continue}
       const sealed=JSON.stringify(p);g.campaign.world={status:'ready',sealed,hash:mysteryHash(sealed)};
       g.secret={truth:p.truth,detail:p.detail};if(!g.char.reason&&typeof p.entry_reason==='string')g.char.reasonAI=p.entry_reason.slice(0,80);g.rumors=p.rumors;g.openingText=p.opening;upsertLex('라쿠나 구역','장소','입문 사건의 검증 후 출석부를 따라 조사할 첫 주요 지역');
       const home=p.rumors.find(r=>r.region===HOME_REGION);if(home){upsertLex(home.region+'의 괴담','괴담',home.belief);if(!g.heardRumors.includes(home.region))g.heardRumors.push(home.region)}
       save();return true;
-    }catch(e){if(G!==g)return false;if(e.message==='NO_KEY')break;issues=['본편 응답 오류']}
-    if(G===g){g.campaign.world={status:'pending'};addLog('sys','본편 구성을 검증하지 못했습니다. 본편 준비 재시도로 다시 준비할 수 있습니다.');save()}
+    }catch(e){if(G!==g)return false;why=prepFailText(e);if(e.message==='NO_KEY')break;issues=['본편 응답 오류']}
+    if(G===g){g.campaign.world={status:'pending'};addLog('sys',`본편을 준비하지 못했습니다${why?` (${why})`:''}. 「본편 준비 재시도」로 다시 시도할 수 있습니다.`);save()}
     return false;
   })();
   try{return await token.promise}finally{if(campaignWorldJob===token)campaignWorldJob=null}
@@ -4408,7 +4414,7 @@ async function startIntroMystery(){
   G.campaign.introOrigin={district:G.district,spot:G.spot,spotKey:G.spotKey};
   const d=G.campaign.introSite||{intro:true,name:'방과 후 특별교실동',theme:'닫힌 특별교실에서 반복되는 현상',pos:{...CAMPUS_POS},rooms:normRooms([{id:'r1',name:'특별교실동 입구',danger:0,exits:['r2']},{id:'r2',name:'비어 있는 준비실',danger:0,exits:['r1','r3']},{id:'r3',name:'방송 장비실',danger:0,exits:['r2']}],3),cur:'r1',depth:0};
   G.campaign.introSite=d;G.site=d;G.loc='site';G.spot=null;G.spotKey=null;d.rooms[0].visited=true;render();
-  try{await ensureMystery(d);if(G===g)addLog('scene',mysteryPlan(d)?.opening||'특별교실동 입구에서 사건 구성을 기다린다.')}finally{if(G===g){busy=false;save();render()}}
+  try{await ensureMystery(d);const opening=mysteryPlan(d)?.opening;if(G===g&&opening)addLog('scene',opening)}finally{if(G===g){busy=false;save();render()}}
 }
 function leaveIntroMystery(){
   if(busy||!G.site?.intro)return;const d=G.site,origin=G.campaign.introOrigin||{};
@@ -4489,17 +4495,18 @@ async function ensureMystery(d=G&&G.site){
   const token={g,d}; mysteryJob=token;
   d.mystery=d.mystery||{version:MYSTERY_VERSION,status:'pending'};
   token.promise=(async()=>{
-    let issues=[];
-    for(let attempt=0;attempt<2;attempt++){
+    let issues=[],why='';
+    for(let attempt=0;attempt<3;attempt++){
       let p,review;
       try{
-        p=parseJSON(await callAI('너는 비공개 미스터리 설계자다. JSON만 출력한다.',mysteryPrompt(d)+(issues.length?'\n수정해야 할 검증 문제: '+JSON.stringify(issues):''),3200,'site'));
+        p=parseJSON(await callAI('너는 비공개 미스터리 설계자다. JSON만 출력한다.',mysteryPrompt(d)+(issues.length?'\n수정해야 할 검증 문제: '+JSON.stringify(issues):''),5000,'site'));
         if(G!==g) return null;
-        issues=validateMystery(p,d); if(issues.length) continue;
+        if(!p){ issues=['응답이 JSON 형식이 아니거나 중간에 잘림']; why=issues[0]; continue }
+        issues=validateMystery(p,d); if(issues.length){ why='구성 검증 실패: '+issues.slice(0,3).join(', '); continue }
         review=parseJSON(await callAI('너는 미스터리의 독립 검토자다. 내용은 플레이어에게 공개하지 않는다. JSON만 출력한다.',`사건의 원인과 증거가 모순 없는지, 증거를 통해 추론 가능한지, 검증 행동이 원인을 확인하는지, 공개 question/opening/room_views/meaning이 숨겨진 답과 미발견 증거를 누설하지 않는지 검토하라. 기존 공개 사실을 지키는지도 확인한다. deduction이 있으면 정답 후보가 공개 증거로 구별 가능하고 supports가 실제 추론 근거인지, 오답이 증거로 반박 가능한지 확인한다. main_link가 있으면 사건의 결론과 증거가 그 사실을 입증하고 미방문 구역이나 전체 진상을 누설하지 않는지 확인한다. 문제가 있으면 valid:false와 구체적인 issues를 적는다. 단순 칭찬 금지.\n${mysteryPrompt(d)}\n후보: ${JSON.stringify(p)}\nJSON: {"valid":true,"issues":[]}`,900,'world'));
         if(G!==g) return null;
-        if(!review||review.valid!==true){ issues=Array.isArray(review&&review.issues)?review.issues.slice(0,6):['의미 검토 실패']; continue }
-      }catch(e){ if(e.message==='NO_KEY') break; issues=['생성 또는 검토 응답 오류']; continue }
+        if(!review||review.valid!==true){ issues=Array.isArray(review&&review.issues)?review.issues.slice(0,6):['의미 검토 실패']; why='검토 불합격: '+issues.slice(0,2).join(', '); continue }
+      }catch(e){ why=prepFailText(e); if(e.message==='NO_KEY') break; issues=['생성 또는 검토 응답 오류']; continue }
       if(p.deduction){for(let i=p.deduction.hypotheses.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[p.deduction.hypotheses[i],p.deduction.hypotheses[j]]=[p.deduction.hypotheses[j],p.deduction.hypotheses[i]]}}
       const sealed=JSON.stringify(p), old=(g.threads||[]).find(t=>t.id===d.caseId&&t.status==='open');
       const t=old||caseRecord(p.question,{scope:'local',placeId:'zone:'+siteIdentity(d),key:'mystery:'+siteIdentity(d),newCase:true,force:true});
@@ -4509,7 +4516,7 @@ async function ensureMystery(d=G&&G.site){
       d.mystery={version:MYSTERY_VERSION,status:'ready',sealed,hash:mysteryHash(sealed),state:{found:[],evidenceIds:{},solved:false,attempts:[]}};
       save(); return d.mystery;
     }
-    if(G===g){ d.mystery.status='pending'; addLog('sys','사건 구성을 검증하지 못했습니다. 비공개 답을 임의로 만들지 않고 대기합니다. 사건 준비 재시도로 다시 생성할 수 있습니다.'); save() }
+    if(G===g){ d.mystery.status='pending'; addLog('sys',`사건을 준비하지 못했습니다${why?` (${why})`:''}. 「사건 준비 재시도」로 다시 시도할 수 있습니다.`); save() }
     return null;
   })();
   try{ return await token.promise }finally{ if(mysteryJob===token) mysteryJob=null }

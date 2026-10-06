@@ -37,7 +37,22 @@ async function proof(f,guess='h2',ids=['e2','e3']){f.run('submitMysteryProof('+J
 let count=0;async function test(name,fn){const f=fixture();await fn(f);count++;console.log('PASS',name)}
 (async()=>{
 await test('New campaign is designed and reviewed before locking; three private links are absent from public context',async f=>{await root(f);assert.equal(f.run('campaignPlan().chapters.length'),3);assert.equal(f.run('api.length'),2);const prompt=f.run("buildPrompt('교실을 바라본다','')");for(const sentinel of ['ROOT_SECRET_853','PRIVATE_FRAGMENT_','LINK_lacuna','PRIVATE_LORE_'])assert.ok(!prompt.includes(sentinel),sentinel);assert.ok(!f.run('sysBase()').includes('일곱'));assert.match(f.run('sysBase()'),/주요 지역 세 곳/)});
-await test('World design rejects broken plans and failed independent reviews without saving answers',async f=>{setupAI(f);f.run('let callsN=0;callAI=async()=>{callsN++;return JSON.stringify({truth:"broken"})}');assert.equal(await f.run('genCampaignWorld()'),false);assert.equal(f.run('callsN'),2);assert.equal(f.run('G.campaign.world.status'),'pending');assert.equal(f.run('G.secret||null'),null);await f.run('startIntroMystery()');assert.equal(f.run('G.site'),null);});
+await test('World design rejects broken plans and failed independent reviews without saving answers',async f=>{setupAI(f);f.run('let callsN=0;callAI=async()=>{callsN++;return JSON.stringify({truth:"broken"})}');assert.equal(await f.run('genCampaignWorld()'),false);assert.equal(f.run('callsN'),3);assert.equal(f.run('G.campaign.world.status'),'pending');assert.equal(f.run('G.secret||null'),null);await f.run('startIntroMystery()');assert.equal(f.run('G.site'),null);});
+await test('Failed world preparation tells the player the cause in plain words',async f=>{
+  setupAI(f);f.run('callAI=async()=>{throw new Error("NO_KEY")}');assert.equal(await f.run('genCampaignWorld()'),false);
+  assert.match(f.run('events.filter(e=>e.type==="sys").pop().text'),/본편을 준비하지 못했습니다 \(AI 키가 설정되어 있지 않습니다\)/);
+  assert.doesNotMatch(f.run('events.filter(e=>e.type==="sys").pop().text'),/비공개|검증하지 못했습니다/);
+});
+await test('A truncated world answer is reported as a cut-off response',async f=>{
+  setupAI(f);f.run('callAI=async()=>"{\\"truth\\":\\"잘린"');assert.equal(await f.run('genCampaignWorld()'),false);
+  assert.match(f.run('events.filter(e=>e.type==="sys").pop().text'),/JSON 형식이 아니거나 중간에 잘림/);
+});
+await test('A case that cannot be prepared adds no out-of-game narration and explains why',async f=>{
+  await root(f);f.run('events.length=0;callAI=async()=>"not json"');await f.run('startIntroMystery()');
+  assert.equal(f.run('events.filter(e=>e.type==="scene").length'),0);
+  assert.match(f.run('events.filter(e=>e.type==="sys").pop().text'),/사건을 준비하지 못했습니다 \(응답이 JSON 형식이 아니거나 중간에 잘림\)\. 「사건 준비 재시도」/);
+  assert.doesNotMatch(f.run('events.map(e=>e.text).join("|")'),/기다린다|임의로 만들지/);
+});
 await test('Review failure retries world generation; fixed world and local mysteries survive reload without new AI calls',async f=>{setupAI(f);f.run('const goodAI=callAI;let reviews=0;callAI=async(sys,user)=>sys.includes("본편의 독립 검토자")&&++reviews===1?JSON.stringify({valid:false,issues:["PRIVATE_REVIEW_ROOT"]}):goodAI(sys,user)');assert.equal(await f.run('genCampaignWorld()'),true);assert.equal(f.run('reviews'),2);await f.run('startIntroMystery()');const sealed=f.run('G.site.mystery.sealed'),world=f.run('G.campaign.world.sealed');f.run('G=JSON.parse(JSON.stringify(G));migrate();const apiBefore=api.length');await f.run('genCampaignWorld()');await f.run('ensureMystery()');assert.equal(f.run('G.campaign.world.sealed'),world);assert.equal(f.run('G.site.mystery.sealed'),sealed);assert.equal(f.run('apiBefore'),f.run('api.length'));assert.equal(f.run('G.fragments'),0)});
 await test('World generation cannot overwrite a replacement game',async f=>{setupAI(f);f.run('let finish;callAI=()=>new Promise(resolve=>finish=resolve);const rootCandidate=worldDraft()');const job=f.run('genCampaignWorld()');f.run('seed("campus");finish(JSON.stringify(rootCandidate))');await job;assert.equal(f.run('G.campaign||null'),null);assert.equal(f.run('G.secret||null'),null)});
 await test('Tampered fixed world is not regenerated or used to begin a new case',async f=>{await root(f);f.run('G.campaign.world.sealed+=" ";const apiBefore=api.length');assert.equal(await f.run('genCampaignWorld()'),false);assert.equal(f.run('apiBefore'),f.run('api.length'));await f.run('startIntroMystery()');assert.equal(f.run('G.site'),null)});
