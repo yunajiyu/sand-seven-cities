@@ -2156,8 +2156,8 @@ function gameActions(){
     add('trade:shop','상점 열기',()=>openShop());
   }
   if(peddlerHere()) add('trade:peddler','이동 행상과 거래',()=>openPeddler());
-  if(G.comp&&G.comp.met&&(G.comp.joined||canMeetHere('유민'))) add('talk:yumin','유민과 대화',()=>talkYumin(),'talk');
-  for(const name of Object.keys(G.rel||{})) if(name!=='유민'&&canMeetHere(name)) add('talk:'+actionToken(name),name+'와 대화',()=>visitNPC(name),'talk');
+  if(G.comp&&G.comp.met&&(G.comp.joined||canMeetHere('유민'))) add('talk:yumin','유민과 대화',text=>talkYumin(text),'talk');
+  for(const name of Object.keys(G.rel||{})) if(name!=='유민'&&canMeetHere(name)) add('talk:'+actionToken(name),name+'와 대화',text=>visitNPC(name,text),'talk');
   for(const name of relList())if(romanceReady(name))add(romanceActionId(name),name+'에게 좋아하는 마음을 전하고 사귀자고 한다',text=>proposeTo(name,text),'story');
   return out;
 }
@@ -6058,14 +6058,17 @@ async function meetYumin(place){
   if(unheard.length){ const r=rand(unheard); G.heardRumors.push(r.region); rumor=`흘리듯 알려주는 소문: ${r.region} 사람들의 믿음 — "${r.belief}". 이 소문이 그 지역의 괴담이라는 것이 서술에서 분명히 드러나게 하라.` }
   await aiTurn(place.includes('길')?'인적 드문 뒷길을 걷는다':'상점가를 걷는다', `[첫 만남] ${place}에서 7반 옆자리 학생 유민이 플레이어에게 먼저 말을 건다(같은 반이지만 제대로 말을 섞는 건 처음이다). 플레이어가 아는 척하지 않아도 유민이 다가온다. 둘은 서로 처음 보는 사이다. 유민은 장난스럽게 거리를 두며 짧은 노래 한 소절을 부르고, 자기 이름을 밝힌다. ${rumor} 선택지에는 유민에게 말을 걸거나 대꾸하는 행동을 포함하라.`, false);
 }
-function talkYumin(){
+/* 선택지·입력에서 온 대화는 고른 말 그대로 장면의 시작이 되게 한다(고정 문장으로 바뀌면 어느 선택지를 눌러도 같은 장면이 나온다) */
+function chosenTopic(t,labels){ const x=typeof t==='string'?t.replace(/\s+/g,' ').trim():''; return x&&!labels.includes(x)?x.slice(0,200):'' }
+function talkYumin(topic){
   if(busy) return;
   if(!G.comp.joined&&!canMeetHere('유민')) return toast(`유민은 지금 ${yuminWhereText()}에 있는 것 같습니다. 지도의 🎵 표시를 확인해 보세요.`);
   const meetingSpot=G.comp.spot;
   migrate(); tick(G.loc==='site'||G.loc==='shelter');
   if(!G.comp.joined) setYuminSpot(meetingSpot);
   G._yuminHere=true;
-  let extra='[유민과 대화] 유민이 노래 한 곡과 함께 소식을 들려준다.', likeKey=null;
+  const said=chosenTopic(topic,['유민과 대화','유민에게 말을 건다']);
+  let extra=said?'[유민과 대화] 플레이어가 고른 말·행동에 유민이 반응하며 대화가 이어진다.':'[유민과 대화] 유민이 노래 한 곡과 함께 소식을 들려준다.', likeKey=null;
   if(G.comp.lastTalkDay!==G.day){
     const locked=Object.keys(YUMIN_LIKES).filter(k=>!G.comp.likes[k]);
     if(locked.length&&Math.random()<0.6) likeKey=rand(locked);
@@ -6086,8 +6089,9 @@ function talkYumin(){
     action=`${pn}에서 유민에게 말을 건다`;
     extra+=` [장소] 지금 플레이어${G.comp.joined?'와 유민은 함께':'와 유민은'} 중앙 캠퍼스 지구의 「${pn}」에 있다. 장면의 배경은 반드시 이곳이며, 직전에 있던 다른 장소(상점가·교실 등)로 서술하지 말 것.`;
   }
+  if(said) extra+=` [플레이어가 고른 말·행동] "${said}" — 이번 장면은 이 말·행동에 대한 반응에서 시작한다. 직전 장면과 같은 묘사·대사를 되풀이하지 말고, 대화의 주제를 한 걸음 앞으로 나아가게 쓴다.`;
   if(likeKey) pend('',{likeKey});
-  aiTurn(action,extra);
+  aiTurn(said||action,extra);
 }
 on('after',70,T=>{
   const k=T.flags.likeKey; if(!k||!G.comp||G.comp.likes[k]) return;
@@ -6500,15 +6504,16 @@ function openRel(){
       <div class="row">${btns}</div></div>`;
   }).join('')||'<p class="muted">아직 알게 된 인물이 없습니다.</p>'));
 }
-function visitNPC(name){
+function visitNPC(name,topic){
   closeModal();
   if(busy) return;
-  if(name==='유민') return talkYumin();
+  if(name==='유민') return talkYumin(topic);
   if(!canMeetHere(name)) return toast(`${name}${josa(name,'은','는')} 지금 이곳에 없습니다 (${npcWhereText(name)})`);
   const meetingPlace=placeKey();
   tick(G.loc==='site'||G.loc==='shelter');
   const r=getRel(name); r.where=meetingPlace; r.whereKey=yKey();
-  aiTurn(`${name}${josa(name,'을','를')} 찾아간다`,`[인물 방문] 플레이어가 ${name}${josa(name,'을','를')} 찾아간다. 사전과 연대기에 있는 이 인물의 설정과 지난 일을 이어서, 이 인물이 등장하는 대화 장면을 써라. effects.relations에 이 인물을 반드시 포함하라.`+relArmText(name,1));
+  const said=chosenTopic(topic,[name+'와 대화',name+'과 대화',`${name}${josa(name,'을','를')} 찾아간다`]);
+  aiTurn(said||`${name}${josa(name,'을','를')} 찾아간다`,`[인물 방문] 플레이어가 ${name}${josa(name,'을','를')} 찾아간다. 사전과 연대기에 있는 이 인물의 설정과 지난 일을 이어서, 이 인물이 등장하는 대화 장면을 써라. effects.relations에 이 인물을 반드시 포함하라.`+relArmText(name,1)+(said?` [플레이어가 고른 말·행동] "${said}" — 이번 장면은 이 말·행동에 대한 반응에서 시작한다. 직전 장면과 같은 묘사·대사를 되풀이하지 말 것.`:''));
 }
 function proposeTo(name,text=''){
   if(busy||!romanceReady(name))return false;
