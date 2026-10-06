@@ -500,7 +500,7 @@ const ENTRY_REASONS=[
   {id:'ai',name:'AI에 맡기기',desc:'AI가 정해서 서서히 드러낸다.'},
 ];
 const HOME_REGION='중앙 캠퍼스 지구';
-const STATS=[{k:'str',n:'체력'},{k:'wis',n:'지혜'},{k:'cha',n:'매력'},{k:'sur',n:'생존술'}];
+const STATS=[{k:'str',n:'근력'},{k:'wis',n:'지혜'},{k:'cha',n:'매력'},{k:'sur',n:'생존술'}];
 const TRAITS=[
   {id:'scooter',n:'동물 친화',d:'길고양이 같은 동물을 다루는 일에 능숙'},
   {id:'frugal',n:'담력',d:'공포가 천천히 쌓임'},
@@ -761,11 +761,12 @@ function placeNames(){ return Object.values(PLACES).map(p=>p.n).join('·') }
 
 
 /* ---------- 판정 ---------- */
-const SK={str:'체력',wis:'지혜',cha:'매력',sur:'생존술'};
+const SK={str:'근력',wis:'지혜',cha:'매력',sur:'생존술'};
 const DCV={easy:7,normal:9,hard:11};
 const DCN={easy:'쉬움',normal:'보통',hard:'어려움'};
-/* 능력치가 높을수록 난이도 숫자도 오름: 능력치 7~8은 +1, 9~10은 +2 (기본 능력치는 6까지는 그대로) */
-const dcVal=(dc,skill)=>{ const st=(G&&G.char&&G.char.stats&&G.char.stats[skill])||0; return DCV[dc]+(st>6?Math.ceil((st-6)/2):0) };
+/* 난이도는 장면과 행동이 정한다. 성장으로 능력치가 올라도 난이도를 함께 올리지 않는다. */
+const dcVal=(dc,skill)=>DCV[dc];
+const SK_HELP={str:'힘쓰기·등반·정면 전투 판정 · 강화하면 최대·현재 체력도 +2',wis:'해독·추리·장치 분석 판정 · 전투에서 지형 이용',cha:'설득·흥정·위협 판정 · 호감도는 대화·데이트로 별도 진행',sur:'잠입·추적·함정 해제 판정 · 전투에서 빈틈 공격과 도주'};
 const CHOICE_TYPES=['move','investigate','talk','story','check','rest','shelter','return','exit','trade'];
 
 /* ---------- 이동 행상 (한빛시 뒷길에서 가끔 만나는 상인) ---------- */
@@ -923,6 +924,13 @@ function migrate(){
   }
   if(!Number.isFinite(G._batteryResidueCap)||G._batteryResidueCap<=0)G._batteryResidueCap=capF();
   migratePhoneLight();
+  migrateGrowthBalance();
+}
+function migrateGrowthBalance(){
+  if(G._growthBalanceVersion===1)return;
+  // 기존 공포 성장도 새 효율로 올리되, 이미 쌓인 공포와 소비한 포인트는 보존한다.
+  G.calm=Math.max(0,(Number(G.calm)||0)+capLv().g*(GROW_CAP_STEP-1));
+  G._growthBalanceVersion=1;
 }
 function migratePhoneLight(){
   if(G._fearBalanceVersion!==1){G.calm=Math.max(0,(Number(G.calm)||0)+FEAR_BASE-CAP_BASE);G._fearBalanceVersion=1}
@@ -1344,7 +1352,7 @@ function toneHint(){
 function stateFacts(){
   const c=G.char;
   const o={
-    캐릭터:{이름:c.name,나이:c.age||17,신분:c.origin,전학이유:c.reason||c.reasonAI||'(미정 — AI가 정해 서서히 드러낼 것)',능력치:{체력:c.stats.str,지혜:c.stats.wis,매력:c.stats.cha,생존술:c.stats.sur},특성:c.traits,배경:c.bio||'(없음)'},
+    캐릭터:{이름:c.name,나이:c.age||17,신분:c.origin,전학이유:c.reason||c.reasonAI||'(미정 — AI가 정해 서서히 드러낼 것)',능력치:{근력:c.stats.str,지혜:c.stats.wis,매력:c.stats.cha,생존술:c.stats.sur},특성:c.traits,배경:c.bio||'(없음)'},
     상태:{체력:`${G.hp}/${G.maxhp}`,공포:`${fearNow()}/${fearMax()}`,배터리:`${batteryPct()}%`,조명:lightStatus(),캐시:G.cash,벌점:`${G.demerit||0}/${DEMERIT_WARN}`,출입권한:`${G.access||1}/${ACCESS_MAX}등급`,소지품:G.items,메달조각:`${G.fragments}/${FRAG_GOAL}`},
     날짜:`${G.day}일째(${dowName(G.day)}요일${dowIdx(G.day)>=5?' 주말':''}) ${G.time}`,
     알려진지명:MAP_PLACES.filter(p=>p.far&&G.discovered.includes(p.id)).map(p=>`${p.n}(소문으로만 아는 곁가지 구역)`).join(' / ')||'없음',
@@ -7541,7 +7549,7 @@ function tripFixedHTML(){
   const mvLbl=`🧭 이동 중 — ${t.from} → ${t.dest.name} (남은 거리 ${durText(t.left)})`;
   if(t.bandit){
     return {mv:b('banditPay()',hasBranch('checkpoint')?'🪪 도서관 출입증 보이기 (통행세 없음)':`💳 통행세 내기 (${Math.min(G.cash,banditFee())})`)
-      +b("banditCheck('str')",`⚔ 맞서 싸운다 <span class="cbadge ck">🎲 체력 · 보통 · ${checkChance('str','normal','맞서 싸')}%</span>`)
+      +b("banditCheck('str')",`⚔ 맞서 싸운다 <span class="cbadge ck">🎲 근력 · 보통 · ${checkChance('str','normal','맞서 싸')}%</span>`)
       +b("banditCheck('sur')",`🏃 따돌린다 <span class="cbadge ck">🎲 생존술 · 보통 · ${checkChance('sur','normal','')}%</span>`),mvLbl,ac:'',acLbl:''};
   }
   let ac='';
@@ -7653,7 +7661,7 @@ const WARD_TYPES={
                desc:'저수지 속에 잠긴 지워진 구역. 보트를 빌려 건너야 하고, 수위와 습기가 건물을 갉아 먹었다.'},
   tunnel:{n:'배수 터널 구역',ic:'🕳',req:{batteryPct:20}, check:'wis',reqText:'배터리 20% 이상 · 휴대폰 조명에 행동당 2% 소모',rule:'👂 소음 — 판정에 실패하거나 위험한 공간에 처음 들어가면 소음이 쌓임. 3이 넘으면 무언가 뒤를 밟아, 이동할 때마다 🎲 생존술(은신) 판정. 임시 쉼터하면 소음이 가라앉음',
                desc:'한빛시 아래로 뚫린 배수 터널과 지하 시설로 이어진 구역. 빛이 없으면 한 걸음도 갈 수 없다.'},
-  highrise:   {n:'고지대 단지',ic:'🏢',req:{calm:3},check:'str',reqText:'공포 여유 3 더 필요 · 가파른 계단과 외벽 통로',rule:'🧗 등반 — 처음 가는 더 높은(깊은) 공간으로 갈 때마다 🎲 체력 판정. 실패하면 오르지 못하고 제자리',
+  highrise:   {n:'고지대 단지',ic:'🏢',req:{calm:3},check:'str',reqText:'공포 여유 3 더 필요 · 가파른 계단과 외벽 통로',rule:'🧗 등반 — 처음 가는 더 높은(깊은) 공간으로 갈 때마다 🎲 근력 판정. 실패하면 오르지 못하고 제자리',
                desc:'언덕 위에 선 고층 단지. 계단과 외벽 통로가 험하고 바람이 거세다.'},
   fog:      {n:'안개 구역',ic:'🌫',req:{},check:'sur',reqText:'특별한 준비 없음',rule:'🌫 안개 — 처음 가는 공간으로 갈 때 가끔 안개가 짙어짐. 🎲 생존술 판정에 실패하면 엉뚱한 곳(이미 가 본 공간)으로 가게 됨',
                desc:'늘 안개가 걷히지 않는 구역. 안개 속에서는 건물의 배치가 계속 달라 보인다.'},
@@ -8019,7 +8027,7 @@ function wardStatusHTML(){
   if(t==='flooded'){ const n=d.tideLeft==null?TIDE_MAX:d.tideLeft; return `<span class="nb" title="${esc(WARD_TYPES.flooded.rule)}">🌊 수위 <span class="pips">${pips(Math.ceil(n/TIDE_MAX*7),7)}</span> <span class="${n<=3?'warn':''}">${n<=0?'물이 참 — 깊은 공간 잠김':`${n}번 남음`}</span></span>` }
   if(t==='tunnel'){ const n=d.noise||0; return `<span class="nb" title="${esc(WARD_TYPES.tunnel.rule)}">👂 소음 <span class="pips">${pips(Math.min(n,NOISE_HUNT),NOISE_HUNT)}</span> <span class="${n>=NOISE_HUNT?'warn':''}">${n>=NOISE_HUNT?'무언가 뒤를 밟는 중':`${n}/${NOISE_HUNT}`}</span></span>` }
   if(compactCampaign()&&t==='fog')return '<span class="nb">🌫 안개 — 확인된 이동 경로는 고정됩니다</span>';
-  return `<span class="nb" title="${esc(WARD_TYPES[t].rule)}">${t==='highrise'?'🧗 등반 — 처음 가는 높은 공간은 체력 판정':'🌫 안개 — 처음 가는 공간에서 가끔 길을 잃음'}</span>`;
+  return `<span class="nb" title="${esc(WARD_TYPES[t].rule)}">${t==='highrise'?'🧗 등반 — 처음 가는 높은 공간은 근력 판정':'🌫 안개 — 처음 가는 공간에서 가끔 길을 잃음'}</span>`;
 }
 function openWards(){
   const n=c=>{ const rt=bigRoute(bigSpec(c.id)); return (rt.reservoir?`🚤 ${HOODS[rt.pier].n}에서 보트로 `:'')+needText(travelNeed(rt.days)) };
@@ -8421,10 +8429,11 @@ on('context',55,()=>G.fight?`\n[전투 중] ${G.fight.foe}와(과) 싸우는 중
 
 /* ---------- 성장 — 경험을 쌓아 최대 체력·능력치를 올림 ----------
    경험: 기념 메달 조각(새로 얻을 때) +1 · 구역 끝까지 조사 +3 · 구역 사연을 다 밝힘 +1 · 전투 승리 +2~3(결전 +6) · 출석부 해독·구역의 심장 +4
-   GROW_XP마다 성장 포인트 1 → 최대 체력 +HP_GROW(1점) 또는 능력치 +1(STAT_GROW_COST점, 최대 STAT_MAX)
-   능력치 '체력'을 올리면 최대 체력도 +2 (캐릭터를 만들 때의 규칙과 같음) */
+   GROW_XP마다 성장 포인트 1 → 최대 체력 +HP_GROW(hpGrowCost점) 또는 능력치 +1(STAT_GROW_COST점, 최대 STAT_MAX)
+   능력치 '근력'을 올리면 최대 체력도 +2 (캐릭터를 만들 때의 규칙과 같음) */
 const GROW_XP=6, HP_GROW=3, STAT_GROW_COST=2, STAT_MAX=10;
-const GROW_CAP_COST=2, GROW_CAP_STEP=1, GROW_CAP_MAX=6;   // 공포 최대치: 2점마다 +1, 최대 6번
+const GROW_CAP_COST=2, GROW_CAP_STEP=2, GROW_CAP_MAX=6;   // 공포 최대치: 2점마다 +2, 최대 6번
+function hpGrowCost(){ return Math.max(1,Math.floor(G.maxhp/15)) }   // 30 미만 1점, 30부터 최대 체력 15마다 비용 +1
 function gainXp(n,why){
   if(!G||n<=0) return;
   const before=Math.floor((G.xp||0)/GROW_XP);
@@ -8436,8 +8445,9 @@ function gainXp(n,why){
 /* 기념 메달 조각: 지금까지 가져 본 최대 개수를 넘을 때만 (빼앗겼다 되찾은 조각은 다시 세지 않음) */
 function fragXpCheck(){ if(!G) return; if(G._fragMax==null){ G._fragMax=G.fragments||0; return } if(G.fragments>G._fragMax){ const n=G.fragments-G._fragMax; G._fragMax=G.fragments; gainXp(n,'기념 메달 조각') } }
 function growHP(){
-  if(busy||G.fight||!(G.growth>=1)) return;
-  G.growth--; G.maxhp+=HP_GROW; G.hp+=HP_GROW;
+  const cost=hpGrowCost();
+  if(busy||G.fight||!(G.growth>=cost)) return;
+  G.growth-=cost; G.maxhp+=HP_GROW; G.hp+=HP_GROW;
   addLog('fx',`❤ 최대 체력 +${HP_GROW} (${G.maxhp})`); G.chronicle.push({day:G.day,text:`몸을 단련해 최대 체력이 ${G.maxhp}이(가) 되었다`});
   save(); render(); openGrowth();
 }
@@ -8457,14 +8467,14 @@ function growStat(k){
   save(); render(); openGrowth();
 }
 function openGrowth(){
-  const p=G.growth||0, x=(G.xp||0)%GROW_XP;
-  const statRow=k=>`<div class="shop-row"><span>${SK[k]} <b>${G.char.stats[k]}</b>${k==='str'?' <span class="muted">(올리면 최대 체력도 +2)</span>':''}</span><button class="small ${p>=STAT_GROW_COST&&G.char.stats[k]<STAT_MAX?'primary':''}" ${p>=STAT_GROW_COST&&G.char.stats[k]<STAT_MAX&&!G.fight?'':'disabled'} onclick="growStat('${k}')">${G.char.stats[k]>=STAT_MAX?'최대':`+1 (${STAT_GROW_COST}점)`}</button></div>`;
+  const p=G.growth||0, x=(G.xp||0)%GROW_XP, hpCost=hpGrowCost();
+  const statRow=k=>`<div class="shop-row"><span>${SK[k]} <b>${G.char.stats[k]}</b><br><span class="muted" style="font-size:12px">${SK_HELP[k]}</span></span><button class="small ${p>=STAT_GROW_COST&&G.char.stats[k]<STAT_MAX?'primary':''}" ${p>=STAT_GROW_COST&&G.char.stats[k]<STAT_MAX&&!G.fight&&!busy?'':'disabled'} onclick="growStat('${k}')">${G.char.stats[k]>=STAT_MAX?'최대':`+1 (${STAT_GROW_COST}점)`}</button></div>`;
   modal('🌟 성장',`<p>성장 포인트 <b>${p}</b> · 다음 포인트까지 경험 ${x}/${GROW_XP}</p>
-    <p class="muted" style="font-size:13px">경험은 기념 메달 조각을 새로 얻거나, 구역을 끝까지 조사하거나, 전투에서 이기거나, 출석부와 구역의 심장을 열 때 쌓입니다.</p>
-    <div class="shop-row"><span>❤ 최대 체력 <b>${G.maxhp}</b></span><button class="small ${p>=1?'primary':''}" ${p>=1&&!G.fight?'':'disabled'} onclick="growHP()">+${HP_GROW} (1점)</button></div>
-    <div class="shop-row"><span>🫧 공포 최대치 <b>${capW()}</b> <span class="muted">(높을수록 더 버팀)</span></span><button class="small ${p>=GROW_CAP_COST&&capLv().g<GROW_CAP_MAX?'primary':''}" ${p>=GROW_CAP_COST&&capLv().g<GROW_CAP_MAX&&!G.fight?'':'disabled'} onclick="growFear()">${capLv().g>=GROW_CAP_MAX?'최대':`+${GROW_CAP_STEP} (${GROW_CAP_COST}점)`}</button></div>
+    <p class="muted" style="font-size:13px">경험은 수업·주말 공부, 기념 메달 수집·완성, 구역 조사·사건 검증, 전투 승리와 출석부 해독·구역의 심장에서 쌓입니다.</p>
+    <div class="shop-row"><span>❤ 최대 체력 <b>${G.maxhp}</b></span><button class="small ${p>=hpCost?'primary':''}" ${p>=hpCost&&!G.fight&&!busy?'':'disabled'} onclick="growHP()">+${HP_GROW} (${hpCost}점)</button></div>
+    <div class="shop-row"><span>🫧 공포 최대치 <b>${capW()}</b> <span class="muted">(높을수록 더 버팀)</span></span><button class="small ${p>=GROW_CAP_COST&&capLv().g<GROW_CAP_MAX?'primary':''}" ${p>=GROW_CAP_COST&&capLv().g<GROW_CAP_MAX&&!G.fight&&!busy?'':'disabled'} onclick="growFear()">${capLv().g>=GROW_CAP_MAX?'최대':`+${GROW_CAP_STEP} (${GROW_CAP_COST}점)`}</button></div>
     ${Object.keys(SK).map(statRow).join('')}
-    <p class="muted" style="font-size:12px;margin-top:8px">능력치는 ${STAT_MAX}까지 올릴 수 있습니다. 싸우는 중에는 성장할 수 없습니다.</p>`);
+    <p class="muted" style="font-size:12px;margin-top:8px">최대 체력 강화는 현재 최대 체력 30 미만이면 1점, 30~44는 2점, 45~59는 3점이며 이후 15마다 비용이 1점 늘어납니다. 근력 강화의 체력 +2는 별도 효과입니다. 공포 한도를 늘려도 현재 공포는 줄지 않습니다. 능력치는 ${STAT_MAX}까지 올릴 수 있으며, 능력치가 올라 난이도가 함께 오르지는 않습니다. 이미 성공 확률이 100%인 판정은 더 오르지 않습니다. 싸우는 중이나 장면 처리 중에는 성장할 수 없습니다.</p>`);
 }
 function rivalSideHTML(){
   if(!rivalOn()||!G.rival.known) return '';
@@ -8492,7 +8502,7 @@ const BRANCH={
   herbgarden:{ic:'🌿',price:{calm:2,battery:2,torch:4},skill:'sur',dc:'normal',act:'식물원 관리인들이 피하는 약초원 깊은 길로 들어가 본다',
     kind:'탈것',reward:'오러리 전동 카트',ric:'🛴',eff:'자전거 보관대가 있으면 상점가에서 오러리 전동 카트를 들일 수 있음 — 이동 시간이 줄어듦'},
   rooftop:{ic:'🏢',price:{calm:3,battery:3,torch:5},skill:'str',dc:'hard',act:'본관 외벽을 타고 옥상 서고의 무너진 아랫단으로 내려간다',
-    kind:'고유 물건',reward:'관장의 인장',ric:'🗝',eff:'싸움(체력 판정)에서 +1'},
+    kind:'고유 물건',reward:'관장의 인장',ric:'🗝',eff:'싸움(근력 판정)에서 +1'},
   depot:{ic:'📦',price:{calm:3,battery:2,torch:6},skill:'cha',dc:'hard',act:'반입 업자들의 휴게실에서 그들만 아는 이야기를 얻어 내려 한다',
     kind:'고유 물건',reward:'반입 업자의 표식',ric:'🏷',eff:'유실물을 팔 때 25% 더 받음'},
   irongate:{ic:'🌱',price:{calm:2,battery:2,torch:5},skill:'wis',dc:'hard',act:'덩굴에 반쯤 묻힌 철문에 새겨진 그림을 풀어 본다',
@@ -8994,7 +9004,7 @@ function renderMapPanel(){
 function leftHTML(){
   const c=G.char, s=c.stats, hpP=Math.max(0,Math.round(G.hp/G.maxhp*100));
   let h=`<div class="sec"><div class="name">${esc(c.name)}</div><div class="muted">${esc(c.origin)} · ${c.age||17}세${c.reason?` · 전학 이유 ${esc(c.reason)}`:''}</div>
-    <div class="grid2" style="margin-top:8px"><div><span>체력</span><b>${s.str}</b></div><div><span>지혜</span><b>${s.wis}</b></div><div><span>매력</span><b>${s.cha}</b></div><div><span>생존술</span><b>${s.sur}</b></div></div>
+    <div class="grid2" style="margin-top:8px"><div><span>근력</span><b>${s.str}</b></div><div><span>지혜</span><b>${s.wis}</b></div><div><span>매력</span><b>${s.cha}</b></div><div><span>생존술</span><b>${s.sur}</b></div></div>
     <div class="chips" style="margin-top:8px">${c.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join('')||'<span class="muted">특성 없음</span>'}</div>
     ${c.bio?`<div class="bio">${esc(c.bio)}</div>`:''}
     <button class="small" style="margin-top:6px" onclick="openChar()">배경 보기·편집</button></div>`;
@@ -9189,7 +9199,7 @@ function openChar(){
   const c=G.char;
   modal('캐릭터',`<h3 class="serif" style="margin-top:0">${esc(c.name)}</h3>
     <p>${esc(c.origin)} · ${c.age||17}세${c.reason?` · 전학 이유 ${esc(c.reason)}`:''}</p>
-    <p>체력 ${c.stats.str} · 지혜 ${c.stats.wis} · 매력 ${c.stats.cha} · 생존술 ${c.stats.sur}</p>
+    <p>근력 ${c.stats.str} · 지혜 ${c.stats.wis} · 매력 ${c.stats.cha} · 생존술 ${c.stats.sur}</p>
     <p>특성: ${c.traits.map(esc).join(', ')||'없음'}</p>
     <label>배경 이야기</label><textarea id="bioEdit" rows="4">${esc(c.bio)}</textarea>
     <div class="row" style="margin-top:8px"><button class="small" onclick="G.char.bio=document.getElementById('bioEdit').value;save();toast('저장했습니다')">배경 저장</button></div>`);
@@ -9355,8 +9365,8 @@ function openGuide(){
     ${h3('행동 방식 — 버튼 · 이야기 · 판정')}
     ${row('🧭 버튼 (게임 기능)','이동·휴식·귀환·거래·공포 가라앉히기처럼 시간·자원·위치가 바뀌는 행동. 정확히 계산됩니다')}
     ${row('💬 이야기 선택지','화면에 제시된 행동을 골라 관찰·대화·조사를 진행합니다. 이동 같은 기능 선택지는 저장된 장소 ID와 현재 조건을 검증해 실행합니다.')}
-    ${row('🎲 판정',`결과가 불확실한 행동. 주사위 2개 + 능력치 + 특성 보너스 ≥ 난이도(쉬움 ${DCV.easy} · 보통 ${DCV.normal} · 어려움 ${DCV.hard})면 성공, 2 모자라면 부분 성공(대가 있음), 그보다 낮으면 실패. 능력치가 7 이상이면 난이도 숫자가 올라갑니다(성장 참고)`)}
-    ${row('판정 능력치','체력=힘·몸 · 지혜=지식·해독·추리 · 매력=설득·흥정 · 생존술=추적·은신·함정')}
+    ${row('🎲 판정',`결과가 불확실한 행동. 주사위 2개 + 능력치 + 특성 보너스 ≥ 난이도(쉬움 ${DCV.easy} · 보통 ${DCV.normal} · 어려움 ${DCV.hard})면 성공, 2 모자라면 부분 성공(대가 있음), 그보다 낮으면 실패. 난이도는 장면·행동에 따라 정하며 능력치가 올라가도 함께 오르지 않습니다`)}
+    ${row('판정 능력치','근력=힘·몸 · 지혜=지식·해독·추리 · 매력=설득·흥정 · 생존술=추적·은신·함정')}
     ${row('특성 보너스','옛 서류 해독(글·낙서 해독 +2) · 말발(매력 +2) · 싸움 경험(싸움 +2) · 동물 친화(동물 +2) · 지독한 호기심(지혜 +1) · 밤눈(야간·어둠 생존술 +1, 불빛 없음 불이익 무시) · 묘한 운(하루 한 번 크게 실패하면 다시 굴림)')}
     ${row('불이익','휴대폰 조명을 사용할 수 없는 어둠: 매력 외 -2 · 체력 30% 이하: -1')}
     ${row('실패의 대가','구역·뒷길·전투에서 매력 외 판정 실패: 체력 -(공간 위험도, 최소 1) · 위험도 2 이상 공간에서 부분 성공: 체력 -1 (지구·아지트·학교 안에서는 체력이 깎이지 않음)')}
@@ -9432,7 +9442,7 @@ function openGuide(){
     ${Object.entries(HOODS).filter(([id])=>!g||hoodOpen(id)).map(([id,t])=>row(`${t.ic} ${t.n} <span class="muted">(중앙 캠퍼스 지구에서 ${durText(hoodDays(id))})</span>`,`${t.perk}<br><span class="muted">진정 음료 💳${t.price.calm} · 배터리 💳${t.price.battery}</span>`)).join('')}
     ${row('가는 길',`이동 시간은 지도 거리로 자동 계산(지도 거리 약 ${DAY_DIST}당 한 단계=시간 ${TRAVEL_TICKS}칸 · 낮 9칸과 방과 후/야간/새벽 각 4칸, 하루 21칸 · 조사·이동·학교가 같은 시계를 사용) · 이동 단계마다 공포 +1·배터리 −1% (충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반, 공포 여유가 모자라면 그만큼 체력 감소) · 지구끼리도 바로 오감 · 지구에서 떠난 조사 외출은 그 지구로 돌아옴 · 아지트는 중앙 캠퍼스 지구 바로 옆`)}
     ${row('🕒 이동 중의 시간','이동·조사·학교가 같은 시계를 사용합니다. 이동 단계 1개는 시간 2칸이고 0단계는 시간이 흐르지 않습니다. 이동 중 지나간 수업도 결석으로 기록하며 주말·승인된 결석일은 제외합니다. 출발 전 예상 도착/귀교 시각, 구역 상단에 바로 돌아갈 경우의 귀교 시각이 표시됩니다. 돌발 사건과 추가 조사로 늦어질 수 있습니다')}
-    ${row('길 위의 사건',`두 단계(시간 4칸) 이상 걸리는 육로 이동에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🧭 이동 행상(거래) · 🎵 유민 · 🏴 적대 세력(전투) · 🗡 불량배(통행세 캐시의 20%, 최소 💳10 / ⚔ 체력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 한 단계 더·공포 +1·배터리 −1%)`)}
+    ${row('길 위의 사건',`두 단계(시간 4칸) 이상 걸리는 육로 이동에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🧭 이동 행상(거래) · 🎵 유민 · 🏴 적대 세력(전투) · 🗡 불량배(통행세 캐시의 20%, 최소 💳10 / ⚔ 근력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 한 단계 더·공포 +1·배터리 −1%)`)}
     ${(G&&G.act>=3?row('곁가지 구역 🌿','3막부터 오러리 구역(구 식물원·천문대)과 코덱스 구역(구 본관 도서관)의 여덟 곳으로 이동할 수 있음(🧭 이동하기). 곳마다 📜 괴담 쫓기 — 하루 한 번 판정, 성공·부분 성공이면 구역마다 다른 보상(고유 물건·칭호·탈것·동물 친구·아지트 장식). 🗺 곁가지 수집품에 기록되고, 여덟 곳을 모두 모으면 칭호와 최대 체력 +1. 곁가지 구역에는 조사할 폐구역이 없어 구역 조사 버튼이 나타나지 않음'):'')}
     ${(G&&G.act>=3?row('선착장 🚤','출석부가 저수지 아래 구역을 가리킨 뒤(3막) 서쪽 저수지·동쪽 배수지 두 곳이 지도에 나타남. 수몰 구역으로 가는 보트(💳'+boatFee()+')는 가까운 선착장에서만'):'')}
     ${row('글로 쓴 이동','「학원가으로 간다」처럼 쓰면 이동 비용이 적힌 확인 칩이 뜸 · 아직 소문으로만 아는 곳은 갈 수 없음')}
@@ -9443,12 +9453,12 @@ function openGuide(){
     ${row('3막','그들이 먼저 닿은 출석부가 가리키는 구역은 곳곳의 위험도가 1 오릅니다')}
     ${row('소식','급식실 소문 · 행상과의 대화 · 유민의 노래 · 길 위의 만남')}
     ${h3('성장')}
-    ${row('🌟 경험',`기념 메달 조각을 새로 얻을 때 +1 · 구역 끝까지 조사 +3 · 구역의 사연을 다 밝힘 +1 · 전투 승리 +2~3 (결전 +6) · 출석부 해독·구역의 심장 +4 · 수업 한 교시·주말 공부 +1`)}
-    ${row('성장 포인트',`경험 ${GROW_XP}마다 1점 → 최대 체력 +${HP_GROW} (1점), 공포 최대치 +${GROW_CAP_STEP} (${GROW_CAP_COST}점, 최대 ${GROW_CAP_MAX}번) 또는 능력치 +1 (${STAT_GROW_COST}점, 최대 ${STAT_MAX}). 능력치 '체력'을 올리면 최대 체력도 +2. 능력치가 7 이상이면 그 능력치로 하는 판정의 난이도 숫자가 올라갑니다(7~8은 +1, 9~10은 +2)`)}
+    ${row('🌟 경험',`기념 메달 조각을 새로 얻을 때 +1 · 구역 끝까지 조사 +3 · 구역의 사연을 다 밝힘 +1 · 전투 승리 +2~3 (결전 +6) · 사건 검증 +1 · 기념 메달 완성 +${MEDAL_REWARD_XP} · 출석부 해독·구역의 심장 +4 · 수업 한 교시·주말 공부 +1`)}
+    ${row('성장 포인트',`경험 ${GROW_XP}마다 1점 → 최대 체력 +${HP_GROW} (현재 최대 체력 30 미만 1점 · 30~44는 2점 · 45~59는 3점 · 이후 15마다 비용 +1), 공포 최대치 +${GROW_CAP_STEP} (${GROW_CAP_COST}점, 최대 ${GROW_CAP_MAX}번) 또는 능력치 +1 (${STAT_GROW_COST}점, 최대 ${STAT_MAX}). 능력치 '근력'을 올리면 최대 체력도 +2. 능력치 강화는 판정 보너스만 올리며 난이도를 함께 올리지 않습니다. 공포 강화는 현재 쌓인 공포를 유지한 채 한도만 늘립니다`)}
     ${h3('적대 세력과의 전투')}
     ${row('한 합씩',`버튼으로 한 번씩 맞섭니다. 적의 기세가 0이 되면 이기고, 내 체력이 0이 되면 집니다. 싸우는 동안은 되돌리기를 쓸 수 없습니다`)}
     ${row('적의 의도',`합마다 적이 다음 행동을 드러냅니다 — 👍 유리한 행동은 난이도가 한 단계 쉬워지고, ⚠ 불리한 행동은 성공하지 못하면 체력 -${FIGHT_PUNISH}. 「💎 조각을 노린다」일 때 밀어내지 못하면 조각 하나를 빼앗깁니다`)}
-    ${row('⚔ 정면으로 맞선다','🎲 체력 · 성공이면 기세 -1 · 부분 성공은 서로 맞음(기세 -1, 나도 체력 -1)')}
+    ${row('⚔ 정면으로 맞선다','🎲 근력 · 성공이면 기세 -1 · 부분 성공은 서로 맞음(기세 -1, 나도 체력 -1)')}
     ${row('🗡 빈틈을 노린다','🎲 생존술 · 성공이면 기세 -1 · 부분 성공은 서로 맞음')}
     ${row('🧠 지형을 이용한다','🎲 지혜 어려움 · 성공하면 기세 -2')}
     ${row('🗣 위협·속임','🎲 매력 · 기세가 절반 이하이거나 적이 흔들릴 때 성공하면 적이 물러남, 아니면 기세 -1 · 실패하면 기세 +1에 적이 선공(체력 -1). 결전에서는 물러나게 할 수 없음')}
@@ -9471,7 +9481,6 @@ function openGuide(){
     ${h3('휴대 용량')}
     ${row('기본 용량',`공포 한계 ${FEAR_BASE} · 휴대폰 배터리 ${CAP_BASE}칸 (조명 통합) (공포 한계는 👤 학생 칸의 성장 포인트로도 +${GROW_CAP_STEP}씩 최대 ${GROW_CAP_MAX}번 늘릴 수 있음)`)}
     ${row('상점 확장 (멘탈 한도·보조배터리 팩)',`단계마다 +${CAP_STEP} · ${CAP_PRICE.w.length}단계까지 · 💳${CAP_PRICE.w.join(' / ')}`)}
-    ${row('상점 확장 (건전지 케이스)',`단계마다 +${CAP_STEP} · ${CAP_PRICE.t.length}단계까지 · 💳${CAP_PRICE.t.join(' / ')}`)}
     ${row('탈것 보너스',`자전거 공포 한계·배터리 +${RIDES.bike.capBonus} · 전동 스쿠터 +${RIDES.scooter.capBonus} (충전해 상태가 좋을 때, 친근한 사이 +1 · 단짝 +2)`)}
     ${row('가격',`${priceHood} / ${priceRoad}`)}
     <p class="muted" style="font-size:12px">용량을 넘겨 얻은 진정 음료·배터리은 사라집니다.</p>
@@ -9998,7 +10007,7 @@ async function finishCreation(){
   G={
     v:1,_relVersion:2,_clockVersion:2,_privateMysteryVersion:1,_deductionVersion:1,campaign:{version:1,links:{},introSolved:false},
     char:{name,age:17,origin:'한빛학원 2학년 7반 전학생',region:HOME_REGION,reason,stats,traits:draft.traits.map(id=>TRAITS.find(t=>t.id===id).n),bio:document.getElementById('cBio').value.trim()},
-    hp:maxhp,maxhp,calm:FEAR_BASE-1,battery:CAP_BASE,torch:0,cash:30,_phoneLightVersion:1,_fearBalanceVersion:1,
+    hp:maxhp,maxhp,calm:FEAR_BASE-1,battery:CAP_BASE,torch:0,cash:30,_phoneLightVersion:1,_fearBalanceVersion:1,_growthBalanceVersion:1,
     items:['오래된 출석부'],
     demerit:0,access:1,ledger:[],
     fragments:0,act:1,day:1,time:'낮',loc:'campus',steps:0,
