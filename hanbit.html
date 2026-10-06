@@ -344,6 +344,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
       <button onclick="openGuide()">📖 게임 가이드</button>
       <button onclick="openSettings()">AI 설정</button>
       <button onclick="importSave()">저장 파일 불러오기</button>
+      <button onclick="restoreSaveBackup()">가져오기 이전 저장 복구</button>
       <button class="small themeBtn" onclick="cycleTheme()">🌓 자동</button><button class="small sfxBtn" onclick="cycleSfx()">🔊 보통</button>
     </div>
     <p class="muted" style="margin-top:20px" id="aiStatus"></p>
@@ -402,6 +403,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
       <div id="needBar"></div>
     </div>
 
+    <div id="saveWarning" role="alert" style="display:none;padding:10px;gap:8px;align-items:center;flex-wrap:wrap"><span>⚠ 자동 저장에 실패했습니다. 현재 진행을 파일로 보관해 주세요.</span><button class="small" onclick="save()">저장 재시도</button><button class="small" onclick="exportSave()">현재 진행 다운로드</button></div>
     <nav id="gameNav" class="row" aria-label="게임 활동 탭" style="padding:8px;gap:8px"></nav>
     <div id="socialPanel" style="display:none;padding:16px;overflow:auto;flex:1"></div>
 
@@ -878,7 +880,7 @@ function migrate(){
   if(G.rival&&!G.rival.hostile){ if(!G.rival.known) G.rival=null; else G.rival.hostile=true }   // 적대 세력 이전 저장본
   if(G.act==null) G.act=Array.isArray(G.wards)&&G.wards.length?(G.wards.every(c=>c.found)?4:3):1;   // 막 제도 이전 저장본
   if(!compactCampaign()&&G.actDone&&(G.fragments||0)<FRAG_GOAL) G.fragments=FRAG_GOAL;
-  if(G.act>=3&&MAP_PLACES.some(p=>p.far&&!G.discovered.includes(p.id))) setTimeout(()=>{ try{ branchOpen(true); save(); render() }catch(e){} },0);   // 3막 저장본: 곁가지 구역 열기   // 조각 목표가 늘기 전에 1막을 마친 저장본
+  if(G.act>=3&&MAP_PLACES.some(p=>p.far&&!G.discovered.includes(p.id))){const g=G;setTimeout(()=>{ if(G!==g)return;try{ branchOpen(true); save(); render() }catch(e){} },0)}
   if(G.dayStep==null) G.dayStep=(G.steps||0)%blockLen();
   if(!TIMES.includes(G.time)) G.time=G.time==='밤'?'야간':'낮';
   if(G.demerit==null) G.demerit=0; if(!G.access) G.access=1; if(!Array.isArray(G.ledger)) G.ledger=[];
@@ -917,13 +919,27 @@ function ensureComp(){ migrate() }      // 예전 이름 호환
 
 /* 저장: 저장할 때마다 되돌리기 기준점 갱신 + 하루가 바뀌면 연대기 압축 */
 let stableSnap=null, undoSnap=null, undoLabel='', chronLastDay=null;
-function save(){
-  if(!G) return;
-  try{ localStorage.setItem(SAVE_KEY,JSON.stringify(G)) }catch(e){}
-  try{ if(!busy) stableSnap=snapG() }catch(e){}
-  try{ if(Array.isArray(G.chronicle)&&!chronBusy&&G.day!==chronLastDay){ chronLastDay=G.day; compactChronicle().catch(()=>{}) } }catch(e){}
+const SAVE_BACKUP_KEY=SAVE_KEY+'_before_import';
+let saveFailed=false;
+function saveStatus(ok){
+ const el=document.getElementById('saveWarning');if(el)el.style.display=ok?'none':'flex';
+ if(!ok&&!saveFailed)toast('자동 저장 실패. 현재 진행 다운로드로 백업해 주세요.');
+ saveFailed=!ok;
 }
-function snapG(){ let s=null; try{ s=localStorage.getItem(SAVE_KEY) }catch(e){} return s||JSON.stringify(G) }
+function persistGameSnapshot(g=G){
+ if(!g||g!==G)return false;
+ let snap;try{snap=JSON.stringify(g)}catch{saveStatus(false);return false}
+ // Undo always follows the live game, even when browser storage is full.
+ if(!busy)stableSnap=snap;
+ try{localStorage.setItem(SAVE_KEY,snap);saveStatus(true);return true}catch{saveStatus(false);return false}
+}
+function save(){
+  if(!G) return false;
+  const ok=persistGameSnapshot();
+  try{ if(Array.isArray(G.chronicle)&&!chronBusy&&G.day!==chronLastDay){ chronLastDay=G.day; compactChronicle().catch(()=>{}) } }catch(e){}
+  return ok;
+}
+function snapG(){ if(G)return JSON.stringify(G);try{return localStorage.getItem(SAVE_KEY)}catch{return null} }
 
 
 /* =========================================================
@@ -1393,13 +1409,14 @@ function fixCalling(t){
 }
 /* 선택지 객체 → 글자 + 종류 정보(G.choiceMeta), 사건(event) 추출, 호칭 교정 */
 function normalizeTurn(r){
-  if(!r||typeof r!=='object') return r;
-  if(r.narration) r.narration=fixCalling(String(r.narration));
-  if(Array.isArray(r.choices)){
+  if(!r||typeof r!=='object'||Array.isArray(r)) return null;
+  r.narration=typeof r.narration==='string'?fixCalling(r.narration.slice(0,40000)):'';
+  r.choices=Array.isArray(r.choices)?r.choices:[];
+  {
     const meta={};
-    r.choices=r.choices.map(c=>{
+    r.choices=r.choices.slice(0,8).map(c=>{
       if(c&&typeof c==='object'){
-        const text=fixCalling(stripMd(String(c.text||'')).trim()); if(!text) return null;
+        const text=typeof c.text==='string'?fixCalling(stripMd(c.text).trim().slice(0,500)):''; if(!text) return null;
         const type=CHOICE_TYPES.includes(c.type)?c.type:'story';
         const m={type};
         if(c.action_id) m.actionId=String(c.action_id).trim().slice(0,160);
@@ -1427,46 +1444,52 @@ function metaOf(c){ return G&&G.choiceMeta?G.choiceMeta[String(c)]||null:null }
 let curTurn=null;     // 진행 중인 턴의 정보 (훅들이 공유)
 async function aiTurn(action,extra='',showAction=true){
   if(busy||!G) return;
-  if(G._privateMysteryVersion===1&&G.loc==='site'&&G.site&&!G.site.mystery&&!G.site.done&&!(G.site.lore&&G.site.lore.recorded)){
-    const g=G,d=G.site; busy=true; render(); await ensureMystery(d); if(G!==g) return; busy=false;
+  const g=G;let T=null;busy=true;
+  try{
+    if(G._privateMysteryVersion===1&&G.loc==='site'&&G.site&&!G.site.mystery&&!G.site.done&&!(G.site.lore&&G.site.lore.recorded)){
+      const d=G.site; render(); await ensureMystery(d); if(G!==g)return;
+    }
+    if(G.loc==='site'&&G.site&&G.site.mystery&&!mysteryPlan()) return toast('검증된 사건을 준비한 뒤 조사해 주세요. 사건 준비 재시도를 눌러 주세요');
+    T=curTurn={action:String(action||''),extra:extra||'',showAction,g:G,loc:G.loc,room:curRoom(),frags:G.fragments,flags:{}};
+    run('before',T);
+    if(T.showAction) addLog('action',T.action);
+    G.recent.push({role:'action',text:T.action});
+    T.extra+=yuminSkillCheck();
+    render();
+    let res=null;
+    try{ const up=buildPrompt(T.action,T.extra); const raw=await callAI(sysBase()+'\n\n'+TURN_SCHEMA,up,narrCfg().tok,'story',{cache:true,stable:buildPrompt.stableLen});if(G!==g)return;res=normalizeTurn(parseJSON(raw)) }
+    catch(e){ if(G!==g)return;if(e.message!=='NO_KEY') addLog('sys','AI 연결 실패: '+e.message+' (기본 서술로 대체합니다)') }
+    if(G!==g)return;
+    const ok=!!(res&&res.narration);
+    if(!ok){ res=T.flags.parting?{narration:`${T.flags.parting.name}${josa(T.flags.parting.name,'과','와')} 짧게 인사를 나눈다. 상대는 손을 흔들고 각자의 길로 떠난다.`,choices:[],effects:{},chronicle:''}:fallbackTurn(T.action); G.choiceMeta={} }
+    if(T.flags.privateMystery&&!ok){ res.narration=T.mysteryOutcome?.e?`조사 결과를 확인한다. ${T.mysteryOutcome.e.text}`:T.mysteryOutcome?.type==='verified'?`검증을 수행한다. ${mysteryPlan()?.verification.result||''}`:'이 공간에서 이미 확인한 사실을 되짚는다. 새로운 핵심 증거는 발견하지 않는다.'; res.effects={} }
+    T.res=res;
+    addLog('scene',res.narration);
+    G.recent.push({role:'scene',text:stripMd(res.narration)});
+    applyEffects(res.effects||{},T);
+    applyPlace(res);
+    try{ applyAppt(res,T.action) }catch(e){ console.warn(e) }
+    if(res.clue&&!T.flags.storyOnly&&!T.flags.privateMystery) addCanon(res.clue);
+    if(!T.flags.parting) applyBellSync(res);
+    G._evtTurn=false;
+    if(G.relEvt){ if(G._relSetup) G._relSetup=false; else if(++G.relEvt.turns>=4){ getRel(G.relEvt.name).cool=G.day+1; G.relEvt=null } }
+    if(res.chronicle&&String(res.chronicle).trim()) G.chronicle.push({day:G.day,text:stripMd(String(res.chronicle).trim())});
+    G.choices=(res.choices||[]).slice(0,4);
+    if(ok&&!T.flags.storyOnly&&!T.flags.privateMystery) queueLex(stripMd(res.narration),T.action);
+    await maybeSummarize();
+    if(G!==g)return;
+    checkState();
+    run('after',T);
+    sanitizeChoices();
+    flushBell();
+  }catch(e){
+    if(G===g){try{addLog('sys','장면 처리 중 오류가 발생했습니다. 현재 진행을 보존했습니다. 다시 선택하거나 직전 행동을 되돌려 주세요.')}catch{}}
+  }finally{
+    // An old request must never unlock or save a different game's active turn.
+    if(G===g){busy=false;if(curTurn===T)curTurn=null;save();render()}
   }
-  if(G.loc==='site'&&G.site&&G.site.mystery&&!mysteryPlan()) return toast('검증된 사건을 준비한 뒤 조사해 주세요. 사건 준비 재시도를 눌러 주세요');
-  const T=curTurn={action:String(action||''),extra:extra||'',showAction,g:G,loc:G.loc,room:curRoom(),frags:G.fragments,flags:{}};
-  run('before',T);
-  busy=true;
-  if(T.showAction) addLog('action',T.action);
-  G.recent.push({role:'action',text:T.action});
-  T.extra+=yuminSkillCheck();
-  render();
-  let res=null;
-  try{ const up=buildPrompt(T.action,T.extra); res=normalizeTurn(parseJSON(await callAI(sysBase()+'\n\n'+TURN_SCHEMA,up,narrCfg().tok,'story',{cache:true,stable:buildPrompt.stableLen}))) }
-  catch(e){ if(e.message!=='NO_KEY') addLog('sys','AI 연결 실패: '+e.message+' (기본 서술로 대체합니다)') }
-  if(G!==T.g){ busy=false; return }
-  const ok=!!(res&&res.narration);
-  if(!ok){ res=T.flags.parting?{narration:`${T.flags.parting.name}${josa(T.flags.parting.name,'과','와')} 짧게 인사를 나눈다. 상대는 손을 흔들고 각자의 길로 떠난다.`,choices:[],effects:{},chronicle:''}:fallbackTurn(T.action); G.choiceMeta={} }
-  if(T.flags.privateMystery&&!ok){ res.narration=T.mysteryOutcome?.e?`조사 결과를 확인한다. ${T.mysteryOutcome.e.text}`:T.mysteryOutcome?.type==='verified'?`검증을 수행한다. ${mysteryPlan()?.verification.result||''}`:'이 공간에서 이미 확인한 사실을 되짚는다. 새로운 핵심 증거는 발견하지 않는다.'; res.effects={} }
-  T.res=res;
-  addLog('scene',res.narration);
-  G.recent.push({role:'scene',text:stripMd(res.narration)});
-  applyEffects(res.effects||{},T);
-  applyPlace(res);
-  try{ applyAppt(res,T.action) }catch(e){ console.warn(e) }
-  if(res.clue&&!T.flags.storyOnly&&!T.flags.privateMystery) addCanon(res.clue);
-  if(!T.flags.parting) applyBellSync(res);
-  G._evtTurn=false;
-  if(G.relEvt){ if(G._relSetup) G._relSetup=false; else if(++G.relEvt.turns>=4){ getRel(G.relEvt.name).cool=G.day+1; G.relEvt=null } }
-  if(res.chronicle&&String(res.chronicle).trim()) G.chronicle.push({day:G.day,text:stripMd(String(res.chronicle).trim())});
-  G.choices=(res.choices||[]).slice(0,4);
-  busy=false;
-  if(ok&&!T.flags.storyOnly&&!T.flags.privateMystery) queueLex(stripMd(res.narration),T.action);
-  await maybeSummarize();
-  checkState();
-  run('after',T);
-  sanitizeChoices();
-  curTurn=null;
-  flushBell();
-  save(); render();
 }
+
 function fallbackTurn(action){
   /* AI 없이 진행할 때의 기본 서술·선택지 — 위치(중앙 캠퍼스 지구·지구·아지트·임시 쉼터·한빛시 뒷길·구역)에 맞춰 고름 */
   const L=G.loc;
@@ -1523,7 +1546,13 @@ function applyBoardLedger(e,fx){
    AI가 제안한 효과 e 를 effects 훅들이 차례로 거른 뒤(코드가 판정), 실제로 반영하고, applied 훅이 뒷정리 */
 function applyEffects(raw,T){
   T=T||curTurn||{flags:{}};
-  const e=koEffects(Object.assign({},raw||{}));
+  const e=koEffects(Object.assign({},raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{}));
+  // Optional AI fields are untrusted. Ignore wrong shapes before effects hooks run.
+  e.items_add=(Array.isArray(e.items_add)?e.items_add:[]).filter(x=>typeof x==='string'||x&&typeof x==='object'&&typeof x.name==='string').slice(0,3);
+  e.items_remove=(Array.isArray(e.items_remove)?e.items_remove:[]).filter(x=>typeof x==='string').slice(0,20);
+  for(const k of ['relations','lexAdd','board','ledgerAdd','threadsDone','caseUpdates'])if(!Array.isArray(e[k]))e[k]=[];
+  for(const k of ['materials','comfortContact','relation_event','yumin_arc'])if(e[k]&&(!(typeof e[k]==='object')||Array.isArray(e[k])))delete e[k];
+  for(const k of ['hp','calm','battery','torch','cash','demerit','access','affinity'])if(e[k]!==undefined&&!Number.isFinite(Number(e[k])))e[k]=0;
   const snap={calm:G.calm,battery:G.battery,torch:G.torch,cash:G.cash,keepsake:G.mat.keepsake,items:G.items.slice(),frags:G.fragments,loc:G.loc};
   const ctx={T,snap,fx:[],after:[]};
   for(const h of HOOKS.effects){ try{ h.fn(e,ctx) }catch(err){ console.warn('[effects]',err) } }
@@ -5987,17 +6016,11 @@ function yuminActionsHTML(){
   return `<div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">${b}</div>${note}`;
 }
 function addYuminItem(){
+  if(busy||!G)return;
   const el=document.getElementById('yuminItemIn'), n=el&&el.value.trim().slice(0,20); if(!n) return;
   migrate();
-  const gift=!!(document.getElementById('yuminItemGift')||{}).checked, k=likeOf(n);
-  G.comp.items.push({name:n,day:G.day,k:k||undefined}); if(G.comp.items.length>16) G.comp.items.shift();
-  if(gift){
-    const v=k?8:GIFT_ACC.test(n)?5:3;
-    if(k) G.comp.likes[k]=true;
-    changeAff(v,null);
-    G.chronicle.push({day:G.day,text:`유민에게 ${n}${josa(n,'을','를')} 선물했다${k?' (몹시 기뻐했다)':''}`});
-    toast(`🎁 선물로 기록했습니다 (호감 +${v}${k?` · 💝 ${YUMIN_LIKES[k].n} 취향 발견`:''})`);
-  }
+  G.comp.items.push({name:n,day:G.day,manual:true}); if(G.comp.items.length>16) G.comp.items.shift();
+  toast('소지품 기록을 추가했습니다. 실제 선물은 선물하기에서 진행하세요.');
   save(); openYumin();
 }
 function delYuminItem(i){ migrate(); G.comp.items.splice(i,1); save(); openYumin() }
@@ -6013,7 +6036,7 @@ function openYumin(){
     ${yuminArcHTML(true)}
     <div style="margin:10px 0"><b>🎒 유민의 소지품</b> <span class="muted">(받은 선물 · 직접 추가·삭제 가능)</span><br>${(G.comp.items||[]).length?(G.comp.items||[]).map((x,i)=>`<span class="chip">${esc(x.name)} <span class="muted">${x.day}일</span> <a href="#" onclick="delYuminItem(${i});return false" title="삭제" aria-label="삭제">✕</a></span>`).join(' '):'<span class="muted">아직 없습니다</span>'}
       <div class="row" style="gap:6px;margin-top:6px"><input id="yuminItemIn" placeholder="예: 은비녀" maxlength="20" style="flex:1" onkeydown="if(event.key==='Enter')addYuminItem()"><button class="small" onclick="addYuminItem()">추가</button></div>
-      <label style="display:flex;gap:6px;align-items:center;margin-top:4px;font-size:12.5px"><input type="checkbox" id="yuminItemGift" checked style="width:auto"> 선물한 것으로 기록 (호감 상승 · 취향 발견 · 연대기)</label></div>
+      <p class="muted" style="font-size:12.5px">직접 추가는 소지품 메모이며 호감이나 취향에 영향을 주지 않습니다. 선물은 위의 「선물하기」로 건네세요.</p></div>
     ${f('look','외형',4)}${f('personality','성격',3)}${f('speech','말투 규칙 ({이름}은 플레이어 이름으로 바뀝니다)',3)}${f('examples','예시 대사',5)}
     ${f('banned','금지 말투',3)}${f('ability','능력',2)}${f('inner','내면과 과거 (서술에서만 드러남)',3)}${f('avoid','회피 패턴',3)}
     ${G.comp.joined?`<div class="row" style="margin-top:12px"><button class="small" onclick="partYumin()">헤어지기</button></div>`:''}`);
@@ -6832,8 +6855,8 @@ function openLex(){
    21. 줄거리 요약 · 연대기 (하루 → 한 주 → 한 달로 압축)
    ========================================================= */
 async function maybeSummarize(){
-  if(G.recent.length<14) return;
-  const old=G.recent.splice(0,G.recent.length-4);
+  const g=G;if(!g||g.recent.length<14)return;
+  const old=g.recent.slice(0,g.recent.length-4);
   const txt=old.map(r=>(r.role==='action'?'플레이어: ':'서술: ')+r.text).join('\n');
   const prompt=`다음은 기존 줄거리 요약과 그 이후의 장면들이다. 둘을 합쳐 새 줄거리 요약을 만들어라.
 중요한 인물, 장소, 약속, 단서, 플레이어의 선택을 우선 남기고, 사소한 묘사는 버려라. 700자 이내, 한국어 평문.
@@ -6844,10 +6867,14 @@ ${canonBlock()}
 [이후 장면]
 ${txt}
 JSON만: {"summary":"..."}`;
+  let summary;
   try{
     const r=parseJSON(await callAI('너는 게임 기록을 정리하는 서기다. JSON만 출력한다.',prompt,900,'summary'));
-    if(r&&r.summary) G.summary=r.summary;
-  }catch(e){ G.summary=((G.summary||'').slice(0,350)+' … '+old.filter(r=>r.role==='action').map(r=>r.text).join(' / ')).slice(-700) }   // 실패해도 앞부분(오래된 줄거리)을 통째로 자르지 않음
+    if(r&&typeof r.summary==='string'&&r.summary.trim())summary=r.summary.slice(0,1200);
+  }catch(e){}
+  if(G!==g)return;
+  if(!summary)return; // Failed summaries keep original scenes so a later call can retry.
+  g.summary=summary;g.recent=g.recent.filter(r=>!old.includes(r));
 }
 function chronLabel(c){ return (c.tier&&c.to>c.day)?`${c.day}~${c.to}일`:`${c.day}일` }
 function chronTierMark(c){ return c.tier==='month'?'월간':c.tier==='week'?'주간':c.tier==='day'?'요약':'' }
@@ -6897,7 +6924,7 @@ async function compactChronicle(){
     }
   }catch(e){ console.warn('연대기 압축 실패',e) }
   finally{ chronBusy=false }
-  if(changed&&G===g){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(G)) }catch(e){} render() }
+  if(changed&&G===g){ persistGameSnapshot(g);render() }
 }
 
 
@@ -9782,21 +9809,64 @@ async function genWorld(){
   addLex({name:'중앙 캠퍼스 지구',cat:'장소',desc:'한빛학원과 상점가, 급식실이 있는 생활 지구. 공식 지도에 나오는 유일한 구역.'},true);
   G.openingText=w.opening;
 }
+function validateSaveData(g){
+ const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x),finite=x=>typeof x==='number'&&Number.isFinite(x);
+ if(!obj(g)||!obj(g.char)||typeof g.char.name!=='string'||!g.char.name.trim()||!obj(g.char.stats)||!['str','wis','cha','sur'].every(k=>finite(g.char.stats[k])&&g.char.stats[k]>=0&&g.char.stats[k]<=100))throw Error('캐릭터 정보가 없거나 손상됐습니다.');
+ if(!Number.isInteger(g.day)||g.day<1||!['낮','방과 후','야간','새벽','밤'].includes(g.time)||!['campus','hood','home','road','site','shelter'].includes(g.loc))throw Error('날짜·시간·위치 정보가 손상됐습니다.');
+ if(!['hp','maxhp','calm','battery','torch','cash'].every(k=>finite(g[k]))||g.maxhp<=0||g.hp<0||g.hp>g.maxhp||['calm','battery','torch','cash'].some(k=>g[k]<0))throw Error('체력·자원 정보가 손상됐습니다.');
+ for(const k of ['items','choices','discovered','chronicle','lexicon','recent','log','leads','appts','pets','rumors','threads','evidence','canon','wards','pausedZones','mapDone','keepsakeG'])if(g[k]!==undefined&&!Array.isArray(g[k]))throw Error('저장 목록 형식이 손상됐습니다: '+k);
+ for(const k of ['mat','home','comp','rel','cap','campaign','social','char'])if(g[k]!==undefined&&!obj(g[k]))throw Error('저장 정보 형식이 손상됐습니다: '+k);
+ for(const k of ['items','choices','discovered'])if((g[k]||[]).some(x=>typeof x!=='string'))throw Error('저장 목록 내용이 손상됐습니다: '+k);
+ if(g.char.traits!==undefined&&(!Array.isArray(g.char.traits)||g.char.traits.some(x=>typeof x!=='string')))throw Error('특성 정보가 손상됐습니다.');
+ if((g.recent||[]).some(x=>!obj(x)||!['action','scene'].includes(x.role)||typeof x.text!=='string')||(g.log||[]).some(x=>!obj(x)||typeof x.type!=='string'||typeof x.text!=='string')||(g.chronicle||[]).some(x=>!obj(x)||!finite(x.day)||typeof x.text!=='string')||(g.lexicon||[]).some(x=>!obj(x)||typeof x.name!=='string'||typeof x.desc!=='string'))throw Error('기록 내용이 손상됐습니다.');
+ if(g.loc==='site'&&!g.site)throw Error('현재 조사 공간이 없습니다.');
+ if(g.site){const d=g.site;if(!obj(d)||!Array.isArray(d.rooms)||!d.rooms.length||d.rooms.some(r=>!obj(r)||typeof r.id!=='string'||typeof r.name!=='string'||!Array.isArray(r.exits)||r.exits.some(x=>typeof x!=='string'))||new Set(d.rooms.map(r=>r.id)).size!==d.rooms.length||!d.rooms.some(r=>r.id===d.cur)||d.rooms.some(r=>r.exits.some(id=>!d.rooms.some(x=>x.id===id))))throw Error('조사 공간의 연결 정보가 손상됐습니다.');}
+ return g;
+}
+function prepareSavedGame(text){
+ if(typeof text!=='string'||text.length>16*1024*1024)throw Error('저장 파일 크기를 확인하세요.');
+ let candidate;try{candidate=JSON.parse(text.replace(/^\uFEFF/,''))}catch{throw Error('올바른 게임 저장 JSON 파일을 선택하세요.')}
+ const visit=(x,depth=0)=>{if(depth>100)throw Error('저장 정보가 너무 복잡합니다.');if(x&&typeof x==='object')for(const k of Object.keys(x)){if(['__proto__','prototype','constructor'].includes(k))throw Error('안전하지 않은 저장 정보가 포함돼 있습니다.');visit(x[k],depth+1)}};visit(candidate);
+ validateSaveData(candidate);
+ const previous=G;
+ try{G=candidate;migrate();G.char.traits=G.char.traits||[];G._privateMysteryVersion=1;G._deductionVersion=1;validateSaveData(G);return G}finally{G=previous;syncSchedule()}
+}
+function openLoadedGame(g){
+ G=g;busy=false;curTurn=null;chronLastDay=null;stableSnap=JSON.stringify(g);gameTab='play';socialContact='';show('game');setTitle(G.act>=3);renderLogAll();render();
+}
 function continueGame(){
-  try{ G=JSON.parse(localStorage.getItem(SAVE_KEY)) }catch(e){ G=null }
-  if(!G) return toast('저장된 게임이 없습니다');
-  migrate(); G._privateMysteryVersion=1; G._deductionVersion=1; busy=false; gameTab='play';socialContact='';show('game'); setTitle(G.act>=3); renderLogAll(); render();
+ if(busy)return toast('현재 행동을 마친 뒤 불러와 주세요.');
+ let g;try{const text=localStorage.getItem(SAVE_KEY);if(!text)return toast('저장된 게임이 없습니다');g=prepareSavedGame(text)}catch(e){return toast('저장을 불러오지 못했습니다. '+e.message)}
+ openLoadedGame(g);
 }
 function toTitle(){ save(); show('title') }
 function exportSave(){
+  if(!G)return toast('내보낼 게임이 없습니다.');
   const blob=new Blob([JSON.stringify(G,null,1)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download=`출석부에없는구역_${G.char.name}_${G.day}일.json`; a.click();
+  a.download=`출석부에없는구역_${G.char.name}_${G.day}일.json`; a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function installImportedGame(candidate,backup=true){
+ const previous=G;let previousDisk;
+ try{
+  previousDisk=localStorage.getItem(SAVE_KEY);
+  if(backup&&(previous||previousDisk))localStorage.setItem(SAVE_BACKUP_KEY,previous?JSON.stringify(previous):previousDisk);
+  // A failed write leaves both the active game and original disk save intact.
+  localStorage.setItem(SAVE_KEY,JSON.stringify(candidate));
+ }catch{saveStatus(false);toast('가져오기를 완료하지 못했습니다. 기존 진행은 유지됩니다. 저장 공간을 확인하고 현재 진행을 다운로드해 주세요.');return false}
+ resetUndo();saveStatus(true);openLoadedGame(candidate);return true;
+}
+function restoreSaveBackup(){
+ if(busy)return toast('현재 행동을 마친 뒤 복구해 주세요.');
+ try{const text=localStorage.getItem(SAVE_BACKUP_KEY);if(!text)return toast('가져오기 이전의 백업이 없습니다.');if(installImportedGame(prepareSavedGame(text),false))toast('가져오기 이전 저장을 복구했습니다.')}catch(e){toast('백업을 읽을 수 없습니다. '+e.message)}
 }
 function importSave(){
+  if(busy)return toast('현재 행동을 마친 뒤 가져와 주세요.');
+  const previous=G;
   const inp=document.createElement('input'); inp.type='file'; inp.accept='.json';
-  inp.onchange=()=>{ const f=inp.files[0]; if(!f) return; const r=new FileReader();
-    r.onload=()=>{ try{ const g=JSON.parse(r.result); if(!g||!g.char) throw 0; resetUndo(); G=g; migrate(); G._privateMysteryVersion=1; G._deductionVersion=1; save(); busy=false; gameTab='play';socialContact='';show('game'); setTitle(G.act>=3); renderLogAll(); render() }catch(e){ toast('파일을 읽을 수 없습니다') } };
+  inp.onchange=()=>{ const f=inp.files[0]; if(!f) return;if(f.size>16*1024*1024)return toast('저장 파일은 16MB 이하만 선택하세요.');const r=new FileReader();
+    r.onload=()=>{ if(busy||G!==previous)return toast('게임 상태가 바뀌었습니다. 파일을 다시 선택해 주세요.');try{if(installImportedGame(prepareSavedGame(r.result)))toast('저장 파일을 불러왔습니다.')}catch(e){toast('파일을 불러오지 못했습니다. '+e.message)} };
+    r.onerror=()=>toast('저장 파일을 읽지 못했습니다. 다른 파일을 선택해 주세요.');
     r.readAsText(f) };
   inp.click();
 }
