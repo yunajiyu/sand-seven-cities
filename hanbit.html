@@ -968,7 +968,7 @@ function migrateRelationships(){
 function ensureComp(){ migrate() }      // 예전 이름 호환
 
 /* 저장: 저장할 때마다 되돌리기 기준점 갱신 + 하루가 바뀌면 연대기 압축 */
-let stableSnap=null, undoSnap=null, undoLabel='', chronLastDay=null;
+let stableSnap=null, undoSnap=null, undoLabel='', undoOlder=[], chronLastDay=null;   // undoSnap=가장 최근 행동 이전, undoOlder=그 이전 상태들(되돌리기 최대 UNDO_MAX번)
 const SAVE_BACKUP_KEY=SAVE_KEY+'_before_import';
 let saveFailed=false;
 function saveStatus(ok){
@@ -7205,7 +7205,7 @@ JSON만 출력: {"narration":"고쳐 쓴 서술","choices":["선택적"]}`,c.tok
     if(!text&&raw&&!/^\s*[{\[]/.test(raw)) text=raw.trim();
     G.log=G.log.filter(l=>!(l.type==='sys'&&/작가 지시로 방금 장면을 고쳐 쓰는 중/.test(l.text)));
     if(!text){ addLog('sys','수정본을 받지 못해 원래 장면을 그대로 둡니다.'); renderLogAll(); return }
-    undoSnap=stableSnap||snapG(); undoLabel='OOC 장면 수정'; persistUndo();
+    pushUndo('OOC 장면 수정');
     last.entry.text=text;
     for(let i=G.recent.length-1;i>=0;i--) if(G.recent[i].role==='scene'){ G.recent[i].text=text; break }
     if(Array.isArray(res&&res.choices)&&res.choices.length){ G.choices=res.choices.map(c=>typeof c==='string'?c:String(c&&c.text||'')).filter(Boolean).slice(0,4); G.choiceMeta={} }
@@ -7276,33 +7276,46 @@ function oocRefresh(){
 
 
 /* =========================================================
-   23. 되돌리기 (직전 행동 1번) · 턴 시작 처리
+   23. 되돌리기 (직전 행동 최대 2번) · 턴 시작 처리
    ========================================================= */
-const UNDO_KEY='sand7_undo';
-try{ const u=JSON.parse(localStorage.getItem(UNDO_KEY)||'null'); if(u&&u.snap){ undoSnap=u.snap; undoLabel=u.label||'' } }catch(e){}
+const UNDO_KEY='sand7_undo', UNDO_MAX=2;
+try{ const u=JSON.parse(localStorage.getItem(UNDO_KEY)||'null'); if(u&&u.snap){ undoSnap=u.snap; undoLabel=u.label||''; undoOlder=Array.isArray(u.older)?u.older.filter(x=>x&&typeof x.snap==='string').slice(-(UNDO_MAX-1)).map(x=>({snap:x.snap,label:String(x.label||'')})):[] } }catch(e){}
 function persistUndo(){
-  try{ if(undoSnap) localStorage.setItem(UNDO_KEY,JSON.stringify({snap:undoSnap,label:undoLabel})); else localStorage.removeItem(UNDO_KEY) }catch(e){}   // 공간이 모자라면 이번 접속 동안만
+  try{
+    if(!undoSnap){ localStorage.removeItem(UNDO_KEY); return }
+    try{ localStorage.setItem(UNDO_KEY,JSON.stringify({snap:undoSnap,label:undoLabel,older:undoOlder})) }
+    catch(e){ localStorage.setItem(UNDO_KEY,JSON.stringify({snap:undoSnap,label:undoLabel})) }   // 공간이 모자라면 가장 최근 한 번만 저장하고, 그것도 안 되면 이번 접속 동안만
+  }catch(e){}
 }
-function resetUndo(){ undoSnap=null; stableSnap=null; undoLabel=''; persistUndo(); updateUndoBtn() }
+function pushUndo(label){   // 새 행동 직전 상태를 기록하고, 이전 기록은 한 칸 밀어 둠
+  const snap=stableSnap||snapG();
+  if(snap===undoSnap){ undoLabel=label; persistUndo(); return }   // 상태가 달라지지 않은 행동(실패·재시도)은 기록을 늘리지 않음
+  if(undoSnap) undoOlder=[...undoOlder,{snap:undoSnap,label:undoLabel}].slice(-(UNDO_MAX-1));
+  undoSnap=snap; undoLabel=label; persistUndo();
+}
+function clearUndo(){ undoSnap=null; undoLabel=''; undoOlder=[]; persistUndo() }
+function resetUndo(){ clearUndo(); stableSnap=null; updateUndoBtn() }
 function updateUndoBtn(){
   const b=document.getElementById('undoBtn'); if(!b) return;
-  const ok=!!undoSnap&&!busy&&!!G&&!G.fight;
+  const ok=!!undoSnap&&!busy&&!!G&&!G.fight, n=undoSnap?1+undoOlder.length:0;
   b.disabled=!ok;
-  b.title=ok?`되돌리기: 「${undoLabel}」 이전 상태로`:'되돌릴 행동이 없습니다';
+  b.textContent=ok&&n>1?`↩ 되돌리기 (${n})`:'↩ 되돌리기';
+  b.title=ok?`되돌리기: 「${undoLabel}」 이전 상태로${n>1?` (앞으로 ${n}번 가능)`:''}`:'되돌릴 행동이 없습니다';
 }
 async function undoLast(){
   if(busy||!undoSnap||(G&&G.fight)) return;
   if(!(await askConfirm(`「${undoLabel}」 행동을 되돌릴까요?\n(이야기와 소지품이 그 행동 이전 상태로 돌아갑니다. 이미 쓴 AI 사용량은 돌아오지 않습니다.)`))) return;
   let g=null; try{ g=JSON.parse(undoSnap) }catch(e){}
   if(!g||!g.char){ toast('되돌릴 수 없습니다'); resetUndo(); return }
-  G=g; migrate(); undoSnap=null; undoLabel=''; persistUndo();
+  G=g; migrate();
+  const prev=undoOlder.pop(); undoSnap=prev?prev.snap:null; undoLabel=prev?prev.label:''; persistUndo();
   chronLastDay=null;
   renderLogAll();
-  save(); render(); toast('↩ 직전 행동을 되돌렸습니다');
+  save(); render(); toast(undoSnap?'↩ 직전 행동을 되돌렸습니다 (한 번 더 되돌릴 수 있습니다)':'↩ 직전 행동을 되돌렸습니다');
 }
 /* 턴이 시작될 때: 되돌리기 기준점(마지막 저장 상태) · 이번 턴 사용량 초기화 */
 on('before',-10,T=>{
-  undoSnap=stableSnap||snapG(); undoLabel=T.action.replace(/\s+/g,' ').slice(0,28); persistUndo();
+  pushUndo(T.action.replace(/\s+/g,' ').slice(0,28));
   USAGE_TURN={in:0,out:0,cost:0,unk:false,cr:0}; updateUsageChip();
 });
 
@@ -8258,7 +8271,7 @@ function fightStart(kind){
   if(kind==='boss'&&G.rival.leader_st==='hurt'){ G.fight.morale--; G.fight.max-- }   // 다친 우두머리는 조금 약함
   rollIntent();
   G.choices=[]; G.choiceMeta={};
-  undoSnap=null; persistUndo(); updateUndoBtn();
+  clearUndo(); updateUndoBtn();
   addLog('sys',`⚔ 전투 — ${G.fight.foe} (기세 ${G.fight.morale})`);
 }
 function fightCanGive(){ return fragAtRisk()&&G.fragments>0&&G.fight&&G.fight.kind!=='boss' }
@@ -8394,7 +8407,7 @@ function fightEnd(result,text,extra){
   story(text,{storyOnly:true,checkHP:true,noActionLog:true,extra:(extra||'')+` [전투 결말 — 코드가 정함] ${how} effects는 모두 0.`});
 }
 /* 싸움 장면은 되돌릴 수 없음 (주사위 다시 굴리기 방지) */
-on('after',99,T=>{ if(G.fight||T.flags.fightTurn){ undoSnap=null; persistUndo(); updateUndoBtn() } });
+on('after',99,T=>{ if(G.fight||T.flags.fightTurn){ clearUndo(); updateUndoBtn() } });
 /* 구역에서: 조각이 있는 깊은 곳 가까이 갔을 때만 막아서기 · 지구에서: 임시 쉼터 습격 */
 function zoneFightReady(){
   const d=G.site; if(!d||!d.rival||d.rival.done) return false;
