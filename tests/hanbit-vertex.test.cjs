@@ -156,5 +156,20 @@ await test('Oversized files and cancelled or superseded selections never connect
  const {run}=browserFixture();run("const fields={vertexStatus:{textContent:''}};document.getElementById=id=>fields[id]||null;const tooBig={value:'file',files:[{size:65537,text:async()=>jsonKeyText}]}");await run('selectVertexJSON(tooBig)');assert.equal(run('VERTEX_BROWSER'),null);assert.equal(run('tooBig.value'),'');assert.equal(run('browserRequests.length'),0);
  run('let releaseRead;const delayed={value:"file",files:[{size:100,text:()=>new Promise(r=>releaseRead=r)}]};const selectionTask=selectVertexJSON(delayed);disconnectVertex();releaseRead(jsonKeyText)');await run('selectionTask');assert.equal(run('VERTEX_BROWSER'),null);
 });
+await test('Vertex defaults to Gemini 3.8 flash, keeps the lite model for helper roles and keeps user-chosen models on re-selecting the JSON',async()=>{
+ const {run,obj}=fixture();
+ assert.equal(run('PRESETS.vertex.model'),'gemini-3.8-flash');
+ assert.equal(run("vertexModelFor('story')"),'gemini-3.8-flash');assert.equal(run("vertexModelFor('lex')"),'gemini-3.5-flash-lite');
+ run("SET.roles={story:{provider:'vertex',model:'gemini-3.5-flash'},world:{provider:'vertex',model:'gemini-3.8-pro'},lex:{provider:'gemini',model:'x'}}");
+ assert.equal(run("vertexModelFor('story')"),'gemini-3.8-flash');   // 예전 기본값은 새 기본값으로 올림
+ assert.equal(run("vertexModelFor('world')"),'gemini-3.8-pro');     // 직접 정한 모델은 유지
+ assert.equal(run("vertexModelFor('lex')"),'gemini-3.5-flash-lite');
+ run("const fields={};AI_ROLES.forEach(r=>{fields['rp_'+r.k]={value:'gemini'};fields['rm_'+r.k]={value:''}});document.getElementById=id=>fields[id]||null;applyVertexModels()");
+ assert.equal(run("fields.rm_world.value"),'gemini-3.8-pro');assert.equal(run("fields.rm_story.value"),'gemini-3.8-flash');
+});
+await test('The relay allows Gemini 3.8 flash by default',async()=>{
+ const client=relay.createVertexClient({credentials,project:'test-project',location:'global',fetchImpl:async(url,init)=>{if(String(url).includes('oauth2'))return oauth();assert.match(String(url),/gemini-3\.8-flash:generateContent/);return response(200,output())}});
+ const result=await client.generate({...input,model:'gemini-3.8-flash'});assert.match(result.text,/함께한다/);
+});
 console.log(`${count} Vertex authentication/relay scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});

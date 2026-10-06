@@ -65,7 +65,7 @@ node vertex-relay/server.cjs --key "$HOME/MyKeys/vertex-account.json"
 | `GOOGLE_APPLICATION_CREDENTIALS` | `--key`를 생략할 때 읽을 JSON 파일 경로 |
 | `GOOGLE_CLOUD_PROJECT` | JSON의 `project_id`; 호출할 프로젝트를 바꿀 때 지정 |
 | `VERTEX_LOCATION` | `global`; 모델이 지원하는 리전으로 변경 가능 |
-| `VERTEX_MODELS` | `gemini-3.5-flash,gemini-3.5-flash-lite`; 허용할 모델 ID를 쉼표로 구분 |
+| `VERTEX_MODELS` | `gemini-3.8-flash,gemini-3.5-flash,gemini-3.5-flash-lite`; 허용할 모델 ID를 쉼표로 구분 |
 | `VERTEX_RELAY_TOKEN` | 로컬에서 생략 시 자동 생성. 고정하려면 영문·숫자·`_`·`-` 24~256자 지정 |
 | `HOST` | `127.0.0.1`; 외부 서버에서 바인딩할 주소 |
 | `PORT` | `8899` |

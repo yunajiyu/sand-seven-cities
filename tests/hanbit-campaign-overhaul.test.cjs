@@ -133,6 +133,33 @@ await test('A draft with room names and over-long views still becomes a sealed c
 await test('The design prompt spells out the room-view rules',async f=>{
   await intro(f);assert.match(f.run('mysteryPrompt(G.site)'),/room_views는 위 공간 목록의 모든 공간마다 정확히 하나씩 쓰고 room에는 공간 ID\(r1 등\)를 그대로 넣으며 text는 400자 이하/);
 });
+await test('Room IDs in case text are shown as room names with correct particles',async f=>{
+  await intro(f);
+  assert.equal(f.run("plainRoomIds('r2의 셔터가 r3를 울리고 r1은 조용하다. r9는 없다. er2 그대로',G.site)"),'비어 있는 준비실의 셔터가 방송 장비실을 울리고 특별교실동 입구는 조용하다. r9는 없다. er2 그대로');
+  assert.equal(f.run("plainRoomIds('r3로 간다, r1로 간다',G.site)"),'방송 장비실로 간다, 특별교실동 입구로 간다');
+});
+await test('New and already sealed cases never show raw room IDs in plain text',async f=>{
+  await root(f);
+  f.run("const orig=callAI;callAI=async(sys,user)=>{if(sys.includes('비공개 미스터리 설계자')){const c=caseDraft();c.deduction.hypotheses[0].text='r2의 셔터가 흔들려 r3를 울린다';c.evidence[0].text='r1 게시판에 r2와 r3가 이어진다고 적혀 있다';c.verification.action='r2의 셔터를 고정하고 r3를 확인한다';return JSON.stringify(c)}return orig(sys,user)}");
+  await f.run('startIntroMystery()');
+  const plan=f.obj('mysteryPlan(G.site)'),all=JSON.stringify([plan.deduction.hypotheses.map(h=>h.text),plan.evidence.map(e=>e.text+e.meaning),plan.verification.action]);
+  assert.doesNotMatch(all,/(^|[^A-Za-z0-9])r\d/);assert.match(plan.deduction.hypotheses[0].text,/준비실의 셔터가 흔들려 방송 장비실을 울린다/);
+  // 예전에 봉인된 사건: 봉인 원문은 그대로 두고 화면용 읽기에서만 바꾼다
+  f.run("const o=JSON.parse(G.site.mystery.sealed);o.evidence[0].text='r2의 셔터가 느슨하다';G.site.mystery.sealed=JSON.stringify(o);G.site.mystery.hash=mysteryHash(G.site.mystery.sealed)");
+  assert.equal(f.run('mysteryPlan(G.site).evidence[0].text'),'비어 있는 준비실의 셔터가 느슨하다');assert.match(f.run('G.site.mystery.sealed'),/r2의 셔터가 느슨하다/);
+});
+await test('Deduction dialog and failure messages use plain wording',async f=>{
+  await intro(f);f.run('G.site.mystery.state.found=mysteryPlan(G.site).evidence.map(e=>e.id)');
+  const html=f.run('mysteryDeductionHTML(G.site)');
+  for(const ok of ['원인을 하나 고르고','이유로 삼을 증거','틀려도 괜찮습니다. 다시 골라 볼 수 있어요','이 추리로 확인해 보기'])assert.ok(html.includes(ok),ok);
+  for(const bad of ['정답과 증거는 바뀌지 않으며','연결할 핵심 증거','선택한 가설과 근거로 검증'])assert.ok(!html.includes(bad),bad);
+  for(const ok of ['아직 앞뒤가 맞지 않습니다','해 봤지만 생각대로 되지 않는다','지난번 추리는 앞뒤가 맞지 않았습니다'])assert.ok(script.includes(ok),ok);
+  for(const bad of ['가설 또는 증거 연결이 충분하지 않습니다','핵심 증거의 기여를 다시 비교해 주세요'])assert.ok(!script.includes(bad),bad);
+});
+await test('The design prompt asks for short, plain high-school wording and no room IDs',async f=>{
+  await intro(f);const pr=f.run('mysteryPrompt(G.site)');
+  assert.match(pr,/\[문체\] 읽는 사람은 고등학생이다\. 전문용어·한자어·학술 말투/);assert.match(pr,/r1·r2 같은 ID는 어떤 문장에도 쓰지 않는다/);
+});
 await test('Failed world preparation tells the player the cause in plain words',async f=>{
   setupAI(f);f.run('callAI=async()=>{throw new Error("NO_KEY")}');assert.equal(await f.run('genCampaignWorld()'),false);
   assert.match(f.run('events.filter(e=>e.type==="sys").pop().text'),/본편을 준비하지 못했습니다 \(AI 키가 설정되어 있지 않습니다\)/);

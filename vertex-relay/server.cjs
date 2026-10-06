@@ -4,7 +4,7 @@ const http=require('node:http'),fs=require('node:fs/promises'),path=require('nod
 const {createPrivateKey,sign,randomBytes,timingSafeEqual}=require('node:crypto');
 const OAUTH_URL='https://oauth2.googleapis.com/token';
 const SCOPE='https://www.googleapis.com/auth/cloud-platform';
-const DEFAULT_MODELS=['gemini-3.5-flash','gemini-3.5-flash-lite'];
+const DEFAULT_MODELS=['gemini-3.8-flash','gemini-3.5-flash','gemini-3.5-flash-lite'];
 const ROLES=['story','world','site','lex','chron','summary'];
 class RelayError extends Error{constructor(status,message){super(message);this.status=status}}
 function validateCredentials(raw){
