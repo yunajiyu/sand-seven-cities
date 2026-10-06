@@ -42,10 +42,25 @@ await test('Intro case place is the same in the design prompt, story context, go
   await root(f);
   const design=f.run("api[0].user");assert.match(design,/입문 사건은 본편과 독립된 작은 사건이며 장소는 항상 교내 「방과 후 특별교실동」/);assert.match(design,/중앙 캠퍼스 지구의 소문은 이 특별교실동 이야기로 쓴다/);
   const prompt=f.run("buildPrompt('교실을 바라본다','')");assert.match(prompt,/\[입문 사건 장소\] 입문 사건은 항상 교내 「방과 후 특별교실동」/);
-  assert.match(f.run('campaignPublic().next'),/「방과 후 특별교실동」의 입문 사건 조사 시작/);
-  assert.match(f.run("fixedHTML()"),/입문 사건 · 방과 후 특별교실동 조사 시작/);
+  assert.match(f.run('campaignPublic().next'),/「방과 후 특별교실동」의 소문을 확인하러 가세요/);
+  assert.match(f.run("fixedHTML()"),/소문의 장소로 가기 · 방과 후 특별교실동/);
   await f.run('startIntroMystery()');assert.equal(f.run('G.site.name'),'방과 후 특별교실동');
   f.run('G.campaign.introSolved=true');assert.doesNotMatch(f.run("buildPrompt('교실을 바라본다','')"),/\[입문 사건 장소\]/);
+});
+await test('The rumor trip never spoils the case type in player-facing labels',async f=>{
+  await root(f);
+  assert.doesNotMatch(f.run('fixedHTML()'),/입문 사건/);assert.doesNotMatch(f.run('campaignPublic().next+campaignPublic().stage'),/입문 사건/);
+  assert.ok(f.run("gameActions().some(a=>/소문의 장소로 가기 — 방과 후 특별교실동/.test(a.label||a.name||a.text||''))")||f.run("JSON.stringify(gameActions()).includes('소문의 장소로 가기')"));
+  await f.run('startIntroMystery()');assert.match(f.run('fixedHTML()'),/🧭 교내 소문/);assert.doesNotMatch(f.run('fixedHTML()'),/입문 사건/);
+  assert.match(f.run("buildPrompt('교실을 바라본다','')"),/"입문 사건"이라는 게임 용어는 쓰지 말고 "소문"으로 표현한다/);
+});
+await test('Starting the rumor trip during class time carries no skipping, absence or demerit penalty',async f=>{
+  await root(f);f.run('G.time="낮";G.dayStep=CLASS_SLOTS[0];G.district="classroom";G.demerit=0');
+  const before=f.run('JSON.stringify({d:G.demerit,skip:G.cls?.skip||0,abs:G.cls?.absent||0,n:G.cls?.n||0})');
+  await f.run('startIntroMystery()');assert.equal(f.run('G.loc'),'site');
+  f.run('for(let i=0;i<14;i++)tick(false)');
+  assert.equal(f.run('JSON.stringify({d:G.demerit,skip:G.cls?.skip||0,abs:G.cls?.absent||0,n:G.cls?.n||0})'),before);
+  assert.equal(f.run('G.attendance?.missed||0'),0);
 });
 await test('Failed world preparation tells the player the cause in plain words',async f=>{
   setupAI(f);f.run('callAI=async()=>{throw new Error("NO_KEY")}');assert.equal(await f.run('genCampaignWorld()'),false);
