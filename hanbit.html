@@ -5234,6 +5234,176 @@ const SOCIAL_PHASES=[
  {title:'서로의 이야기를 나눈다',choices:[{id:'care',text:'상대의 이야기를 듣고 마음을 헤아린다',score:1},{id:'share',text:'최근 느꼈던 일을 솔직하게 나눈다',score:1},{id:'dismiss',text:'상대의 말을 끊고 내 이야기만 한다',score:-1}]},
  {title:'함께한 시간을 마무리한다',choices:[{id:'thanks',text:'함께해 줘서 고맙다고 전한다',score:1},{id:'respect',text:'다음에도 편한 때 함께하자고 한다',score:1},{id:'rush',text:'인사 없이 서둘러 자리를 뜬다',score:-1}]}
 ];
+/* 새 데이트는 코드가 고른 상황/행동으로 진행한다. 기존 진행 중 저장과 외출은 SOCIAL_PHASES를 유지한다. */
+const DATE_CARDS=[
+ {id:'browse',phase:0,venues:['campus:market','hood:south'],title:'작은 관심을 나눈다',cue:'둘러보던 상대가 한 가게 앞에서 걸음을 늦춘다. 아직 무엇이 눈에 들어왔는지는 말하지 않았다.',choices:[
+  ['notice','눈에 들어온 것이 있는지 자연스럽게 말을 건넨다',1,'notice','작은 관심을 알아봐 준 덕분에 대화가 편해졌다.'],
+  ['share','내 눈에 들어온 것을 먼저 이야기하며 함께 둘러본다',1,'share','서로의 관심을 하나씩 나누며 긴장이 풀렸다.'],
+  ['decide','상대의 반응을 기다리지 않고 둘러볼 곳을 정한다',-1,'override','의견을 보탤 틈이 없어 대화가 잠시 어긋났다.']]},
+ {id:'shelf',phase:0,venues:['campus:library'],title:'조용한 대화를 시작한다',cue:'서가를 둘러보던 상대가 한 책의 제목을 살펴본다. 조용히 말해야 하는 공간이다.',choices:[
+  ['notice','작은 목소리로 어떤 점이 눈에 들어왔는지 묻는다',1,'notice','지금의 관심을 함께 살펴보며 조용한 대화가 이어졌다.'],
+  ['share','내가 읽어 보고 싶은 책을 가리키며 짧게 이야기한다',1,'share','자신의 관심을 나눠 준 덕분에 대화할 여지가 생겼다.'],
+  ['wait','책을 다 살펴볼 때까지 곁에서 천천히 기다린다',1,'space','서두르지 않아도 된다는 여유가 전해졌다.']]},
+ {id:'pace',phase:0,venues:['campus:ground','campus:bank','hood:east'],title:'서로의 속도를 맞춘다',cue:'함께 걷다가 상대의 걸음이 조금 느려진다. 대화보다 잠깐의 여유가 필요해 보인다.',choices:[
+  ['rest','잠깐 쉬어 가자고 먼저 제안한다',1,'notice','지금의 상태를 살펴 준 배려가 전해졌다.'],
+  ['slow','걸음을 늦추고 말없이 나란히 걷는다',1,'space','같은 속도로 걸으며 편안함이 돌아왔다.'],
+  ['ask','걷는 동안 다음에 무엇을 할지 계속 묻는다',0,'plan','다음 계획은 나눴지만 지금 필요한 여유를 살피지는 못했다.']]},
+ {id:'pause',phase:0,title:'말하지 않아도 되는 시간',cue:'만난 뒤 잠깐 대화가 끊긴다. 상대는 주변을 둘러보며 서두르지 않고 시간을 보내고 있다.',choices:[
+  ['quiet','침묵을 급히 채우지 않고 함께 주변을 바라본다',1,'space','말을 이어야 한다는 부담 없이 함께 머물 수 있었다.'],
+  ['share','오늘 나누고 싶었던 작은 일을 꺼낸다',1,'share','가벼운 일상을 나누며 자연스럽게 대화가 시작됐다.'],
+  ['press','왜 조용한지 대답을 재촉한다',-1,'pressure','설명해야 한다는 부담에 대화가 조금 굳었다.']]},
+ {id:'reunion',phase:0,lover:true,title:'익숙한 사이의 새 인사',cue:'연인으로 다시 만난 상대가 오늘은 어떤 하루였는지 묻는다. 익숙한 인사 뒤에 이야기를 나눌 여유가 있다.',choices:[
+  ['share','오늘 느낀 작은 감정을 솔직하게 이야기한다',1,'share','일상을 나누며 서로의 하루가 조금 가까워졌다.'],
+  ['listen','내 이야기를 짧게 한 뒤 상대의 하루에도 귀를 기울인다',1,'listen','서로의 하루를 함께 살펴보는 시간이 됐다.'],
+  ['skip','늘 비슷하다며 대화를 다른 이야기로 돌린다',0,'deflect','함께 있지만 오늘의 마음까지 나누지는 않았다.']]},
+ {id:'hesitate',phase:1,title:'말을 고르는 순간',cue:'상대가 오늘 있었던 사소한 일을 이야기하다 잠시 말을 고른다. 아직 자세히 설명할 준비는 되지 않은 듯하다.',choices:[
+  ['wait','더 말하지 않아도 괜찮다고 하고 기다린다',1,'space','설명을 서두르지 않아도 되는 여유가 전해졌다.'],
+  ['share','나도 말을 고를 때가 있다며 지금의 느낌을 나눈다',1,'share','정답을 요구하지 않고 마음을 나누자 부담이 누그러졌다.'],
+  ['press','무슨 일인지 끝까지 설명해 달라고 재촉한다',-1,'pressure','말할 준비보다 설명을 재촉받는 부담이 앞섰다.']]},
+ {id:'joy',phase:1,title:'작은 기쁨에 머문다',cue:'상대가 오늘 기분 좋았던 사소한 순간을 이야기한다. 해결해 줄 문제보다는 함께 들어 줄 이야기에 가깝다.',choices:[
+  ['listen','어떤 점이 좋았는지 듣고 함께 기뻐한다',1,'listen','작은 기쁨을 가볍게 여기지 않아 반가움이 전해졌다.'],
+  ['share','비슷하게 기뻤던 내 순간도 짧게 나눈다',1,'share','한 사람의 이야기에서 서로의 이야기로 대화가 이어졌다.'],
+  ['fix','더 잘할 수 있었을 거라며 조언부터 한다',0,'advice','조언은 나눴지만 지금의 기쁨을 충분히 함께하지는 못했다.']]},
+ {id:'uneasy',phase:1,title:'마음을 다루는 방식',cue:'상대가 요즘 사소한 일에도 마음이 쓰인다고 말한다. 당장 해결책을 부탁한 것은 아니다.',choices:[
+  ['listen','어떤 느낌인지 들어 보고 쉽게 단정하지 않는다',1,'listen','판단을 서두르지 않아 자신의 느낌을 나눌 여유가 생겼다.'],
+  ['offer','그냥 들어 주면 좋을지 함께 생각하면 좋을지 묻는다',1,'support','원하는 도움을 고를 수 있어 부담이 줄었다.'],
+  ['dismiss','별일 아니라며 다른 이야기로 넘긴다',-1,'dismiss','자신의 마음이 가볍게 넘겨진 듯해 대화가 서먹해졌다.']]},
+ {id:'tease',phase:1,title:'장난 뒤에 남은 말',cue:'상대가 장난스러운 말을 한 뒤, 오늘 함께 있어 좋다는 말을 짧게 덧붙인다. 장난과 진심이 함께 담겨 있다.',choices:[
+  ['answer','나도 함께 있어 좋다고 짧고 솔직하게 답한다',1,'answer','장난 뒤의 진심에도 답이 돌아와 마음이 편해졌다.'],
+  ['gentle','가볍게 웃으며 함께하는 시간을 천천히 즐긴다',1,'space','진심을 캐묻지 않아도 함께 머무는 온기가 전해졌다.'],
+  ['test','얼마나 좋은지 다른 사람과 비교해 달라고 한다',-1,'pressure','마음을 증명해야 하는 질문에 대화가 굳었다.']]},
+ {id:'together',phase:1,lover:true,title:'각자의 시간도 소중하게',cue:'상대가 다음에는 혼자 쉬는 시간도 필요할 것 같다고 말한다. 오늘의 만남을 끝내거나 관계를 거절한다는 뜻은 아니다.',choices:[
+  ['respect','혼자 쉬는 시간도 편하게 가졌으면 좋겠다고 답한다',1,'respect','함께하는 시간과 각자의 시간을 모두 존중받았다.'],
+  ['share','조금 아쉽지만 이해한다며 내 마음도 차분히 말한다',1,'answer','아쉬움과 이해를 함께 말해 서로의 마음을 살필 수 있었다.'],
+  ['guilt','나와 있는 시간이 싫어진 것이냐고 몰아붙인다',-1,'pressure','쉬고 싶은 마음이 관계를 증명해야 하는 부담으로 바뀌었다.']]},
+ {id:'special',phase:1,minStage:3,title:'조금 특별해진 시간',cue:'상대가 오늘은 함께 보내는 시간이 평소와 조금 다르게 느껴진다고 말한다. 아직 관계를 정하거나 고백하는 말은 아니다.',choices:[
+  ['answer','나도 오늘의 시간이 소중하다며 지금의 마음을 나눈다',1,'answer','관계를 서두르지 않으면서도 지금의 진심에 답이 돌아왔다.'],
+  ['stay','뜻을 캐묻기보다 함께하는 시간을 천천히 이어 간다',1,'space','말의 의미를 증명하지 않아도 함께 머물 수 있었다.'],
+  ['label','그 말이 곧 나를 좋아한다는 뜻이라고 단정한다',-1,'override','관계를 대신 정해 버리는 말에 대화가 어색해졌다.']]},
+ {id:'repair',phase:1,title:'어긋난 대화에 다시 다가간다',repair:true,cue:'조금 전 또는 지난 만남에 어긋났던 대화가 마음에 남아 있다. 상대가 바로 풀어 설명하기를 바라기보다 내 태도를 돌아볼 여유가 있다.',choices:[
+  ['sorry','내 말이 부담이 됐을 수 있겠다며 미안하다고 전한다',1,'repair','내 태도를 돌아보는 말에 서먹함이 조금 누그러졌다.',true],
+  ['space','지금 답하지 않아도 괜찮다며 대화의 여유를 준다',1,'space','대답을 재촉하지 않아 긴장이 조금 풀렸다.',true],
+  ['blame','왜 그런 말을 신경 쓰는지 상대에게 따진다',-1,'pressure','어긋난 이유를 상대에게 돌리자 서먹함이 남았다.']]},
+ {id:'repair-end',phase:2,title:'서먹함을 그대로 넘기지 않는다',repair:true,cue:'함께한 시간을 마무리할 무렵, 어긋났던 대화의 여운이 남아 있다. 오늘 안에 모든 감정을 풀어야 할 필요는 없다.',choices:[
+  ['sorry','내가 놓친 마음이 있었던 것 같다며 사과한다',1,'repair','놓친 마음을 인정하자 다시 대화할 여지가 생겼다.',true],
+  ['respect','서두르지 않겠다며 편하게 이야기할 시간을 남긴다',1,'respect','바로 답을 요구하지 않아 서먹함이 조금 누그러졌다.',true],
+  ['erase','이제 그만 잊자며 상대의 마음을 정리해 버린다',-1,'dismiss','마음이 정리되기 전에 대화를 닫아 거리감이 남았다.']]},
+ {id:'thanks',phase:2,title:'오늘의 마음을 전한다',cue:'함께한 시간을 돌아볼 여유가 생긴다. 무엇이 좋았는지 짧게 전할 수 있는 순간이다.',choices:[
+  ['specific','오늘 상대가 편하게 해 준 순간을 짚어 고마움을 전한다',1,'appreciate','함께한 시간의 구체적인 순간을 알아봐 주어 온기가 남았다.'],
+  ['feeling','함께하면서 느낀 마음을 내 말로 이야기한다',1,'answer','오늘 느낀 마음을 나누며 서로의 반응을 살필 수 있었다.'],
+  ['compare','다른 사람과 있을 때보다 나았다고 비교한다',0,'compare','칭찬은 전했지만 비교가 대화의 중심이 됐다.']]},
+ {id:'next',phase:2,title:'다음 만남에 여유를 남긴다',cue:'다음에도 함께 시간을 보내고 싶은지 이야기할 수 있다. 아직 구체적인 약속을 잡은 것은 아니다.',choices:[
+  ['invite','다음에도 함께하고 싶다며 상대가 편한 때를 남겨 둔다',1,'respect','기대와 여유를 함께 전해 다음 만남을 편하게 떠올렸다.'],
+  ['today','다음 계획보다 오늘 좋았던 순간을 먼저 이야기한다',1,'appreciate','오늘의 시간을 소중하게 돌아보며 따뜻한 여운이 남았다.'],
+  ['insist','다음에도 반드시 나와 보내야 한다고 요구한다',-1,'pressure','다음 만남이 기대보다 의무처럼 느껴져 부담이 남았다.']]},
+ {id:'lingering',phase:2,minStage:4,title:'아쉬움을 조금 나눈다',cue:'마무리 인사를 나누며 상대가 오늘의 시간이 짧게 느껴졌다고 말한다. 더 가까워지고 싶은 마음을 조심스럽게 나눌 여지가 있다.',choices:[
+  ['answer','나도 아쉽다며 함께한 시간이 특별했다고 말한다',1,'answer','서로의 아쉬움을 조심스럽게 나누며 따뜻한 여운이 남았다.'],
+  ['respect','다음에 또 함께하고 싶다며 오늘은 편하게 마무리한다',1,'respect','아쉬움과 상대의 시간을 함께 존중하는 마음이 전해졌다.'],
+  ['demand','아쉽다면 지금 더 오래 있어 달라고 요구한다',-1,'pressure','아쉬움을 나누던 순간이 더 머물러야 하는 부담으로 바뀌었다.']]},
+ {id:'lover-end',phase:2,lover:true,title:'익숙한 다정함을 돌아본다',cue:'연인으로 함께한 오늘의 시간을 돌아본다. 서로의 일상에 어떤 온기가 남았는지 이야기할 수 있다.',choices:[
+  ['ordinary','평범한 시간을 함께해서 좋았다고 말한다',1,'appreciate','특별한 일이 없어도 함께한 시간이 소중하다는 마음이 전해졌다.'],
+  ['ask','오늘 편했던 순간을 서로 하나씩 이야기해 보자고 한다',1,'answer','서로의 마음을 돌아보며 익숙한 다정함을 새로 알아봤다.'],
+  ['assume','연인이니 내 마음은 알 거라며 인사를 대충 넘긴다',0,'deflect','관계는 이어지지만 오늘의 마음을 나눌 기회는 지나갔다.']]}
+];
+function dateMemory(name){
+ const r=getRel(name);if(!r.dateMemory)r.dateMemory={v:1,events:[],completed:[],tension:0};
+ const m=r.dateMemory;if(!Array.isArray(m.events))m.events=[];if(!Array.isArray(m.completed))m.completed=[];
+ m.tension=clamp(Number(m.tension)||0,0,3);return m;
+}
+function dateKnownTaste(name){return name==='유민'?Object.keys(YUMIN_LIKES).filter(k=>G.comp.likes?.[k]).map(k=>YUMIN_LIKES[k].n):[]}
+function dateMemoryText(name){
+ const m=getRel(name).dateMemory,events=m?.events?.slice(-2)||[],taste=dateKnownTaste(name);
+ return (events.length?'실제 완료한 데이트의 기억: '+events.map(e=>`${e.day}일 ${apptWhereName(e.where)} — ${e.text} (${e.reaction})`).join(' / '):'함께한 데이트 기억은 아직 없다.')+(taste.length?' 이미 알아낸 취향: '+taste.join(' · ')+'.':'')+(m?.tension>0?' 함께한 대화의 서먹함이 조금 남아 있다.':'');
+}
+function dateShuffle(xs){const a=xs.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function dateCurrentTension(a){
+ let t=a.exchange?.tension||0;for(const x of a.choices){const c=socialChoiceAt(a,x.phase,x.id);if(c){if(c.score<0)t=clamp(t+1,0,3);else if(c.repair)t=Math.max(0,t-1)}}return t;
+}
+function dateCard(a,phase){
+ if(a.exchange?.v!==1)return null;const p=a.exchange.phases[phase];if(!p)return null;
+ if(!Array.isArray(p.order)||p.order.length!==3||new Set(p.order).size!==3||p.order.some(j=>!Number.isInteger(j)||j<0||j>2))return null;
+ if(p.card==='memory'){
+  const e=a.exchange.memory;if(phase!==1||!e)return null;
+  return {id:'memory',title:'함께했던 순간을 기억한다',cue:`지난 ${e.day}일 ${apptWhereName(e.where)}에서 함께했던 시간이 대화에 떠오른다. 그날의 기억은 “${e.text}”이다.`,choices:[
+   ['remember','그때 함께했던 순간이 내게 어떻게 남았는지 이야기한다',1,'memory','실제로 함께한 순간을 기억해 주어 반가움이 전해졌다.'],
+   ['present','그날과 오늘의 느낌을 서로 비교하며 듣는다',1,'listen','기억을 정답처럼 정하지 않고 지금의 마음도 살필 수 있었다.'],
+   ['claim','그때도 나와 같았을 것이라며 상대의 마음을 대신 정한다',-1,'override','같은 시간을 서로 다르게 느낄 여지가 좁아졌다.']]};
+ }
+ if(p.card==='taste'){
+  const taste=a.exchange.taste;if(phase!==0||!taste?.length)return null;
+  return {id:'taste',title:'알고 있는 취향에서 대화로',cue:`이미 ${a.name}이 ${taste.join(' · ')}을 좋아한다는 것을 알고 있다. 물건을 사거나 선물하기보다 그 관심을 대화로 나눌 여유가 있다.`,choices:[
+   ['remember','알고 있던 취향을 떠올리며 요즘도 관심이 가는지 묻는다',1,'memory','알고 있던 관심을 기억하면서 지금의 마음도 물어 주었다.'],
+   ['share','나의 관심도 나누며 서로 어떤 점이 좋은지 이야기한다',1,'share','취향 맞히기보다 서로의 느낌을 나누는 대화가 됐다.'],
+   ['assume','좋아하니 오늘도 그것만 이야기하자고 정한다',0,'override','취향을 기억했지만 오늘의 관심까지 확인하지는 않았다.']]};
+ }
+ return DATE_CARDS.find(c=>c.id===p.card&&c.phase===phase&&(!c.lover||a.exchange.lover)&&(!c.minStage||a.exchange.stage>=c.minStage)&&(!c.venues||c.venues.includes(a.where)))||null;
+}
+function prepareDatePhase(a){
+ if(a.exchange?.v!==1||a.exchange.phases[a.step])return;
+ const phase=a.step,tension=dateCurrentTension(a),ex=a.exchange;
+ let ids;
+ if(phase>0&&tension>0)ids=[phase===1?'repair':'repair-end'];
+ else{
+  const pool=DATE_CARDS.filter(c=>c.phase===phase&&!c.repair&&(!c.lover||ex.lover)&&(!c.minStage||ex.stage>=c.minStage)&&(!c.venues||c.venues.includes(a.where)));
+  // 시작은 장소에 맞는 상황을 우선하되 같은 장소에서도 고정된 순서를 반복하지 않는다.
+  ids=pool.map(c=>c.id);if(phase===1&&ex.memory)ids.push('memory');if(phase===0&&ex.taste.length)ids.push('taste');
+  const fresh=ids.filter(id=>!ex.recentCards.includes(id));if(fresh.length)ids=fresh;
+ }
+ const card=ids[Math.floor(Math.random()*ids.length)];ex.phases[phase]={card,order:dateShuffle([0,1,2])};
+}
+function socialPhaseAt(a,i=a.step){
+ const card=dateCard(a,i);if(!card)return a.exchange?.v===1?null:SOCIAL_PHASES[i];
+ const p=a.exchange.phases[i];return {title:card.title,cue:card.cue,choices:p.order.map(j=>{
+  const [key,text,score,tag,reaction,repair]=card.choices[j],id=card.id+':'+key;
+  return {id,text,canonical:text,score,tag,reaction,repair:!!repair};
+ })};
+}
+function socialChoiceAt(a,phase,id){return socialPhaseAt(a,phase)?.choices.find(c=>c.id===id)}
+function dateChoiceOutcome(a,phase,id){
+ const c=socialChoiceAt(a,phase,id);if(!c)return null;let score=c.score,repeat=false;
+ if(score>0&&!c.repair&&a.exchange?.v===1){const key=a.exchange.phases[phase].card+':'+c.tag;repeat=a.exchange.recentTags.filter(t=>t===key).length>=2;if(repeat)score=0}
+ return {...c,score,repeat,reaction:repeat?'그 배려는 자연스럽게 받아들여졌지만, 익숙한 교류에서 크게 달라진 느낌은 없었다.':c.reaction};
+}
+function recordDateMemory(a){
+ if(a.kind!=='date'||a.status!=='done'||a.choices.length!==3||a.exchange?.v!==1)return;
+ const m=dateMemory(a.name);if(m.completed.includes(a.id))return;
+ const picks=a.choices.map((x,i)=>x.phase===i&&dateChoiceOutcome(a,i,x.id));if(picks.some(c=>!c))return;
+ m.tension=dateCurrentTension(a);m.completed.push(a.id);
+ const events=picks.map((c,i)=>({activity:a.id,day:a.startDay,where:a.where,card:a.exchange.phases[i].card,tag:c.tag,text:c.canonical,reaction:c.reaction}));
+ // 회상용 창만 제한한다. 전체 선택/반응 기록은 활동 이력에 보존한다.
+ const history=G.social?.history?.find(h=>h.id===a.id);if(history)history.memories=events;
+ m.events=m.events.concat(events).slice(-24);a.memoryRecorded=true;
+}
+function dateFeelingFor(a,change){
+ if(a.exchange?.v!==1)return dateFeeling(change);
+ const awkward=dateCurrentTension(a)>0;
+ if(change===0&&awkward)return '오늘 대화에는 서먹함이 남았지만, 둘 사이의 거리에는 아직 큰 변화가 없는 것 같다.';
+ const lover=a.exchange.lover,variants=change>=2?[
+  '오늘 주고받은 말을 돌아보니 서로의 마음이 한층 가까워진 것 같다.',
+  lover?'익숙했던 사이에서도 오늘은 서로의 마음을 한층 더 가까이 느낀 것 같다.':'오늘은 함께 있는 편안함 너머로 서로의 마음에 한층 가까워진 것 같다.'
+ ]:change>0?[
+  '작은 마음을 주고받으며 오늘은 서로 조금 더 가까워진 것 같다.',
+  lover?'함께한 일상에 다정한 순간이 더해져 조금 더 가까워진 것 같다.':'서두르지 않고 나눈 말들이 둘 사이의 거리를 조금 좁혀 준 것 같다.'
+ ]:change<0?[
+  '전하려던 마음이 엇갈려 오늘은 서로 조금 멀어진 듯한 여운이 남는다.',
+  '함께한 시간을 돌아보니 오늘의 대화에는 조금 서먹한 거리가 남은 것 같다.'
+ ]:[
+  '함께한 시간은 소중하게 남았지만, 둘 사이의 거리에는 아직 큰 변화가 없는 것 같다.',
+  '편하게 시간을 보냈지만 오늘만으로 서로의 마음이 크게 달라진 것 같지는 않다.'
+ ];
+ const feeling=variants[Math.floor(Math.random()*variants.length)];
+ return awkward&&change>0?'조심스러운 마음도 남아 있지만, '+feeling:feeling;
+}
+function dateMemoriesHTML(){
+ const rows=relList().map(name=>{
+  const events=getRel(name).dateMemory?.events?.slice(-2)||[],taste=dateKnownTaste(name);if(!events.length&&!taste.length)return '';
+  return `<div class="lex"><b>${esc(name)}</b>${taste.length?`<p>알고 있는 취향 · ${esc(taste.join(' · '))}</p>`:''}${events.map(e=>`<p>${e.day}일 · ${esc(apptWhereName(e.where))} · ${esc(e.text)}<br><span class="muted">${esc(e.reaction)}</span></p>`).join('')}</div>`;
+ }).join('');return rows?`<details><summary>함께 알아가는 것</summary>${rows}</details>`:'';
+}
+on('facts',96,(o,rules)=>{
+ const names=relList().filter(n=>getRel(n).dateMemory?.events?.length&&canMeetHere(n)).slice(0,3);
+ if(names.length){o.함께한데이트기억=names.map(n=>`${n}: ${dateMemoryText(n)}`);rules.push('데이트 기억은 실제 완료한 선택 기록만이다. 인물은 자기 성격대로 이를 떠올릴 수 있지만 새 추억·취향·약속을 만들어 추가하거나 기억만으로 호감·연인 상태를 바꾸지 않는다.')}
+});
 function socialState(){
  if(!G.social||G.social.version!==1)G.social={version:1,plans:[],history:[],session:null};
  const s=G.social;if(!Array.isArray(s.plans))s.plans=[];if(!Array.isArray(s.history))s.history=[];
@@ -5324,22 +5494,22 @@ function socialActivityHTML(kind){
  const completed=s.session?.status==='done'?`<details open class="lex"><summary>마지막 활동의 이야기 · ${esc(s.session.name)}</summary>${s.session.scenes.map(t=>`<p>${esc(t)}</p>`).join('')}${romanceReady(s.session.name)?romanceChoiceHTML(s.session.name):''}</details>`:'';
  const eligible=names.filter(n=>kind!=='date'||socialDateEligible(n));
  const rows=eligible.map(n=>`<div class="lex"><b>${esc(n)} · ${esc(STAGES[getRel(n).stage].n)} · Lv.${relLv(n)}</b><p>📍 ${esc(contactWhere(n))}</p>${socialMessageFormHTML(n,kind)}<button data-name="${esc(n)}" data-kind="${kind}" ${busy||s.day.activity||!socialActivityTime()||!socialVenue(placeKey())||!canMeetHere(n)?'disabled':''} onclick="startSocialActivity(this.dataset.name,this.dataset.kind)">${canMeetHere(n)?'함께하는 활동 시작':'약속 장소에서 만난 뒤 시작'}</button></div>`).join('')||`<p class="muted">${kind==='date'?'아직 데이트를 제안할 만큼 가까워진 상대가 없습니다. 함께 시간을 보내며 알아가세요.':'아직 함께할 인물이 없습니다.'}</p>`;
- return intro+completed+`<p class="muted">${s.day.activity?'오늘의 관계 활동은 완료했습니다.':!socialActivityTime()?'수업 중·야간·구역 안에서는 시작할 수 없습니다. 방과 후나 주말 자유시간에 만나세요.':'같은 장소에서 함께 시간을 보낼 수 있습니다.'}</p><button class="small" onclick="openRel()">👥 인연·고백 조건 보기</button>`+`<button class="small" onclick="switchGameTab('play')">지도·이동 선택지로 약속 장소 가기</button>`+rows+socialHistoryHTML();
+ return intro+completed+`<p class="muted">${s.day.activity?'오늘의 관계 활동은 완료했습니다.':!socialActivityTime()?'수업 중·야간·구역 안에서는 시작할 수 없습니다. 방과 후나 주말 자유시간에 만나세요.':'같은 장소에서 함께 시간을 보낼 수 있습니다.'}</p><button class="small" onclick="openRel()">👥 인연 보기</button>`+`<button class="small" onclick="switchGameTab('play')">지도·이동 선택지로 약속 장소 가기</button>`+rows+socialHistoryHTML()+(kind==='date'?dateMemoriesHTML():'');
 }
-function socialHistoryHTML(){return `<details><summary>함께한 활동 기록</summary>${socialState().history.slice(-12).reverse().map(h=>`<p>${h.day}일 · ${esc(h.name)} · ${h.kind==='date'?'데이트':'외출'} · ${esc(h.result)}${h.aff==null?'':` · 호감 ${h.aff>=0?'+':''}${h.aff}`}</p>`).join('')||'<p class="muted">아직 기록이 없습니다.</p>'}</details>`}
+function socialHistoryHTML(){return `<details><summary>함께한 활동 기록</summary>${socialState().history.slice(-12).reverse().map(h=>`<p>${h.day}일 · ${esc(h.name)} · ${h.kind==='date'?'데이트':'외출'} · ${esc(h.result)}${h.aff==null?'':` · 호감 ${h.aff>=0?'+':''}${h.aff}`}</p>${h.memories?.length?`<details><summary>그날 나눈 마음</summary>${h.memories.map(e=>`<p>${esc(e.text)}<br><span class="muted">${esc(e.reaction)}</span></p>`).join('')}</details>`:''}`).join('')||'<p class="muted">아직 기록이 없습니다.</p>'}</details>`}
 function socialSessionHTML(a){
- const phase=SOCIAL_PHASES[a.step];
- return `<div class="lex"><b>${esc(a.name)} · ${a.kind==='date'?'데이트':'외출'} · ${Math.min(a.step+1,3)}/3</b><p>${esc(apptWhereName(a.where))}</p><div>${a.scenes.map(t=>`<p>${esc(t)}</p>`).join('')}</div>${phase?`<h4>${phase.title}</h4><div class="choices">${phase.choices.map(c=>`<button data-session="${esc(a.id)}" data-choice="${c.id}" ${busy?'disabled':''} onclick="chooseSocialActivity(this.dataset.session,this.dataset.choice)">${c.text}</button>`).join('')}</div>`:''}<button class="small" data-session="${esc(a.id)}" ${busy?'disabled':''} onclick="cancelSocialActivity(this.dataset.session)">활동 중단</button><p class="muted">다른 장소로 이동하면 활동은 중단됩니다. 완료 전에는 호감 보상을 받지 않습니다.</p></div>`;
+ const phase=socialPhaseAt(a);
+ return `<div class="lex"><b>${esc(a.name)} · ${a.kind==='date'?'데이트':'외출'} · ${Math.min(a.step+1,3)}/3</b><p>${esc(apptWhereName(a.where))}</p><div>${a.scenes.map(t=>`<p>${esc(t)}</p>`).join('')}</div>${phase?`<h4>${esc(phase.title)}</h4><div class="choices">${phase.choices.map(c=>`<button data-session="${esc(a.id)}" data-choice="${esc(c.id)}" ${busy?'disabled':''} onclick="chooseSocialActivity(this.dataset.session,this.dataset.choice)">${esc(c.text)}</button>`).join('')}</div>`:''}<button class="small" data-session="${esc(a.id)}" ${busy?'disabled':''} onclick="cancelSocialActivity(this.dataset.session)">활동 중단</button><p class="muted">다른 장소로 이동하면 활동은 중단됩니다. 완료 전에는 호감 보상을 받지 않습니다.</p></div>`;
 }
 async function socialScene(a,choice){
  const g=G;busy=true;render();let text='';
  try{
-  const n=a.name,r=getRel(n),phase=SOCIAL_PHASES[Math.min(a.step,2)];
-  const prompt=`친구 외출 또는 서로 알아가는 데이트의 짧은 장면 2~3문장을 쓴다. ${n}과 플레이어는 실제로 ${apptWhereName(a.where)}에서 함께 있다. 활동: ${a.kind==='date'?(r.romanceConfirmed?'연인 데이트':'고백 전 서로 알아가는 데이트'):'친구 외출'}. 관계: ${STAGES[r.stage].n}, 호감 Lv.${relLv(n)}. ${n==='유민'?yuminProfile():((G.lexicon||[]).find(e=>e.name===n)?.desc||'이미 알게 된 사람')}. 지금 단계: ${phase.title}. 플레이어가 고른 행동: ${choice||'함께 시간을 시작한다'}. 이전 장면: ${a.scenes.slice(-2).join(' ')}. 상대의 성격과 관계 단계에 맞춰 반응한다. 현재 관계보다 앞선 고백·연애 선언을 하지 않는다. 공포 사건의 진상·새 단서·아이템·위치 변화는 만들지 않는다. choices와 effects는 코드가 결정하므로 JSON {"narration":"장면"}만.`;
+  const n=a.name,r=getRel(n),phase=socialPhaseAt(a,Math.min(a.step,2));
+  const prompt=`친구 외출 또는 서로의 마음을 나누는 데이트의 짧은 장면 2~3문장을 쓴다. ${n}과 플레이어는 실제로 ${apptWhereName(a.where)}에서 함께 있다. 활동: ${a.kind==='date'?(r.romanceConfirmed?'연인 데이트':'고백 전 서로 알아가는 데이트'):'친구 외출'}. 관계: ${STAGES[r.stage].n}. ${n==='유민'?yuminProfile()+yuminGrowthText():((G.lexicon||[]).find(e=>e.name===n)?.desc||'이미 알게 된 사람')}. 지금 단계: ${phase.title}. 확정된 현재 상황: ${phase.cue||phase.title}. 플레이어가 고른 행동: ${choice||'함께 시간을 시작한다'}. 코드가 정한 직전 반응: ${a.lastReaction||'아직 없음'}. ${a.kind==='date'?dateMemoryText(n):''} 이전 장면: ${a.scenes.slice(-2).join(' ')}. 감정 교류를 중심으로 상대도 자기 말과 작은 행동으로 응답한다. 취향은 보조 소재이며 알려진 취향만 쓴다. 없었던 추억·약속·과거·취향을 만들지 않는다. 현재 상황을 다른 상황으로 바꾸거나 선택을 미리 대신하지 않는다. 상대의 성격과 관계 단계에 맞춰 반응한다. 고백 전에는 연인으로 부르거나 고백·연애 선언을 하지 않고 연인은 비성적인 일상의 다정함을 보여 준다. 공포 사건의 진상·새 단서·아이템·위치 변화·약속 확정을 만들지 않는다. 숨은 점수·기준은 쓰지 않는다. choices와 effects는 코드가 결정하므로 JSON {"narration":"장면"}만.`;
   text=String(parseJSON(await callAI('너는 선택지 기반 관계 활동의 장면 작성기다.',prompt,650,'story'))?.narration||'').slice(0,1800);
  }catch(e){}
  if(G!==g)return;if(G.social.session!==a||a.status!=='active'){busy=false;render();return}
- a.scenes.push(text||`${a.name}${josa(a.name,'과','와')} ${apptWhereName(a.where)}에서 ${choice||'함께할 시간을 천천히 시작한다'}.`);save();busy=false;render();
+ const phase=socialPhaseAt(a);a.scenes.push((phase.cue?phase.cue+'\n':'')+(text||`${a.name}${josa(a.name,'과','와')} ${apptWhereName(a.where)}에서 ${choice||'함께할 시간을 천천히 시작한다'}.`));save();busy=false;render();
 }
 async function startSocialActivity(name,kind){
  if(busy||!['date','outing'].includes(kind)||!socialKnown(name))return false;
@@ -5348,6 +5518,11 @@ async function startSocialActivity(name,kind){
  if(!socialActivityTime()||!socialVenue(placeKey())||!canMeetHere(name)){toast('수업이 끝난 뒤 약속 장소에서 실제로 만난 상태로 시작해 주세요');return false}
  const cost=kind==='date'?8:5;if(G.cash<cost){toast('활동비 캐시 '+cost+'가 필요합니다');return false}
  const a={id:'activity:'+G.day+':'+(s.nextId=(s.nextId||0)+1),name,kind,where:placeKey(),startDay:G.day,status:'active',step:0,choices:[],scenes:[],cost,score:0};
+ if(kind==='date'){
+  const m=dateMemory(name),recent=m.events.slice(-9);
+  a.exchange={v:1,stage:getRel(name).stage,lover:getRel(name).romanceConfirmed===true,tension:m.tension,phases:[],recentCards:recent.map(e=>e.card),recentTags:recent.map(e=>e.card+':'+e.tag),memory:recent.filter(e=>e.tag!=='pressure'&&e.tag!=='dismiss'&&e.tag!=='override').at(-1)||null,taste:dateKnownTaste(name)};
+  prepareDatePhase(a);
+ }
  G.cash-=cost;s.session=a;s.day.activity=true;
  const plan=s.plans.find(p=>p.name===name&&p.where===a.where&&p.status==='scheduled');if(plan)plan.status='met';
  tick(false,{resources:false});gameTab=kind==='date'?'dates':'outings';await socialScene(a);return true;
@@ -5356,20 +5531,21 @@ async function chooseSocialActivity(id,choiceId){
  if(busy)return false;const a=activeSocial();if(!a||a.id!==id)return false;
  if(a.where!==placeKey()){cancelSocialActivity(id,'장소를 떠나 활동 중단');return false}
  if(a.kind==='date'&&!socialDateEligible(a.name)){cancelSocialActivity(id,'관계 조건 변경으로 중단');return false}
- const choice=SOCIAL_PHASES[a.step]?.choices.find(c=>c.id===choiceId);if(!choice)return false;
+ const choice=dateChoiceOutcome(a,a.step,choiceId);if(!choice)return false;
  a.choices.push({phase:a.step,id:choiceId,text:choice.text});a.score+=choice.score;a.step++;
+ if(choice.reaction){a.lastReaction=choice.reaction;a.scenes.push(choice.reaction)}
  if(a.step===1)tick(false,{resources:false});
- if(a.step<3){await socialScene(a,choice.text);return true}
+ if(a.step<3){prepareDatePhase(a);await socialScene(a,choice.text);return true}
  const delta=clamp(a.score,-2,3);addAffTo(a.name,delta);relCheck(a.name);
  // 실제로 함께 마친 상대는 이 시간대의 마무리 대화까지 같은 장소에 남는다.
  if(a.name==='유민'){setYuminSpot(a.where.startsWith('campus:')?a.where.slice(7):a.where==='home'?'sofaroom':a.where==='hood:south'?'alley':a.where)}
  else{const r=getRel(a.name);r.where=a.where;r.whereKey=yKey()}
  a.status='done';
  const result=delta>0?'함께한 시간이 서로를 조금 가깝게 했다':delta<0?'대화가 어긋나 조금 서먹해졌다':'서두르지 않고 함께 시간을 보냈다';
- a.scenes.push(choice.text+' — '+result);const s=socialState();s.day.activity=true;s.history.push({day:G.day,name:a.name,kind:a.kind,result,aff:delta,where:a.where});
+ a.scenes.push(choice.text+' — '+result);const s=socialState();s.day.activity=true;s.history.push({id:a.id,day:G.day,name:a.name,kind:a.kind,result,aff:delta,where:a.where});
  s.plans.filter(p=>p.name===a.name&&p.where===a.where&&p.status==='met').forEach(p=>p.status='done');
  G.chronicle.push({day:G.day,text:`${a.name}${josa(a.name,'과','와')} ${a.kind==='date'?'데이트':'외출'}을 마쳤다 — ${result}`});
- const closenessChange=recordDateProgress(a);if(typeof closenessChange==='number')a.dateFeeling=dateFeeling(closenessChange);addLog('fx',`${a.name} ${a.kind==='date'?'데이트':'외출'} 완료 · 호감 ${delta>=0?'+':''}${delta}`);save();
+ const closenessChange=recordDateProgress(a);recordDateMemory(a);if(typeof closenessChange==='number')a.dateFeeling=dateFeelingFor(a,closenessChange);addLog('fx',`${a.name} ${a.kind==='date'?'데이트':'외출'} 완료 · 호감 ${delta>=0?'+':''}${delta}`);save();
  if(a.kind==='date')await socialClosingScene(a);else render();return true;
 }
 function cancelSocialActivity(id,reason='플레이어가 활동을 중단했다'){
@@ -5394,7 +5570,7 @@ function romanceProgress(name){
 function recordDateProgress(a){
  if(a.kind!=='date'||a.status!=='done'||a.choices.length!==3)return;
  const p=romanceProgress(a.name);if(p.completed.includes(a.id))return;
- let score=0;for(let i=0;i<3;i++){const c=SOCIAL_PHASES[i].choices.find(c=>c.id===a.choices[i]?.id);if(!c||a.choices[i].phase!==i)return;score+=c.score}
+ let score=0;for(let i=0;i<3;i++){const c=dateChoiceOutcome(a,i,a.choices[i]?.id);if(!c||a.choices[i].phase!==i)return;score+=c.score}
  const before=p.closeness;p.closeness=clamp(before+score,0,12);p.completed.push(a.id);return p.closeness-before;
 }
 function dateFeeling(change){
@@ -5412,9 +5588,10 @@ function romanceChoiceText(name){
 function romanceChoiceHTML(name){return `<div class="choices"><button data-action="${esc(romanceActionId(name))}" onclick="startStoryConfession(this.dataset.action)">${esc(romanceChoiceText(name))}</button></div>`}
 function startStoryConfession(id){if(busy)return false;const name=relList().find(n=>romanceActionId(n)===id);if(!name)return false;const ok=dispatchGameAction(id,romanceChoiceText(name));if(ok)switchGameTab('play');return ok}
 async function socialClosingScene(a){
+ if(a.closingDone)return;
  const g=G,ready=romanceReady(a.name),id=romanceActionId(a.name);busy=true;render();let result;
  try{result=parseJSON(await callAI('너는 관계 장면 작성기다. 상태 변화는 코드가 담당한다.',
-  `${a.name}과 ${apptWhereName(a.where)}에서 데이트를 마치는 짧은 장면 2~3문장. 관계는 ${STAGES[getRel(a.name).stage].n}. 방금 고른 행동: ${a.choices.map(c=>c.text).join(' / ')}. 상대의 성격과 관계에 맞는 온기와 여운을 보여 준다. ${ready?`좋아하는 마음을 말할 기회가 생겼다. 플레이어가 직접 고를 고백 행동 한 개를 choices에 {"text":"현재 장면에 맞는 자연스러운 행동 문장","action_id":"${id}"}로 작성한다. 고백은 아직 하지 않았으며 상대의 수락이나 연인 성사를 미리 쓰지 않는다.`:'이번 장면에 고백 선택지를 제시하지 않는다.'} 숨은 점수·기준치·조건 충족·해금 같은 설명을 하지 않는다. 새 단서·아이템·이동·effects는 없다. JSON {"narration":"장면","choices":[]}만.`,650,'story'))}catch(e){}
+  `${a.name}과 ${apptWhereName(a.where)}에서 데이트를 마치는 짧은 장면 2~3문장. 관계는 ${STAGES[getRel(a.name).stage].n}. ${a.name==='유민'?yuminProfile()+yuminGrowthText():((G.lexicon||[]).find(e=>e.name===a.name)?.desc||'이미 알게 된 사람')}. 방금 고른 행동: ${a.choices.map(c=>c.text).join(' / ')}. 직전 반응: ${a.lastReaction||'함께 시간을 마쳤다'}. 마무리 느낌의 방향: ${a.dateFeeling||'선택에 맞는 여운'}. ${dateMemoryText(a.name)}. 감정 교류를 중심으로 상대도 자기 마음과 작은 행동으로 응답한다. ${getRel(a.name).romanceConfirmed?'확정 연인의 비성적인 일상과 다정함을 묘사한다.':'아직 연인이 아니며 서로 알아가는 거리와 조심스러운 온기를 유지한다.'} 상대의 성격과 실제 선택에 맞는 여운을 보여 주며 서먹함을 무조건 행복한 결말로 바꾸지 않는다. 없었던 추억·취향·과거·약속을 만들지 않는다. 마무리 느낌 문장은 코드가 덧붙이므로 그대로 반복하지 않는다. ${ready?`좋아하는 마음을 말할 기회가 생겼다. 플레이어가 직접 고를 고백 행동 한 개를 choices에 {"text":"현재 장면에 맞는 자연스러운 행동 문장","action_id":"${id}"}로 작성한다. 고백은 아직 하지 않았으며 상대의 수락이나 연인 성사를 미리 쓰지 않는다.`:'이번 장면에 고백 선택지를 제시하지 않는다.'} 숨은 점수·기준치·조건 충족·해금 같은 설명을 하지 않는다. 새 단서·아이템·이동·effects는 없다. JSON {"narration":"장면","choices":[]}만.`,900,'story'))}catch(e){}
  if(G!==g)return;if(G.social?.session!==a||a.status!=='done'){busy=false;render();return}
  if(result?.narration)a.scenes.push(String(result.narration).slice(0,1800));
  if(ready&&romanceReady(a.name)){
@@ -5422,6 +5599,7 @@ async function socialClosingScene(a){
   a.confessionChoice=c?fixCalling(stripMd(c.text.trim())).slice(0,180):`${a.name}에게 함께했던 시간이 특별했다며 좋아하는 마음을 전한다`;
  }
  if(a.dateFeeling&&!a.scenes.includes(a.dateFeeling))a.scenes.push(a.dateFeeling);
+ a.closingDone=true;
  busy=false;sanitizeChoices();save();render();
 }
 on('choices',95,arr=>{
