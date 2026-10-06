@@ -751,7 +751,7 @@ const PLACES={
   ground:{n:'운동장',ic:'🏃',fl:'O',clueP:0.15,look:'트랙·철봉·야간 조명·체육 창고',re:/운동장/},
   gym:{n:'체육관',ic:'🏀',fl:'O',clueP:0.15,look:'농구 골대·무대 뒤·울리는 발소리',re:/체육관/},
   market:{n:'상점가',ic:'🛒',fl:'O',look:'점원·행인·버스커',re:/상점가|시내/},
-  bank:{n:'저수지 둑길',ic:'🌊',fl:'O',look:'가로등·물가·산책하는 사람',re:/저수지|둑길/},
+  bank:{n:'저수지 둑길',ic:'🌊',fl:'O',clueP:0.15,look:'가로등·물가·산책하는 사람',re:/저수지|둑길/},
 };
 const DISTRICTS=Object.fromEntries(Object.entries(PLACES).map(([k,p])=>[k,{n:p.n,ic:p.ic}]));
 const floorOf=k=>(PLACES[k]||{}).fl||'O';
@@ -2827,6 +2827,7 @@ function campusFixedHTML(){
   if(sp) a=`<button class="primary" onclick="goDistrict('${d}')">↩ ${DISTRICTS[d].n}${josa(DISTRICTS[d].n,'으로','로')} 돌아가기</button>`;
   else if((PLACES[d]||{}).t==='hall') a=`<button onclick="strollHall()">🚶 ${PLACES[d].n} 거닐기</button>`;
   else if(d==='nurse') a=`<button onclick="nurseRest()">🩹 보건실에서 쉬기 (하루 한 번)</button>`;
+  else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="browsePlace('bank')">🔎 ${PLACES.bank.n} 둘러보기</button>`+jobHTML('bank')+`<button ${has('clubroom')||canPay(land.cost)?'class="primary"':''} onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>`+(has('clubroom')?'':`<p class="muted" style="flex-basis:100%;margin:2px 4px">아지트를 마련하려면 캐시 ${land.cost.cash}이 필요합니다. 쉬는 시간·점심시간·방과 후에 아르바이트로 캐시를 모을 수 있어요(둑길 정리 도우미, 매점, 배식, 도서관 정리 등).</p>`) }
   else if((PLACES[d]||{}).clueP!=null) a=`<button onclick="browsePlace('${d}')">🔎 ${PLACES[d].n} 둘러보기</button>`+jobHTML(d);
   else if(d==='snack') a=`<button onclick="openShop()">🥪 매점 (간식·진정 음료·배터리)</button>`+jobHTML('snack');
   else if(d==='office') a=`<button onclick="officeTalk()">🏢 담임 선생님과 면담</button>`+penanceHTML('write')+jobHTML('office');
@@ -2835,7 +2836,6 @@ function campusFixedHTML(){
   else if(d==='canteen') a=(canteenOpen()?`<button onclick="campusRumor()">🍚 식사하며 소문 듣기 (5)</button>`:`<button disabled>🍚 급식실은 점심시간에만 식사를 줍니다 (지금은 ${G.time==='낮'?slotLabel():G.time})</button>`)+jobHTML('canteen');
   else if(d==='dorm') a=`<button onclick="dormTea()">🍵 휴게실에서 차 마시기 (공포 −1 · 오늘 ${3-dormSt().tea}번 남음)</button><button onclick="dormCharge()">🔌 휴대폰 충전 (배터리 +${Math.round(DORM_CHARGE_PCT*100)}% · 오늘 ${DORM_CHARGE_DAILY-dormSt().charge}번 남음)</button><button onclick="dormShower()">🚿 따뜻한 샤워 (공포 −2 · ${dormSt().shower?'오늘 사용함':'하루 1번'})</button><button class="primary" onclick="campusRest()">🛏 잠들기 (기숙사 · 무료 · 하루 경과)</button>`;
   else if(d==='gate') a=visitHTML()+`<button class="primary" onclick="startExpedition()">🔦 구역 조사 떠나기</button><button onclick="openTravel()">🧭 다른 지구로 이동하기 (공원·학원가·재개발지구)</button><button onclick="openLeads()">📍 소문의 장소 (${(G.leads||[]).length})</button>`;
-  else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>` }
   if(!sp) a=schoolHTML()+a;   // 지금 일과 칸의 버튼은 어느 지점에서나 맨 앞에 보임
   if(dormLocked()) a=`<button class="primary" onclick="dormPlead()">🙏 사감 선생님께 사정하기 (매력 판정)</button>`+(G.comp.met&&!G.comp.joined?`<button class="primary" onclick="dormAskYumin()">📱 유민에게 몰래 문을 열어 달라고 문자</button>`:'')+a;
   if(!sp&&G.time==='방과 후') a+=`<button class="primary" onclick="waitRollCall()">🔔 점호 시간까지 기다리기</button>`;
@@ -2986,6 +2986,7 @@ const JOBS={
   canteen:{n:'배식 도우미',ic:'🍚',pay:[6,10],hint:'급식 조리원 아주머니를 도와 식판에 반찬을 담고 식당을 정리한다',slots:[4,'after']},
   office:{n:'선생님 심부름',ic:'📦',pay:[4,7],hint:'선생님이 시킨 프린트물 정리와 상자 나르기를 돕는다',scold:0.25},
   library:{n:'도서관 정리',ic:'📚',pay:[4,6],hint:'반납된 책을 서가에 꽂고 대출 카드를 정리한다'},
+  bank:{n:'둑길 정리 도우미',ic:'🧹',pay:[5,8],hint:'둑길을 관리하는 아저씨를 도와 낙엽과 쓰레기를 쓸고 벤치를 닦는다'},
 };
 function jobSt(){ if(!G.jobDay||G.jobDay.day!==G.day) G.jobDay={day:G.day,n:0,done:{}}; return G.jobDay }
 function jobBlock(k){
