@@ -168,7 +168,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 .mapwrap .zoomhint{position:absolute;right:6px;bottom:6px;font-size:11px;background:rgba(10,15,27,.82);color:#e4ebf3;border-radius:10px;padding:1px 8px}
 .mapwrap.big{height:auto;width:min(100%,calc((86vh - 130px)*1.5));cursor:default}
 .modal.wide{max-width:min(1100px,96vw)}
-@media (min-width:1001px){.choices{display:grid;grid-template-columns:1fr 1fr}.choices .loading{grid-column:1/-1}}
+@media (min-width:761px){.choices{display:grid;grid-template-columns:1fr 1fr}.choices .loading{grid-column:1/-1}}
 .locp h5{margin:2px 4px 0;font-family:'Noto Sans KR',sans-serif;font-size:15px}
 .locp .sub{margin:0 4px 4px;font-size:12px;color:var(--muted)}
 .locl{margin:6px 4px;padding-left:18px;font-size:13px}
@@ -181,7 +181,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 @media (prefers-reduced-motion:reduce){.pulse{animation:none}}
 
 /* ---------- 좁은 화면: 사이드바는 서랍 ---------- */
-@media (max-width:1000px){
+@media (max-width:1439px){
   #game{grid-template-columns:minmax(0,1fr)}
   .side{position:fixed;top:0;bottom:0;width:min(86vw,320px);z-index:15;transition:transform .22s ease,visibility .22s;box-shadow:var(--shadow);visibility:hidden}
   .side.left{left:0;transform:translateX(-104%)}
@@ -254,14 +254,26 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 
 /* ---------- 넓은 화면: 사이드바 접기 · 가장자리 손잡이 ---------- */
 .only-wide{display:inline-block}
-@media (max-width:1000px){ .only-wide{display:none} }
-@media (min-width:1001px){
+@media (max-width:1439px){ .only-wide{display:none} }
+@media (min-width:1440px){
   #game{grid-template-columns:var(--wl,268px) minmax(0,1fr) var(--wr,288px);transition:grid-template-columns .2s ease}
   #game.hideL{--wl:0px} #game.hideR{--wr:0px}
   #game.hideL #sideL,#game.hideR #sideR{visibility:hidden;overflow:hidden;border-width:0}
   .tb .only-narrow{display:inline-block}
   #game.hideL .sideTab.l,#game.hideR .sideTab.r{display:block}
 }
+/* 읽기 모드: 보조 정보는 서랍으로 열고 선택지는 유지 */
+#game.reading{grid-template-columns:minmax(0,1fr)}
+#game.reading .side{position:fixed;top:0;bottom:0;width:min(86vw,320px);z-index:15;transition:transform .22s ease,visibility .22s;box-shadow:var(--shadow);visibility:hidden;border:1px solid var(--line)}
+#game.reading .side.left{left:0;transform:translateX(-104%)}
+#game.reading .side.right{right:0;transform:translateX(104%)}
+#game.reading .side.open{transform:none;visibility:visible}
+#game.reading .only-narrow{display:inline-block}
+#game.reading .only-wide,#game.reading .sideTab{display:none}
+#game.reading .scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:14}
+#game.reading .scrim.on{display:block}
+#game.reading #topExtra,#game.reading #needBar{display:none}
+#readingBtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 @media (prefers-reduced-motion:reduce){ #game{transition:none} }
 .sideTab{display:none;position:fixed;top:50%;transform:translateY(-50%);z-index:12;padding:14px 5px;font-size:13px;line-height:1.1;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;box-shadow:var(--shadow);writing-mode:vertical-rl}
 .sideTab.l{left:0;border-radius:0 10px 10px 0;border-left:0}
@@ -287,7 +299,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
   .mapwrap{max-height:min(230px,24dvh)}
   #game .free{flex-wrap:wrap} #game .free input{flex:1 1 100%} #game .free button{flex:1 1 0;white-space:nowrap}
 }
-@media (max-height:520px) and (max-width:1000px){ .mapwrap{max-height:26dvh} }
+@media (max-height:520px) and (max-width:1439px){ .mapwrap{max-height:26dvh} }
 
 /* ---------- 지도: 비율 상자 (Safari에서도 접히지 않게) · 벡터 그림 ---------- */
 .mapwrap{height:auto;aspect-ratio:auto;width:calc(clamp(160px,25vh,240px)*1.5);max-width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -391,6 +403,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
       <div class="tb">
         <button class="small only-narrow" onclick="toggleSide('L')" aria-label="캐릭터 정보 열기">👤</button>
         <div class="stats" id="stats"></div>
+        <button class="small" id="readingBtn" onclick="toggleReadingMode()" aria-pressed="false" title="패널과 지도를 접고 선택지는 유지">읽기 모드</button>
         <button class="small" id="topFold" onclick="toggleTopFold()">▲</button>
         <button class="small only-narrow" onclick="toggleSide('R')" aria-label="기록 열기">📜<span id="rBadge"></span></button>
       </div>
@@ -426,7 +439,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
     <div id="log"><div class="inner" id="logInner"></div></div>
     <div class="controls">
       <div class="inner">
-        <button class="small" id="dockBtn" onclick="toggleDock()" style="width:100%;margin-bottom:6px">▼ 선택지 접기 (본문 넓게 보기)</button>
+        <button class="small" id="dockBtn" onclick="toggleDock()" style="width:100%;margin-bottom:6px">▼ 선택지 접기</button>
         <div class="choices" id="choices"></div>
         <div class="fixed" id="fixed"></div>
         <div class="row"><button id="undoBtn" onclick="undoLast()" disabled>↩ 되돌리기</button><button class="small" onclick="openGuide()">게임 안내</button></div>
@@ -8748,8 +8761,17 @@ function locPanel(){
   }else{ t='임시 쉼터'; sub='한빛시' }
   return `<h5>${esc(t)}</h5><div class="sub">${esc(sub)}</div>${body}`;
 }
-function isMapCollapsed(){ return SET.mapCollapsed===undefined?window.innerWidth<=760:!!SET.mapCollapsed }
-function toggleMap(){ SET.mapCollapsed=!isMapCollapsed(); saveSettings(); renderMapPanel() }
+function mapPreferenceKey(){ return window.innerWidth>760&&window.innerWidth<1440?'mapCollapsedTablet':'mapCollapsed' }
+function isMapCollapsed(){
+  if(readingMode) return true;
+  const k=mapPreferenceKey();
+  return SET[k]===undefined?window.innerWidth<1440:!!SET[k];
+}
+function toggleMap(){
+  const next=!isMapCollapsed();
+  if(readingMode) toggleReadingMode();
+  SET[mapPreferenceKey()]=next; saveSettings(); renderMapPanel();
+}
 function setMapTab(t){
   const box=document.getElementById('mapbox'); box.dataset.tab=t;
   box.querySelectorAll('.maptabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
@@ -8842,14 +8864,31 @@ function renderSides(){
 /* 넓은 화면: 접기/펼치기 · 좁은 화면: 서랍 */
 const SIDE_KEY='sand7_sides';
 let sideHidden=(function(){ try{ const v=JSON.parse(localStorage.getItem(SIDE_KEY)||'null'); if(v) return {L:!!v.L,R:!!v.R} }catch(e){} return {L:false,R:false} })();
-function wideMode(){ return window.matchMedia('(min-width:1001px)').matches }
+const READING_KEY='sand7_reading';
+let readingMode=(function(){ try{ return localStorage.getItem(READING_KEY)==='1' }catch(e){ return false } })();
+function wideMode(){ return !readingMode&&window.matchMedia('(min-width:1440px)').matches }
+function applyReadingMode(){
+  const g=document.getElementById('game'),b=document.getElementById('readingBtn');
+  if(g) g.classList.toggle('reading',readingMode);
+  if(b){ b.textContent=readingMode?'읽기 모드 해제':'읽기 모드'; b.setAttribute('aria-pressed',String(readingMode)) }
+}
+function toggleReadingMode(){
+  readingMode=!readingMode;
+  try{ localStorage.setItem(READING_KEY,readingMode?'1':'0') }catch(e){}
+  // Restore normal action access even if the old action fold was saved.
+  if(readingMode){ dockFolded=false; try{ localStorage.setItem(DOCK_KEY,'0') }catch(e){} applyDock() }
+  closeSides(); applyReadingMode(); applySides();
+  if(G) renderMapPanel();
+}
 function applySides(){
   const g=document.getElementById('game'); if(!g) return;
-  g.classList.toggle('hideL',sideHidden.L); g.classList.toggle('hideR',sideHidden.R);
+  g.classList.toggle('hideL',wideMode()&&sideHidden.L); g.classList.toggle('hideR',wideMode()&&sideHidden.R);
   [['L','캐릭터 정보'],['R','기록']].forEach(([k,nm])=>{
     const b=document.querySelector(`.tb button[onclick="toggleSide('${k}')"]`); if(!b) return;
-    b.setAttribute('aria-expanded',wideMode()?String(!sideHidden[k]):'false');
-    if(wideMode()) b.title=sideHidden[k]?`${nm} 펼치기`:`${nm} 접기`;
+    const open=wideMode()?!sideHidden[k]:document.getElementById('side'+k).classList.contains('open');
+    b.setAttribute('aria-expanded',String(open));
+    b.title=open?`${nm} 접기`:`${nm} 열기`;
+    b.setAttribute('aria-label',b.title);
     b.style.opacity=(wideMode()&&sideHidden[k])?'.55':'';
   });
 }
@@ -8863,10 +8902,12 @@ function toggleSide(k){
   const el=document.getElementById('side'+k), was=el.classList.contains('open');
   closeSides();
   if(!was){ el.classList.add('open'); document.getElementById('scrim').classList.add('on') }
+  applySides();
 }
 function closeSides(){
   ['L','R'].forEach(k=>document.getElementById('side'+k).classList.remove('open'));
   document.getElementById('scrim').classList.remove('on');
+  applySides();
 }
 
 
@@ -8903,7 +8944,7 @@ function applyDock(){
   const c=document.querySelector('.controls'), b=document.getElementById('dockBtn'); if(!c||!b) return;
   c.classList.toggle('folded',dockFolded);
   const g=document.getElementById('game'); if(g) g.classList.toggle('dockF',dockFolded);
-  b.textContent=dockFolded?'▲ 선택지·행동 열기':'▼ 선택지 접기 (본문 넓게 보기)';
+  b.textContent=dockFolded?'▲ 선택지·행동 열기':'▼ 선택지 접기';
   b.setAttribute('aria-expanded',String(!dockFolded));
 }
 function toggleDock(){
@@ -9883,8 +9924,8 @@ document.addEventListener('keydown',ev=>{
   if(ev.key!=='Escape') return;
   if(document.getElementById('modalRoot').innerHTML) closeModal(); else closeSides();
 });
-window.addEventListener('resize',()=>{ applySides(); if(G&&!document.getElementById('game').classList.contains('hidden')){ _sigM=''; renderMapPanel() } });
-applyFontScale(); applyTheme(); applyTopFold(); applyDock(); applySides(); updateUsageChip(); updateUndoBtn();
+window.addEventListener('resize',()=>{ closeSides(); if(G&&!document.getElementById('game').classList.contains('hidden')){ _sigM=''; renderMapPanel() } });
+applyFontScale(); applyTheme(); applyTopFold(); applyDock(); applyReadingMode(); applySides(); updateUsageChip(); updateUndoBtn();
 show('title');
 
 </script>
