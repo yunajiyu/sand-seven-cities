@@ -59,7 +59,7 @@ await test('Selected care and dismissive behavior change hidden progress, indepe
 await test('Two completed dates offer an AI-written confession in the finishing scene',async({run})=>{
  ready(run);run("romanceProgress('유민').closeness=0;callAI=async(sys,prompt)=>JSON.stringify({narration:'둘 사이에 편안한 침묵이 흐른다',choices:[{text:'함께했던 시간이 소중했다며 사귀고 싶다고 말한다',action_id:romanceActionId('유민')}]})");
  for(let day=1;day<=2;day++){
- run(`G.day=${day};G.time='방과 후';G.dayStep=0;setAppt('유민','campus:market','지금');apptSync()`);assert.equal(await run("startSocialActivity('유민','date')"),true);await run("chooseSocialActivity(activeSocial().id,'listen')");await run("chooseSocialActivity(activeSocial().id,'care')");await run("chooseSocialActivity(activeSocial().id,'thanks')");
+ run(`G.day=${day};G.time='방과 후';G.dayStep=0;setAppt('유민','campus:market','지금');apptSync()`);assert.equal(await run("startSocialActivity('유민','date')"),true);for(let i=0;i<3;i++)await run("chooseSocialActivity(activeSocial().id,socialPhaseAt(activeSocial()).choices.find(c=>c.score===1).id)");
  if(day===1){assert.equal(run("romanceReady('유민')"),false);assert.equal(run('G.social.session.confessionChoice||null'),null)}
  }
  assert.equal(run("romanceProgress('유민').closeness"),6);assert.match(run("socialActivityHTML('date')"),/함께했던 시간이 소중했다며/);assert.equal(run("getRel('유민').romanceConfirmed||false"),false);run("startStoryConfession(romanceActionId('유민'))");assert.equal(run('gameTab'),'play');assert.match(run('calls[0][0]'),/함께했던 시간이 소중했다며/);
