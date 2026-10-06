@@ -57,5 +57,44 @@ await test('A main ward also prepares its case before exposing an introduction',
 await test('Notebook distinguishes prepared core evidence from rumor, hypothesis and legacy facts without mutating records',async f=>{await prepared(f);await f.run("aiTurn('입구를 조사한다')");f.run('const beforeNotes=JSON.stringify({canon:G.canon,evidence:G.evidence});const samples=[G.evidence[0],{kind:"rumor",text:"소문이 떠돈다"},{kind:"hypothesis",text:"아직은 추정이다"},{kind:"fact",source:"legacy",text:"오래된 확인 기록"},{kind:"testimony",source:"scene",text:"친구가 한 증언이다"}];const classified=samples.map(notebookCategory);const grouped=notebookGroupsHTML(samples)');assert.deepEqual(f.obj('classified'),['core','rumor','rumor','background','background']);assert.match(f.run('grouped'),/핵심 증거 · 1개/);assert.match(f.run('grouped'),/소문·가설 · 2개/);assert.match(f.run('grouped'),/배경 기록 · 2개/);assert.equal(f.run('beforeNotes'),f.run('JSON.stringify({canon:G.canon,evidence:G.evidence})'))});
 await test('Notebook preserves old records beyond 50 entries and escapes their content',f=>{f.run('seed();G.canon=Array.from({length:55},(_,i)=>({text:"OLD_NOTE_"+i}));G.evidence=[{id:"standalone",text:"<script>alert(1)</script>",kind:"rumor"}];const beforeNotes=JSON.stringify(G.canon);openThreads()');assert.match(f.run('modalHTML'),/OLD_NOTE_0/);assert.match(f.run('modalHTML'),/OLD_NOTE_54/);assert.match(f.run('modalHTML'),/&lt;script&gt;/);assert.ok(!f.run('modalHTML').includes('<script>'));assert.equal(f.run('notebookRecords().length'),56);assert.equal(f.run('beforeNotes'),f.run('JSON.stringify(G.canon)'))});
 await test('Core evidence cannot be deleted and old reference notes remain removable at their original index',async f=>{await prepared(f);await f.run("aiTurn('입구를 조사한다')");f.run('const coreId=G.evidence[0].id;delCanon(0)');assert.equal(f.run('G.evidence[0].deleted||false'),false);assert.equal(f.run('G.canon[0].id'),f.run('coreId'));f.run('G.canon.push({text:"OLD_REMOVABLE_RECORD"});const html=notebookGroupsHTML(notebookRecords(),true)');assert.ok(!f.run('html').includes('delCanon(0)'));assert.ok(f.run('html').includes('delCanon(1)'));f.run('delCanon(1)');assert.equal(f.run('G.canon.length'),1);assert.equal(f.run('G.canon[0].id'),f.run('coreId'))});
+await test('System instructions use fixed answers and remove obsolete compact-campaign targets',f=>{
+ f.run('seed();G.campaign={version:1};const instructions=sysBase()');
+ assert.ok(!f.run('instructions').includes('진상(구역이 지워진 이유, 출석부의 정체, 교표의 비밀, 엔딩)은 정해져 있지 않다'));
+ assert.ok(!f.run('instructions').includes('플레이 중 네가 일관되게 정하되'));
+ assert.ok(!f.run('instructions').includes('8개 모으기'));
+ assert.ok(!f.run('instructions').includes('애시우드 구역'));
+ assert.ok(f.run('instructions').includes('정답·핵심 증거는 비공개 설계에 미리 정해져 있다'));
+ f.run('delete G.campaign');assert.ok(f.run('sysBase()').includes('교표 조각 8개 모으기'));
+});
+await test('A matching scene is reviewed before display without disclosing unseen evidence or answers',async f=>{
+ await prepared(f);f.run(`const core=${JSON.stringify(candidate.evidence[0].text)};callAI=async(sys,user)=>{api.push({sys,user});return JSON.stringify(sys.includes('본문 일치 검토자')?{valid:true,issues:[]}:{narration:'바람이 문틈을 스친다. '+core,choices:[],effects:{}})}`);
+ await f.run("aiTurn('입구를 조사한다')");assert.ok(f.obj('events').some(e=>e.type==='scene'&&e.text.includes('바람이')));
+ const review=f.obj('api').at(-1);assert.match(review.sys,/본문 일치 검토자/);assert.ok(review.user.includes(candidate.evidence[0].text));
+ for(const privateValue of [candidate.truth,candidate.conclusion,candidate.evidence[1].text,candidate.verification.result,'ROOM_SECRET_381','WORLD_SECRET_479'])assert.ok(!review.user.includes(privateValue),privateValue);
+ assert.equal(f.run('G.site.mystery.state.found.length'),1);
+});
+await test('Omitted or numerically altered core text is replaced without needing reviewer approval',async f=>{
+ await prepared(f);f.run("let reviewCalls=0;callAI=async(sys)=>{if(sys.includes('본문 일치 검토자'))reviewCalls++;return JSON.stringify({narration:'종이에 04:15라는 시간이 세 번 적혀 있다.',choices:['잘못된 시간을 입력한다'],chronicle:'잘못된 시간을 발견했다',effects:{체력:-9}})}");
+ await f.run("aiTurn('입구를 조사한다')");const scene=f.obj('events').find(e=>e.type==='scene');assert.ok(scene.text.includes(candidate.evidence[0].text));assert.ok(!scene.text.includes('04:15'));assert.equal(f.run('reviewCalls'),0);assert.equal(f.run('G.hp'),12);assert.ok(!JSON.stringify(f.obj('G.recent')).includes('04:15'));assert.ok(!JSON.stringify(f.obj('G.chronicle')).includes('잘못된 시간'));
+});
+await test('Reviewer rejection discards invented discoveries, choices, chronology and effects',async f=>{
+ await prepared(f);f.run("callAI=async(sys)=>JSON.stringify(sys.includes('본문 일치 검토자')?{valid:false,issues:['추가 발견은 공개 기록에 없음']}:{narration:'벽에서 HALLUCINATED_KEY를 발견한다.',choices:['HALLUCINATED_KEY로 문을 연다'],chronicle:'HALLUCINATED_KEY를 얻었다',effects:{items_add:[{name:'HALLUCINATED_KEY',key:true}]}})");
+ await f.run("aiTurn('문 앞에서 잠시 기다린다')");assert.ok(!JSON.stringify(f.obj('events')).includes('HALLUCINATED_KEY'));assert.ok(!JSON.stringify(f.obj('G.recent')).includes('HALLUCINATED_KEY'));assert.ok(!JSON.stringify(f.obj('G.items')).includes('HALLUCINATED_KEY'));assert.equal(f.run('G.evidence.length'),0);assert.equal(f.run('busy'),false);
+});
+await test('Missing verdict, nonboolean verdict and connection failure use canonical fallback',async f=>{
+ await prepared(f);f.run(`const core=${JSON.stringify(candidate.evidence[0].text)};const turn={g:G,loc:'site',action:'조사',flags:{privateMystery:true},mysteryOutcome:{d:G.site,type:'evidence',e:mysteryPlan().evidence[0]}};const submission={narration:core+' UNSAFE_EXTRA',choices:[],effects:{hp:-3}}`);
+ for(const verdict of ['{}','{valid:"true",issues:[]}','{valid:true}','{valid:true,issues:["문제"]}','null']){
+  f.run('callAI=async()=>JSON.stringify('+verdict+')');const result=await f.run('guardMysteryNarration(submission,turn,true)');assert.ok(result.narration.includes(candidate.evidence[0].text));assert.ok(!result.narration.includes('UNSAFE_EXTRA'));assert.deepEqual(Object.keys(result.effects),[]);
+ }
+ f.run('callAI=async()=>{throw Error("network failure")}');const result=await f.run('guardMysteryNarration(submission,turn,true)');assert.ok(!result.narration.includes('UNSAFE_EXTRA'));
+});
+await test('Exact private-answer leakage is blocked locally and never sent to the reviewer',async f=>{
+ await prepared(f);f.run('let reviewCalls=0;callAI=async()=>{reviewCalls++;return JSON.stringify({valid:true,issues:[]})};const turn={g:G,loc:"site",action:"기다린다",flags:{}}');
+ const result=await f.run('guardMysteryNarration({narration:'+JSON.stringify(candidate.truth)+',choices:[],effects:{}},turn,true)');assert.ok(!result.narration.includes(candidate.truth));assert.equal(f.run('reviewCalls'),0);
+});
+await test('Late narration review cannot mutate or unlock a replacement game',async f=>{
+ await prepared(f);f.run(`let releaseReview;const core=${JSON.stringify(candidate.evidence[0].text)};callAI=async(sys)=>sys.includes('본문 일치 검토자')?new Promise(r=>releaseReview=r):JSON.stringify({narration:core,choices:[],effects:{}});const pending=aiTurn('입구를 조사한다')`);
+ await new Promise(r=>setImmediate(r));assert.equal(f.run('typeof releaseReview'),'function');f.run('seed("campus");busy=true;const replacementTurn={g:G};curTurn=replacementTurn;G.choiceMeta={keep:{type:"story"}};releaseReview(JSON.stringify({valid:false,issues:["문제"]}))');await f.run('pending');assert.equal(f.run('busy'),true);assert.equal(f.run('curTurn===replacementTurn'),true);assert.equal(f.run('G.choiceMeta.keep.type'),'story');assert.equal(f.run('G.evidence.length'),0);
+});
 console.log(`${count} private-mystery scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
