@@ -4502,12 +4502,38 @@ function mysteryPlan(d=G&&G.site){
   const m=d&&d.mystery; if(!m||m.version!==MYSTERY_VERSION||m.status!=='ready'||typeof m.sealed!=='string'||m.hash!==mysteryHash(m.sealed)||!m.state||!Array.isArray(m.state.found)||!m.state.evidenceIds||typeof m.state.solved!=='boolean') return null;
   try{ return JSON.parse(m.sealed) }catch(e){ return null }
 }
+/* AI가 자주 어기는 사소한 형식(공간 이름을 ID 대신 씀·묘사가 400자를 넘음·공백)은 검증 전에 바로잡아 불필요한 실패를 줄인다 */
+function clipText(t,max){
+  t=String(t==null?'':t).trim(); if(t.length<=max) return t;
+  const cut=t.slice(0,max), end=Math.max(cut.lastIndexOf('다.'),cut.lastIndexOf('. '),cut.lastIndexOf('요.'),cut.lastIndexOf('."'));
+  return (end>max*0.5?cut.slice(0,end+(cut[end]==='.'?1:2)):cut).trim();
+}
+function normalizeMysteryDraft(p,d){
+  if(!p||typeof p!=='object'||!Array.isArray(d?.rooms)) return p;
+  const byId=new Map(d.rooms.map(r=>[r.id,r.id])), byName=new Map(d.rooms.map(r=>[String(r.name||'').trim(),r.id]));
+  const rid=v=>{ const k=String(v==null?'':v).trim(); return byId.get(k)||byName.get(k)||[...byName].find(([n])=>n&&(k.includes(n)||n.includes(k))&&k)?.[1]||v };
+  if(Array.isArray(p.room_views)){
+    const seen=new Set();
+    p.room_views=p.room_views.filter(r=>r&&typeof r==='object').map(r=>({...r,room:rid(r.room),text:clipText(r.text,400)})).filter(r=>!seen.has(r.room)&&seen.add(r.room));
+  }
+  if(Array.isArray(p.evidence)) p.evidence=p.evidence.map(e=>e&&typeof e==='object'?{...e,room:rid(e.room),text:clipText(e.text,240),meaning:clipText(e.meaning,200)}:e);
+  if(p.verification&&typeof p.verification==='object') p.verification={...p.verification,room:rid(p.verification.room)};
+  return p;
+}
+function roomViewIssue(p,d,rooms,text){
+  const v=p.room_views;
+  if(!Array.isArray(v)) return '공개 공간 묘사(room_views가 목록이 아님)';
+  if(v.length!==d.rooms.length) return `공개 공간 묘사(공간 ${d.rooms.length}개 중 ${v.length}개만 있음)`;
+  if(v.some(r=>!r||!rooms.has(r.room))) return '공개 공간 묘사(room에 공간 ID가 아닌 값이 있음)';
+  if(new Set(v.map(r=>r.room)).size!==d.rooms.length) return '공개 공간 묘사(같은 공간이 중복됨)';
+  return '공개 공간 묘사(각 text는 4~400자여야 함)';
+}
 function validateMystery(p,d){
   const errors=[], rooms=new Set(d.rooms.map(r=>r.id)), reached=new Set(), visit=id=>{ if(reached.has(id)||!rooms.has(id)) return; reached.add(id); const r=d.rooms.find(r=>r.id===id); (r.exits||[]).forEach(visit) }; visit(d.rooms[0].id);
   const text=(v,max=400)=>typeof v==='string'&&v.trim().length>=4&&v.length<=max;
   if(!p||typeof p!=='object') return ['사건 객체 없음'];
   for(const k of ['question','opening','truth','conclusion']) if(!text(p[k],800)) errors.push(k+' 누락/길이');
-  if(!Array.isArray(p.room_views)||p.room_views.length!==d.rooms.length||new Set(p.room_views.map(r=>r&&r.room)).size!==d.rooms.length||p.room_views.some(r=>!r||!rooms.has(r.room)||!text(r.text))) errors.push('공개 공간 묘사');
+  if(!Array.isArray(p.room_views)||p.room_views.length!==d.rooms.length||new Set(p.room_views.map(r=>r&&r.room)).size!==d.rooms.length||p.room_views.some(r=>!r||!rooms.has(r.room)||!text(r.text))) errors.push(roomViewIssue(p,d,rooms,text));
   const es=Array.isArray(p.evidence)?p.evidence:[], ids=new Set(es.map(e=>e&&e.id));
   if(es.length<3||es.length>4||ids.size!==es.length||new Set(es.map(e=>e&&e.room)).size!==es.length) errors.push('핵심 증거 3~4개/고유 ID/서로 다른 공간');
   for(const e of es) if(!e||!/^e[1-4]$/.test(e.id)||!reached.has(e.room)||!text(e.text,240)||!text(e.meaning,200)) errors.push('증거 도달성/필드');
@@ -4524,7 +4550,7 @@ function validateMystery(p,d){
 function mysteryPrompt(d){
   const seen=(G.evidence||[]).filter(e=>e.placeId==='zone:'+siteIdentity(d)).map(e=>e.text);
   const extra=(d.deductionRequired?'\n추론 JSON 필드 deduction을 추가한다: {hypotheses:[{id:"h1",text:"원인 후보"},{id:"h2",text:"다른 원인 후보"},{id:"h3",text:"다른 원인 후보"}],answer_id:"h2",supports:["e1","e2"],explanation:"정답과 근거 관계"}. 정답은 세 후보 중 하나이고, supports는 그것을 구별하는 증거 2개 이상이다. 후보와 정답 순서는 매번 다르게 구성한다. 단서 소재는 문서·음원·장치·흔적·증언 등 사건마다 다르게 조합하고 원인도 새로 설계한다. NPC 증언을 쓰면 해당 인물의 기존 성격과 이미 공개한 사실을 유지한다. 오답은 설득력 있지만 공개 증거로 반박할 수 있어야 한다. 후보는 증거를 모두 모은 뒤에만 공개하므로 미발견 사실을 추가하지 않는다. 정답 후보만 길거나 자세해서 답이 드러나지 않게 한다.': '')+(d.intro?'\n입문 사건: 정확히 공간 3개에 증거 3개, 교내의 안전한 관찰과 비교만으로 해결 가능. 본편 정체와 관계없는 독립 사건이다.': '')+(compactCampaign()&&d.big?'\n비공개 본편 담당 사실: '+JSON.stringify(campaignChapter(d.key))+'\n이 사건의 결론으로 담당 사실을 입증하도록 증거와 검증 행동을 구성하라. main_link 필드에 담당 link를 그대로 넣는다. 담당하지 않은 다른 구역의 사실이나 전체 진상을 미리 말하지 않는다.':'');
-  return `플레이어이자 제작자도 정답을 모르는 새 미스터리를 설계한다. 아래 장소의 중심 사건 하나를 비공개로 완성하라. 정답과 모든 증거를 지금 확정하고, 이후 행동에 맞춰 바꾸지 않는다. 주요 증거 3~4개는 서로 다른 접근 가능한 공간에서 얻고, 적어도 2개의 관찰을 연결해야 원인을 추론할 수 있게 한다. 모든 핵심 증거를 verification.requires에 넣고 구체적인 검증 행동으로 원인과 결과의 관계를 확인한다. 분위기와 증거를 구분하고, 소문만으로 정답을 확정하지 않는다. 공개 묘사/도착 장면은 원인이나 아직 읽지 않은 증거를 밝히지 않는다. 의미(meaning)는 해당 증거만으로 알 수 있는 기여이며 정답을 미리 설명하지 않는다. 다음 증거의 위치는 공개 조사 후보로 알려도 된다. 학원 공포 세계관이며 본편 진상을 새로 만들거나 바꾸지 않는다.\n장소: ${d.name} / ${d.theme}\n공간과 연결: ${JSON.stringify(d.rooms.map(r=>({id:r.id,name:r.name,light:r.light||'dark',exits:r.exits})))}\n이미 플레이어가 관찰한 사실(바꾸지 말 것): ${JSON.stringify(seen)}\n기존 사건의 확정 배경(있다면 유지): ${d.lore?JSON.stringify({what:d.lore.what,fate:d.lore.fate}):'(새 사건)'}\n본편과의 비공개 본편 진상(바꾸지 말 것): ${JSON.stringify(compactCampaign()?{truth:campaignPlan()?.truth,detail:campaignPlan()?.detail}:G.secret||{})}\n본편과의 비공개 연결 제약: ${d.big?JSON.stringify((G.wards||[]).find(w=>w.id===d.key)||{}):'(독립 사건)'}\nJSON만: {"question":"중심 질문","opening":"정답 없는 도착 장면","truth":"실제 원인과 사건 경위","room_views":[{"room":"r1","text":"진입 시 보이는 분위기만"}],"evidence":[{"id":"e1","room":"r1","text":"구체적인 관찰 사실","meaning":"이 사실이 좁히는 질문"}],"verification":{"room":"방 ID","action":"플레이어가 실행할 검증 방법","requires":["e1","e2"],"result":"실제 검증 결과"},"conclusion":"모든 근거를 연결한 최종 진상"}${extra}`;
+  return `플레이어이자 제작자도 정답을 모르는 새 미스터리를 설계한다. 아래 장소의 중심 사건 하나를 비공개로 완성하라. 정답과 모든 증거를 지금 확정하고, 이후 행동에 맞춰 바꾸지 않는다. 주요 증거 3~4개는 서로 다른 접근 가능한 공간에서 얻고, 적어도 2개의 관찰을 연결해야 원인을 추론할 수 있게 한다. 모든 핵심 증거를 verification.requires에 넣고 구체적인 검증 행동으로 원인과 결과의 관계를 확인한다. room_views는 위 공간 목록의 모든 공간마다 정확히 하나씩 쓰고 room에는 공간 ID(r1 등)를 그대로 넣으며 text는 400자 이하로 쓴다. 분위기와 증거를 구분하고, 소문만으로 정답을 확정하지 않는다. 공개 묘사/도착 장면은 원인이나 아직 읽지 않은 증거를 밝히지 않는다. 의미(meaning)는 해당 증거만으로 알 수 있는 기여이며 정답을 미리 설명하지 않는다. 다음 증거의 위치는 공개 조사 후보로 알려도 된다. 학원 공포 세계관이며 본편 진상을 새로 만들거나 바꾸지 않는다.\n장소: ${d.name} / ${d.theme}\n공간과 연결: ${JSON.stringify(d.rooms.map(r=>({id:r.id,name:r.name,light:r.light||'dark',exits:r.exits})))}\n이미 플레이어가 관찰한 사실(바꾸지 말 것): ${JSON.stringify(seen)}\n기존 사건의 확정 배경(있다면 유지): ${d.lore?JSON.stringify({what:d.lore.what,fate:d.lore.fate}):'(새 사건)'}\n본편과의 비공개 본편 진상(바꾸지 말 것): ${JSON.stringify(compactCampaign()?{truth:campaignPlan()?.truth,detail:campaignPlan()?.detail}:G.secret||{})}\n본편과의 비공개 연결 제약: ${d.big?JSON.stringify((G.wards||[]).find(w=>w.id===d.key)||{}):'(독립 사건)'}\nJSON만: {"question":"중심 질문","opening":"정답 없는 도착 장면","truth":"실제 원인과 사건 경위","room_views":[{"room":"r1","text":"진입 시 보이는 분위기만(공간 ID 그대로, 400자 이하)"}],"evidence":[{"id":"e1","room":"r1","text":"구체적인 관찰 사실","meaning":"이 사실이 좁히는 질문"}],"verification":{"room":"방 ID","action":"플레이어가 실행할 검증 방법","requires":["e1","e2"],"result":"실제 검증 결과"},"conclusion":"모든 근거를 연결한 최종 진상"}${extra}`;
 }
 async function ensureMystery(d=G&&G.site){
   if(!d||!Array.isArray(d.rooms)) return null;
@@ -4544,6 +4570,7 @@ async function ensureMystery(d=G&&G.site){
         p=parseJSON(await callAI('너는 비공개 미스터리 설계자다. JSON만 출력한다.',mysteryPrompt(d)+(issues.length?'\n수정해야 할 검증 문제: '+JSON.stringify(issues):''),5000,'site'));
         if(G!==g) return null;
         if(!p){ issues=['응답이 JSON 형식이 아니거나 중간에 잘림']; why=issues[0]; continue }
+        p=normalizeMysteryDraft(p,d);
         issues=validateMystery(p,d); if(issues.length){ why='구성 검증 실패: '+issues.slice(0,3).join(', '); continue }
         review=parseJSON(await callAI('너는 미스터리의 독립 검토자다. 내용은 플레이어에게 공개하지 않는다. JSON만 출력한다.',`사건의 원인과 증거가 모순 없는지, 증거를 통해 추론 가능한지, 검증 행동이 원인을 확인하는지, 공개 question/opening/room_views/meaning이 숨겨진 답과 미발견 증거를 누설하지 않는지 검토하라. 기존 공개 사실을 지키는지도 확인한다. deduction이 있으면 정답 후보가 공개 증거로 구별 가능하고 supports가 실제 추론 근거인지, 오답이 증거로 반박 가능한지 확인한다. main_link가 있으면 사건의 결론과 증거가 그 사실을 입증하고 미방문 구역이나 전체 진상을 누설하지 않는지 확인한다. 문제가 있으면 valid:false와 구체적인 issues를 적는다. 단순 칭찬 금지.\n${mysteryPrompt(d)}\n후보: ${JSON.stringify(p)}\nJSON: {"valid":true,"issues":[]}`,900,'world'));
         if(G!==g) return null;
