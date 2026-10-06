@@ -800,7 +800,7 @@ const PRESETS={
   openrouter:{baseUrl:'https://openrouter.ai/api/v1',model:'deepseek/deepseek-chat'},
   deepseek:{baseUrl:'https://api.deepseek.com',model:'deepseek-chat'},
   gemini:{baseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-3.8-flash'},
-  vertex:{baseUrl:'',model:'gemini-3.5-flash'},
+  vertex:{baseUrl:'',model:'gemini-3.8-flash'},
   openai:{baseUrl:'https://api.openai.com/v1',model:'gpt-5.4-mini'},
   custom:{baseUrl:'',model:''},
 };
@@ -1109,7 +1109,7 @@ async function selectVertexJSON(input){
   if(selection!==vertexSelection)return;
   VERTEX_BROWSER=state;const mode=document.getElementById('sVertexMode');if(mode)mode.value='browser';SET.vertexMode='browser';
   applyVertexModels();SET.roles=SET.roles||{};
-  AI_ROLES.forEach(r=>{const effort=document.getElementById('re_'+r.k)?.value||roleCfg(r.k).effort||'low';SET.roles[r.k]={provider:'vertex',model:['lex','chron'].includes(r.k)?'gemini-3.5-flash-lite':PRESETS.vertex.model,effort:['low','medium','high'].includes(effort)?effort:'low'}});
+  AI_ROLES.forEach(r=>{const effort=document.getElementById('re_'+r.k)?.value||roleCfg(r.k).effort||'low';SET.roles[r.k]={provider:'vertex',model:vertexModelFor(r.k),effort:['low','medium','high'].includes(effort)?effort:'low'}});
   SET.provider='vertex';SET.model=SET.roles.story.model;SET.apiKey='';saveSettings();
   vertexConnectionStatus('인증 완료 · '+state.project+' · 모든 역할을 Vertex AI로 설정했습니다.');toast('JSON 키 연결 완료. 이제 게임을 진행하세요.');
   if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle();
@@ -9392,8 +9392,14 @@ function applySavingModels(){
   ['lex','chron'].forEach(k=>{ const p=document.getElementById('rp_'+k), m=document.getElementById('rm_'+k), e=document.getElementById('re_'+k); if(p) p.value=p.value==='vertex'?'vertex':'gemini'; if(m) m.value='gemini-3.5-flash-lite'; if(e) e.value='low' });
   toast('사전 추출·연대기 압축 모델을 채웠습니다. 아래 「저장」을 눌러 주세요 (해당 제공자 연결이 필요합니다)');
 }
+/* JSON을 다시 고를 때마다 모델이 기본값으로 되돌아가지 않게: 이미 직접 정한 Vertex 모델은 유지한다(예전 기본값 3.5 flash는 새 기본값으로 올림) */
+function vertexModelFor(k){
+ const cur=(SET.roles||{})[k],m=cur&&cur.provider==='vertex'?String(cur.model||''):'';
+ if(/^gemini-[a-z0-9.-]+$/.test(m)&&m!=='gemini-3.5-flash')return m;
+ return ['lex','chron'].includes(k)?'gemini-3.5-flash-lite':PRESETS.vertex.model;
+}
 function applyVertexModels(){
- AI_ROLES.forEach(r=>{const p=document.getElementById('rp_'+r.k),m=document.getElementById('rm_'+r.k);if(p)p.value='vertex';if(m)m.value=['lex','chron'].includes(r.k)?'gemini-3.5-flash-lite':PRESETS.vertex.model});
+ AI_ROLES.forEach(r=>{const p=document.getElementById('rp_'+r.k),m=document.getElementById('rm_'+r.k);if(p)p.value='vertex';if(m)m.value=vertexModelFor(r.k)});
  toast('역할을 Vertex AI로 채웠습니다. 연결 방식을 선택하고 저장하세요.');
 }
 function onRoleProv(k){
