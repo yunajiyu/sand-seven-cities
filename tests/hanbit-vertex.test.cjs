@@ -171,5 +171,35 @@ await test('The relay allows Gemini 3.8 flash by default',async()=>{
  const client=relay.createVertexClient({credentials,project:'test-project',location:'global',fetchImpl:async(url,init)=>{if(String(url).includes('oauth2'))return oauth();assert.match(String(url),/gemini-3\.8-flash:generateContent/);return response(200,output())}});
  const result=await client.generate({...input,model:'gemini-3.8-flash'});assert.match(result.text,/함께한다/);
 });
+const connect=async f=>{await f.run('(async()=>{VERTEX_BROWSER=await vertexImport(jsonKeyText);await vertexBrowserToken(VERTEX_BROWSER)})()');f.run("setTimeout=fn=>{fn();return 0};SET.roles.story={provider:'vertex',model:'gemini-3.8-flash',effort:'low'}")};
+const okBody="({ok:true,status:200,json:async()=>({candidates:[{finishReason:'STOP',content:{parts:[{text:'장면'}]}}],usageMetadata:{promptTokenCount:1,candidatesTokenCount:1}})})";
+await test('Browser mode retries one dropped connection (mobile network switch) and then succeeds',async()=>{
+ const f=browserFixture();await connect(f);
+ f.run(`let gen=0;fetch=async(url)=>{if(url.endsWith('/token'))return {ok:true,status:200,json:async()=>({access_token:'t',expires_in:3600,token_type:'Bearer'})};gen++;if(gen===1)throw new TypeError('Failed to fetch');return ${okBody}}`);
+ assert.equal(await f.run("callAI('s','u')"),'장면');assert.equal(f.run('gen'),2);
+});
+await test('A persistent connection failure explains the mobile screen-off cause and is tried only twice',async()=>{
+ const f=browserFixture();await connect(f);
+ f.run("let gen=0;fetch=async(url)=>{if(url.endsWith('/token'))return {ok:true,status:200,json:async()=>({access_token:'t',expires_in:3600,token_type:'Bearer'})};gen++;throw new TypeError('Failed to fetch')}");
+ await assert.rejects(f.run("callAI('s','u')"),e=>/연결하지 못했습니다/.test(e.message)&&/화면을 켠 채 다시 시도/.test(e.message)&&!/연결이 중단되었습니다/.test(e.message));
+ assert.equal(f.run('gen'),2);
+});
+await test('A timeout says so, names the seconds, and is not retried',async()=>{
+ const f=browserFixture();await connect(f);
+ f.run("let gen=0;fetch=async(url)=>{if(url.endsWith('/token'))return {ok:true,status:200,json:async()=>({access_token:'t',expires_in:3600,token_type:'Bearer'})};gen++;const e=new Error('t');e.name='TimeoutError';throw e}");
+ await assert.rejects(f.run("callAI('s','u')"),/Vertex AI 응답이 120초 안에 오지 않았습니다.*생각 강도를 낮추거나/);assert.equal(f.run('gen'),1);
+});
+await test('A response cut off mid-body is reported as such',async()=>{
+ const f=browserFixture();await connect(f);
+ f.run("fetch=async(url)=>url.endsWith('/token')?{ok:true,status:200,json:async()=>({access_token:'t',expires_in:3600,token_type:'Bearer'})}:{ok:true,status:200,json:async()=>{throw new SyntaxError('Unexpected end of JSON input')}}");
+ await assert.rejects(f.run("callAI('s','u')"),/응답을 끝까지 받지 못했습니다/);
+});
+await test('Browsers without AbortSignal.timeout still get a time limit instead of a crash',async()=>{
+ const f=browserFixture();await connect(f);
+ f.run("AbortSignal={};const seen=[];fetch=async(url,opt)=>{seen.push(opt.signal);return url.endsWith('/token')?{ok:true,status:200,json:async()=>({access_token:'t',expires_in:3600,token_type:'Bearer'})}:"+okBody+"}");
+ f.ctx.AbortController=AbortController;
+ assert.equal(await f.run("callAI('s','u')"),'장면');assert.ok(f.run('seen[seen.length-1]&&typeof seen[seen.length-1].aborted==="boolean"'));
+ f.ctx.AbortController=undefined;f.run('seen.length=0');assert.equal(await f.run("callAI('s','u')"),'장면');
+});
 console.log(`${count} Vertex authentication/relay scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
