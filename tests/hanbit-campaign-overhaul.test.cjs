@@ -62,6 +62,21 @@ await test('Starting the rumor trip during class time carries no skipping, absen
   assert.equal(f.run('JSON.stringify({d:G.demerit,skip:G.cls?.skip||0,abs:G.cls?.absent||0,n:G.cls?.n||0})'),before);
   assert.equal(f.run('G.attendance?.missed||0'),0);
 });
+await test('Leaving for the rumor place during class asks first; declining changes nothing',async f=>{
+  await root(f);f.run('G.time="낮";G.dayStep=CLASS_SLOTS[0];G.district="classroom";const asks=[];askConfirm=async m=>{asks.push(m);return false}');
+  await f.run('startIntroMystery()');
+  assert.equal(f.run('asks.length'),1);assert.match(f.run('asks[0]'),/1교시.*이번 수업을 듣지 못하고.*땡땡이·결석·벌점은 없습니다.*그래도 갈까요\?/s);
+  assert.equal(f.run('G.loc'),'campus');assert.equal(f.run('G.site'),null);assert.equal(f.run('busy'),false);assert.equal(f.run('G.dayStep'),f.run('CLASS_SLOTS[0]'));
+  f.run('askConfirm=async m=>{asks.push(m);return true}');await f.run('startIntroMystery()');
+  assert.equal(f.run('asks.length'),2);assert.equal(f.run('G.loc'),'site');
+});
+await test('No confirmation outside class time (break, after school, weekend, excused day)',async f=>{
+  await root(f);f.run('const asks=[];askConfirm=async m=>{asks.push(m);return true}');
+  for(const setup of ['G.time="낮";G.dayStep=2','G.time="방과 후";G.dayStep=0','G.day=6;G.time="낮";G.dayStep=1','G.excuse={day:G.day};G.time="낮";G.dayStep=1']){
+    f.run('G.loc="campus";G.site=null;G.campaign.introSite=null;G.district="classroom";'+setup);await f.run('startIntroMystery()');assert.equal(f.run('G.loc'),'site',setup);
+  }
+  assert.equal(f.run('asks.length'),0);
+});
 await test('Failed world preparation tells the player the cause in plain words',async f=>{
   setupAI(f);f.run('callAI=async()=>{throw new Error("NO_KEY")}');assert.equal(await f.run('genCampaignWorld()'),false);
   assert.match(f.run('events.filter(e=>e.type==="sys").pop().text'),/본편을 준비하지 못했습니다 \(AI 키가 설정되어 있지 않습니다\)/);

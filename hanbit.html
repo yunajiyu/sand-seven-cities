@@ -4432,7 +4432,12 @@ async function prepareCampaign(){
 async function startIntroMystery(){
   if(busy||!compactCampaign()||G.campaign.introSolved||G.loc!=='campus'||G.site)return;
   if(!campaignPlan())return toast('본편 준비 재시도로 사건 구성을 먼저 준비해 주세요');
-  const g=G;busy=true;
+  const g=G;
+  if(G.time==='낮'&&!isWeekend()&&!excusedToday()&&CLASS_SLOTS.includes(slotIdx())){   // 수업 시간에 나서면 그 수업을 듣지 못하므로 먼저 확인
+    busy=true;let ok=false;try{ ok=await askConfirm(`지금은 ${slotLabel()} 시간입니다.\n소문의 장소로 가면 이번 수업을 듣지 못하고, 조사하는 동안 흘러가는 수업은 출석으로 세지 않습니다. (땡땡이·결석·벌점은 없습니다)\n\n그래도 갈까요?`) }finally{ if(G===g)busy=false }
+    if(!ok||G!==g||busy||G.loc!=='campus'||G.site||G.campaign.introSolved) return;
+  }
+  busy=true;
   G.campaign.introOrigin={district:G.district,spot:G.spot,spotKey:G.spotKey};
   const d=G.campaign.introSite||{intro:true,name:INTRO_SITE_NAME,theme:INTRO_SITE_THEME,pos:{...CAMPUS_POS},rooms:normRooms([{id:'r1',name:'특별교실동 입구',danger:0,exits:['r2']},{id:'r2',name:'비어 있는 준비실',danger:0,exits:['r1','r3']},{id:'r3',name:'방송 장비실',danger:0,exits:['r2']}],3),cur:'r1',depth:0};
   G.campaign.introSite=d;G.site=d;G.loc='site';G.spot=null;G.spotKey=null;d.rooms[0].visited=true;render();
