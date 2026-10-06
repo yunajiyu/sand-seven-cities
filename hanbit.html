@@ -324,6 +324,28 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 .maphead{flex-wrap:wrap}
 .maphead button{white-space:nowrap}
 @media (max-width:760px){ #zoomLbl{min-width:22px!important} .maptabs button,.maphead button{padding:4px 8px} }
+/* ---------- 모바일: 상태·탭·지도 머리줄을 한 줄씩만 써서 본문을 넓게 (넘치면 옆으로 밀어서 봄) ---------- */
+@media (max-width:760px){
+  .topbar{padding:4px 8px}
+  .tb{gap:6px}
+  .tb .small{padding:4px 8px;font-size:12.5px;white-space:nowrap;flex:0 0 auto}
+  .tb .stats{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;white-space:nowrap;gap:0 12px;font-size:13px;min-width:0;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tb .stats::-webkit-scrollbar{display:none}
+  .tb .stats .st{flex:0 0 auto}
+  .topbar .where,.topbar #needBar,#topFold{display:none}
+  #gameNav{flex-wrap:nowrap;overflow-x:auto;padding:3px 8px!important;gap:6px!important;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #gameNav::-webkit-scrollbar{display:none}
+  #gameNav button{flex:0 0 auto;white-space:nowrap;padding:5px 10px;font-size:13px}
+  .mapbox{padding-top:2px;padding-bottom:2px}
+  .maphead{flex-wrap:nowrap;overflow-x:auto;gap:6px;margin-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .maphead::-webkit-scrollbar{display:none}
+  .maphead>*{flex:0 0 auto}
+  .maphead .maptabs{margin-right:auto}
+  #zoomCtl{display:none!important}   /* 모바일에서는 지도가 가로 전체를 쓰므로 확대·축소 단추가 필요 없음 */
+  #game.mapcol .mapbox{display:none}   /* 접힌 지도의 머리줄은 숨기고 탭 줄 끝의 🗺 버튼으로 펼침 */
+  #game.mapcol .navmap{display:inline-block}
+}
+.navmap{display:none}
 /* ---------- 조사 수첩 ---------- */
 .rj-clue{border-left:3px solid var(--hl);padding:4px 10px;margin:6px 0;background:var(--bg);border-radius:0 8px 8px 0}
 .rj-clue.locked{border-left-color:var(--line);color:var(--muted)}
@@ -6003,7 +6025,7 @@ function cancelSocialActivity(id,reason='플레이어가 활동을 중단했다'
 }
 function renderSocialTabs(){
  if(!G)return;const panel=document.getElementById('socialPanel'),nav=document.getElementById('gameNav');
- if(nav)nav.innerHTML=[['play','🔎 이야기·조사'],['messages','💬 문자'],['dates','💕 데이트'],['outings','🧑‍🤝‍🧑 외출']].map(([id,n])=>`<button class="small ${gameTab===id?'primary':''}" onclick="switchGameTab('${id}')">${n}</button>`).join('');
+ if(nav)nav.innerHTML=[['play','🔎 이야기·조사'],['messages','💬 문자'],['dates','💕 데이트'],['outings','🧑‍🤝‍🧑 외출']].map(([id,n])=>`<button class="small ${gameTab===id?'primary':''}" onclick="switchGameTab('${id}')">${n}</button>`).join('')+'<button class="small navmap" onclick="toggleMap()" aria-label="지도 펼치기">🗺 지도</button>';
  const a=activeSocial();if(a&&a.where!==placeKey()&&!busy){a.status='cancelled';socialState().history.push({day:G.day,name:a.name,kind:a.kind,result:'장소를 떠나 활동 중단'});save()}
  for(const id of ['mapbox','log']){const e=document.getElementById(id);if(e)e.style.display=gameTab==='play'?'':'none'}
  const ctl=document.querySelector('#game .controls');if(ctl)ctl.style.display=gameTab==='play'?'':'none';
@@ -9125,6 +9147,7 @@ function renderMapPanel(){
   const box=document.getElementById('mapbox'); if(!box||!G) return;
   const col=isMapCollapsed();
   box.classList.toggle('collapsed',col);
+  document.getElementById('game')?.classList.toggle('mapcol',col);   // 모바일: 접힌 지도는 탭 줄의 🗺 버튼 하나로 대신함
   document.getElementById('mapToggle').textContent=col?'🗺 지도 펼치기':'지도 접기';
   updateYuminSpot();
   const sig=JSON.stringify([G.loc,G.nextPos,G.mapDone,(G.pausedZones||[]).map(r=>r.name),G.discovered,G.actDone,has('clubroom'),G.home.name,Object.keys(G.home.built),G.fragments,G.district,G.spot,(G.leads||[]).map(l=>l.id),G.hood,G.base,G.act,G.wards&&G.wards.map(c=>c.found),
