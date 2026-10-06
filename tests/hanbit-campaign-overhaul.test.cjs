@@ -38,6 +38,15 @@ let count=0;async function test(name,fn){const f=fixture();await fn(f);count++;c
 (async()=>{
 await test('New campaign is designed and reviewed before locking; three private links are absent from public context',async f=>{await root(f);assert.equal(f.run('campaignPlan().chapters.length'),3);assert.equal(f.run('api.length'),2);const prompt=f.run("buildPrompt('교실을 바라본다','')");for(const sentinel of ['ROOT_SECRET_853','PRIVATE_FRAGMENT_','LINK_lacuna','PRIVATE_LORE_'])assert.ok(!prompt.includes(sentinel),sentinel);assert.ok(!f.run('sysBase()').includes('일곱'));assert.match(f.run('sysBase()'),/주요 지역 세 곳/)});
 await test('World design rejects broken plans and failed independent reviews without saving answers',async f=>{setupAI(f);f.run('let callsN=0;callAI=async()=>{callsN++;return JSON.stringify({truth:"broken"})}');assert.equal(await f.run('genCampaignWorld()'),false);assert.equal(f.run('callsN'),3);assert.equal(f.run('G.campaign.world.status'),'pending');assert.equal(f.run('G.secret||null'),null);await f.run('startIntroMystery()');assert.equal(f.run('G.site'),null);});
+await test('Intro case place is the same in the design prompt, story context, goal text and buttons',async f=>{
+  await root(f);
+  const design=f.run("api[0].user");assert.match(design,/입문 사건은 본편과 독립된 작은 사건이며 장소는 항상 교내 「방과 후 특별교실동」/);assert.match(design,/중앙 캠퍼스 지구의 소문은 이 특별교실동 이야기로 쓴다/);
+  const prompt=f.run("buildPrompt('교실을 바라본다','')");assert.match(prompt,/\[입문 사건 장소\] 입문 사건은 항상 교내 「방과 후 특별교실동」/);
+  assert.match(f.run('campaignPublic().next'),/「방과 후 특별교실동」의 입문 사건 조사 시작/);
+  assert.match(f.run("fixedHTML()"),/입문 사건 · 방과 후 특별교실동 조사 시작/);
+  await f.run('startIntroMystery()');assert.equal(f.run('G.site.name'),'방과 후 특별교실동');
+  f.run('G.campaign.introSolved=true');assert.doesNotMatch(f.run("buildPrompt('교실을 바라본다','')"),/\[입문 사건 장소\]/);
+});
 await test('Failed world preparation tells the player the cause in plain words',async f=>{
   setupAI(f);f.run('callAI=async()=>{throw new Error("NO_KEY")}');assert.equal(await f.run('genCampaignWorld()'),false);
   assert.match(f.run('events.filter(e=>e.type==="sys").pop().text'),/본편을 준비하지 못했습니다 \(AI 키가 설정되어 있지 않습니다\)/);

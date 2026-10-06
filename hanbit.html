@@ -2128,7 +2128,7 @@ function gameActions(){
     add('zone:return','떠나온 지구로 귀환',()=>returnToCampus(),'move');
   }else if(G.loc==='campus'){
     for(const [id,d] of Object.entries(DISTRICTS)) if(id!==curDistrict()||spotOn()) add('district:'+id,d.n,()=>goDistrict(id),'move');
-    if(compactCampaign()&&!G.campaign.introSolved&&campaignPlan()) add('campaign:intro','입문 사건 조사',()=>startIntroMystery(),'investigate');
+    if(compactCampaign()&&!G.campaign.introSolved&&campaignPlan()) add('campaign:intro','입문 사건 조사 — '+INTRO_SITE_NAME,()=>startIntroMystery(),'investigate');
     add('spot:enter','학교 안의 새 임시장소로 이동 (to에 장소 이름)',(text,opt)=>enterTemporarySpot(opt.target,text,opt),'move');
     if(!spotOn()&&(PLACES[curDistrict()]||{}).clueP!=null) add('investigate:campus:'+curDistrict(),'현재 장소 조사하기',text=>browsePlace(curDistrict(),text),'investigate');
     if(!spotOn()&&has('clubroom')) add('home:enter','아지트로 이동',()=>goHome(),'move');
@@ -4356,10 +4356,11 @@ function campaignPlan(){
   try{return JSON.parse(w.sealed)}catch(e){return null}
 }
 function campaignChapter(key){return campaignPlan()?.chapters.find(c=>c.key===key)||null}
+const INTRO_SITE_NAME='방과 후 특별교실동', INTRO_SITE_THEME='닫힌 특별교실에서 반복되는 현상';   // 입문 사건은 항상 이곳에서 벌어진다 (서술·소문·버튼이 같은 장소를 가리키게)
 function campaignPublic(){
   if(!compactCampaign()) return null;
   const c=G.campaign,links=c.links||{};
-  const m=G.site?.mystery&&mysteryPublic(),next=!campaignPlan()?'본편 준비 재시도로 사건 구성을 준비하세요':!c.introSolved&&!G.site?.intro?'교내의 입문 사건 조사 시작 버튼을 누르세요':m&&!G.site.mystery.state.solved?(m.verification?'핵심 증거를 비교하고 '+m.verification.room+'에서 원인 후보와 근거를 선택해 검증하세요':'다음 조사 후보: '+m.next.join(' / ')):G.site?.intro?'교내로 돌아가 라쿠나 조사에 나서세요':G.site?.big&&!G.site.done?(G.site.key==='lacuna'?'출석부 보관실로 가서 출석부를 해독하세요':'지역의 심장으로 가서 검증한 기록을 본편에 연결하세요'):G.act<3?'정문 또는 지구에서 라쿠나 구역으로 떠나세요':G.act<4?'출석부가 가리키는 두 지역 중 남은 사건을 조사하세요':'확인한 세 연결 사실과 최종 진상을 비교하세요';
+  const m=G.site?.mystery&&mysteryPublic(),next=!campaignPlan()?'본편 준비 재시도로 사건 구성을 준비하세요':!c.introSolved&&!G.site?.intro?'교내 「'+INTRO_SITE_NAME+'」의 입문 사건 조사 시작 버튼을 누르세요':m&&!G.site.mystery.state.solved?(m.verification?'핵심 증거를 비교하고 '+m.verification.room+'에서 원인 후보와 근거를 선택해 검증하세요':'다음 조사 후보: '+m.next.join(' / ')):G.site?.intro?'교내로 돌아가 라쿠나 조사에 나서세요':G.site?.big&&!G.site.done?(G.site.key==='lacuna'?'출석부 보관실로 가서 출석부를 해독하세요':'지역의 심장으로 가서 검증한 기록을 본편에 연결하세요'):G.act<3?'정문 또는 지구에서 라쿠나 구역으로 떠나세요':G.act<4?'출석부가 가리키는 두 지역 중 남은 사건을 조사하세요':'확인한 세 연결 사실과 최종 진상을 비교하세요';
   return {next,stage:!campaignPlan()?'사건 준비':!c.introSolved?'입문 사건':G.act<3?'라쿠나 조사':G.act<4?'두 주요 구역 조사':'진상 확인',introSolved:!!c.introSolved,links:Object.entries(links).map(([key,x])=>({key,name:x.name,text:x.text})),goal:'입문 사건을 풀고 주요 지역 3곳의 검증된 사실을 연결한다. 기념 메달 조각 수집은 선택 활동이다.'};
 }
 function validateCampaign(p){
@@ -4383,7 +4384,7 @@ async function genCampaignWorld(){
   if(G.campaign.world?.status==='ready'){toast('본편 저장 기록이 손상됐습니다. 이전 저장본을 불러와 주세요');return false}
   const g=G;if(campaignWorldJob?.g===g)return campaignWorldJob.promise;
   const regions=[HOME_REGION,HOODS.east.n,HOODS.south.n,HOODS.north.n];
-  const prompt=`제작자도 정답을 모르는 학원 공포 추리 게임의 본편을 비공개로 설계한다. 새 게임마다 원인·관계·증거의 조합이 다른 사건을 만들되 추론 가능한 하나의 진상을 고정한다. 입문 사건은 본편과 독립된 작은 사건이고, 이후 주요 지역은 라쿠나(lacuna), 안개 기숙사(c0), 방송·음악 시설의 배수 터널(c1) 정확히 세 곳이다. 세 곳은 각각 본편 진상의 다른 부분(누가/어떤 과정으로/왜 지웠는지 등)을 증명한다. fragment는 비공개 담당 사실, link는 그 지역 사건을 해결한 후 공개할 관찰·기록의 연결 사실이다. link 세 개를 합치면 truth/detail을 설명해야 한다. 처음부터 전체 정답을 말하는 link는 금지한다. 아직 방문하지 않은 지역에 대한 증거를 대신 공개하지 않는다. opening/roster/rumors/riddle은 비밀을 누설하지 않는다. 공개 소문은 서로 다른 관점을 담고 증언과 사실을 구분한다. 기념 메달 조각 6개 수집이나 일곱 지역은 요구하지 않는다. 캐릭터: ${JSON.stringify(G.char)}. 소문 지역: ${JSON.stringify(regions)}. 공개 경로의 실제 좌표: ${JSON.stringify(wardPositions())}. 방위를 쓰면 이 좌표와 모순되지 않게 하라. 캐릭터의 전학 이유가 미정이면 entry_reason에 공개 가능한 한 문장을 적는다. 정답을 암시하지 않는다. JSON만: {"truth":"정체","detail":"진상의 경위","entry_reason":"전학 이유(기존 설정 유지)","opening":"전학 첫날 교실 문 앞 장면, 2인칭 현재형. 친구와 만남은 아직 없다","roster":"라쿠나에서 해독 후 공개할 두 다른 구역의 방향만","rumors":[{"region":"지역명","belief":"소문"}],"chapters":[{"key":"lacuna","role":"증명할 부분","fragment":"비공개 사실","link":"해결 후 공개할 연결 사실","riddle":"공개 현상","lore":"숨은 사연과 교칙"},{"key":"c0","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."},{"key":"c1","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."}]}`;
+  const prompt=`제작자도 정답을 모르는 학원 공포 추리 게임의 본편을 비공개로 설계한다. 새 게임마다 원인·관계·증거의 조합이 다른 사건을 만들되 추론 가능한 하나의 진상을 고정한다. 입문 사건은 본편과 독립된 작은 사건이며 장소는 항상 교내 「${INTRO_SITE_NAME}」(${INTRO_SITE_THEME})이다. opening·roster·rumors 어디에도 다른 장소를 입문 조사의 대상이나 첫 조사지로 암시하지 말고, ${HOME_REGION}의 소문은 이 특별교실동 이야기로 쓴다. 이후 주요 지역은 라쿠나(lacuna), 안개 기숙사(c0), 방송·음악 시설의 배수 터널(c1) 정확히 세 곳이다. 세 곳은 각각 본편 진상의 다른 부분(누가/어떤 과정으로/왜 지웠는지 등)을 증명한다. fragment는 비공개 담당 사실, link는 그 지역 사건을 해결한 후 공개할 관찰·기록의 연결 사실이다. link 세 개를 합치면 truth/detail을 설명해야 한다. 처음부터 전체 정답을 말하는 link는 금지한다. 아직 방문하지 않은 지역에 대한 증거를 대신 공개하지 않는다. opening/roster/rumors/riddle은 비밀을 누설하지 않는다. 공개 소문은 서로 다른 관점을 담고 증언과 사실을 구분한다. 기념 메달 조각 6개 수집이나 일곱 지역은 요구하지 않는다. 캐릭터: ${JSON.stringify(G.char)}. 소문 지역: ${JSON.stringify(regions)}. 공개 경로의 실제 좌표: ${JSON.stringify(wardPositions())}. 방위를 쓰면 이 좌표와 모순되지 않게 하라. 캐릭터의 전학 이유가 미정이면 entry_reason에 공개 가능한 한 문장을 적는다. 정답을 암시하지 않는다. JSON만: {"truth":"정체","detail":"진상의 경위","entry_reason":"전학 이유(기존 설정 유지)","opening":"전학 첫날 교실 문 앞 장면, 2인칭 현재형. 친구와 만남은 아직 없다","roster":"라쿠나에서 해독 후 공개할 두 다른 구역의 방향만","rumors":[{"region":"지역명","belief":"소문"}],"chapters":[{"key":"lacuna","role":"증명할 부분","fragment":"비공개 사실","link":"해결 후 공개할 연결 사실","riddle":"공개 현상","lore":"숨은 사연과 교칙"},{"key":"c0","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."},{"key":"c1","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."}]}`;
   const token={g};campaignWorldJob=token;
   token.promise=(async()=>{
     let issues=[],why='';
@@ -4412,7 +4413,7 @@ async function startIntroMystery(){
   if(!campaignPlan())return toast('본편 준비 재시도로 사건 구성을 먼저 준비해 주세요');
   const g=G;busy=true;
   G.campaign.introOrigin={district:G.district,spot:G.spot,spotKey:G.spotKey};
-  const d=G.campaign.introSite||{intro:true,name:'방과 후 특별교실동',theme:'닫힌 특별교실에서 반복되는 현상',pos:{...CAMPUS_POS},rooms:normRooms([{id:'r1',name:'특별교실동 입구',danger:0,exits:['r2']},{id:'r2',name:'비어 있는 준비실',danger:0,exits:['r1','r3']},{id:'r3',name:'방송 장비실',danger:0,exits:['r2']}],3),cur:'r1',depth:0};
+  const d=G.campaign.introSite||{intro:true,name:INTRO_SITE_NAME,theme:INTRO_SITE_THEME,pos:{...CAMPUS_POS},rooms:normRooms([{id:'r1',name:'특별교실동 입구',danger:0,exits:['r2']},{id:'r2',name:'비어 있는 준비실',danger:0,exits:['r1','r3']},{id:'r3',name:'방송 장비실',danger:0,exits:['r2']}],3),cur:'r1',depth:0};
   G.campaign.introSite=d;G.site=d;G.loc='site';G.spot=null;G.spotKey=null;d.rooms[0].visited=true;render();
   try{await ensureMystery(d);const opening=mysteryPlan(d)?.opening;if(G===g&&opening)addLog('scene',opening)}finally{if(G===g){busy=false;save();render()}}
 }
@@ -4428,9 +4429,9 @@ function campaignPanel(){
 function openCampaign(){modal('🧭 사건 진행과 본편 연결',campaignPanel())}
 on('fixed',8,L=>{
   if(!compactCampaign())return '';
-  return '<button onclick="openCampaign()">🧭 현재 목표·본편 연결</button>'+(!campaignPlan()?'<button onclick="prepareCampaign()">🔄 본편 준비 재시도</button>':L==='campus'&&!G.campaign.introSolved?'<button class="primary" onclick="startIntroMystery()">🔎 입문 사건 '+(G.campaign.introSite?'이어서 조사':'조사 시작')+'</button>':'');
+  return '<button onclick="openCampaign()">🧭 현재 목표·본편 연결</button>'+(!campaignPlan()?'<button onclick="prepareCampaign()">🔄 본편 준비 재시도</button>':L==='campus'&&!G.campaign.introSolved?'<button class="primary" onclick="startIntroMystery()">🔎 입문 사건 · '+INTRO_SITE_NAME+' '+(G.campaign.introSite?'이어서 조사':'조사 시작')+'</button>':'');
 });
-on('context',48,()=>compactCampaign()?'\n[개편 본편의 공개 진행] '+JSON.stringify(campaignPublic())+'\n본편 정답은 비공개로 고정됐다. 미해결 지역의 원인과 연결 사실을 새로 만들거나 미리 공개하지 않는다.':'' );
+on('context',48,()=>compactCampaign()?'\n[개편 본편의 공개 진행] '+JSON.stringify(campaignPublic())+'\n본편 정답은 비공개로 고정됐다. 미해결 지역의 원인과 연결 사실을 새로 만들거나 미리 공개하지 않는다.'+(G.campaign.introSolved?'':'\n[입문 사건 장소] 입문 사건은 항상 교내 「'+INTRO_SITE_NAME+'」('+INTRO_SITE_THEME+')에서 벌어진다. 소문·단서·조사 제안에서 입문 조사 대상이나 첫 조사지로 다른 장소(예: 다른 지구의 폐건물)를 만들어 내지 말고, 입문 사건과 관련된 소문·분위기는 이 장소 이야기로만 쓴다.'):'' );
 function mysteryDeductionHTML(d=G.site){
   const p=mysteryPlan(d);if(!p?.deduction)return '';
   const x=mysteryPublic(d),all=p.evidence.every(e=>d.mystery.state.found.includes(e.id));if(!all)return '<p>핵심 증거를 모두 확인하면 원인 후보를 비교할 수 있습니다.</p>';
