@@ -108,6 +108,31 @@ await test('Saves made before this rule keep working: started games count as hea
   f.run('delete G.campaign.introHeard;G.campaign.introSite={intro:true};migrate()');assert.equal(f.run('G.campaign.introHeard'),true);
   f.run('delete G.campaign.introHeard;G.campaign.introSite=null;G.campaign.introSolved=true;migrate()');assert.equal(f.run('G.campaign.introHeard'),true);
 });
+await test('Minor AI format slips in public room views are repaired instead of failing the case',async f=>{
+  await intro(f);
+  const fix=mut=>{f.run('globalThis.cdraft=caseDraft();'+mut);return f.obj('(()=>{cdraft=normalizeMysteryDraft(cdraft,G.site);return validateMystery(cdraft,G.site)})()')};
+  assert.deepEqual(fix(''),[]);
+  assert.deepEqual(fix('cdraft.room_views.forEach(v=>{v.room=G.site.rooms.find(r=>r.id===v.room).name})'),[]);
+  assert.deepEqual(fix("cdraft.room_views.forEach(v=>{v.text='가'.repeat(700)+'다. 마지막 문장'})"),[]);
+  assert.ok(f.run('cdraft.room_views.every(v=>v.text.length<=400)'));
+  assert.deepEqual(fix('cdraft.room_views.forEach(v=>{v.room="  "+v.room+" "})'),[]);
+});
+await test('Remaining room-view failures say exactly what is wrong',async f=>{
+  await intro(f);
+  const why=mut=>{f.run('globalThis.cdraft=caseDraft();'+mut);return f.obj('(()=>{cdraft=normalizeMysteryDraft(cdraft,G.site);return validateMystery(cdraft,G.site)})()').join('|')};
+  assert.match(why('cdraft.room_views.pop()'),/공개 공간 묘사\(공간 3개 중 2개만 있음\)/);
+  assert.match(why('cdraft.room_views[0].room="없는방ZZ"'),/공개 공간 묘사\(room에 공간 ID가 아닌 값이 있음\)/);
+  assert.match(why("cdraft.room_views[0].text='응'"),/공개 공간 묘사\(각 text는 4~400자여야 함\)/);
+  assert.match(why('cdraft.room_views=null'),/room_views가 목록이 아님/);
+});
+await test('A draft with room names and over-long views still becomes a sealed case end to end',async f=>{
+  await root(f);
+  f.run("const orig=callAI;callAI=async(sys,user)=>{if(sys.includes('비공개 미스터리 설계자')){const c=caseDraft();c.room_views.forEach(v=>{v.room=G.site.rooms.find(r=>r.id===v.room).name;v.text='가'.repeat(700)+'다.'});return JSON.stringify(c)}return orig(sys,user)}");
+  await f.run('startIntroMystery()');assert.equal(f.run('G.site.mystery.status'),'ready');assert.ok(f.run('!!mysteryPlan(G.site)'));
+});
+await test('The design prompt spells out the room-view rules',async f=>{
+  await intro(f);assert.match(f.run('mysteryPrompt(G.site)'),/room_views는 위 공간 목록의 모든 공간마다 정확히 하나씩 쓰고 room에는 공간 ID\(r1 등\)를 그대로 넣으며 text는 400자 이하/);
+});
 await test('Failed world preparation tells the player the cause in plain words',async f=>{
   setupAI(f);f.run('callAI=async()=>{throw new Error("NO_KEY")}');assert.equal(await f.run('genCampaignWorld()'),false);
   assert.match(f.run('events.filter(e=>e.type==="sys").pop().text'),/본편을 준비하지 못했습니다 \(AI 키가 설정되어 있지 않습니다\)/);
