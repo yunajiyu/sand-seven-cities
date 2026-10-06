@@ -61,10 +61,10 @@ await test('System instructions use fixed answers and remove obsolete compact-ca
  f.run('seed();G.campaign={version:1};const instructions=sysBase()');
  assert.ok(!f.run('instructions').includes('진상(구역이 지워진 이유, 출석부의 정체, 교표의 비밀, 엔딩)은 정해져 있지 않다'));
  assert.ok(!f.run('instructions').includes('플레이 중 네가 일관되게 정하되'));
- assert.ok(!f.run('instructions').includes('8개 모으기'));
+ assert.ok(!f.run('instructions').includes('6개 모으기'));
  assert.ok(!f.run('instructions').includes('애시우드 구역'));
  assert.ok(f.run('instructions').includes('정답·핵심 증거는 비공개 설계에 미리 정해져 있다'));
- f.run('delete G.campaign');assert.ok(f.run('sysBase()').includes('교표 조각 8개 모으기'));
+ f.run('delete G.campaign');assert.ok(f.run('sysBase()').includes('기념 메달 조각 6개 모으기'));
 });
 await test('A matching scene is reviewed before display without disclosing unseen evidence or answers',async f=>{
  await prepared(f);f.run(`const core=${JSON.stringify(candidate.evidence[0].text)};callAI=async(sys,user)=>{api.push({sys,user});return JSON.stringify(sys.includes('본문 일치 검토자')?{valid:true,issues:[]}:{narration:'바람이 문틈을 스친다. '+core,choices:[],effects:{}})}`);
@@ -95,6 +95,22 @@ await test('Exact private-answer leakage is blocked locally and never sent to th
 await test('Late narration review cannot mutate or unlock a replacement game',async f=>{
  await prepared(f);f.run(`let releaseReview;const core=${JSON.stringify(candidate.evidence[0].text)};callAI=async(sys)=>sys.includes('본문 일치 검토자')?new Promise(r=>releaseReview=r):JSON.stringify({narration:core,choices:[],effects:{}});const pending=aiTurn('입구를 조사한다')`);
  await new Promise(r=>setImmediate(r));assert.equal(f.run('typeof releaseReview'),'function');f.run('seed("campus");busy=true;const replacementTurn={g:G};curTurn=replacementTurn;G.choiceMeta={keep:{type:"story"}};releaseReview(JSON.stringify({valid:false,issues:["문제"]}))');await f.run('pending');assert.equal(f.run('busy'),true);assert.equal(f.run('curTurn===replacementTurn'),true);assert.equal(f.run('G.choiceMeta.keep.type'),'story');assert.equal(f.run('G.evidence.length'),0);
+});
+await test('Medal completion pays cash and bonus XP once, independently of main progress',f=>{
+ f.run('seed("campus");G.campaign={version:1,links:{},introSolved:false};G.fragments=5;G.xp=0;G.growth=0;const beforeCash=G.cash');assert.equal(f.run('grantMedalReward()'),false);f.run('G.fragments=6');assert.equal(f.run('grantMedalReward()'),true);assert.equal(f.run('G.cash'),f.run('beforeCash')+300);assert.equal(f.run('G.xp'),3);assert.equal(f.run('G.medalRewardClaimed'),true);assert.equal(f.run('G.campaign.introSolved'),false);assert.equal(f.run('G.actDone||false'),false);assert.equal(f.run('grantMedalReward()'),false);assert.equal(f.run('G.cash'),f.run('beforeCash')+300);
+});
+await test('Completed old saves receive the medal bonus once; reload and recovered medals do not repay',f=>{
+ f.run('seed("campus");G.fragments=8;delete G.medalRewardClaimed;migrate();const beforeCash=G.cash;grantMedalReward();G=JSON.parse(JSON.stringify(G));migrate();G.fragments=5');assert.equal(f.run('grantMedalReward()'),false);f.run('G.fragments=6');assert.equal(f.run('grantMedalReward()'),false);assert.equal(f.run('G.cash'),f.run('beforeCash')+300);assert.equal(f.run('G.xp'),3);
+});
+await test('A code-selected optional medal survives canonical fallback without becoming core evidence',async f=>{
+ await prepared(f);f.run('G.fragments=5;G._fragMax=5;G.xp=0;G.site.rooms[0].fragment=true;Math.random=()=>0;const sealed=G.site.mystery.sealed;const beforeCash=G.cash');await f.run("aiTurn('입구를 조사한다')");assert.equal(f.run('G.fragments'),6);assert.equal(f.run('G.site.rooms[0].fragTaken'),true);assert.equal(f.run('G.evidence.length'),1);assert.equal(f.run('G.evidence[0].text'),candidate.evidence[0].text);assert.equal(f.run('G.site.mystery.sealed'),f.run('sealed'));assert.equal(f.run('G.cash'),f.run('beforeCash')+300);f.run('fragXpCheck();grantMedalReward()');assert.equal(f.run('G.xp'),4);await f.run("aiTurn('입구를 다시 조사한다')");assert.equal(f.run('G.fragments'),6);assert.equal(f.run('G.cash'),f.run('beforeCash')+300);
+});
+await test('Dark and story-only actions cannot acquire optional medals from forged narrative or effects',async f=>{
+ await prepared(f);f.run('G.fragments=0;G.site.rooms[0].fragment=true;Math.random=()=>0;G.torch=0;callAI=async(sys)=>JSON.stringify(sys.includes("본문 일치 검토자")?{valid:true,issues:[]}:{narration:"기념 메달 조각을 발견하고 손에 넣었다.",choices:[],effects:{메달조각:true}})');await f.run("aiTurn('입구를 조사한다')");assert.equal(f.run('G.fragments'),0);f.run('G.torch=3;pend("",{storyOnly:true})');await f.run("aiTurn('입구를 조사한다')");assert.equal(f.run('G.fragments'),0);assert.equal(f.run('G.site.rooms[0].fragTaken||false'),false);
+ f.run('callAI=async(sys)=>JSON.stringify(sys.includes("본문 일치 검토자")?{valid:true,issues:[]}:{narration:"너는 조용히 기다린다.",choices:[],effects:{items_add:[{name:"기념 메달 조각",key:true}],메달조각:true}})');await f.run("aiTurn('조용히 기다린다')");assert.equal(f.run('G.fragments'),0);assert.ok(!f.obj('G.items').includes('기념 메달 조각'));
+});
+await test('Both medal and old emblem effect labels are compatible while public UI uses medals',f=>{
+ assert.equal(f.run('koEffects({메달조각:true}).fragment'),true);assert.equal(f.run('koEffects({교표조각:true}).fragment'),true);assert.equal(f.run('fragFoundIn("기념 메달 조각을 발견하고 손에 넣었다.")'),true);assert.equal(f.run('fragFoundIn("기념 메달 조각을 발견한 줄 알았지만 가짜였다.")'),false);assert.ok(!html.includes('교표 조각'));assert.ok(html.includes('6개 완성 보상: 캐시'));
 });
 console.log(`${count} private-mystery scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
