@@ -4656,6 +4656,7 @@ function roomViewIssue(p,d,rooms,text){
   if(new Set(v.map(r=>r.room)).size!==d.rooms.length) return '공개 공간 묘사(같은 공간이 중복됨)';
   return '공개 공간 묘사(각 text는 4~400자여야 함)';
 }
+const LEN_TELL_RATIO=1.6, LEN_TELL_MIN=10;   // 길이 차이가 이 비율 이상이면서 이 글자 수 이상일 때만 '티 남'으로 본다
 function validateMystery(p,d){
   const errors=[], rooms=new Set(d.rooms.map(r=>r.id)), reached=new Set(), visit=id=>{ if(reached.has(id)||!rooms.has(id)) return; reached.add(id); const r=d.rooms.find(r=>r.id===id); (r.exits||[]).forEach(visit) }; visit(d.rooms[0].id);
   const text=(v,max=400)=>typeof v==='string'&&v.trim().length>=4&&v.length<=max;
@@ -4676,6 +4677,12 @@ function validateMystery(p,d){
   }
   if(q&&Array.isArray(q.supports)&&q.supports.some(id=>!coreIds.has(id)))errors.push('deduction.supports에 함정 증거가 들어감');
   if(decoy.length>1||(d.deductionRequired&&decoy.length!==1)||(!q&&decoy.length))errors.push('함정 증거는 정확히 1개(원인 후보가 있을 때만)');
+  /* 문장 모양으로 답이 드러나지 않게: 정답 후보만 유독 길거나, 함정 증거만 유독 짧거나 긴 경우 (AI 호출 없는 글자 수 비교) */
+  { const len=t=>String(t||'').replace(/\s+/g,'').length, avg=a=>a.reduce((x,y)=>x+y,0)/Math.max(1,a.length);
+    const ans=hs.find(h=>h&&h.id===q?.answer_id), others=hs.filter(h=>h&&h!==ans).map(h=>len(h.text));
+    if(ans&&others.length){ const a=len(ans.text),o=avg(others); if(a>o*LEN_TELL_RATIO&&a-o>=LEN_TELL_MIN) errors.push('정답 후보만 다른 후보보다 눈에 띄게 길다 — 세 후보의 길이·구체성을 비슷하게') }
+    const coreLen=avg(core.map(e=>len(e.text)));
+    for(const x of decoy){ const r=len(x.text)/Math.max(1,coreLen); if(core.length&&(r>LEN_TELL_RATIO||r<1/LEN_TELL_RATIO)&&Math.abs(len(x.text)-coreLen)>=LEN_TELL_MIN) errors.push('함정 증거 문장 길이가 핵심 증거와 눈에 띄게 다르다 — 비슷한 길이·구체성으로') } }
   for(const x of decoy){
     if(!hs.some(h=>h&&h.id===x.points_to)||x.points_to===q?.answer_id)errors.push('함정 증거 points_to는 오답 후보 ID');
     if(!coreIds.has(x.refuted_by))errors.push('함정 증거 refuted_by는 핵심 증거 ID');
@@ -4722,7 +4729,7 @@ async function ensureMystery(d=G&&G.site){
         issues=validateMystery(p,d); if(issues.length){ why='구성 검증 실패: '+issues.slice(0,3).join(', '); continue }
         review=parseJSON(await callAI('너는 미스터리의 독립 검토자다. 내용은 플레이어에게 공개하지 않는다. JSON만 출력한다.',`사건의 원인과 증거가 모순 없는지, 증거를 통해 추론 가능한지, 함정 증거(decoy)가 그럴듯한지(그것만 보면 points_to 오답이 맞아 보이는지), refuted_by 핵심 증거와 함께 보면 그 오답이 실제로 반박되는지, 함정 증거가 text·meaning·action의 길이나 문장 모양으로 티 나지 않는지, action 문장이 그 증거를 얻는 구체적 행동인지, 검증 행동이 원인을 확인하는지, 공개 question/opening/room_views/meaning이 숨겨진 답과 미발견 증거를 누설하지 않는지 검토하라. 기존 공개 사실을 지키는지도 확인한다. deduction이 있으면 정답 후보가 공개 증거로 구별 가능하고 supports가 실제 추론 근거인지, 오답이 증거로 반박 가능한지 확인한다. main_link가 있으면 사건의 결론과 증거가 그 사실을 입증하고 미방문 구역이나 전체 진상을 누설하지 않는지 확인한다. 문제가 있으면 valid:false와 구체적인 issues를 적는다. 단순 칭찬 금지.\n${mysteryPrompt(d)}\n후보: ${JSON.stringify(p)}\nJSON: {"valid":true,"issues":[]}`,900,'world'));
         if(G!==g) return null;
-        if(!review||review.valid!==true){ issues=Array.isArray(review&&review.issues)?review.issues.slice(0,6):['의미 검토 실패']; why='검토 불합격: '+issues.slice(0,2).join(', '); continue }
+        if(!review||review.valid!==true){ issues=Array.isArray(review&&review.issues)?review.issues.slice(0,6):['의미 검토 실패']; why='검토 불합격 (검토 의견은 정답 유출을 막기 위해 표시하지 않습니다)'; continue }
       }catch(e){ why=prepFailText(e); if(e.message==='NO_KEY') break; issues=['생성 또는 검토 응답 오류']; continue }
       if(p.deduction){for(let i=p.deduction.hypotheses.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[p.deduction.hypotheses[i],p.deduction.hypotheses[j]]=[p.deduction.hypotheses[j],p.deduction.hypotheses[i]]}}
       const sealed=JSON.stringify(p), old=(g.threads||[]).find(t=>t.id===d.caseId&&t.status==='open');
