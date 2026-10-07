@@ -95,9 +95,10 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 .slidehint{display:none}
 .fixed{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .fixed button{font-size:13px;padding:6px 10px}
-.hscroll{display:flex;flex-wrap:nowrap;gap:6px;flex:0 0 100%;width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.hscroll{display:flex;flex-wrap:nowrap;align-items:flex-start;gap:6px;flex:0 0 100%;width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 .hscroll button{flex:0 0 auto;white-space:nowrap}
-@media (min-width:600px){ .hscroll{flex-wrap:wrap;overflow-x:visible;padding-bottom:0} .hscroll button{white-space:normal;text-align:left} }   /* 태블릿 이상: 버튼이 잘리지 않고 줄바꿈 */
+.hscroll>:not(button){flex:0 0 auto;max-width:100%}   /* 버튼이 아닌 항목이 한 글자 폭으로 눌려 세로로 터지는 것을 막는다 */
+@media (min-width:600px){ .hscroll{flex-wrap:wrap;overflow-x:visible;padding-bottom:0;align-items:stretch} .hscroll button{white-space:normal;text-align:left} }   /* 태블릿 이상: 버튼이 잘리지 않고 줄바꿈 */
 .free{display:flex;gap:6px}
 .chat{display:flex;flex-direction:column;gap:6px;max-height:42dvh;overflow-y:auto;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--bg);margin-bottom:8px;min-height:90px}
 .bub{max-width:82%;padding:6px 11px;border-radius:14px;font-size:14.5px;line-height:1.45;word-break:keep-all;white-space:pre-wrap}
@@ -312,6 +313,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 
 /* ---------- 선택지·버튼 표시 ---------- */
 .lbl{grid-column:1/-1;flex:0 0 100%;font-size:11.5px;color:var(--muted);margin:2px 2px 0;letter-spacing:.2px}
+.lbl.hint{margin:4px 2px 0;font-size:12.5px;line-height:1.5}
 .fixed button.mv{border-style:dashed}
 .choices .lbl+button{margin-top:0}
 #intentChip{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--bg);border:1px dashed var(--accent);border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:13.5px}
@@ -2906,6 +2908,7 @@ let _floorTab=null;
 function setFloorTab(f){ _floorTab={d:curDistrict(),f}; render() }
 function campusFixedHTML(){
   const d=curDistrict(), sp=spotOn();
+  let hint='';   // 버튼이 아닌 안내 문장은 한 줄 스크롤 버튼 줄(.hscroll) 안에 넣지 않고 줄 아래에 따로 보인다
   const ft=(_floorTab&&_floorTab.d===d)?_floorTab.f:floorOf(d);
   const tabs=FLOORS.map(([f,nm])=>`<button class="small ${f===ft?'primary':''}" style="${f===floorOf(d)&&f!==ft?'outline:1px dashed var(--accent)':''}" onclick="setFloorTab('${f}')">${nm}${f===floorOf(d)?' 📍':''}</button>`).join('');
   const bar=tabs+'<div style="flex-basis:100%;height:0"></div>'+Object.keys(PLACES).filter(k=>PLACES[k].fl===ft).map(k=>`<button class="small ${k===d&&!sp?'primary':''}" ${k===d&&!sp?'disabled':''} onclick="goDistrict('${k}')">${PLACES[k].ic} ${PLACES[k].n}</button>`).join('');
@@ -2913,7 +2916,7 @@ function campusFixedHTML(){
   if(sp) a=`<button class="primary" onclick="goDistrict('${d}')">↩ ${DISTRICTS[d].n}${josa(DISTRICTS[d].n,'으로','로')} 돌아가기</button>`;
   else if((PLACES[d]||{}).t==='hall') a=`<button onclick="strollHall()">🚶 ${PLACES[d].n} 거닐기</button>`;
   else if(d==='nurse') a=`<button onclick="nurseRest()">🩹 보건실에서 쉬기 (하루 한 번)</button>`;
-  else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="browsePlace('bank')">🔎 ${PLACES.bank.n} 둘러보기</button>`+jobHTML('bank')+`<button ${has('clubroom')||canPay(land.cost)?'class="primary"':''} onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>`+(has('clubroom')?'':`<p class="muted" style="flex-basis:100%;margin:2px 4px">아지트를 마련하려면 캐시 ${land.cost.cash}이 필요합니다. 쉬는 시간·점심시간·방과 후에 아르바이트로 캐시를 모을 수 있어요(둑길 정리 도우미, 매점, 배식, 도서관 정리 등).</p>`) }
+  else if(d==='bank'){ const land=FAC.find(f=>f.id==='clubroom'); a=`<button onclick="browsePlace('bank')">🔎 ${PLACES.bank.n} 둘러보기</button>`+jobHTML('bank')+`<button ${has('clubroom')||canPay(land.cost)?'class="primary"':''} onclick="goHome()">🏠 ${has('clubroom')?'아지트로':(canPay(land.cost)?'아지트 마련하기 (💳'+land.cost.cash+')':'아지트 마련하기 (캐시 부족 💳'+G.cash+'/'+land.cost.cash+')')}</button>`;if(!has('clubroom'))hint=`아지트를 마련하려면 캐시 ${land.cost.cash}이 필요합니다. 쉬는 시간·점심시간·방과 후에 아르바이트로 캐시를 모을 수 있어요(둑길 정리 도우미, 매점, 배식, 도서관 정리 등).` }
   else if((PLACES[d]||{}).clueP!=null) a=`<button onclick="browsePlace('${d}')">🔎 ${PLACES[d].n} 둘러보기</button>`+jobHTML(d);
   else if(d==='snack') a=`<button onclick="openShop()">🥪 매점 (간식·진정 음료·배터리)</button>`+jobHTML('snack');
   else if(d==='office') a=`<button onclick="officeTalk()">🏢 담임 선생님과 면담</button>`+penanceHTML('write')+jobHTML('office');
@@ -2935,7 +2938,7 @@ function campusFixedHTML(){
       a+=here?`<button onclick="talkYumin()">🎵 유민에게 말 걸기</button>`:`<button onclick="seekYumin()">🎵 유민 만나러 가기 <span class="muted">(지금: ${esc(yuminWhereText())})</span></button>`;
     }
   }
-  return {mv:bar,mvLbl:sp?`📍 ${esc(G.spot.name)} (임시 장소) · ${DISTRICTS[d].n} 지점 · 장소 이동`:`📍 ${DISTRICTS[d].n} (${floorName(floorOf(d))}) · 장소 이동`,ac:a,acLbl:(schoolInfo()?schoolInfo()+' · ':'')+'🧭 행동'};
+  return {mv:bar,mvLbl:sp?`📍 ${esc(G.spot.name)} (임시 장소) · ${DISTRICTS[d].n} 지점 · 장소 이동`:`📍 ${DISTRICTS[d].n} (${floorName(floorOf(d))}) · 장소 이동`,ac:a,acLbl:(schoolInfo()?schoolInfo()+' · ':'')+'🧭 행동',hint};
 }
 on('context',90,()=>{
   if(G.loc!=='campus'||spotOn()) return '';
@@ -9173,9 +9176,9 @@ function fixedHTML(){
   if(G.fight) return fightFixedHTML();
   const L=G.loc, d=G.site;
   const btn=(on,txt,cls,attr)=>`<button ${cls?`class="${cls}"`:''} ${attr||''} onclick="${on}">${txt}</button>`;
-  let mv='', mvLbl='', ac='', acLbl='🧭 행동';
+  let mv='', mvLbl='', ac='', acLbl='🧭 행동', hint='';
   if(L==='campus'||L==='hood'){
-    const o=L==='campus'?campusFixedHTML():hoodFixedHTML(); ({mv,mvLbl,ac,acLbl}=o);
+    const o=L==='campus'?campusFixedHTML():hoodFixedHTML(); ({mv,mvLbl,ac,acLbl}=o); hint=o.hint||'';
   }else if(L==='site'&&d){
     const r=curRoom(), fd=has('lab')?fragDist():null, p=siteProg();
     mvLbl='🧭 공간 이동 · 나가기 · 귀환';
@@ -9226,6 +9229,7 @@ function fixedHTML(){
   if(forecast&&!d?.intro) h+=`<div class="lbl ${forecast.late||forecast.urgent?'warn':''}">🕒 ${esc(forecast.text)} (바로 귀환 · 돌발 지연 제외)</div>`;
   if(mv) h+=`<div class="hscroll">${mv}</div>`+(mvLbl?`<div class="lbl">${mvLbl}</div>`:'');
   if(ac) h+=`<div class="hscroll">${ac}</div>`+(acLbl?`<div class="lbl">${acLbl}</div>`:'');
+  if(hint) h+=`<div class="lbl hint">${esc(hint)}</div>`;
   return h;
 }
 function fragDist(){

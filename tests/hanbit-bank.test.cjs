@@ -27,7 +27,8 @@ const setup=(f,cash)=>f.run(`G.loc='campus';G.district='bank';G.spot=null;G.time
 test('Bank offers looking around, a part-time job and the hideout with a cash hint',f=>{
   setup(f,36);const ac=f.run('campusFixedHTML().ac');
   assert.match(ac,/🔎 저수지 둑길 둘러보기/);assert.match(ac,/💼 둑길 정리 도우미 \(💳5~8/);
-  assert.match(ac,/아지트 마련하기 \(캐시 부족 💳36\/60\)/);assert.match(ac,/아지트를 마련하려면 캐시 60이 필요합니다.*아르바이트로 캐시를 모을 수 있어요/);
+  assert.match(ac,/아지트 마련하기 \(캐시 부족 💳36\/60\)/);assert.doesNotMatch(ac,/아지트를 마련하려면/);   // 안내 문장은 한 줄 스크롤 버튼 줄 밖(줄 아래 라벨)에 보인다
+  assert.match(f.run('fixedHTML()'),/<div class="lbl hint">아지트를 마련하려면 캐시 60이 필요합니다.*아르바이트로 캐시를 모을 수 있어요/);
   assert.doesNotMatch(ac,/class="primary" onclick="goHome\(\)"/);   // 아직 살 수 없으면 강조하지 않음
 });
 test('With enough cash the hideout button is highlighted; once owned the hint disappears',f=>{
