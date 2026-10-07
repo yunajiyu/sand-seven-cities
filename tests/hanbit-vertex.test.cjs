@@ -201,5 +201,54 @@ await test('Browsers without AbortSignal.timeout still get a time limit instead 
  assert.equal(await f.run("callAI('s','u')"),'장면');assert.ok(f.run('seen[seen.length-1]&&typeof seen[seen.length-1].aborted==="boolean"'));
  f.ctx.AbortController=undefined;f.run('seen.length=0');assert.equal(await f.run("callAI('s','u')"),'장면');
 });
+// ---- 「이 기기에서 연결 기억하기」: IndexedDB에는 추출 불가 CryptoKey와 공개 정보만 ----
+function fakeIDB(data=new Map()){const stores=new Set();return {data,open(){const q={};setImmediate(()=>{const db={objectStoreNames:{contains:n=>stores.has(n)},createObjectStore:n=>{stores.add(n)},close(){},transaction(){const tx={};const os={put(v,k){data.set(k,v);return {result:k}},get(k){return {result:data.get(k)}},delete(k){data.delete(k);return {result:undefined}}};tx.objectStore=()=>os;setImmediate(()=>tx.oncomplete&&tx.oncomplete());return tx}};q.result=db;q.onupgradeneeded&&q.onupgradeneeded();q.onsuccess()});return q}}}
+function rememberFixture(idb,checked=true){const f=browserFixture();f.ctx.indexedDB=idb;f.run(`const fields={sVertexMode:{value:'browser'},sVertexLocation:{value:'global'},vertexStatus:{textContent:''},sVertexRemember:{checked:${checked}}};AI_ROLES.forEach(r=>{fields['rp_'+r.k]={value:'gemini'};fields['rm_'+r.k]={value:''};fields['re_'+r.k]={value:'low'}});document.getElementById=id=>fields[id]||null;const pick=()=>({value:'k.json',files:[{size:1000,text:async()=>jsonKeyText}]})`);return f}
+const PRIVATE=/PRIVATE KEY|private_key|service_account|synthetic-token|BEGIN|token_uri|evil\.example/;
+await test('Remember on: only a non-extractable key and public signing info are stored — never the PEM or JSON text',async()=>{
+ const idb=fakeIDB(),f=rememberFixture(idb);await f.run('selectVertexJSON(pick())');
+ assert.match(f.run('fields.vertexStatus.textContent'),/이 기기에서 기억합니다/);
+ const rec=idb.data.get('browser');assert.ok(rec);assert.deepEqual(Object.keys(rec).sort(),['email','key','keyId','project','tokenUrl','v']);
+ assert.equal(rec.key.extractable,false);assert.equal(rec.key.type,'private');assert.equal(rec.tokenUrl,'https://oauth2.googleapis.com/token');assert.equal(rec.project,'test-project');
+ const {key,...pub}=rec;assert.doesNotMatch(JSON.stringify(pub),PRIVATE);await assert.rejects(crypto.webcrypto.subtle.exportKey('pkcs8',rec.key));
+ assert.doesNotMatch(f.run('JSON.stringify(SET)'),PRIVATE);
+});
+await test('After a reload the remembered connection is restored and signs a fresh token request',async()=>{
+ const idb=fakeIDB();await rememberFixture(idb).run('selectVertexJSON(pick())');
+ const f=rememberFixture(idb);assert.equal(f.run('VERTEX_BROWSER'),null);await f.run('vertexRestore()');
+ assert.equal(f.run('VERTEX_BROWSER.remembered'),true);assert.match(f.run('fields.vertexStatus.textContent'),/^기억된 연결 · test-project$/);assert.equal(f.run('aiProviderReady("vertex")'),true);
+ assert.equal(await f.run("callAI('s','u',1200,'story')"),'장면');
+ const tok=f.obj("browserRequests.find(r=>r.url.endsWith('/token'))");assert.equal(tok.url,'https://oauth2.googleapis.com/token');
+ const [h,p,sig]=new URLSearchParams(tok.opt.body).get('assertion').split('.');assert.ok(crypto.verify('RSA-SHA256',Buffer.from(h+'.'+p),pair.publicKey,Buffer.from(sig,'base64url')));
+ assert.match(f.run("browserRequests.at(-1).url"),/test-project/);
+});
+await test('Remember off stores nothing and clears an older remembered connection; disconnect deletes it too',async()=>{
+ const idb=fakeIDB();await rememberFixture(idb,false).run('selectVertexJSON(pick())');assert.equal(idb.data.size,0);
+ await rememberFixture(idb).run('selectVertexJSON(pick())');assert.equal(idb.data.size,1);
+ await rememberFixture(idb,false).run('selectVertexJSON(pick())');assert.equal(idb.data.size,0,'re-selecting with the box off forgets the old one');
+ const f=rememberFixture(idb);await f.run('selectVertexJSON(pick())');assert.equal(idb.data.size,1);f.run('disconnectVertex()');await new Promise(r=>setTimeout(r,20));assert.equal(idb.data.size,0);
+ const g=rememberFixture(idb);assert.equal(await g.run('vertexRestore()'),null);assert.equal(g.run('aiProviderReady("vertex")'),false);
+});
+await test('A rejected remembered key is deleted and the player is told to choose the file again',async()=>{
+ const idb=fakeIDB();await rememberFixture(idb).run('selectVertexJSON(pick())');
+ const f=rememberFixture(idb);await f.run('vertexRestore()');f.run("fetch=async()=>({ok:false,status:400,json:async()=>({error:'invalid_grant'})})");
+ await assert.rejects(f.run("callAI('s','u')"),/다시 선택/);assert.equal(f.run('VERTEX_BROWSER'),null);await new Promise(r=>setTimeout(r,20));assert.equal(idb.data.size,0);assert.match(f.run('fields.vertexStatus.textContent'),/다시 선택/);
+ // 생성 요청이 계속 401이어도 지운다
+ await rememberFixture(idb).run('selectVertexJSON(pick())');const g=rememberFixture(idb);await g.run('vertexRestore()');
+ g.run("const realFetch=fetch;fetch=async(url,opt)=>url.endsWith('/token')?realFetch(url,opt):{ok:false,status:401,json:async()=>({})}");await assert.rejects(g.run("callAI('s','u')"),/다시 선택/);await new Promise(r=>setTimeout(r,20));assert.equal(idb.data.size,0);
+});
+await test('Tampered or extractable records are never restored; no IndexedDB quietly falls back to memory only',async()=>{
+ const idb=fakeIDB();await rememberFixture(idb).run('selectVertexJSON(pick())');const good=idb.data.get('browser');
+ const ext=await crypto.webcrypto.subtle.importKey('pkcs8',pair.privateKey.export({format:'der',type:'pkcs8'}),{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},true,['sign']);
+ for(const bad of [{...good,key:ext},{...good,email:'x@evil.example'},{...good,project:'../evil'},{...good,v:2}]){idb.data.set('browser',bad);const f=rememberFixture(idb);assert.equal(await f.run('vertexRestore()'),null);assert.equal(f.run('VERTEX_BROWSER'),null);await new Promise(r=>setTimeout(r,20));assert.equal(idb.data.size,0)}
+ for(const broken of [undefined,{open(){throw Error('SecurityError')}}]){const f=rememberFixture(broken);await f.run('selectVertexJSON(pick())');assert.equal(f.run('aiProviderReady("vertex")'),true);assert.equal(await f.run('vertexRestore()').then(x=>!!x),true,'memory connection keeps working');const g=rememberFixture(broken);assert.equal(await g.run('vertexRestore()'),null)}
+});
+await test('Saved games, exports and imports never carry key material',async()=>{
+ const idb=fakeIDB(),f=rememberFixture(idb);await f.run('selectVertexJSON(pick())');
+ f.run("G={v:1,char:{name:'시험',age:17,stats:{str:1,wis:1,cha:1,sur:1},traits:[]},day:1,time:'낮',loc:'campus',hp:5,maxhp:5,calm:5,battery:5,torch:0,cash:0}");
+ const exported=f.run('JSON.stringify(G,null,1)');assert.doesNotMatch(exported,PRIVATE);assert.doesNotMatch(exported,/test@test-project|iam\.gserviceaccount|CryptoKey/);
+ assert.doesNotMatch(f.run('snapG()'),/iam\.gserviceaccount/);
+ f.run('VERTEX_BROWSER=null');f.run(`try{prepareSavedGame(JSON.stringify({...G,VERTEX_BROWSER:{project:'x'},vertex:{key:'k'}}))}catch(e){}`);assert.equal(f.run('VERTEX_BROWSER'),null);
+});
 console.log(`${count} Vertex authentication/relay scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
