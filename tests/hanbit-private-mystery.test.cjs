@@ -184,10 +184,12 @@ await test('[v2] No progress denominators, phases or scale hints on the player s
  for(const h of screens){assert.doesNotMatch(h,/(핵심 증거|확인한 사실|증거)\s*\d+\s*\/\s*\d+/);assert.doesNotMatch(h,/증거 수집|검증 가능|핵심 증거를 모두 확인하면/)}
  assert.match(screens[0],/진행: 조사 중/);assert.match(screens[0],/의심되는 원인/);assert.match(screens[1],/확인한 사실 1개/);
 });
-await test('[v2] Submission with partial facts is allowed at the verification room; wrong answers can be retried without any limit',async f=>{
+await test('[v2] Deduction is open anywhere in the zone once two facts are known; wrong answers can be retried without any limit',async f=>{
  await prepared(f);await pick(f,'r1',candidate.evidence[0].action);assert.equal(f.run("G.site.cur='r3';canVerifyMystery()"),false,'needs two facts');
- await pick(f,'r2',candidate.evidence[1].action);f.run("G.site.cur='r1'");assert.equal(f.run('canVerifyMystery()'),false,'only at the verification room');
- f.run("G.site.cur='r3'");assert.equal(f.run('canVerifyMystery()'),true);assert.ok(f.run('fixedHTML()').includes('🧩 추리 제출'));assert.ok(!f.run('fixedHTML()').includes('남은 기회'));
+ assert.match(f.run('fixedHTML()'),/<button disabled[^>]*>🧩 추리하기 \(확인한 사실 2개부터\)/,'the button is visible with the reason before two facts');
+ await pick(f,'r2',candidate.evidence[1].action);f.run("G.site.cur='r1'");assert.equal(f.run('canVerifyMystery()'),true,'any room in the zone');assert.ok(f.run('fixedHTML()').includes('onclick="verifyMystery()">🧩 추리하기<'));
+ f.run("G.loc='road'");assert.equal(f.run('canVerifyMystery()'),false,'not from outside the zone');f.run("G.loc='site'");
+ f.run("G.site.cur='r3'");assert.equal(f.run('canVerifyMystery()'),true);assert.ok(f.run('fixedHTML()').includes('🧩 추리하기<'));assert.ok(!f.run('fixedHTML()').includes('남은 기회'));
  await proofV2(f,'h2',['e1','e2']);assert.equal(f.run('G.site.mystery.state.solved'),false,'missing required fact → refuted');
  await pick(f,'r2',candidate.evidence[3].action);await pick(f,'r3',candidate.evidence[2].action);
  // 화면 값(토큰)으로 전부 체크하면 함정이 섞여 실패
@@ -298,6 +300,12 @@ await test('[v2] Outside the room, hints name only places: no actions, and rooms
  // 그 공간에 들어가면 행동은 조사 선택지로 그대로 보인다
  f.run("G.site.cur='r2';G.site.rooms.find(r=>r.id==='r2').visited=true");assert.ok(choices(f).some(c=>c.label.includes(candidate.evidence[1].action)));
  assert.ok(f.obj('mysteryPublic().next').includes(f.run("G.site.rooms.find(r=>r.id==='r2').name")),'a visited room is named');
+});
+await test('[v2] A correct deduction made in another room moves the player to the confirmation room for the reveal',async f=>{
+ await prepared(f);for(const [r,i] of [['r1',0],['r2',1],['r3',2]])await pick(f,r,candidate.evidence[i].action);
+ f.run("G.site.cur='r1'");assert.equal(f.run('canVerifyMystery()'),true);
+ f.run("submitMysteryProof('h2',"+JSON.stringify(f.obj("['e1','e2','e3'].map(id=>mysteryFactToken(G.site,id))"))+")");await settle();
+ assert.equal(f.run('G.site.mystery.state.solved'),true);assert.equal(f.run('G.site.cur'),candidate.verification.room);assert.equal(f.run('G.site.rooms.find(r=>r.id===G.site.cur).visited'),true);
 });
 console.log(`${count} private-mystery scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -4588,7 +4588,7 @@ function mysteryDeductionHTML(d=G.site){
   const x=mysteryPublic(d),st=d.mystery.state;
   if(p.v>=2){
     const ch=mysteryChances(st),facts=st.found.map(id=>p.evidence.find(e=>e.id===id)).filter(Boolean);
-    return `<p>${p.deduction?'의심되는 원인 중 지금까지 알아낸 걸 모두 설명할 수 있는 것을 하나 고르고, 그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.':'그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.'}</p>${(p.deduction?.hypotheses||[]).map(h=>`<label style="display:block"><input type="radio" name="mysteryGuess" value="${esc(h.id)}" style="width:auto"> ${esc(h.text)}</label>`).join('')}<h4>이유로 삼을 사실</h4>${facts.map(e=>`<label style="display:block"><input type="checkbox" class="mysterySupport" value="${esc(mysteryFactToken(d,e.id))}" style="width:auto"> ${esc(e.text)}</label>`).join('')||'<p class="muted">아직 확인한 사실이 없습니다.</p>'}<p class="muted">확인할 곳: ${esc(x.verification.room||'')} · ${esc(p.verification.action)}</p>${(st.attempts||[]).length?'<p class="muted">지난번 추리는 앞뒤가 맞지 않았습니다. 사실을 다시 읽어 보고 골라 보세요.</p>':''}<button class="primary" ${canVerifyMystery(d)?'':'disabled'} data-mystery="${esc(siteIdentity(d))}" onclick="submitMysteryDeduction(this.dataset.mystery)">이 추리로 확인해 보기</button>`;
+    return `<p>${p.deduction?'의심되는 원인 중 지금까지 알아낸 걸 모두 설명할 수 있는 것을 하나 고르고, 그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.':'그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.'}</p>${(p.deduction?.hypotheses||[]).map(h=>`<label style="display:block"><input type="radio" name="mysteryGuess" value="${esc(h.id)}" style="width:auto"> ${esc(h.text)}</label>`).join('')}<h4>이유로 삼을 사실</h4>${facts.map(e=>`<label style="display:block"><input type="checkbox" class="mysterySupport" value="${esc(mysteryFactToken(d,e.id))}" style="width:auto"> ${esc(e.text)}</label>`).join('')||'<p class="muted">아직 확인한 사실이 없습니다.</p>'}<p class="muted">추리가 맞으면 「${esc(x.verification.room||'')}」에서 확인합니다: ${esc(p.verification.action)}</p>${(st.attempts||[]).length?'<p class="muted">지난번 추리는 앞뒤가 맞지 않았습니다. 사실을 다시 읽어 보고 골라 보세요.</p>':''}<button class="primary" ${canVerifyMystery(d)?'':'disabled'} data-mystery="${esc(siteIdentity(d))}" onclick="submitMysteryDeduction(this.dataset.mystery)">이 추리로 확인해 보기</button>`;
   }
   const all=p.evidence.every(e=>st.found.includes(e.id));if(!all)return '<p>조사를 더 이어 간 뒤 원인 후보를 비교할 수 있습니다.</p>';
   return `<p>지금까지 알아낸 걸 모두 설명할 수 있는 원인을 하나 고르고, 그렇게 생각한 이유로 증거를 2개 이상 골라 보세요.</p>${p.deduction.hypotheses.map(h=>`<label style="display:block"><input type="radio" name="mysteryGuess" value="${esc(h.id)}" style="width:auto"> ${esc(h.text)}</label>`).join('')}<h4>이유로 삼을 증거</h4>${p.evidence.map(e=>`<label style="display:block"><input type="checkbox" class="mysterySupport" value="${esc(e.id)}" style="width:auto"> ${esc(e.text)}</label>`).join('')}<p class="muted">확인할 곳: ${esc(x.verification?.room||'')} · ${esc(p.verification.action)}<br>틀려도 괜찮습니다. 다시 골라 볼 수 있어요.</p>${(st.attempts||[]).length?'<p class="muted">지난번 추리는 앞뒤가 맞지 않았습니다. 증거를 다시 읽어 보고 골라 보세요.</p>':''}<button class="primary" ${canVerifyMystery(d)?'':'disabled'} data-mystery="${esc(siteIdentity(d))}" onclick="submitMysteryDeduction(this.dataset.mystery)">이 추리로 확인해 보기</button>`;
@@ -4600,7 +4600,7 @@ function submitMysteryDeduction(expectedId){
   return submitMysteryProof(guess,ids);
 }
 function submitMysteryProof(guess,ids){
-  if(busy||!canVerifyMystery())return toast(mysteryV2()?'추리를 확인하는 장소에서 확인한 사실 2개 이상이 있어야 합니다':'필요한 증거를 확보하고 검증 장소로 이동해 주세요');
+  if(busy||!canVerifyMystery())return toast(mysteryV2()?'확인한 사실이 2개 이상 있어야 추리할 수 있습니다':'필요한 증거를 확보하고 검증 장소로 이동해 주세요');
   const d=G.site,p=mysteryPlan(d),q=p.deduction,st=d.mystery.state;
   if(p.v>=2){
     if((q&&!q.hypotheses.some(h=>h.id===guess))||!Array.isArray(ids))return toast('원인 후보와 근거를 선택해 주세요');
@@ -4925,10 +4925,11 @@ function mysteryPanel(d=G&&G.site){
 }
 function mysteryVerifyId(d=G&&G.site){ return 'mystery:verify:'+siteIdentity(d) }
 function canVerifyMystery(d=G&&G.site){
-  const p=mysteryPlan(d); if(!(p&&d===G.site&&!d.mystery.state.solved&&G.loc==='site'&&!inDark()&&d.cur===p.verification.room)) return false;
+  const p=mysteryPlan(d); if(!(p&&d===G.site&&!d.mystery.state.solved&&G.loc==='site')) return false;
   const st=d.mystery.state;
-  // v2: 확인한 사실 2개 이상이면 언제든 제출(횟수 제한 없음). 정답 근거가 다 있는지는 판정에서 본다.
-  return p.v>=2?st.found.length>=2&&mysteryChances(st)>0:p.verification.requires.every(id=>st.found.includes(id));
+  // v2: 구역 안 어디서든, 확인한 사실 2개 이상이면 언제든 추리할 수 있다(횟수 제한 없음). 맞히면 확인 장소로 가서 확인하는 장면이 된다.
+  if(p.v>=2) return st.found.length>=2;
+  return !inDark()&&d.cur===p.verification.room&&p.verification.requires.every(id=>st.found.includes(id));
 }
 function verifyMystery(){
   if(busy||!canVerifyMystery()) return toast('필요한 증거와 검증 장소를 먼저 확인해 주세요');
@@ -4979,6 +4980,8 @@ const MYSTERY_REFUTED_NOTE='\n[검증 결과] 플레이어가 고른 추리대�
 function mysteryEvidenceNote(e){ return `\n[이번 조사로 공개하는 확정 관찰] ${e.text}\n[이 관찰의 기여] ${e.meaning}\n핵심 관찰 문장은 위 원문을 그대로 서술에 포함한다. 관찰 과정을 표현하되 추가 핵심 단서·범인·원인을 만들지 않는다.` }
 function mysteryVerifiedNote(T,d,p){
   T.mysteryOutcome={d,type:'verified'};
+  const vr=p.v>=2&&d.cur!==p.verification.room&&d.rooms.find(r=>r.id===p.verification.room);
+  if(vr){ d.cur=vr.id; vr.visited=true; T.extra+=`\n[이동] 플레이어는 추리가 맞는지 확인하러 「${vr.name}」${josa(vr.name,'으로','로')} 가서 확인 행동을 한다. 장면은 그곳에서 이어진다.` }
   if(p.deduction)T.extra+='\n[근거 연결 설명] '+p.deduction.explanation;
   T.extra+=`\n[확정된 검증 결과 — 이번에만 공개] ${p.verification.result}\n[검증된 진상] ${p.conclusion}\n이 결과를 장면으로 표현한다. 결과와 원인을 바꾸지 않는다.`;
 }
@@ -5078,7 +5081,7 @@ function mysteryAfterV2(o,d,p,st){
 on('fixed',11,L=>{
   const d=G.site;if(!d||!d.mystery||!['site','shelter'].includes(L)) return '';
   if(!mysteryPlan(d)) return '<button onclick="prepareMystery()">🔄 사건 준비 재시도</button>';
-  const x=mysteryPublic(d);return (x.v2?`<button onclick="openZoneJournal()">📝 사건 진행: ${x.phase} · 확인한 사실 ${x.evidence.length}개</button>`:`<button onclick="openZoneJournal()">📝 사건 진행: ${x.phase} · 핵심 증거 ${x.evidence.length}/${mysteryPlan(d).evidence.length}</button>`)+(canVerifyMystery(d)?`<button class="primary" onclick="verifyMystery()">🧩 ${x.v2?'추리 제출':'원인 후보·증거 연결 검증'}</button>`:'');
+  const x=mysteryPublic(d);return (x.v2?`<button onclick="openZoneJournal()">📝 사건 진행: ${x.phase} · 확인한 사실 ${x.evidence.length}개</button>`:`<button onclick="openZoneJournal()">📝 사건 진행: ${x.phase} · 핵심 증거 ${x.evidence.length}/${mysteryPlan(d).evidence.length}</button>`)+(canVerifyMystery(d)?`<button class="primary" onclick="verifyMystery()">🧩 ${x.v2?'추리하기':'원인 후보·증거 연결 검증'}</button>`:x.v2&&!x.conclusion&&L==='site'?`<button disabled title="확인한 사실이 2개 이상이면 구역 어디서든 추리할 수 있습니다">🧩 추리하기 (확인한 사실 2개부터)</button>`:'');
 });
 
 function loreRequest(era,hasFrag){
