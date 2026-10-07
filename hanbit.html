@@ -1121,31 +1121,78 @@ async function vertexBrowserToken(state){
   const enc=o=>vertexB64(new TextEncoder().encode(JSON.stringify(o))),iat=Math.floor(Date.now()/1000);
   const unsigned=enc({alg:'RS256',typ:'JWT',...(state.keyId?{kid:state.keyId}:{})})+'.'+enc({iss:state.email,scope:'https://www.googleapis.com/auth/cloud-platform',aud:'https://oauth2.googleapis.com/token',iat,exp:iat+3600});
   const signature=await crypto.subtle.sign('RSASSA-PKCS1-v1_5',state.key,new TextEncoder().encode(unsigned));
-  let r,d;try{r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',credentials:'omit',referrerPolicy:'no-referrer',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion:unsigned+'.'+vertexB64(signature)}).toString(),signal:timeoutSignal(20000)});d=await r.json()}catch{throw new Error('Google 인증에 연결하지 못했습니다. 네트워크 또는 브라우저 연결 제한을 확인하세요.')}
+  let r,d;try{r=await fetch(VERTEX_TOKEN_URL,{method:'POST',credentials:'omit',referrerPolicy:'no-referrer',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion:unsigned+'.'+vertexB64(signature)}).toString(),signal:timeoutSignal(20000)});d=await r.json()}catch{throw new Error('Google 인증에 연결하지 못했습니다. 네트워크 또는 브라우저 연결 제한을 확인하세요.')}
+  if(!r.ok&&[400,401,403].includes(r.status)&&vertexAuthRejected(state))throw new Error('기억된 JSON 키 연결이 거절되어 지웠습니다. AI 설정에서 JSON 파일을 다시 선택하세요.');
   if(!r.ok||!d||typeof d.access_token!=='string'||!d.access_token||!(Number(d.expires_in)>0)||String(d.token_type).toLowerCase()!=='bearer')throw new Error('Google 인증 실패: JSON 키의 유효성과 PC 시각을 확인하세요.');
   state.token={value:d.access_token,expires:Date.now()+Number(d.expires_in)*1000};return state.token.value;
  })();
  try{return await state.pending}finally{state.pending=null}
 }
 function vertexConnectionStatus(text){const el=document.getElementById('vertexStatus');if(el)el.textContent=text}
-function disconnectVertex(){vertexSelection++;VERTEX_BROWSER=null;vertexConnectionStatus('연결 해제됨 · JSON 파일을 선택하세요.');if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle()}
+function disconnectVertex(){vertexSelection++;VERTEX_BROWSER=null;vertexForget();vertexConnectionStatus('연결 해제됨 · JSON 파일을 선택하세요.');if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle()}
+/* 「이 기기에서 연결 기억하기」: 추출 불가 CryptoKey와 서명에 필요한 공개 정보만 IndexedDB에 둔다.
+   PEM·JSON 원문은 어디에도 저장하지 않는다. IndexedDB를 못 쓰면 조용히 메모리만 쓴다. */
+const VERTEX_DB='hanbit_vertex',VERTEX_STORE='conn',VERTEX_REC='browser',VERTEX_TOKEN_URL='https://oauth2.googleapis.com/token';
+function vertexDB(){
+ return new Promise(res=>{
+  try{
+   if(typeof indexedDB==='undefined'||!indexedDB)return res(null);
+   const q=indexedDB.open(VERTEX_DB,1);
+   q.onupgradeneeded=()=>{try{if(!q.result.objectStoreNames.contains(VERTEX_STORE))q.result.createObjectStore(VERTEX_STORE)}catch(e){}};
+   q.onsuccess=()=>res(q.result);q.onerror=()=>res(null);q.onblocked=()=>res(null);
+  }catch(e){res(null)}
+ });
+}
+async function vertexStoreOp(mode,fn){
+ const db=await vertexDB();if(!db)return null;
+ return new Promise(res=>{
+  try{
+   const tx=db.transaction(VERTEX_STORE,mode),req=fn(tx.objectStore(VERTEX_STORE));
+   tx.oncomplete=()=>{try{db.close()}catch(e){}res(req?req.result:true)};tx.onerror=tx.onabort=()=>{try{db.close()}catch(e){}res(null)};
+  }catch(e){try{db.close()}catch(_){}res(null)}
+ });
+}
+function vertexRemember(state){
+ if(!state?.key||state.key.extractable!==false)return Promise.resolve(null);   // 꺼낼 수 있는 키는 절대 저장하지 않는다
+ return vertexStoreOp('readwrite',st=>st.put({v:1,key:state.key,email:state.email,project:state.project,keyId:state.keyId,tokenUrl:VERTEX_TOKEN_URL},VERTEX_REC));
+}
+function vertexForget(){return vertexStoreOp('readwrite',st=>st.delete(VERTEX_REC))}
+async function vertexRestore(){
+ if(VERTEX_BROWSER)return VERTEX_BROWSER;
+ const selection=vertexSelection,r=await vertexStoreOp('readonly',st=>st.get(VERTEX_REC));
+ if(!r||selection!==vertexSelection||VERTEX_BROWSER)return VERTEX_BROWSER;
+ if(r.v!==1||!r.key||r.key.extractable!==false||r.key.type!=='private'||!/^\S+@\S+\.iam\.gserviceaccount\.com$/.test(r.email||'')||!/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(r.project||'')){vertexForget();return null}
+ VERTEX_BROWSER={key:r.key,email:r.email,project:r.project,keyId:String(r.keyId||''),token:null,pending:null,remembered:true};
+ vertexConnectionStatus('기억된 연결 · '+r.project);
+ try{if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle()}catch(e){}
+ return VERTEX_BROWSER;
+}
+/* 인증이 거절되면 기억된 연결을 지우고 다시 선택하게 한다 */
+function vertexAuthRejected(state){
+ if(!state?.remembered)return false;
+ vertexForget();if(VERTEX_BROWSER===state){VERTEX_BROWSER=null;vertexConnectionStatus('기억된 연결이 더 이상 유효하지 않아 지웠습니다 · JSON 파일을 다시 선택하세요.')}
+ return true;
+}
 async function selectVertexJSON(input){
  const file=input.files?.[0];if(!file)return;
  const selection=++vertexSelection;vertexConnectionStatus('JSON 키 확인·Google 인증 중…');
  try{
   if(file.size>65536)throw new Error('서비스 계정 JSON 파일은 64KB 이하만 선택할 수 있습니다.');
+  const remember=!!document.getElementById('sVertexRemember')?.checked;
   const state=await vertexImport(await file.text());await vertexBrowserToken(state);
   if(selection!==vertexSelection)return;
-  VERTEX_BROWSER=state;const mode=document.getElementById('sVertexMode');if(mode)mode.value='browser';SET.vertexMode='browser';
+  VERTEX_BROWSER=state;
+  if(remember){state.remembered=true;await vertexRemember(state)}else await vertexForget();   // 끈 채로 새로 고르면 예전에 기억한 연결도 지운다
+  if(selection!==vertexSelection||VERTEX_BROWSER!==state)return;const mode=document.getElementById('sVertexMode');if(mode)mode.value='browser';SET.vertexMode='browser';
   applyVertexModels();SET.roles=SET.roles||{};
   AI_ROLES.forEach(r=>{const effort=document.getElementById('re_'+r.k)?.value||roleCfg(r.k).effort||'low';SET.roles[r.k]={provider:'vertex',model:vertexModelFor(r.k),effort:['low','medium','high'].includes(effort)?effort:'low'}});
   SET.provider='vertex';SET.model=SET.roles.story.model;SET.apiKey='';saveSettings();
-  vertexConnectionStatus('인증 완료 · '+state.project+' · 모든 역할을 Vertex AI로 설정했습니다.');toast('JSON 키 연결 완료. 이제 게임을 진행하세요.');
+  vertexConnectionStatus('인증 완료 · '+state.project+(remember?' · 이 기기에서 기억합니다':'')+' · 모든 역할을 Vertex AI로 설정했습니다.');toast('JSON 키 연결 완료. 이제 게임을 진행하세요.');
   if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle();
  }catch(e){if(selection===vertexSelection)vertexConnectionStatus('연결 실패 · '+e.message)}finally{input.value=''}
 }
 async function callVertexBrowser(system,user,maxTokens,c,role){
- const state=VERTEX_BROWSER;if(!state)throw new Error('AI 설정에서 서비스 계정 JSON 파일을 선택하세요. 새로고침 후에는 다시 선택해야 합니다.');
+ const state=VERTEX_BROWSER;if(!state)throw new Error('AI 설정에서 서비스 계정 JSON 파일을 선택하세요. 「이 기기에서 연결 기억하기」를 켜지 않았다면 새로고침 후에는 다시 선택해야 합니다.');
  const location=SET.vertexLocation||'global';
  if(!/^[a-z][a-z0-9-]{1,62}$/.test(location)||!/^gemini-[a-z0-9.-]+$/.test(c.model))throw new Error('Vertex AI 모델 이름 또는 리전을 확인하세요.');
  const config={maxOutputTokens:Math.min(16384,Math.max(3000,maxTokens*2))},effort=['low','medium','high'].includes(c.effort)?c.effort:'low';
@@ -1164,6 +1211,7 @@ async function callVertexBrowser(system,user,maxTokens,c,role){
   try{d=await r.json()}catch{throw new Error('Vertex AI 응답을 끝까지 받지 못했습니다. 잠시 뒤 다시 시도해 주세요.')}
   if(state!==VERTEX_BROWSER)throw new Error('JSON 키 연결이 변경되었습니다. 다시 시도하세요.');
   if(r.status===401&&attempt===0){if(state.token?.value===token)state.token=null;continue}
+  if(r.status===401&&vertexAuthRejected(state))throw new Error('기억된 JSON 키 인증이 거절되어 지웠습니다. AI 설정에서 JSON 파일을 다시 선택하세요.');
   if(!r.ok)throw new Error(({401:'JSON 키 인증이 만료되었거나 취소되었습니다. 파일을 다시 선택하세요.',403:'Vertex AI 권한·API 활성화·결제 연결을 확인하세요.',404:'Vertex AI 모델 이름과 리전을 확인하세요.',429:'Vertex AI 호출 한도에 도달했습니다. 잠시 뒤 다시 시도하세요.'})[r.status]||'Vertex AI 요청 오류 (HTTP '+r.status+')');
   const candidate=d?.candidates?.[0],reason=candidate?.finishReason;
   if(d?.promptFeedback?.blockReason||reason&&reason!=='STOP')throw new Error(reason==='MAX_TOKENS'?'응답이 길이 제한으로 중단되었습니다. 생각 강도를 낮춰 주세요.':'Vertex AI가 장면 응답을 완료하지 못했습니다.');
@@ -9671,10 +9719,10 @@ function openSettings(){
     <input id="sWs" value="${esc(SET.wsId||'')}" placeholder="콘솔의 워크스페이스 설정에서 확인한 ID">
     ${keyRow('gemini')}
     <h4>Google Vertex AI · 서비스 계정 JSON 키</h4>
-    <p class="muted">JSON 파일을 선택하면 인증과 모델 설정을 자동으로 적용합니다. 키는 현재 페이지에서만 사용하며 저장하지 않습니다. 새로고침하면 다시 선택하세요. 이 사이트의 스크립트가 선택한 키를 사용할 수 있으므로 신뢰하는 사이트에서만 연결하세요.</p>
+    <p class="muted">JSON 파일을 선택하면 인증과 모델 설정을 자동으로 적용합니다. 기본으로는 현재 페이지에서만 쓰고 저장하지 않으므로 새로고침하면 다시 선택해야 합니다. 「이 기기에서 연결 기억하기」를 켜면 꺼낼 수 없는 형태의 키와 프로젝트·계정 이름만 이 브라우저에 남기고, JSON 파일 내용은 저장하지 않습니다. 공용 기기에서는 켜지 마세요. 이 사이트의 스크립트가 선택한 키를 사용할 수 있으므로 신뢰하는 사이트에서만 연결하세요.</p>
     <label>연결 방식</label><select id="sVertexMode"><option value="browser" ${vertexMode()==='browser'?'selected':''}>JSON 파일 선택 (설치 없이 연결)</option><option value="relay" ${vertexMode()==='relay'?'selected':''}>중계 서버 (고급 설정)</option></select>
-    <label>서비스 계정 JSON 파일</label><input type="file" accept=".json,application/json" onchange="selectVertexJSON(this)">
-    <p class="muted" id="vertexStatus">${VERTEX_BROWSER?'인증 완료 · '+esc(VERTEX_BROWSER.project):'JSON 파일을 선택하세요.'}</p>
+    <label>서비스 계정 JSON 파일</label><div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><input type="file" accept=".json,application/json" onchange="selectVertexJSON(this)" style="flex:1;min-width:180px"><label style="display:flex;gap:4px;align-items:center;margin:0"><input type="checkbox" id="sVertexRemember" style="width:auto"> 이 기기에서 연결 기억하기</label></div>
+    <p class="muted" id="vertexStatus">${VERTEX_BROWSER?(VERTEX_BROWSER.remembered?'기억된 연결 · ':'인증 완료 · ')+esc(VERTEX_BROWSER.project):'JSON 파일을 선택하세요.'}</p>
     <button class="small" onclick="disconnectVertex()">JSON 키 연결 해제</button>
     <details style="margin-top:10px"><summary>리전 · 중계 서버 고급 설정</summary>
     <label>Vertex AI 리전</label><input id="sVertexLocation" value="${esc(SET.vertexLocation||'global')}" placeholder="global">
@@ -10546,6 +10594,7 @@ function importSave(){
 }
 
 /* 시작: 화면 설정 적용 · 공용 이벤트 */
+vertexRestore().catch(()=>{});   // 기억된 Vertex 연결이 있으면 복원(없거나 IndexedDB를 못 쓰면 아무것도 하지 않음)
 document.addEventListener('toggle',ev=>{
   const d=ev.target;
   if(!(d instanceof HTMLDetailsElement)||!d.dataset.n||!d.closest('#sideR')) return;
