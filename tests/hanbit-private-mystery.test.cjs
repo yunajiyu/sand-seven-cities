@@ -184,22 +184,27 @@ await test('[v2] No progress denominators, phases or scale hints on the player s
  for(const h of screens){assert.doesNotMatch(h,/(핵심 증거|확인한 사실|증거)\s*\d+\s*\/\s*\d+/);assert.doesNotMatch(h,/증거 수집|검증 가능|핵심 증거를 모두 확인하면/)}
  assert.match(screens[0],/진행: 조사 중/);assert.match(screens[0],/의심되는 원인/);assert.match(screens[1],/확인한 사실 1개/);
 });
-await test('[v2] Submission with partial facts is allowed at the verification room but costs a chance; all-facts-checked fails',async f=>{
+await test('[v2] Submission with partial facts is allowed at the verification room; wrong answers can be retried without any limit',async f=>{
  await prepared(f);await pick(f,'r1',candidate.evidence[0].action);assert.equal(f.run("G.site.cur='r3';canVerifyMystery()"),false,'needs two facts');
  await pick(f,'r2',candidate.evidence[1].action);f.run("G.site.cur='r1'");assert.equal(f.run('canVerifyMystery()'),false,'only at the verification room');
- f.run("G.site.cur='r3'");assert.equal(f.run('canVerifyMystery()'),true);assert.ok(f.run('fixedHTML()').includes('남은 기회 2번'));
- await proofV2(f,'h2',['e1','e2']);assert.equal(f.run('G.site.mystery.state.solved'),false);assert.equal(f.run('G.site.mystery.state.chances'),1,'missing required fact → refuted');
+ f.run("G.site.cur='r3'");assert.equal(f.run('canVerifyMystery()'),true);assert.ok(f.run('fixedHTML()').includes('🧩 추리 제출'));assert.ok(!f.run('fixedHTML()').includes('남은 기회'));
+ await proofV2(f,'h2',['e1','e2']);assert.equal(f.run('G.site.mystery.state.solved'),false,'missing required fact → refuted');
  await pick(f,'r2',candidate.evidence[3].action);await pick(f,'r3',candidate.evidence[2].action);
  // 화면 값(토큰)으로 전부 체크하면 함정이 섞여 실패
- const all=f.obj("G.site.mystery.state.found.map(id=>mysteryFactToken(G.site,id))");await proofV2(f,'h2',all);assert.equal(f.run('G.site.mystery.state.solved'),false);assert.equal(f.run('G.site.mystery.state.chances'),0);
- assert.equal(f.run('canVerifyMystery()'),false);await proofV2(f,'h2',['e2','e3']);assert.equal(f.run('G.site.mystery.state.solved'),false,'no chances left');
- assert.ok(f.run('mysteryDeductionHTML()').includes('기회를 모두 썼습니다'));
- const rep=choices(f).find(a=>a.label.startsWith('다시 살펴보기'));assert.ok(rep,'repeat offered when out of chances');f.run('dispatchGameAction('+JSON.stringify(rep.id)+')');await settle();
- assert.equal(f.run('G.site.mystery.state.chances'),1);assert.equal(f.run('G.evidence.length'),4);assert.ok(!choices(f).some(a=>a.label.startsWith('다시 살펴보기')));
- await proofV2(f,'h1',['e2','e3']);assert.equal(f.run('G.site.mystery.state.solved'),false,'wrong hypothesis');assert.equal(f.run('G.site.mystery.state.chances'),0);
- await pick(f,'r3','다시 살펴보기');await proofV2(f,'h2',['e2','e3','d1']);assert.equal(f.run('G.site.mystery.state.solved'),false,'decoy in the reasons');
- await pick(f,'r3','다시 살펴보기');await proofV2(f,'h2',f.obj("['e2','e3','e1'].map(id=>mysteryFactToken(G.site,id))"));assert.equal(f.run('G.site.mystery.state.solved'),true);
+ const all=f.obj("G.site.mystery.state.found.map(id=>mysteryFactToken(G.site,id))");await proofV2(f,'h2',all);assert.equal(f.run('G.site.mystery.state.solved'),false);
+ await proofV2(f,'h1',['e2','e3']);assert.equal(f.run('G.site.mystery.state.solved'),false,'wrong hypothesis');
+ await proofV2(f,'h2',['e2','e3','d1']);assert.equal(f.run('G.site.mystery.state.solved'),false,'decoy in the reasons');
+ // 네 번 틀린 뒤에도 추리 버튼이 남아 있고, 다시 살펴보기를 하지 않아도 바로 다시 추리할 수 있다
+ assert.equal(f.run('canVerifyMystery()'),true);assert.ok(f.run('fixedHTML()').includes('verifyMystery()'));assert.ok(!choices(f).some(a=>a.label.startsWith('다시 살펴보기')));
+ assert.ok(!f.run('mysteryDeductionHTML()').includes('기회'));
+ assert.ok(f.obj('events').some(e=>/원인과 이유를 다시 골라 추리해 보세요/.test(e.text)));assert.ok(!f.obj('events').some(e=>/남은 기회/.test(e.text)));
+ assert.equal(f.run('G.site.mystery.state.attempts.length'),4);
+ await proofV2(f,'h2',f.obj("['e2','e3','e1'].map(id=>mysteryFactToken(G.site,id))"));assert.equal(f.run('G.site.mystery.state.solved'),true);
  assert.equal(f.run('G.threads.find(t=>t.id===G.site.caseId).status'),'closed');
+});
+await test('[v2] An old save that already ran out of chances can deduce again right away',async f=>{
+ await prepared(f);await pick(f,'r1',candidate.evidence[0].action);await pick(f,'r2',candidate.evidence[1].action);await pick(f,'r3',candidate.evidence[2].action);f.run("G.site.mystery.state.chances=0;G.site.cur='r3'");
+ assert.equal(f.run('canVerifyMystery()'),true);await proofV2(f,'h2',f.obj("['e1','e2','e3'].map(id=>mysteryFactToken(G.site,id))"));assert.equal(f.run('G.site.mystery.state.solved'),true);
 });
 await test('[v2] Medal fragments still drop from investigation choices (including dead ends) but not from free text',async f=>{
  await prepared(f);f.run('G.fragments=0;G.site.rooms.forEach(r=>r.fragment=true);Math.random=()=>0');

@@ -2249,6 +2249,7 @@ function gameActions(){
     add('rest:home','아지트에서 쉬기',()=>homeRest());
   }else if(G.loc==='road'){
     if(G.trip&&!G.trip.bandit) add('trip:continue','목적지까지 계속 이동',()=>continueTrip(),'move');
+    if(canTurnBack()) add('trip:back','떠나온 곳으로 되돌아가기',()=>turnBackTrip(),'move');
     else if(outsideZone()){
       add('zone:reenter','조사하던 공간으로 다시 들어가기',()=>reenterZone(),'move');
       add('zone:return','떠나온 지구로 귀환',()=>returnToCampus(),'move');
@@ -4587,7 +4588,7 @@ function mysteryDeductionHTML(d=G.site){
   const x=mysteryPublic(d),st=d.mystery.state;
   if(p.v>=2){
     const ch=mysteryChances(st),facts=st.found.map(id=>p.evidence.find(e=>e.id===id)).filter(Boolean);
-    return `<p>${p.deduction?'의심되는 원인 중 지금까지 알아낸 걸 모두 설명할 수 있는 것을 하나 고르고, 그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.':'그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.'}</p>${(p.deduction?.hypotheses||[]).map(h=>`<label style="display:block"><input type="radio" name="mysteryGuess" value="${esc(h.id)}" style="width:auto"> ${esc(h.text)}</label>`).join('')}<h4>이유로 삼을 사실</h4>${facts.map(e=>`<label style="display:block"><input type="checkbox" class="mysterySupport" value="${esc(mysteryFactToken(d,e.id))}" style="width:auto"> ${esc(e.text)}</label>`).join('')||'<p class="muted">아직 확인한 사실이 없습니다.</p>'}<p class="muted">확인할 곳: ${esc(x.verification.room||'')} · ${esc(p.verification.action)}<br>남은 기회: ${ch}번</p>${ch?'':'<p>기회를 모두 썼습니다. 이미 확인한 사실 하나를 다시 살펴보면 기회가 1번 돌아옵니다.</p>'}${(st.attempts||[]).length?'<p class="muted">지난번 추리는 앞뒤가 맞지 않았습니다. 사실을 다시 읽어 보고 골라 보세요.</p>':''}<button class="primary" ${canVerifyMystery(d)?'':'disabled'} data-mystery="${esc(siteIdentity(d))}" onclick="submitMysteryDeduction(this.dataset.mystery)">이 추리로 확인해 보기</button>`;
+    return `<p>${p.deduction?'의심되는 원인 중 지금까지 알아낸 걸 모두 설명할 수 있는 것을 하나 고르고, 그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.':'그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.'}</p>${(p.deduction?.hypotheses||[]).map(h=>`<label style="display:block"><input type="radio" name="mysteryGuess" value="${esc(h.id)}" style="width:auto"> ${esc(h.text)}</label>`).join('')}<h4>이유로 삼을 사실</h4>${facts.map(e=>`<label style="display:block"><input type="checkbox" class="mysterySupport" value="${esc(mysteryFactToken(d,e.id))}" style="width:auto"> ${esc(e.text)}</label>`).join('')||'<p class="muted">아직 확인한 사실이 없습니다.</p>'}<p class="muted">확인할 곳: ${esc(x.verification.room||'')} · ${esc(p.verification.action)}</p>${(st.attempts||[]).length?'<p class="muted">지난번 추리는 앞뒤가 맞지 않았습니다. 사실을 다시 읽어 보고 골라 보세요.</p>':''}<button class="primary" ${canVerifyMystery(d)?'':'disabled'} data-mystery="${esc(siteIdentity(d))}" onclick="submitMysteryDeduction(this.dataset.mystery)">이 추리로 확인해 보기</button>`;
   }
   const all=p.evidence.every(e=>st.found.includes(e.id));if(!all)return '<p>조사를 더 이어 간 뒤 원인 후보를 비교할 수 있습니다.</p>';
   return `<p>지금까지 알아낸 걸 모두 설명할 수 있는 원인을 하나 고르고, 그렇게 생각한 이유로 증거를 2개 이상 골라 보세요.</p>${p.deduction.hypotheses.map(h=>`<label style="display:block"><input type="radio" name="mysteryGuess" value="${esc(h.id)}" style="width:auto"> ${esc(h.text)}</label>`).join('')}<h4>이유로 삼을 증거</h4>${p.evidence.map(e=>`<label style="display:block"><input type="checkbox" class="mysterySupport" value="${esc(e.id)}" style="width:auto"> ${esc(e.text)}</label>`).join('')}<p class="muted">확인할 곳: ${esc(x.verification?.room||'')} · ${esc(p.verification.action)}<br>틀려도 괜찮습니다. 다시 골라 볼 수 있어요.</p>${(st.attempts||[]).length?'<p class="muted">지난번 추리는 앞뒤가 맞지 않았습니다. 증거를 다시 읽어 보고 골라 보세요.</p>':''}<button class="primary" ${canVerifyMystery(d)?'':'disabled'} data-mystery="${esc(siteIdentity(d))}" onclick="submitMysteryDeduction(this.dataset.mystery)">이 추리로 확인해 보기</button>`;
@@ -4599,7 +4600,7 @@ function submitMysteryDeduction(expectedId){
   return submitMysteryProof(guess,ids);
 }
 function submitMysteryProof(guess,ids){
-  if(busy||!canVerifyMystery())return toast(mysteryV2()?'검증 장소에서 확인한 사실 2개 이상과 남은 기회가 있어야 합니다':'필요한 증거를 확보하고 검증 장소로 이동해 주세요');
+  if(busy||!canVerifyMystery())return toast(mysteryV2()?'추리를 확인하는 장소에서 확인한 사실 2개 이상이 있어야 합니다':'필요한 증거를 확보하고 검증 장소로 이동해 주세요');
   const d=G.site,p=mysteryPlan(d),q=p.deduction,st=d.mystery.state;
   if(p.v>=2){
     if((q&&!q.hypotheses.some(h=>h.id===guess))||!Array.isArray(ids))return toast('원인 후보와 근거를 선택해 주세요');
@@ -4796,7 +4797,7 @@ async function prepareMystery(){
 /* v2 사건: 조사는 열린 행동(선택지)으로만 한다. 열림 = start_leads 또는 이미 얻은 증거의 leads */
 const MYSTERY_CHANCES=2;
 function mysteryV2(d=G&&G.site){ const p=mysteryPlan(d); return p&&p.v>=2?p:null }
-function mysteryChances(st){ return Number.isInteger(st?.chances)?Math.max(0,st.chances):MYSTERY_CHANCES }
+function mysteryChances(){ return MYSTERY_CHANCES }   // 추리 횟수 제한 없음: 틀려도 언제든 다시 추리할 수 있다(예전 저장본의 남은 기회 0도 무시)
 function mysteryOpenIds(p,st){
   const open=new Set(p.start_leads||[]);
   for(const id of st.found) for(const x of p.evidence.find(e=>e.id===id)?.leads||[]) open.add(x);
@@ -4918,7 +4919,7 @@ function mysteryPanel(d=G&&G.site){
   const tail=`${!d.mystery.state.solved&&(x.v2||mysteryPlan(d)?.deduction)?`<details><summary>🧩 ${x.v2?'추리 제출':'원인 후보 비교'}</summary>${mysteryDeductionHTML(d)}</details>`:''}${other.length?`<h4>함께 보관한 기존·참고 기록</h4>${notebookGroupsHTML(other)}`:''}</div>`;
   if(x.v2){
     // 남은 양(분모)·단계·증거 종류는 보여 주지 않는다. 알아낸 것만 획득 순서대로.
-    return `<div class="lex"><b>${esc(x.question)}</b><div>진행: ${x.phase}</div><h4>🔑 확인한 사실</h4>${x.evidence.map(e=>`<p>${esc(e.text)}<br><span class="muted">${esc(e.meaning)}</span></p>`).join('')||'<p class="muted">아직 확인한 사실이 없습니다.</p>'}${x.conclusion?`<p><b>검증된 진상:</b> ${esc(x.conclusion)}</p>`:`${x.suspects.length?`<h4>💬 의심되는 원인</h4><p class="muted">교내에 도는 추측일 뿐, 확인된 것은 아닙니다.</p>${x.suspects.map(h=>`<p>· ${esc(h)}</p>`).join('')}`:''}<p>조사할 거리가 남은 곳: ${x.next.map(esc).join(' / ')||'모두 살펴봤습니다'}<br>추리를 확인할 곳: ${esc(x.verification.room)} · ${esc(x.verification.action)}<br>남은 기회: ${x.chances}번</p>`}${tail}`;
+    return `<div class="lex"><b>${esc(x.question)}</b><div>진행: ${x.phase}</div><h4>🔑 확인한 사실</h4>${x.evidence.map(e=>`<p>${esc(e.text)}<br><span class="muted">${esc(e.meaning)}</span></p>`).join('')||'<p class="muted">아직 확인한 사실이 없습니다.</p>'}${x.conclusion?`<p><b>검증된 진상:</b> ${esc(x.conclusion)}</p>`:`${x.suspects.length?`<h4>💬 의심되는 원인</h4><p class="muted">교내에 도는 추측일 뿐, 확인된 것은 아닙니다.</p>${x.suspects.map(h=>`<p>· ${esc(h)}</p>`).join('')}`:''}<p>조사할 거리가 남은 곳: ${x.next.map(esc).join(' / ')||'모두 살펴봤습니다'}<br>추리를 확인할 곳: ${esc(x.verification.room)} · ${esc(x.verification.action)}</p>`}${tail}`;
   }
   return `<div class="lex"><b>${esc(x.question)}</b><div>진행: ${x.phase} · 핵심 증거 ${x.evidence.length}/${mysteryPlan(d).evidence.length}개</div><h4>🔑 핵심 증거</h4><p class="muted">조사로 확인한 원인 검증의 근거입니다.</p>${x.evidence.map(e=>`<p><b>확인한 사실:</b> ${esc(e.text)}<br><span class="muted">기여: ${esc(e.meaning)}</span></p>`).join('')||'<p class="muted">아직 확인한 핵심 증거가 없습니다.</p>'}${x.conclusion?`<p><b>검증된 진상:</b> ${esc(x.conclusion)}</p>`:`<p>다음 조사 후보: ${x.next.map(esc).join(' / ')||'필요한 증거를 확보했습니다'}${x.verification?`<br>검증 장소: ${esc(x.verification.room)} · ${esc(x.verification.action)}`:''}</p>`}${tail}`;
 }
@@ -4926,7 +4927,7 @@ function mysteryVerifyId(d=G&&G.site){ return 'mystery:verify:'+siteIdentity(d) 
 function canVerifyMystery(d=G&&G.site){
   const p=mysteryPlan(d); if(!(p&&d===G.site&&!d.mystery.state.solved&&G.loc==='site'&&!inDark()&&d.cur===p.verification.room)) return false;
   const st=d.mystery.state;
-  // v2: 확인한 사실 2개 이상이면 언제든 제출. 정답 근거가 다 있는지는 판정에서 본다(부족하면 기회 소모).
+  // v2: 확인한 사실 2개 이상이면 언제든 제출(횟수 제한 없음). 정답 근거가 다 있는지는 판정에서 본다.
   return p.v>=2?st.found.length>=2&&mysteryChances(st)>0:p.verification.requires.every(id=>st.found.includes(id));
 }
 function verifyMystery(){
@@ -5064,8 +5065,7 @@ function mysteryAfterV2(o,d,p,st){
     else mysteryNothingLog();
   }else if(o.type==='refuted'){
     st.attempts=st.attempts||[];st.attempts.push({guess:o.proof.guess,supports:o.proof.supports,day:G.day});
-    st.chances=Math.max(0,mysteryChances(st)-1);
-    addLog('fx','🧩 아직 앞뒤가 맞지 않습니다. 고른 원인이나 이유 중에 설명되지 않는 게 있어요. '+(st.chances?`남은 기회: ${st.chances}번.`:'남은 기회가 없습니다. 이미 확인한 사실 하나를 다시 살펴보면 기회가 1번 돌아옵니다.'));
+    addLog('fx','🧩 아직 앞뒤가 맞지 않습니다. 고른 원인이나 이유 중에 설명되지 않는 게 있어요. 원인과 이유를 다시 골라 추리해 보세요.');
   }else if(o.type==='verified'){
     mysterySolveCase(d,p,st); mysterySolvedLog(d,p,st);
   }else if(o.type==='dark') addLog('sys','🔎 조사 결과 — 관찰 불가: 빛을 확보해야 합니다.');
@@ -5078,7 +5078,7 @@ function mysteryAfterV2(o,d,p,st){
 on('fixed',11,L=>{
   const d=G.site;if(!d||!d.mystery||!['site','shelter'].includes(L)) return '';
   if(!mysteryPlan(d)) return '<button onclick="prepareMystery()">🔄 사건 준비 재시도</button>';
-  const x=mysteryPublic(d);return (x.v2?`<button onclick="openZoneJournal()">📝 사건 진행: ${x.phase} · 확인한 사실 ${x.evidence.length}개</button>`:`<button onclick="openZoneJournal()">📝 사건 진행: ${x.phase} · 핵심 증거 ${x.evidence.length}/${mysteryPlan(d).evidence.length}</button>`)+(canVerifyMystery(d)?`<button class="primary" onclick="verifyMystery()">🧩 ${x.v2?'추리 제출 · 남은 기회 '+x.chances+'번':'원인 후보·증거 연결 검증'}</button>`:'');
+  const x=mysteryPublic(d);return (x.v2?`<button onclick="openZoneJournal()">📝 사건 진행: ${x.phase} · 확인한 사실 ${x.evidence.length}개</button>`:`<button onclick="openZoneJournal()">📝 사건 진행: ${x.phase} · 핵심 증거 ${x.evidence.length}/${mysteryPlan(d).evidence.length}</button>`)+(canVerifyMystery(d)?`<button class="primary" onclick="verifyMystery()">🧩 ${x.v2?'추리 제출':'원인 후보·증거 연결 검증'}</button>`:'');
 });
 
 function loreRequest(era,hasFrag){
@@ -6277,7 +6277,7 @@ function phonePanelHTML(){
 function sendSocialForm(name,purpose){return sendSocialMessage(name,purpose,{where:document.getElementById('socialPlace:'+encodeURIComponent(name)+':'+purpose)?.value,ord:Number(document.getElementById('socialWhen:'+encodeURIComponent(name)+':'+purpose)?.value)})}
 function socialHelpText(){
  const x=G.site?.mystery&&mysteryPublic();
- if(x&&!x.conclusion)return x.v2?(x.next.length?`수첩에 적힌 조사할 곳 ${x.next.slice(0,2).join(' / ')}부터 가 봐. 소문과 확인한 사실을 구분해.`:`확인한 사실을 비교한 뒤 ${x.verification.room}에서 추리를 확인해 봐. 기회는 한정돼 있으니 서두르지 말자.`):x.verification?`확인한 사실을 비교한 뒤 ${x.verification.room}에서 검증해 봐. 아직 정답을 단정하지는 말자.`:`수첩에 적힌 다음 조사 후보 ${x.next.join(' / ')||'현재 공간'}부터 확인해 봐. 소문과 확인한 사실을 구분해.`;
+ if(x&&!x.conclusion)return x.v2?(x.next.length?`수첩에 적힌 조사할 곳 ${x.next.slice(0,2).join(' / ')}부터 가 봐. 소문과 확인한 사실을 구분해.`:`확인한 사실을 비교한 뒤 ${x.verification.room}에서 추리를 확인해 봐. 틀려도 다시 생각해 보면 돼.`):x.verification?`확인한 사실을 비교한 뒤 ${x.verification.room}에서 검증해 봐. 아직 정답을 단정하지는 말자.`:`수첩에 적힌 다음 조사 후보 ${x.next.join(' / ')||'현재 공간'}부터 확인해 봐. 소문과 확인한 사실을 구분해.`;
  const p=compactCampaign()&&campaignPublic();return p?`지금 목표는 ${p.stage}야. ${p.next}`:'조사 보드의 다음 조사 방향과 관찰·증언·소문 구분을 먼저 확인해 봐.';
 }
 function scheduleSocialAppt(name,where,ord,purpose){
@@ -7995,6 +7995,7 @@ function tripLine(){ const t=G._tripInfo; if(t&&narrCfg().s[1]<=6) return `${t.f
 function beginTrip(dest,days,opt){
   opt=opt||{};
   const n=opt.keepFed?travelNeedFed(days):travelNeed(days), from=opt.fromName||curPlaceName(), fromPos=opt.fromPos||curPos(), base=G.loc==='hood'?G.hood:null;
+  const origin=['campus','hood','home'].includes(G.loc)?{loc:G.loc,hood:G.hood,district:G.district}:null;   // 도중에 돌아갈 곳
   const ev=opt.event||(!dest.reservoir&&n.days>=2&&Math.random()<TRIP_EVENT);
   const first=!ev?n.days:n.days>=2?Math.floor(n.days/2):0;
   const n1={days:first,calm:Math.round(n.calm*first/n.days),battery:first,feed:n.feed};
@@ -8007,7 +8008,7 @@ function beginTrip(dest,days,opt){
   const how=dest.reservoir?'🚤 수로로':'🔦 뒷길을 건너';
   if(!ev&&dest.kind==='zone') setTripNote(from,n.days,dest);
   if(!ev){ addLog('sys',`${how} ${durText(n.days)} 만에 ${dest.name}${dest.ret?josa(dest.name,'으로','로')+' 돌아왔습니다':'에 도착했습니다'}. (${cost})`); return arriveDest(dest) }
-  G.trip={dest,left:n.days-first,days:n.days,calm:n.calm-n1.calm,from,fromPos};
+  G.trip={dest,left:n.days-first,days:n.days,calm:n.calm-n1.calm,from,fromPos,origin};
   G.loc='road'; G.nextPos=dest.ret?null:dest.pos;
   addLog('sys',first?`🔦 ${from}에서 ${durText(first)}을 걸었습니다 — ${dest.name}까지 ${durText(G.trip.left)} 더 가야 합니다. (${cost})`:`🔦 ${from}${josa(from,'을','를')} 나서자마자 — ${dest.name}까지 ${durText(G.trip.left)} 거리입니다.${n.feed?` (${cost})`:''}`);
   return tripEvent(opt.event);
@@ -8020,6 +8021,21 @@ async function continueTrip(){
   if(t.dest.kind==='zone') setTripNote(t.from||curPlaceName(),t.days||n.days,t.dest);
   addLog('sys',`🔦 ${durText(n.days)} 더 걸어 ${t.dest.name}${t.dest.ret?josa(t.dest.name,'으로','로')+' 돌아왔습니다':'에 도착했습니다'}. (${cost})`);
   return arriveDest(t.dest);
+}
+/* 이동 도중 되돌아가기: 지금까지 걸어온 만큼 다시 걸어 떠나온 곳으로 돌아간다(목적지는 나중에 다시 떠날 수 있다) */
+function canTurnBack(t=G&&G.trip){ return !!(t&&!t.bandit&&!t.dest.ret) }
+async function turnBackTrip(){
+  const t=G.trip; if(busy||!canTurnBack(t)) return;
+  const walked=Math.max(0,(t.days||t.left)-t.left), n=travelNeedFed(walked);
+  const o=t.origin||{loc:t.dest.base&&HOODS[t.dest.base]?'hood':'campus',hood:t.dest.base}, name=t.from||'떠나온 곳';
+  if(!(await askConfirm(`${t.dest.name}${josa(t.dest.name,'으로','로')} 가는 것을 그만두고 ${name}${josa(name,'으로','로')} 돌아갈까요?${walked?` (${needText(n)})`:' (바로 돌아갑니다)'}`))) return;
+  const cost=walked?travelPay(n,true):'';
+  sfx('arrive'); resetSoftClock(); G.trip=null; G.nextPos=null; G.choices=[];
+  addLog('action',`${name}${josa(name,'으로','로')} 되돌아간다`);
+  addLog('sys',`↩ ${t.dest.name}에 가는 것을 그만두고 ${name}${josa(name,'으로','로')} 돌아왔습니다.${cost?` (${cost})`:''} 나중에 다시 떠날 수 있습니다.`);
+  if(o.loc==='home'&&has('clubroom')){ G.loc='home'; G._yuminHere=false; save(); render(); return }
+  if(o.loc==='hood'&&HOODS[o.hood]){ G.base=o.hood; return returnBase() }
+  G.base=null; return enterCampus(false);
 }
 function arriveDest(d){
   sfx('arrive');
@@ -8131,7 +8147,8 @@ function tripFixedHTML(){
   if(peddlerHere()) ac+=b('openPeddler()',`🧭 이동 행상 (진정 음료·배터리 💳${PRICE_ROAD.calm})`);
   ac+=b('shelterHere()','⛺ 임시 쉼터');
   if(G.comp&&G.comp.met&&!G.comp.joined&&G._yuminHere) ac+=b('talkYumin()','🎵 유민에게 말 걸기');
-  return {mv:b('continueTrip()',`🔦 ${t.dest.name}${josa(t.dest.name,'으로','로')} 계속 가기 (${durText(t.left)})`,'primary'),mvLbl,ac,acLbl:'🧭 행동'};
+  const back=canTurnBack(t)?b('turnBackTrip()',`↩ ${esc(t.from||'떠나온 곳')}${josa(t.from||'곳','으로','로')} 돌아가기${(t.days||t.left)-t.left>0?` (${durText((t.days||t.left)-t.left)})`:''}`):'';
+  return {mv:b('continueTrip()',`🔦 ${t.dest.name}${josa(t.dest.name,'으로','로')} 계속 가기 (${durText(t.left)})`,'primary')+back,mvLbl,ac,acLbl:'🧭 행동'};
 }
 on('context',93,()=>{
   if(G.trip) return `\n[이동 중] ${G.trip.from}에서 ${G.trip.dest.name}(으)로 가는 한빛시 뒷길 (남은 ${durText(G.trip.left)}). 목적지에 도착하는 서술은 하지 말 것(계속 가는 것은 버튼으로).${G.trip.bandit?' 불량배가 길을 막고 있다 — 대응은 플레이어가 버튼으로 한다.':''}`;
@@ -9280,9 +9297,10 @@ function fixedHTML(){
   }else if(L==='site'&&d){
     const r=curRoom(), fd=has('lab')?fragDist():null, p=siteProg();
     mvLbl='🧭 공간 이동 · 나가기 · 귀환';
-    mv=r.exits.map(id=>{ const o=d.rooms.find(x=>x.id===id); const hint=fd&&fd[id]<fd[r.id]?' ✧':''; return gameActionButton(roomActionId('move',id),`→ ${o.visited?esc(o.name):'❓ 미탐험 공간'}${o.fragTaken?' ★':''}${hint}`,'mv') }).join('');
-    mv+=btn('exitZone()',d.intro?'↩ 교내로 돌아가기':'🚪 구역 밖으로 나가기','','data-exit="1" title="구역은 그대로 두고 입구 밖으로 (이동 행상을 만날 수도 있음)"');
+    // 나가기·귀환을 이동 줄 맨 앞에 둔다(모바일에서 줄을 옆으로 밀지 않아도 보이게). 조사를 다 마치지 않아도 언제든 나갈 수 있다
+    mv=btn('exitZone()',d.intro?'↩ 교내로 돌아가기':'🚪 구역 밖으로 나가기','','data-exit="1" title="구역은 그대로 두고 입구 밖으로 (이동 행상을 만날 수도 있음)"');
     if(!d.intro) mv+=p&&p.done?btn('returnToCampus()',`✅ 조사 완료 · ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${durText(returnRoute().days)})`,'primary'):btn('returnToCampus()',`↩ 귀환 (${p?mysteryV2(d)?`둘러본 공간 ${p.vis}곳`:'조사 '+p.vis+'/'+p.total:'조사'} · ${durText(returnRoute().days)})`);
+    mv+=r.exits.map(id=>{ const o=d.rooms.find(x=>x.id===id); const hint=fd&&fd[id]<fd[r.id]?' ✧':''; return gameActionButton(roomActionId('move',id),`→ ${o.visited?esc(o.name):'❓ 미탐험 공간'}${o.fragTaken?' ★':''}${hint}`,'mv') }).join('');
     if(mysteryV2(d)&&!d.mystery.state.solved) ac+=mysteryRoomActions(d).map(a=>gameActionButton(roomActionId('clue',a.token),'🔍 '+esc(mysteryActionLabel(a)))).join('');
     else if(!roomExhausted()) ac+=btn("pickFixed('주변을 둘러본다')",'👁 살펴보기')+btn("pickFixed('이곳을 꼼꼼히 조사한다')",'🔍 조사하기');
     if(!d?.intro)ac+=btn('shelterHere()','⛺ 임시 쉼터');
@@ -9992,7 +10010,7 @@ function openGuide(){
     ${row('🎒 소지품',`행동 버튼 줄의 🎒 소지품에서 공포·배터리·캐시·벌점·출입 권한, 기념 메달 조각·자재·탈것·물건을 한눈에 봅니다. 간식·소모품은 「먹기·쓰기」로 쓰고, 🔒가 없는 물건은 상점가에서 팝니다. 모든 물건 옆의 🗑를 누르면 확인 후 버릴 수 있습니다(🔒 물건은 이야기에 필요할 수 있어 경고가 뜹니다)`)}
     ${row('🎵 유민의 하루','유민은 일과를 따라 움직입니다. 평일 수업 칸·조례·종례에는 교실, 쉬는 시간에는 복도·매점, 점심에는 급식실, 방과 후에는 상점가·저수지 둑길·운동장·도서관 등, 소등 후에는 기숙사에 있고, 주말에는 상점가(버스킹)·운동장·도서관·음악실·옥상 등에 있습니다. 같은 일과 칸에서는 위치가 고정되고 칸이 바뀌면 다시 정해집니다. 지금 위치는 연락처·인연·유민 만나러 가기 버튼에 표시됩니다. 동행 중에는 행동 버튼 줄의 🤝 유민과 헤어지기를 누르면 작별 장면이 나온 뒤 동행이 종료됩니다(지도의 🎵로 위치 확인)')}
     ${row('🤝 안심 접촉','곁에 있는 친구 이상 NPC에게 선택지로 손잡기·어깨 토닥임을 청할 수 있습니다. 상대가 수락하면 공포 −1. 짧은 포옹은 확인된 연인과 가능합니다. 같은 상대는 하루 1회, 전체 하루 2회까지 회복하며 거절·문자·전화·상상은 회복하지 않습니다. 반복 접촉은 묘사만 이어집니다.')}
-    ${row('🔎 사건 조사','새 구역의 원인·증거·검증 방법은 AI가 비공개로 생성하고 검토한 뒤 고정합니다. 조사는 화면에 나온 조사 행동으로 하며, 같은 공간이라도 무엇을 하느냐에 따라 결과가 다릅니다. 조사 직후 새로 확인한 사실 또는 추가 발견 없음을 표시합니다. 조사 수첩에는 조사할 거리가 남은 곳만 표시되며(구체적인 행동은 그 공간에 들어가야 보입니다), 충분하다고 생각되면 지정 공간에서 추리를 제출합니다. 기회는 제한돼 있습니다. 방을 모두 방문하거나 단서를 일정 비율 모은 것만으로 해결되지 않습니다. 생성에 실패하면 사건 준비 재시도로 다시 준비합니다.')}
+    ${row('🔎 사건 조사','새 구역의 원인·증거·검증 방법은 AI가 비공개로 생성하고 검토한 뒤 고정합니다. 조사는 화면에 나온 조사 행동으로 하며, 같은 공간이라도 무엇을 하느냐에 따라 결과가 다릅니다. 조사 직후 새로 확인한 사실 또는 추가 발견 없음을 표시합니다. 조사 수첩에는 조사할 거리가 남은 곳만 표시되며(구체적인 행동은 그 공간에 들어가야 보입니다), 충분하다고 생각되면 지정 공간에서 추리를 제출합니다. 틀려도 횟수 제한 없이 다시 추리할 수 있습니다. 방을 모두 방문하거나 단서를 일정 비율 모은 것만으로 해결되지 않습니다. 생성에 실패하면 사건 준비 재시도로 다시 준비합니다.')}
     ${row('🎵 구역 안 유민의 도움','유민이 동행 중이면 구역에서 일정 걸음마다(체력이 35% 이하거나 위험도 2 이상 공간, 또는 가끔) 노래를 불러 상황을 뒤집고, 위기에는 체력 +2, '+Math.round(YUMIN_SING_CALM_P*100)+'% 확률로 공포 −1. 그 밖에 위험한 통로 경고·조각 쪽 울림·길 안내를 해 줍니다. 곁에 있는 유민에게 "노래를 불러 달라"고 청해도(버튼·선택지, 어디서나) 같은 확률로 공포가 줄고 위기에는 체력 +2')}
     ${row('💬 문자 탭','약속 장소·시간 선택, 조사 방향 도움 요청, 현재 위치 확인, 약속 취소 기능을 고릅니다. 1통당 배터리 1%, 시간 소모 없음. 수락한 약속·도움 요청의 호감 +1은 상대마다 하루 한 번입니다. 수업 중·소등 후 적발과 압수 규칙은 적용됩니다. 새 단서나 진상은 문자로 만들지 않습니다.')}
     ${row('💕 데이트 · 🧑‍🤝‍🧑 외출 탭','데이트는 서로 가까워진 상대, 외출은 알고 지내는 인물과 실제로 같은 장소에 있을 때 시작합니다. 데이트 캐시 8·외출 캐시 5, 시간 두 칸, 선택 세 번. 두 활동을 합쳐 하루 한 번, 완료 시 호감 −2~+3. 활동을 중단하거나 장소를 떠나면 호감 보상을 받지 않습니다. 진행 장면과 결과는 저장됩니다.')}
@@ -10026,7 +10044,7 @@ function openGuide(){
     ${row('입구 밖에서 할 수 있는 것','다시 들어가기 · 임시 쉼터(아침에도 입구 밖) · 중앙 캠퍼스 지구로 귀환 · 행상과 거래·대화')}
     ${row('중단한 구역','다 못 본 구역은 최대 3곳까지 보관되어, 나중에 마지막 공간에서 이어서 조사할 수 있습니다. 포기하거나 보관 한도에 밀려나도 밝혀낸 단서만큼은 구역의 사연이 괴담 사전에 남습니다')}
     ${row('👥 인물의 위치','인물은 역할에 맞는 일과를 따라 움직입니다(교사는 담당 교실·교무실, 사감은 기숙사, 학생은 교실·복도·급식실 등, 소등 후엔 기숙사). 방금 만나거나 약속한 칸에는 그 자리에 있고, 다른 지구·아지트에서 만난 인물은 그곳에 머뭅니다. 위치는 📱 연락처에 표시되고, 정체를 알 수 없는 존재는 위치를 모릅니다. 뒷길·구역에서 만난 인물은 다시 찾아갈 수 없습니다')}
-    ${compactCampaign()?row('새 사건 진행','교내에 도는 소문을 조사해 원인을 밝혀 보세요. 충분하다고 생각되면 추리를 제출할 수 있지만 기회는 제한돼 있습니다. 소문을 해결하면 라쿠나로 가는 길이 열립니다. 주요 지역은 라쿠나와 출석부의 두 지역, 총 3곳입니다. 기념 메달 조각 수집은 선택 활동입니다. 의심되는 원인과 그렇게 생각한 이유를 골라 지정 장소에서 확인합니다. 정답은 변하지 않습니다.'):''}
+    ${compactCampaign()?row('새 사건 진행','교내에 도는 소문을 조사해 원인을 밝혀 보세요. 충분하다고 생각되면 추리를 제출할 수 있고, 틀리면 다시 추리하면 됩니다. 소문을 해결하면 라쿠나로 가는 길이 열립니다. 주요 지역은 라쿠나와 출석부의 두 지역, 총 3곳입니다. 기념 메달 조각 수집은 선택 활동입니다. 의심되는 원인과 그렇게 생각한 이유를 골라 지정 장소에서 확인합니다. 정답은 변하지 않습니다.'):''}
     ${row('기념 메달 조각',`6개 완성 시 캐시 ${MEDAL_REWARD_CASH}과 경험 ${MEDAL_REWARD_XP}을 한 번 지급합니다. 본편 사건의 증거와 별개의 수집물입니다. 새 구역의 약 ${Math.round((1-FRAG_SKIP)*100)}%에 하나 (${FRAG_MAX_MISS}곳 연속 없었으면 다음 구역에는 반드시). 메달 연구실 연구로 미리 알 수도 있음`)}
     ${g&&G.actDone?h3('라쿠나 구역'+(G.act>=3?' · 출석부가 가리키는 구역들':''))+row('✨ 라쿠나 구역',`중앙 캠퍼스 지구 정문(또는 다른 지구·아지트)에서 떠남 · 중앙 캠퍼스 지구에서 ${durText(travelDays(CAMPUS_POS,LACUNA_POS))}(동부 저수지 공원·학원가 골목에서는 ${durText(travelDays(hoodPos('east'),LACUNA_POS))}) · 왕복 공포 여유·배터리가 넉넉해야 함 · ${compactCampaign()?'4개 공간의 사건을 추론·검증한 뒤 출석부 해독(추가 주사위 없음)':'큰 구역이며 가장 깊은 공간의 출석부를 🎲 지혜 판정으로 해독'}`)+(G.act>=3?Object.values(WARD_TYPES).map(t=>row(`${t.ic} ${t.n}`,`${t.reqText} · ${compactCampaign()?'사건 검증 후 본편 연결(추가 주사위 없음)':`심장 열기 🎲 ${SK[t.check]} 어려움`}<br><span class="muted">${t.rule}</span>`)).join('')+row('찾아가기','🗺 출석부가 가리키는 구역들 버튼에서 · 중간에 돌아와도 그 자리에서 이어서 조사'):''):''}
     ${h3('중앙 캠퍼스 지구 밖의 지구 (정문 → 🧭 이동하기)')}
