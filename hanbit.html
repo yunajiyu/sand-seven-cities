@@ -4992,7 +4992,7 @@ function mysteryTurnV2(T,d,p){
   }
   const a=mysteryActFor(T,d);
   if(!a){
-    if(INV_RX.test(T.action)&&!RX.NEG.test(T.action)){ T.mysteryOutcome={d,type:'none',free:true}; T.extra+='\n[조사 결과] 이 행동으로는 사건과 이어지는 새 사실이 나오지 않는다. 새 사실·단서를 만들지 않는다.' }
+    if(!T.flags.rumorCheck&&INV_RX.test(T.action)&&!RX.NEG.test(T.action)){ T.mysteryOutcome={d,type:'none',free:true}; T.extra+='\n[조사 결과] 이 행동으로는 사건과 이어지는 새 사실이 나오지 않는다. 새 사실·단서를 만들지 않는다.' }
     return;
   }
   if(inDark()){ T.mysteryOutcome={d,type:'dark',act:a}; T.extra+='\n[조사 결과] 빛이 부족해 관찰하지 못한다.'; return }
@@ -7086,7 +7086,7 @@ function caseSummaryBlock(text='',list=selectedCases(text)){
 /* 기록의 진위(kind)와 사건 내 중요도는 다르다. 고정 사건에서 공개한 증거만 핵심으로 표시한다. */
 function notebookCategory(e){
   if(e&&e.source==='mystery'&&e.kind==='fact') return 'core';
-  if(e&&['rumor','hypothesis'].includes(e.kind)) return 'rumor';
+  if(e&&['rumor','hypothesis'].includes(e.kind)&&!e.checked) return 'rumor';   // 직접 확인을 마친 소문은 배경 기록으로 옮긴다
   return 'background';
 }
 function notebookRecords(){
@@ -7105,13 +7105,56 @@ function notebookGroupsHTML(records,allowDelete=false){
   return groups.map(([key,name,help])=>{
     const entries=records.filter(e=>notebookCategory(e)===key);
     const rows=entries.map(e=>{
-      const type=e.source==='legacy'||!e.kind?'기존 기록 · 중요도 미확정':EVIDENCE_NAMES[e.kind]||'기록';
+      const type=e.checked?`${EVIDENCE_NAMES[e.kind]||'소문'} → ${RUMOR_RESULT[e.checked.result]||'확인함'}`:e.source==='legacy'||!e.kind?'기존 기록 · 중요도 미확정':EVIDENCE_NAMES[e.kind]||'기록';
       const i=(G.canon||[]).findIndex(c=>e.id?c.id===e.id:c===e);
-      return `<div class="shop-row"><span>${canonHTML(e.text)} <span class="muted">[${esc(type)}]</span></span>${allowDelete&&i>=0&&key!=='core'?`<button class="small" onclick="delCanon(${i})" aria-label="기록 삭제">✕</button>`:''}</div>`;
+      return `<div class="shop-row"><span>${canonHTML(e.text)} <span class="muted">[${esc(type)}]</span></span>${key==='rumor'?rumorCheckButton(e):''}${allowDelete&&i>=0&&key!=='core'?`<button class="small" onclick="delCanon(${i})" aria-label="기록 삭제">✕</button>`:''}</div>`;
     }).join('')||'<p class="muted">아직 기록이 없습니다.</p>';
     return `<details${key==='core'?' open':''}><summary><b>${name} · ${entries.length}개</b></summary><p class="muted">${help}</p>${rows}</details>`;
   }).join('');
 }
+/* 소문 직접 확인: 조사 보드의 소문·추정을 그 장소에서 직접 확인해 '사실 / 사실 아님 / 일부만 사실'로 매듭짓는다.
+   결과는 AI가 장면 속에서 정하고(effects.rumor_check), 코드는 확인한 사실을 같은 사건의 관찰 사실로 남긴 뒤 소문을 '확인함'으로 옮긴다 */
+const RUMOR_RESULT={confirmed:'사실로 확인',refuted:'사실 아님',partial:'일부만 사실'};
+function rumorRecord(id){ const e=(G.evidence||[]).find(e=>e.id===id&&!e.deleted); return e&&['rumor','hypothesis'].includes(e.kind)&&!e.checked&&!(G.threads||[]).find(t=>t.id===e.caseId)?.privateMystery?e:null }
+function rumorWhere(e){
+  const id=String(e&&e.placeId||'');
+  if(id.startsWith('campus:spot:')) return {kind:'spot',name:id.slice(12)};
+  if(id.startsWith('campus:')&&DISTRICTS[id.slice(7)]) return {kind:'district',k:id.slice(7),name:DISTRICTS[id.slice(7)].n};
+  if(id.startsWith('hood:')) return {kind:'away',name:(HOODS[id.slice(5)]||{}).n||'그 동네'};
+  if(id.startsWith('zone:')) return {kind:'away',name:'그 소문이 나온 구역'};
+  return {kind:'any'};   // 본편·인물·예전 기록: 지금 있는 곳에서 수소문해 확인한다
+}
+function rumorCheckButton(e){
+  if(!e||!e.id||!rumorRecord(e.id)) return '';
+  const w=rumorWhere(e), here=e.placeId===knowledgePlace();
+  const go=here||w.kind==='any'?'🔎 직접 확인하기':w.kind==='district'&&G.loc==='campus'?`🔎 ${w.name}에서 확인하기`:'';
+  return go?`<button class="small" data-ev="${esc(e.id)}" onclick="checkRumor(this.dataset.ev)">${esc(go)}</button>`:`<span class="muted small">📍 ${esc(w.name)}에서 확인 가능</span>`;
+}
+function checkRumor(id){
+  if(busy||!G) return false;
+  const e=rumorRecord(id); if(!e) return toast('이미 확인했거나 확인할 수 없는 기록입니다'),false;
+  const w=rumorWhere(e);
+  if(e.placeId!==knowledgePlace()&&w.kind!=='any'){
+    if(w.kind!=='district'||G.loc!=='campus') return toast(`「${w.name}」에 가야 직접 확인할 수 있습니다`),false;
+    goDistrict(w.k);
+    if(curDistrict()!==w.k||G.spot) return false;   // 소등·점호 등으로 이동하지 못했다
+  }
+  if(G.loc==='site'&&G.site&&G.site.mystery&&!mysteryPlan()) return toast('사건 준비 재시도로 검증된 사건을 먼저 준비해 주세요'),false;
+  closeModal();
+  const short=e.text.length>50?e.text.slice(0,50)+'…':e.text;
+  pend(`\n[소문 확인] 플레이어가 조사 보드의 ${EVIDENCE_NAMES[e.kind]} 「${e.text}」이(가) 사실인지 직접 확인하러 왔다. 이번 장면에서 플레이어가 직접 보거나 듣는 것으로 결과를 분명히 정한다: 맞다(confirmed) / 틀리다(refuted) / 일부만 맞다(partial). '아직 모르겠다'로 미루지 않는다. 결과는 기존 사건 기록·떡밥장부와 모순되지 않아야 하고, 공개되지 않은 본편 진상이나 사건의 정답을 밝히지 않는다(그런 내용에 닿는 소문이면 일부만 맞음으로 두고 다른 조사 방향으로 이어지게 한다). effects에 "rumor_check":{"result":"confirmed|refuted|partial","fact":"플레이어가 직접 확인한 사실 한 문장(60자 안팎)"}를 넣고, 같은 사실을 사건진행에 또 적지 않는다.`,{rumorCheck:e.id});
+  story(`소문 「${short}」이 사실인지 직접 확인해 본다`,{src:'fixed'});
+  return true;
+}
+on('applied',66,(e,{T})=>{
+  const id=T&&T.flags&&T.flags.rumorCheck; if(!id) return;
+  const r=rumorRecord(id); if(!r) return;
+  const rc=e.rumor_check&&typeof e.rumor_check==='object'?e.rumor_check:null, fact=rc&&typeof rc.fact==='string'?clueKey(rc.fact).slice(0,200):'';
+  if(!rc||!RUMOR_RESULT[rc.result]||fact.length<4){ r.checkTries=(r.checkTries||0)+1; addLog('sys','🔎 이번에는 소문이 맞는지 확실히 알아내지 못했습니다. 조사 보드에서 다시 확인할 수 있습니다.'); return }
+  const ev=addCanon(fact,true,true,{caseId:r.caseId||undefined,placeId:r.placeId,scope:r.scope,kind:'fact',source:'rumorcheck',role:rc.result==='refuted'?'refutes':'narrows'});
+  r.checked={result:rc.result,day:G.day,factId:ev?ev.id:null};
+  addLog('fx',`🔎 소문 확인 — ${RUMOR_RESULT[rc.result]}\n소문: ${r.text}\n직접 확인한 사실: ${fact}`);
+});
 function caseCard(t){
   const facts=evidenceForCase(t), names={main:'본편',local:'장소',personal:'인물'};
   if(t.privateMystery) return `<div class="lex"><b>${esc(t.text)}</b><div>${t.status==='closed'?'해결 완료':'진행 중'} · 확인한 사실 ${facts.filter(e=>notebookCategory(e)==='core').length}개 · 전체 기록 ${facts.length}개</div>${notebookGroupsHTML(facts)}${t.conclusion?`<p><b>검증된 진상:</b> ${esc(t.conclusion)}</p>`:`<p class="muted">다음 조사: ${(t.next||[]).map(esc).join(' / ')||'지역의 사건 조사 수첩 확인'}<br>충분하다고 생각되면 지정 공간에서 추리를 확인해 해결합니다.</p>`}</div>`;
