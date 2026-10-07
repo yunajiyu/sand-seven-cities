@@ -1567,10 +1567,23 @@ function fixCalling(t){
   const v=g+(hasBatchim(g)?'아':'야');
   return t.split(n+'아').join(v).split(n+'야').join(v);
 }
-/* 플레이어를 이름으로 부를 때의 호칭 규칙(서술·문자·관계 장면 프롬프트 공용). 성이 없는 이름이면 빈 문자열 */
-function callRule(){
-  const g=callName(); if(!g) return '';
-  return `플레이어를 이름으로 부르는 대사에서는 성을 붙이지 말고 이름만 쓴다. 예: "${g}${hasBatchim(g)?'아':'야'}"(O), "${G.char.name}${hasBatchim(G.char.name)?'아':'야'}"(X). 성까지 붙이는 경우는 공식 문서·소개 장면에 한정한다.`;
+/* 호칭 규칙(서술·문자·관계 장면 프롬프트 공용). 플레이어를 이름으로 부르는 건 유민뿐이고, 다른 인물은 이름을 부르지 않는다.
+   who를 주면 그 인물 한 명에 대한 규칙만 낸다 */
+function callRule(who){
+  const n=String(G.char.name||'').trim(); if(!n) return '';
+  const g=callName()||n, other='유민 외의 인물(친구·선배·선생님 등)은 대사나 문자에서 플레이어 이름을 부르지 않고 "너"·"전학생"처럼 부르거나 호칭 없이 말한다(출석 확인·공식 문서·자기소개 장면은 예외).';
+  if(who&&who!=='유민') return `${who}${josa(who,'은','는')} 대사나 문자에서 플레이어 이름을 부르지 않고 "너"·"전학생"처럼 부르거나 호칭 없이 말한다.`;
+  const yu=`플레이어를 이름으로 부르는 인물은 유민뿐이며, 성을 붙이지 말고 이름만 쓴다. 예: "${vocative(g)}"(O)${g!==n?`, "${vocative(n)}"(X)`:''}.`;
+  return who?yu:yu+' '+other;
+}
+/* 유민이 아닌 인물의 문자 속 이름 부르기("도현아, …", "…, 박도현아")를 지운다. 한 사람이 보낸 문자에만 쓴다(여러 인물이 섞인 서술은 프롬프트 규칙으로 막는다) */
+function dropCalling(t){
+  const n=String(G.char.name||'').trim(), g=callName();
+  if(!n||!t||typeof t!=='string') return t;
+  const names=[...new Set([n,g].filter(Boolean))].sort((a,b)=>b.length-a.length).join('|'), v=`(?:${names})(?:아|야)`;
+  // 문자 맨 앞("도현아, …")과 맨 끝("…, 도현아.")의 부르는 말만 지운다. 문장 중간·따옴표 속 이름은 건드리지 않는다
+  const out=t.replace(new RegExp(`^\\s*${v}[,!~…]*\\s+`),'').replace(new RegExp(`[,\\s]+${v}(?=[.!?~…]*\\s*$)`),'');
+  return out.trim()||t;
 }
 /* 선택지 객체 → 글자 + 종류 정보(G.choiceMeta), 사건(event) 추출, 호칭 교정 */
 function normalizeTurn(r){
@@ -5881,7 +5894,7 @@ function chatPrompt(name,incomingTopic,rumor,request={}){
   const prof=isY?yuminProfile():`[인물: ${name}] ${lex?lex.desc:'플레이어가 알게 된 사람'}`;
   const top=incomingTopic==='rumor'?`소문 하나를 전한다: ${rumor}`:incomingTopic==='warn'?'오늘 학교·기숙사 분위기(순찰, 점호, 규율부·청소반의 움직임 중 하나)를 조심하라고 한마디 알린다':incomingTopic==='invite'?'방과 후나 쉬는 시간에 어디서 보자고 가볍게 제안한다':incomingTopic==='chat'?'안부를 묻거나 가벼운 잡담을 건넨다':incomingTopic==='missed'?'약속 장소에서 기다렸는데 플레이어가 오지 않아 서운하다고, 너무 무겁지 않게 한마디 한다(풀어 줄 여지를 남긴다)':'';
   return `${prof}
-플레이어: ${G.char.name} (${G.char.age}세 고등학교 2학년 전학생)${callName()?` — 부를 때는 성을 빼고 "${callName()}${hasBatchim(callName())?'아':'야'}"처럼 이름만 쓴다`:''}
+플레이어: ${G.char.name} (${G.char.age}세 고등학교 2학년 전학생) — ${isY?`부를 때는 성을 빼고 "${vocative(callName()||G.char.name)}"처럼 이름만 쓴다`:'문자에서 플레이어 이름을 부르지 않는다("너" 또는 호칭 없이)'}
 관계: ${STAGES[r.stage].n} (호감 Lv.${relLv(name)})
 지금: ${G.day}일째 ${dowName(G.day)}요일 ${G.time}${G.time==='낮'&&slotIdx()>=0?' '+slotLabel():''}. ${name}의 위치: ${contactWhere(name)}. 플레이어의 위치: ${apptWhereName(request.origin||placeKey())}.
 약속 가능한 장소: ${apptWhereOptions().map(([id,n])=>n).join(' / ')}. 임시장소는 해당 캠퍼스 지점 안의 별도 위치이고 소문의 장소는 조사 외출 목적지 입구다. 약속 장소에 실제로 오는 건 그 시간이 됐을 때다. 아직 도착하지 않았다면 왔다고 쓰지 마라.
@@ -5893,6 +5906,7 @@ ${incomingTopic?`${name}이(가) 플레이어에게 먼저 문자를 보낸다. 
 플레이어가 먼저 만나자고 했거나 네가 한 제안을 플레이어가 받아들여 장소와 때가 정해졌을 때만 appointment에 {"place":"약속 가능한 장소의 정확한 이름(임시장소·소문의 장소 포함)","when":"방과 후|점심시간|쉬는 시간|저녁|내일 아침 등"}을 적는다(없으면 null).
 JSON만: {"reply":"문자 내용","affinity":0 또는 1,"hint":"상대가 실제로 알려 주는 단서·소문이 있으면 한 문장, 없으면 빈 문자열","appointment":null}`;
 }
+const callFix=(name,t)=>name==='유민'?fixCalling(t):dropCalling(fixCalling(t));
 async function chatAI(name,incomingTopic,rumor,request={}){
   const decision=request.decision||chatDecide(name,incomingTopic);
   const sys=`너는 ${name}이다. 같은 학교 학생/교직원으로서 휴대폰 문자를 보낸다. JSON만 출력한다.`;
@@ -5901,13 +5915,13 @@ async function chatAI(name,incomingTopic,rumor,request={}){
     j=null;
     try{ j=parseJSON(await callAI(sys,chatPrompt(name,incomingTopic,rumor,{...request,decision})+(attempt?'\n[다시 작성] 직전 답장에 게임 기능·화면을 가리키는 말이 있었다. 인물이 실제로 보낼 법한 문자로만 다시 쓴다.':''),300,'lex')) }
     catch(e){ if(e.message!=='NO_KEY') console.warn(e); break }
-    const r=j&&j.reply?fixCalling(String(j.reply).trim().slice(0,160)):'';
+    const r=j&&j.reply?callFix(name,String(j.reply).trim().slice(0,160)):'';
     if(!r) break;
     if(!CHAT_META_RX.test(r)) reply=r;
   }
   const fallback=rand(CHAT_TOPIC_FALLBACK[request.help?'help':incomingTopic]||CHAT_FALLBACK);
   if(!reply) j=null;   // 대체 문구일 때는 약속·호감·귀띔을 쓰지 않는다
-  const hint=j&&j.hint?fixCalling(String(j.hint).trim().slice(0,120)):'';
+  const hint=j&&j.hint?callFix(name,String(j.hint).trim().slice(0,120)):'';
   return {decision,confirmed:!!reply,reply:reply||fallback,aff:j&&+j.affinity>0?1:0,hint:CHAT_META_RX.test(hint)?'':hint,appt:j&&j.appointment&&typeof j.appointment==='object'?{place:String(j.appointment.place||''),when:String(j.appointment.when||'')}:null};
 }
 /* 문자 약속: 플레이어가 만나자고 했거나, 상대가 먼저 제안한 약속을 플레이어가 받아들였을 때만 기록 (상대가 혼자 제안한 것은 약속이 아님) */
@@ -6327,7 +6341,7 @@ async function socialScene(a,choice){
  try{
   const n=a.name,r=getRel(n),phase=socialPhaseAt(a,Math.min(a.step,2));
   const prompt=`친구 외출 또는 서로의 마음을 나누는 데이트의 짧은 장면 2~3문장을 쓴다. ${n}과 플레이어는 실제로 ${apptWhereName(a.where)}에서 함께 있다. 활동: ${a.kind==='date'?(r.romanceConfirmed?'연인 데이트':'고백 전 서로 알아가는 데이트'):'친구 외출'}. 관계: ${STAGES[r.stage].n}. ${n==='유민'?yuminProfile()+yuminGrowthText():((G.lexicon||[]).find(e=>e.name===n)?.desc||'이미 알게 된 사람')}. 지금 단계: ${phase.title}. 확정된 현재 상황: ${phase.cue||phase.title}. 플레이어가 고른 행동: ${choice||'함께 시간을 시작한다'}. 코드가 정한 직전 반응: ${a.lastReaction||'아직 없음'}. ${a.kind==='date'?dateMemoryText(n):''} 이전 장면: ${a.scenes.slice(-2).join(' ')}. 감정 교류를 중심으로 상대도 자기 말과 작은 행동으로 응답한다. 취향은 보조 소재이며 알려진 취향만 쓴다. 없었던 추억·약속·과거·취향을 만들지 않는다. 현재 상황을 다른 상황으로 바꾸거나 선택을 미리 대신하지 않는다. 상대의 성격과 관계 단계에 맞춰 반응한다. 고백 전에는 연인으로 부르거나 고백·연애 선언을 하지 않고 연인은 비성적인 일상의 다정함을 보여 준다. 공포 사건의 진상·새 단서·아이템·위치 변화·약속 확정을 만들지 않는다. 숨은 점수·기준은 쓰지 않는다. choices와 effects는 코드가 결정하므로 JSON {"narration":"장면"}만.`;
-  text=String(parseJSON(await callAI('너는 선택지 기반 관계 활동의 장면 작성기다. 서술에서 플레이어는 "당신"으로 지칭한다(인물의 대사 속 호칭은 그대로). '+callRule(),prompt,650,'story'))?.narration||'').slice(0,1800);
+  text=String(parseJSON(await callAI('너는 선택지 기반 관계 활동의 장면 작성기다. 서술에서 플레이어는 "당신"으로 지칭한다(인물의 대사 속 호칭은 그대로). '+callRule(a.name),prompt,650,'story'))?.narration||'').slice(0,1800);
   text=fixCalling(text);
  }catch(e){}
  if(G!==g)return;if(G.social.session!==a||a.status!=='active'){busy=false;render();return}
@@ -6412,7 +6426,7 @@ function startStoryConfession(id){if(busy)return false;const name=relList().find
 async function socialClosingScene(a){
  if(a.closingDone)return;
  const g=G,ready=romanceReady(a.name),id=romanceActionId(a.name);busy=true;render();let result;
- try{result=parseJSON(await callAI('너는 관계 장면 작성기다. 상태 변화는 코드가 담당한다. 서술에서 플레이어는 "당신"으로 지칭한다(인물의 대사 속 호칭은 그대로). '+callRule(),
+ try{result=parseJSON(await callAI('너는 관계 장면 작성기다. 상태 변화는 코드가 담당한다. 서술에서 플레이어는 "당신"으로 지칭한다(인물의 대사 속 호칭은 그대로). '+callRule(a.name),
   `${a.name}과 ${apptWhereName(a.where)}에서 데이트를 마치는 짧은 장면 2~3문장. 관계는 ${STAGES[getRel(a.name).stage].n}. ${a.name==='유민'?yuminProfile()+yuminGrowthText():((G.lexicon||[]).find(e=>e.name===a.name)?.desc||'이미 알게 된 사람')}. 방금 고른 행동: ${a.choices.map(c=>c.text).join(' / ')}. 직전 반응: ${a.lastReaction||'함께 시간을 마쳤다'}. 마무리 느낌의 방향: ${a.dateFeeling||'선택에 맞는 여운'}. ${dateMemoryText(a.name)}. 감정 교류를 중심으로 상대도 자기 마음과 작은 행동으로 응답한다. ${getRel(a.name).romanceConfirmed?'확정 연인의 비성적인 일상과 다정함을 묘사한다.':'아직 연인이 아니며 서로 알아가는 거리와 조심스러운 온기를 유지한다.'} 상대의 성격과 실제 선택에 맞는 여운을 보여 주며 서먹함을 무조건 행복한 결말로 바꾸지 않는다. 없었던 추억·취향·과거·약속을 만들지 않는다. 마무리 느낌 문장은 코드가 덧붙이므로 그대로 반복하지 않는다. ${ready?`좋아하는 마음을 말할 기회가 생겼다. 플레이어가 직접 고를 고백 행동 한 개를 choices에 {"text":"현재 장면에 맞는 자연스러운 행동 문장","action_id":"${id}"}로 작성한다. 고백은 아직 하지 않았으며 상대의 수락이나 연인 성사를 미리 쓰지 않는다.`:'이번 장면에 고백 선택지를 제시하지 않는다.'} 숨은 점수·기준치·조건 충족·해금 같은 설명을 하지 않는다. 새 단서·아이템·이동·effects는 없다. JSON {"narration":"장면","choices":[]}만.`,900,'story'))}catch(e){}
  if(G!==g)return;if(G.social?.session!==a||a.status!=='done'){busy=false;render();return}
  if(result?.narration)a.scenes.push(fixCalling(String(result.narration).slice(0,1800)));
@@ -6921,7 +6935,7 @@ function promiseWith(name){
   const place=has('clubroom')?`아지트 「${G.home.name||'폐 동아리실'}」`:'중앙 캠퍼스 지구';
   aiTurn(`${name}${josa(name,'과','와')} 서로의 마음을 다시 확인한다`,`[서로의 약속] ${place}에서 둘이 조용히 시간을 보내며 오래 함께하고 싶다는 마음을 확인한다. 결혼이나 성적인 의미의 맹세가 아니라 현재의 관계를 소중히 이어 가자는 비성적 청소년 연애 장면이다. 손잡기·짧은 포옹·다정한 대화 정도만 허용한다. ${name}의 성격이 드러나는 순간과 두 사람이 나누는 짧은 약속의 말을 따뜻하게 쓴다. 숫자 effects는 0.`+(name!=='유민'&&G.comp.joined?' 유민은 노래를 한 곡 부른다.':''));
 }
-/* 플레이어를 부를 때 성을 빼고 이름만 */
+/* 호칭: 유민만 이름(성 없이)으로 부르고, 다른 인물은 이름을 부르지 않는다 */
 on('facts',90,(o,rules)=>{ const r=callRule(); if(r) rules.push(r) });
 
 /* =========================================================
