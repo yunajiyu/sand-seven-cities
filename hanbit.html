@@ -4640,6 +4640,26 @@ function clipText(t,max){
   const cut=t.slice(0,max), end=Math.max(cut.lastIndexOf('다.'),cut.lastIndexOf('. '),cut.lastIndexOf('요.'),cut.lastIndexOf('."'));
   return (end>max*0.5?cut.slice(0,end+(cut[end]==='.'?1:2)):cut).trim();
 }
+/* 실마리(leads) 연결의 형식 실수를 사실은 건드리지 않고 바로잡는다: 없는 ID·자기 참조 제거, leads 누락 보충, start_leads 1~2개로 정리,
+   start_leads에서 닿지 않는 증거는 이미 열린 증거 중 연결이 가장 적은 것에 이어 붙인다(핵심 증거 먼저, 함정은 나중). 증거 문장·정답·검증은 그대로다. */
+function repairMysteryLeads(p){
+  const es=p.evidence;
+  if(!Array.isArray(es)||!es.length||es.some(e=>!e||typeof e!=='object'||typeof e.id!=='string')) return;
+  const ids=new Set(es.map(e=>e.id));
+  if(ids.size!==es.length) return;   // 중복 ID는 검증기가 거절한다
+  for(const e of es) e.leads=[...new Set((Array.isArray(e.leads)?e.leads:[]).filter(id=>typeof id==='string'&&ids.has(id)&&id!==e.id))];
+  let start=[...new Set((Array.isArray(p.start_leads)?p.start_leads:[]).filter(id=>typeof id==='string'&&ids.has(id)))].slice(0,2);
+  if(!start.length) start=[(es.find(e=>e.role==='core')||es[0]).id];
+  const reach=()=>{ const open=new Set(start),todo=[...start]; while(todo.length){ const cur=todo.pop(), e=es.find(e=>e.id===cur); for(const id of e?e.leads:[]) if(!open.has(id)){ open.add(id); todo.push(id) } } return open };
+  let open=reach();
+  for(const e of [...es].sort((a,b)=>(a.role==='decoy')-(b.role==='decoy'))){
+    if(open.has(e.id)) continue;
+    const from=es.filter(x=>open.has(x.id)).sort((a,b)=>a.leads.length-b.leads.length)[0];
+    if(!from) break;
+    from.leads.push(e.id); open=reach();
+  }
+  p.start_leads=start;
+}
 function normalizeMysteryDraft(p,d){
   if(!p||typeof p!=='object'||!Array.isArray(d?.rooms)) return p;
   const byId=new Map(d.rooms.map(r=>[r.id,r.id])), byName=new Map(d.rooms.map(r=>[String(r.name||'').trim(),r.id]));
@@ -4651,6 +4671,7 @@ function normalizeMysteryDraft(p,d){
   if(Array.isArray(p.evidence)) p.evidence=p.evidence.map(e=>e&&typeof e==='object'?{...e,room:rid(e.room),text:clipText(e.text,240),meaning:clipText(e.meaning,200),...(e.action!=null?{action:clipText(e.action,80)}:{}),...(typeof e.role==='string'?{role:e.role.trim().toLowerCase()}:{})}:e);
   if(Array.isArray(p.dead_ends)) p.dead_ends=p.dead_ends.map(x=>x&&typeof x==='object'?{...x,room:rid(x.room),action:clipText(x.action,80)}:x);
   if(p.verification&&typeof p.verification==='object') p.verification={...p.verification,room:rid(p.verification.room)};
+  repairMysteryLeads(p);
   return plainifyMystery(p,d);
 }
 function roomViewIssue(p,d,rooms,text){
@@ -4703,8 +4724,9 @@ function validateMystery(p,d){
   if(start.length<1||start.length>2||start.some(id=>!ids.has(id)))errors.push('start_leads 1~2개');
   else{
     const open=new Set(start),todo=[...start];
-    while(todo.length){ const e=es.find(e=>e&&e.id===todo.pop()); for(const id of (e&&Array.isArray(e.leads)?e.leads:[])) if(!open.has(id)){ open.add(id); todo.push(id) } }
-    if(es.some(e=>e&&!open.has(e.id)))errors.push('start_leads에서 leads로 도달할 수 없는 증거');
+    while(todo.length){ const cur=todo.pop(), e=es.find(e=>e&&e.id===cur); for(const id of (e&&Array.isArray(e.leads)?e.leads:[])) if(!open.has(id)){ open.add(id); todo.push(id) } }
+    const lost=es.filter(e=>e&&!open.has(e.id)).map(e=>e.id);
+    if(lost.length)errors.push(`start_leads에서 leads로 도달할 수 없는 증거(${lost.join(', ')} — 다른 증거의 leads에 넣거나 start_leads에 넣어라)`);
   }
   if(compactCampaign()&&d.big&&p.main_link!==campaignChapter(d.key)?.link)errors.push('고정 본편 연결 사실');
   return [...new Set(errors)];
@@ -4712,7 +4734,7 @@ function validateMystery(p,d){
 function mysteryPrompt(d){
   const seen=(G.evidence||[]).filter(e=>e.placeId==='zone:'+siteIdentity(d)).map(e=>e.text);
   const extra=(d.deductionRequired?'\n추론 JSON 필드 deduction을 추가한다: {hypotheses:[{id:"h1",text:"원인 후보"},{id:"h2",text:"다른 원인 후보"},{id:"h3",text:"다른 원인 후보"}],answer_id:"h2",supports:["e1","e2"],explanation:"정답과 근거 관계"}. 정답은 세 후보 중 하나이고, supports는 그것을 구별하는 증거 2개 이상이다. 후보와 정답 순서는 매번 다르게 구성한다. 단서 소재는 문서·음원·장치·흔적·증언 등 사건마다 다르게 조합하고 원인도 새로 설계한다. NPC 증언을 쓰면 해당 인물의 기존 성격과 이미 공개한 사실을 유지한다. 오답은 설득력 있지만 공개 증거로 반박할 수 있어야 한다. 세 후보는 조사 시작부터 \'의심되는 원인\'(소문·추측)으로 공개되므로 후보 문장에 미발견 사실을 넣지 않는다. 정답 후보만 길거나 자세해서 답이 드러나지 않게 한다. supports에는 함정 증거(decoy)를 넣지 않는다.\n[함정 증거] evidence에 role:"decoy"인 함정 증거를 정확히 1개(id "d1") 넣는다: {"id":"d1","role":"decoy","room":"공간 ID","action":"얻는 행동","text":"...","meaning":"...","points_to":"오답 후보 ID","refuted_by":"핵심 증거 ID","leads":[]}. 함정 증거는 직접 보거나 들은 사실이며 거짓이 아니다. 다만 그것만 보면 오답 후보 points_to가 맞아 보인다. refuted_by 핵심 증거와 함께 보면 그 오답이 틀렸음이 드러나야 한다. 함정 증거의 text·meaning 길이와 구체성은 핵심 증거와 비슷하게 써서 문장 모양으로 구별되지 않게 한다.': '')+(d.intro?'\n입문 사건: 공간 3개에 핵심 증거(core) 정확히 3개와 함정 증거 1개. 핵심 증거는 최소 2개 공간에 나누되 한 공간에 2개가 몰려도 되고, 한 공간은 핵심 증거 없이 함정 증거나 dead_end만 있어도 된다. 교내의 안전한 관찰과 비교만으로 해결 가능. 본편 정체와 관계없는 독립 사건이다.': '')+(compactCampaign()&&d.big?'\n비공개 본편 담당 사실: '+JSON.stringify(campaignChapter(d.key))+'\n이 사건의 결론으로 담당 사실을 입증하도록 증거와 검증 행동을 구성하라. main_link 필드에 담당 link를 그대로 넣는다. 담당하지 않은 다른 구역의 사실이나 전체 진상을 미리 말하지 않는다.':'');
-  return `플레이어이자 제작자도 정답을 모르는 새 미스터리를 설계한다. 아래 장소의 중심 사건 하나를 비공개로 완성하라. 정답과 모든 증거를 지금 확정하고, 이후 행동에 맞춰 바꾸지 않는다. 핵심 증거(role:"core", id e1~e4) 3~4개는 서로 다른 접근 가능한 공간에서 얻고(입문 사건은 아래 예외), 적어도 2개의 관찰을 연결해야 원인을 추론할 수 있게 한다. [행동별 증거] 증거마다 action에 그 증거를 얻는 구체적인 행동 한 문장(30자 안팎, 쉬운 입말, 예: "피아노 뚜껑 안쪽을 손전등으로 비춰 본다")을 쓴다. 같은 공간이라도 행동이 다르면 결과가 다르다. leads에는 이 증거를 얻으면 새로 조사할 수 있게 되는 증거 ID를 넣고, start_leads에는 처음부터 조사할 수 있는 증거 ID 1~2개를 넣는다. 모든 증거는 start_leads에서 leads를 따라 도달할 수 있어야 한다. dead_ends에는 그럴듯하지만 아무것도 나오지 않는 행동을 공간마다 최대 1개 넣되, 전체 행동(증거 action + dead_ends) 중 dead_ends는 30% 이하로 한다(증거가 4~5개면 dead_end 1~2개). 모든 action 문장은 서로 달라야 한다. 모든 핵심 증거를 verification.requires에 넣고(함정 증거는 넣지 않는다) 구체적인 검증 행동으로 원인과 결과의 관계를 확인한다. room_views는 위 공간 목록의 모든 공간마다 정확히 하나씩 쓰고 room에는 공간 ID(r1 등)를 그대로 넣으며 text는 400자 이하로 쓴다. [문체] 읽는 사람은 고등학생이다. 전문용어·한자어·학술 말투(공명, 유입, 기류, 오작동, 기인 등)를 쓰지 말고 짧고 쉬운 입말로 쓴다. 가설 text는 한 문장(40자 안팎)으로 '무엇이 어떻게 해서 이런 일이 생겼다'만, 증거 text는 직접 보거나 들은 구체적인 모습 한 문장(60자 안팎), meaning은 '그렇다면 ~일 수도 있다' 정도의 짧은 한 줄(40자 안팎), verification.action도 한 문장으로 쓴다. 공간은 반드시 이름으로 부르고 r1·r2 같은 ID는 어떤 문장에도 쓰지 않는다. 분위기와 증거를 구분하고, 소문만으로 정답을 확정하지 않는다. 공개 묘사/도착 장면은 원인이나 아직 읽지 않은 증거를 밝히지 않는다. 의미(meaning)는 해당 증거만으로 알 수 있는 기여이며 정답을 미리 설명하지 않는다. 다음 증거의 행동은 leads로 열린 뒤에만 조사 후보로 공개된다. 학원 공포 세계관이며 본편 진상을 새로 만들거나 바꾸지 않는다.\n장소: ${d.name} / ${d.theme}\n공간과 연결: ${JSON.stringify(d.rooms.map(r=>({id:r.id,name:r.name,light:r.light||'dark',exits:r.exits})))}\n이미 플레이어가 관찰한 사실(바꾸지 말 것): ${JSON.stringify(seen)}\n기존 사건의 확정 배경(있다면 유지): ${d.lore?JSON.stringify({what:d.lore.what,fate:d.lore.fate}):'(새 사건)'}\n본편과의 비공개 본편 진상(바꾸지 말 것): ${JSON.stringify(compactCampaign()?{truth:campaignPlan()?.truth,detail:campaignPlan()?.detail}:G.secret||{})}\n본편과의 비공개 연결 제약: ${d.big?JSON.stringify((G.wards||[]).find(w=>w.id===d.key)||{}):'(독립 사건)'}\nJSON만: {"question":"중심 질문","opening":"정답 없는 도착 장면","truth":"실제 원인과 사건 경위","room_views":[{"room":"r1","text":"진입 시 보이는 분위기만(공간 ID 그대로, 400자 이하)"}],"evidence":[{"id":"e1","role":"core","room":"r1","action":"이 증거를 얻는 구체적인 행동 한 문장","text":"구체적인 관찰 사실","meaning":"이 사실이 좁히는 질문","leads":["e2"]}],"start_leads":["e1"],"dead_ends":[{"room":"r2","action":"그럴듯하지만 아무것도 나오지 않는 행동"}],"verification":{"room":"방 ID","action":"플레이어가 실행할 검증 방법","requires":["e1","e2"],"result":"실제 검증 결과"},"conclusion":"모든 근거를 연결한 최종 진상"}${extra}`;
+  return `플레이어이자 제작자도 정답을 모르는 새 미스터리를 설계한다. 아래 장소의 중심 사건 하나를 비공개로 완성하라. 정답과 모든 증거를 지금 확정하고, 이후 행동에 맞춰 바꾸지 않는다. 핵심 증거(role:"core", id e1~e4) 3~4개는 서로 다른 접근 가능한 공간에서 얻고(입문 사건은 아래 예외), 적어도 2개의 관찰을 연결해야 원인을 추론할 수 있게 한다. [행동별 증거] 증거마다 action에 그 증거를 얻는 구체적인 행동 한 문장(30자 안팎, 쉬운 입말, 예: "피아노 뚜껑 안쪽을 손전등으로 비춰 본다")을 쓴다. 같은 공간이라도 행동이 다르면 결과가 다르다. leads에는 이 증거를 얻으면 새로 조사할 수 있게 되는 증거 ID를 넣고, start_leads에는 처음부터 조사할 수 있는 증거 ID 1~2개를 넣는다. 모든 증거(함정 증거 d1 포함)는 start_leads에서 leads를 따라 도달할 수 있어야 한다: 다른 증거의 leads에 한 번도 나오지 않는 증거는 반드시 start_leads에 있어야 한다(예: start_leads ["e1"], e1.leads ["e2","d1"], e2.leads ["e3"], e3.leads []). dead_ends에는 그럴듯하지만 아무것도 나오지 않는 행동을 공간마다 최대 1개 넣되, 전체 행동(증거 action + dead_ends) 중 dead_ends는 30% 이하로 한다(증거가 4~5개면 dead_end 1~2개). 모든 action 문장은 서로 달라야 한다. 모든 핵심 증거를 verification.requires에 넣고(함정 증거는 넣지 않는다) 구체적인 검증 행동으로 원인과 결과의 관계를 확인한다. room_views는 위 공간 목록의 모든 공간마다 정확히 하나씩 쓰고 room에는 공간 ID(r1 등)를 그대로 넣으며 text는 400자 이하로 쓴다. [문체] 읽는 사람은 고등학생이다. 전문용어·한자어·학술 말투(공명, 유입, 기류, 오작동, 기인 등)를 쓰지 말고 짧고 쉬운 입말로 쓴다. 가설 text는 한 문장(40자 안팎)으로 '무엇이 어떻게 해서 이런 일이 생겼다'만, 증거 text는 직접 보거나 들은 구체적인 모습 한 문장(60자 안팎), meaning은 '그렇다면 ~일 수도 있다' 정도의 짧은 한 줄(40자 안팎), verification.action도 한 문장으로 쓴다. 공간은 반드시 이름으로 부르고 r1·r2 같은 ID는 어떤 문장에도 쓰지 않는다. 분위기와 증거를 구분하고, 소문만으로 정답을 확정하지 않는다. 공개 묘사/도착 장면은 원인이나 아직 읽지 않은 증거를 밝히지 않는다. 의미(meaning)는 해당 증거만으로 알 수 있는 기여이며 정답을 미리 설명하지 않는다. 다음 증거의 행동은 leads로 열린 뒤에만 조사 후보로 공개된다. 학원 공포 세계관이며 본편 진상을 새로 만들거나 바꾸지 않는다.\n장소: ${d.name} / ${d.theme}\n공간과 연결: ${JSON.stringify(d.rooms.map(r=>({id:r.id,name:r.name,light:r.light||'dark',exits:r.exits})))}\n이미 플레이어가 관찰한 사실(바꾸지 말 것): ${JSON.stringify(seen)}\n기존 사건의 확정 배경(있다면 유지): ${d.lore?JSON.stringify({what:d.lore.what,fate:d.lore.fate}):'(새 사건)'}\n본편과의 비공개 본편 진상(바꾸지 말 것): ${JSON.stringify(compactCampaign()?{truth:campaignPlan()?.truth,detail:campaignPlan()?.detail}:G.secret||{})}\n본편과의 비공개 연결 제약: ${d.big?JSON.stringify((G.wards||[]).find(w=>w.id===d.key)||{}):'(독립 사건)'}\nJSON만: {"question":"중심 질문","opening":"정답 없는 도착 장면","truth":"실제 원인과 사건 경위","room_views":[{"room":"r1","text":"진입 시 보이는 분위기만(공간 ID 그대로, 400자 이하)"}],"evidence":[{"id":"e1","role":"core","room":"r1","action":"이 증거를 얻는 구체적인 행동 한 문장","text":"구체적인 관찰 사실","meaning":"이 사실이 좁히는 질문","leads":["e2"]}],"start_leads":["e1"],"dead_ends":[{"room":"r2","action":"그럴듯하지만 아무것도 나오지 않는 행동"}],"verification":{"room":"방 ID","action":"플레이어가 실행할 검증 방법","requires":["e1","e2"],"result":"실제 검증 결과"},"conclusion":"모든 근거를 연결한 최종 진상"}${extra}`;
 }
 async function ensureMystery(d=G&&G.site){
   if(!d||!Array.isArray(d.rooms)) return null;

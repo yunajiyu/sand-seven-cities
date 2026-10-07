@@ -226,5 +226,50 @@ await test('[v2] Room totals are hidden in the status bar, return button and pau
  // 사건이 없는 일반 구역도 그대로
  f.run('delete G.site.mystery;renderNeed()');assert.match(f.run("document.getElementById('needBar').innerHTML"),/3\/4공간/);
 });
+await test('[v2] Broken lead links in a draft are repaired without touching any fact, and the case is prepared on the first try',async f=>{
+ f.run('seed();G.site.deductionRequired=true');
+ const cases={
+  'decoy never opened':"p.evidence[0].leads=['e2']",
+  'terminal evidence has no leads field':"delete p.evidence[2].leads;delete p.evidence[3].leads",
+  'cycle cut off from the start':"p.evidence[0].leads=['d1'];p.evidence[1].leads=['e3'];p.evidence[2].leads=['e2']",
+  'unknown and self ids':"p.evidence[0].leads=['e2','d1','zzz','e1',7];p.evidence[1].leads=['e2','nope']",
+  'start_leads empty':"p.start_leads=[]","start_leads missing":"delete p.start_leads",
+  'start_leads has three and unknown':"p.start_leads=['e1','e2','e3','zzz']",
+  'nothing links anywhere':"p.evidence.forEach(e=>e.leads=[])",
+ };
+ for(const [name,mut] of Object.entries(cases)){
+  f.run('globalThis.p='+JSON.stringify(candidate)+';'+mut);
+  const before=f.obj('p.evidence.map(e=>[e.id,e.text,e.meaning,e.action,e.room,e.role])');
+  f.run('p=normalizeMysteryDraft(p,G.site)');
+  assert.deepEqual(f.obj('validateMystery(p,G.site)'),[],name);
+  assert.deepEqual(f.obj('p.evidence.map(e=>[e.id,e.text,e.meaning,e.action,e.room,e.role])'),before,name+': facts untouched');
+  assert.ok(f.run('p.start_leads.length>=1&&p.start_leads.length<=2'),name);
+ }
+ // 이미 올바른 연결은 그대로
+ f.run('globalThis.p='+JSON.stringify(candidate)+';p=normalizeMysteryDraft(p,G.site)');assert.deepEqual(f.obj('p.evidence.map(e=>e.leads)'),candidate.evidence.map(e=>e.leads));assert.deepEqual(f.obj('p.start_leads'),['e1']);
+ // 끝까지: 생성 → 정규화 → 검증 → 검토가 한 번에 통과하고 봉인된 사건에서 모든 증거가 열린다
+ const broken=JSON.parse(JSON.stringify(candidate));broken.evidence[0].leads=['e2'];delete broken.evidence[3].leads;
+ f.run('seed();G.site.deductionRequired=true;let designs=0;callAI=async(sys)=>{if(sys.includes("독립 검토자"))return JSON.stringify({valid:true,issues:[]});designs++;return JSON.stringify('+JSON.stringify(broken)+')}');
+ await f.run('ensureMystery()');assert.equal(f.run('G.site.mystery.status'),'ready');assert.equal(f.run('designs'),1,'no retry needed');
+ f.run("const st=G.site.mystery.state,pl=mysteryPlan();for(let i=0;i<8;i++){const open=mysteryOpenIds(pl,st);const e=pl.evidence.find(e=>open.has(e.id)&&!st.found.includes(e.id));if(!e)break;st.found.push(e.id)}");
+ assert.equal(f.run('mysteryPlan().evidence.every(e=>G.site.mystery.state.found.includes(e.id))'),true,'every fact can be reached by playing');
+});
+await test('[v2] A truly unrepairable lead problem is reported with the evidence ids so the retry can fix it',f=>{
+ f.run('seed();G.site.deductionRequired=true;let p='+JSON.stringify(candidate)+";p.evidence[0].leads=['e2'];");
+ const errs=f.obj('validateMystery(p,G.site)');assert.ok(errs.some(e=>/도달할 수 없는 증거\(d1, e3|도달할 수 없는 증거\(d1/.test(e)||/도달할 수 없는 증거\(.*d1/.test(e)),errs.join('|'));
+ assert.match(f.run('mysteryPrompt(G.site)'),/다른 증거의 leads에 한 번도 나오지 않는 증거는 반드시 start_leads에 있어야 한다/);
+});
+await test('[v2] Reachability is checked over the whole lead graph: a valid branching chain is never rejected (regression)',f=>{
+ f.run('seed();G.site.deductionRequired=true');
+ // 분기와 사슬이 섞인 올바른 연결. 예전 검사는 대기열을 증거마다 한 칸씩 꺼내 이런 사건을 "도달 불가"로 거절했다.
+ for(const mut of ["p.evidence[0].leads=['e3','e2'];p.evidence[2].leads=['d1'];p.evidence[1].leads=[]",
+                   "p.evidence[0].leads=['d1','e2','e3'];p.evidence[1].leads=[];p.evidence[2].leads=[]",
+                   "p.start_leads=['e1','e3'];p.evidence[0].leads=['e2'];p.evidence[1].leads=['d1'];p.evidence[2].leads=[]",
+                   "p.evidence[0].leads=['e2'];p.evidence[1].leads=['e3'];p.evidence[2].leads=['d1']"]){
+  f.run('p='+JSON.stringify(candidate)+';'+mut);assert.deepEqual(f.obj('validateMystery(p,G.site)'),[],mut);
+ }
+ // 정말 닿지 않는 경우는 여전히 거절한다
+ f.run('p='+JSON.stringify(candidate)+";p.evidence[0].leads=['e2'];p.evidence[1].leads=[]");assert.ok(f.obj('validateMystery(p,G.site)').some(e=>/도달할 수 없는 증거\(.*e3.*d1|도달할 수 없는 증거\(.*d1.*e3/.test(e)));
+});
 console.log(`${count} private-mystery scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
