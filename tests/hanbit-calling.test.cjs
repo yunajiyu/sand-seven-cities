@@ -31,7 +31,7 @@ await test('fixCalling turns "박도현아" into "도현아" for any surname len
   f.run("G.char.name='박도현';G.char.callName='현'");assert.equal(f.run("fixCalling('박도현아')"),'현아');
   f.run("delete G.char.callName;G.char.name='도현'");assert.equal(f.run("fixCalling('도현아')"),'도현아','two-letter names are left alone');
   f.run("G.char.name='박도현'");assert.equal(f.run("fixCalling('박도현 학생, 교무실로 오세요. 박도현이 왔다.')"),'박도현 학생, 교무실로 오세요. 박도현이 왔다.','formal use is kept');
-  assert.match(f.run('callRule()'),/"도현아"\(O\), "박도현아"\(X\)/);f.run("G.char.name='도현'");assert.equal(f.run('callRule()'),'');
+  assert.match(f.run('callRule()'),/"도현아"\(O\), "박도현아"\(X\)/);f.run("G.char.name='도현'");assert.match(f.run('callRule()'),/"도현아"\(O\)\./);assert.match(f.run('callRule()'),/유민 외의 인물.*이름을 부르지 않/,'two-letter names still get the other-NPC rule');
 });
 await test('The companion profile itself no longer instructs the AI to say 박도현아',f=>{
   const p=f.run('yuminProfile()');assert.match(p,/상대 이름을 알게 된 뒤에는 "도현아" \+ "너"로 부르고/);assert.doesNotMatch(p,/"박도현아"\s*\+/);
@@ -66,6 +66,21 @@ await test('Relationship scenes carry the calling rule and are corrected',async 
   await f.run("socialScene(G.social.session,'함께 걷는다')");
   assert.match(f.run('systems[0]'),/"도현아"\(O\), "박도현아"\(X\)/);assert.deepEqual(f.obj('G.social.session.scenes'),['유민이 손을 흔든다. "도현아!"']);
   assert.ok(f.run("socialSessionHTML(G.social.session)").includes('도현아!'));
+});
+await test('Only 유민 calls the player by name: the narration rule, other NPC texts and other NPC scenes say not to',async f=>{
+  const rule=f.run('callRule()');assert.match(rule,/이름으로 부르는 인물은 유민뿐/);assert.match(rule,/유민 외의 인물.*이름을 부르지 않/);
+  assert.ok(f.obj('(()=>{const rules=[];HOOKS.facts.forEach(h=>{try{h.fn({},rules)}catch(e){}});return rules})()').some(r=>r.includes('유민 외의 인물')),'every narration turn carries the rule');
+  assert.doesNotMatch(f.run("callRule('서연')"),/"도현아"/);assert.match(f.run("callRule('서연')"),/서연은 .*이름을 부르지 않/);
+  // 다른 인물의 문자: 프롬프트가 이름을 부르지 말라고 하고, 앞뒤에 붙은 부르는 말은 지운다
+  f.run("replies=['도현아, 내일 도서관 올래?']");await f.run("sendFreeMessage('서연','안녕')");
+  assert.match(f.run('prompts[0]'),/문자에서 플레이어 이름을 부르지 않는다/);assert.doesNotMatch(f.run('prompts[0]'),/"도현아"처럼/);
+  assert.equal(f.run("chatSt('서연').at(-1).t"),'내일 도서관 올래?');
+  for(const [a,b] of [['박도현아 내일 봐!','내일 봐!'],['고마워, 도현아.','고마워.'],['고마워 도현아~','고마워~'],['"도현아!" 하고 누가 불렀어','"도현아!" 하고 누가 불렀어'],['도현이가 그랬어','도현이가 그랬어'],['도현아','도현아']])assert.equal(f.run('dropCalling('+JSON.stringify(a)+')'),b,a);
+  // 유민의 문자는 그대로 이름으로 부른다
+  f.run("replies=['박도현아 어디야?']");await f.run("sendFreeMessage('유민','안녕')");assert.equal(f.run("chatSt('유민').at(-1).t"),'도현아 어디야?');
+  // 다른 인물과의 관계 장면은 그 인물에 대한 규칙만 받는다
+  f.run(`const a={id:'s2',name:'서연',kind:'outing',where:placeKey(),step:0,status:'active',scenes:[],choices:[]};G.social={session:a,plans:[],history:[],day:{}};socialPhaseAt=()=>({title:'t',cue:'',choices:[]});replies=[{narration:'서연이 웃는다.'}];systems.length=0;`);
+  await f.run("socialScene(G.social.session,'함께 걷는다')");assert.match(f.run('systems[0]'),/서연은 .*이름을 부르지 않/);assert.doesNotMatch(f.run('systems[0]'),/"도현아"\(O\)/);
 });
 console.log(`${count} calling scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
