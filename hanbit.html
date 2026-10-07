@@ -5877,7 +5877,26 @@ function chatLocationReply(name){
   return `지금 ${place}에 있어.`;
 }
 function chatSt(n){ G.chats=G.chats||{}; return G.chats[n]||(G.chats[n]=[]) }
-function bubbleHTML(m,name){ return `<div class="bub ${m.f==='me'?'me':'them'}">${esc(m.f==='me'?m.t:fixCalling(m.t))}<small>${esc(m.when||'')}</small></div>` }
+function bubbleHTML(m,name){ return `<div class="bub ${m.f==='me'?'me':'them'}">${esc(m.f==='me'?m.t:fixCalling(m.t))}<small>${esc(m.when||'')}</small></div>`+inviteButtonsHTML(m,name) }
+/* 상대가 먼저 보낸 약속 제안: 문자 아래 수락·거절 버튼(답장을 직접 쓰지 않아도 약속을 잡을 수 있게) */
+function inviteButtonsHTML(m,name){
+  if(!m||m.f==='me'||!m.inv||m.inv.done||m.inv.day!==G.day) return '';   // 날이 바뀌면 지난 제안으로 본다
+  return `<div class="row" style="justify-content:flex-start;gap:6px;margin:2px 0 8px"><span class="muted small">📌 ${esc(apptWhenText(apptWhen(m.inv.when)))} ${esc(apptWhereName(m.inv.where))}</span><button class="small primary" data-name="${esc(name)}" data-n="${m.n}" onclick="answerInvite(this.dataset.name,+this.dataset.n,true)">👍 좋아, 갈게</button><button class="small" data-name="${esc(name)}" data-n="${m.n}" onclick="answerInvite(this.dataset.name,+this.dataset.n,false)">🙅 이번엔 어려워</button></div>`;
+}
+function answerInvite(name,n,yes){
+  if(!G||busy||_chatBusy) return false;
+  const m=chatSt(name).find(x=>x.n===n); if(!m||!m.inv||m.inv.done) return false;
+  if(m.inv.day!==G.day){ toast('지난 약속 제안입니다. 새로 약속을 제안해 보세요'); return false }
+  const why=phoneBlock('text'); if(why){ toast(why); return false }
+  if(yes){
+    if(!setAppt(name,m.inv.where,m.inv.when,false,m.inv.origin)){ toast('그 시간·장소로는 약속을 잡을 수 없습니다. 직접 다른 약속을 제안해 보세요'); return false }
+    apptSync();
+  }
+  textDrain(); m.inv.done=yes?'yes':'no';
+  chatPush(name,'me',yes?'좋아, 그때 보자!':'미안, 이번엔 어려울 것 같아. 다음에 보자.');
+  if(!yes) addLog('sys',`💬 ${name}의 약속 제안을 거절했습니다.`);
+  save(); render(); renderSocialTabs(); return true;
+}
 function chatWhen(){ return `${G.day}일째 ${isWeekend()?'(주말) ':''}${G.time==='낮'&&slotIdx()>=0?slotLabel():G.time}` }
 function chatPush(name,f,t){ const a=chatSt(name); G.chatSeq=(G.chatSeq||0)+1; a.push({f,t:(f==='me'?String(t):fixCalling(String(t))).slice(0,200),when:chatWhen(),n:G.chatSeq,who:name}); while(a.length>24) a.shift() }
 /* 약속 결정은 코드가 정해 AI에게 알림.
@@ -5965,6 +5984,10 @@ async function chatIncoming(name,topic){
  let o=null;try{o=await chatAI(name,topic,rumor)}catch(e){console.warn(e)}finally{if(G===g)_chatBusy=false}
  if(G!==g)return;
  chatPush(name,'them',o?o.reply:rand(CHAT_TOPIC_FALLBACK[topic]||CHAT_FALLBACK));
+ if(topic==='invite'&&o&&o.confirmed){   // 약속 제안이면 장소·때를 붙여 수락·거절 버튼을 띄운다
+  const origin=placeKey(), where=apptPlaceKey(o.reply,origin)||(o.appt&&apptPlaceKey(o.appt.place,origin,true));
+  if(where&&apptRunnable(name,where)){ const last=chatSt(name).at(-1); last.inv={where,when:APPT_TIME.test(o.reply)?o.reply:(o.appt&&o.appt.when)||'곧',origin,day:G.day} }
+ }
  if(topic==='rumor')addLog('sys','💡 '+socialHelpText());   // 진행 안내는 인물 문자와 분리해 시스템 기록으로
  save();renderSocialTabs();
 }
