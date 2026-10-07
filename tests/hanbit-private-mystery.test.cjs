@@ -206,5 +206,18 @@ await test('[v1 저장본] An old sealed case keeps the old flow, screens and ju
  assert.equal(f.run('G.evidence.length'),3);assert.match(f.run('mysteryPanel()'),/핵심 증거 3\/3개/);assert.match(f.run('fixedHTML()'),/원인 후보·증거 연결 검증/);
  f.run('G=JSON.parse(JSON.stringify(G));migrate()');assert.equal(f.run('mysteryPlan().v'),1);f.run('verifyMystery()');await settle();assert.equal(f.run('G.site.mystery.state.solved'),true);
 });
+await test('[v2] Room totals are hidden in the status bar, return button and paused-zone list; old cases and plain zones keep them',async f=>{
+ await prepared(f);f.run("G.site.rooms.forEach(r=>r.visited=r.id!=='r4');renderNeed()");
+ const need=f.run("document.getElementById('needBar').innerHTML"),fixed=f.run('fixedHTML()');
+ assert.match(need,/둘러본 공간 3곳/);assert.match(fixed,/둘러본 공간 3곳/);
+ for(const h of [need,fixed]){assert.doesNotMatch(h,/\d+\s*\/\s*4\s*공간|조사 \d+\/\d+|조사도|아직 못 찾은/);}
+ f.run('G.pausedZones=[JSON.parse(JSON.stringify(G.site))];openZones()');assert.match(f.run('modalHTML'),/둘러본 공간 3곳/);assert.doesNotMatch(f.run('modalHTML'),/3\/4공간/);
+ // 구버전 사건 저장본은 예전 표시 그대로
+ await (async()=>{const S=JSON.stringify(legacyCandidate);f.run("{const S="+JSON.stringify(S)+";G.site.mystery={version:1,status:'ready',sealed:S,hash:mysteryHash(S),state:{found:[],evidenceIds:{},solved:false,attempts:[]}}};renderNeed()")})();
+ assert.match(f.run("document.getElementById('needBar').innerHTML"),/3\/4공간/);assert.match(f.run('fixedHTML()'),/조사 3\/4/);
+ f.run('G.pausedZones=[JSON.parse(JSON.stringify(G.site))];openZones()');assert.match(f.run('modalHTML'),/3\/4공간/);
+ // 사건이 없는 일반 구역도 그대로
+ f.run('delete G.site.mystery;renderNeed()');assert.match(f.run("document.getElementById('needBar').innerHTML"),/3\/4공간/);
+});
 console.log(`${count} private-mystery scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});

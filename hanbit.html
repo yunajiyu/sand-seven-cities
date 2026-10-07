@@ -4145,7 +4145,7 @@ async function abandonZone(i){
 function openZones(){
   const rows=(G.pausedZones||[]).map((d,i)=>{
     const vis=d.rooms.filter(r=>r.visited).length, cur=d.rooms.find(r=>r.id===d.cur), frag=d.rooms.some(r=>r.fragTaken);
-    return `<div class="lex"><div class="h"><b>🏚 ${esc(d.name)}</b><span class="cat">${vis}/${d.rooms.length}공간${frag?' · ★':''}${d.raided?' · 🏴 털림':''}</span></div>
+    return `<div class="lex"><div class="h"><b>🏚 ${esc(d.name)}</b><span class="cat">${mysteryV2(d)?`둘러본 공간 ${vis}곳`:`${vis}/${d.rooms.length}공간`}${frag?' · ★':''}${d.raided?' · 🏴 털림':''}</span></div>
       <div class="muted" style="margin:4px 0;font-size:13px">마지막 위치: ${esc(cur?cur.name:'입구')} · ${d.pausedDay?G.day-d.pausedDay>0?`${G.day-d.pausedDay}일 전 중단`:'오늘 중단':'중단'}</div>
       <div class="row" style="justify-content:flex-end;gap:6px"><button class="small" onclick="abandonZone(${i})">포기하기</button><button class="small primary" onclick="resumeZone(${i})">이어서 조사</button></div></div>`;
   }).join('')||'<p class="muted">중단한 구역이 없습니다.</p>';
@@ -9086,7 +9086,7 @@ function fixedHTML(){
     mvLbl='🧭 공간 이동 · 나가기 · 귀환';
     mv=r.exits.map(id=>{ const o=d.rooms.find(x=>x.id===id); const hint=fd&&fd[id]<fd[r.id]?' ✧':''; return gameActionButton(roomActionId('move',id),`→ ${o.visited?esc(o.name):'❓ 미탐험 공간'}${o.fragTaken?' ★':''}${hint}`,'mv') }).join('');
     mv+=btn('exitZone()',d.intro?'↩ 교내로 돌아가기':'🚪 구역 밖으로 나가기','','data-exit="1" title="구역은 그대로 두고 입구 밖으로 (이동 행상을 만날 수도 있음)"');
-    if(!d.intro) mv+=p&&p.done?btn('returnToCampus()',`✅ 조사 완료 · ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${durText(returnRoute().days)})`,'primary'):btn('returnToCampus()',`↩ 귀환 (조사 ${p?p.vis+'/'+p.total:''} · ${durText(returnRoute().days)})`);
+    if(!d.intro) mv+=p&&p.done?btn('returnToCampus()',`✅ 조사 완료 · ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${durText(returnRoute().days)})`,'primary'):btn('returnToCampus()',`↩ 귀환 (${p?mysteryV2(d)?`둘러본 공간 ${p.vis}곳`:'조사 '+p.vis+'/'+p.total:'조사'} · ${durText(returnRoute().days)})`);
     if(mysteryV2(d)&&!d.mystery.state.solved) ac+=mysteryRoomActions(d).map(a=>gameActionButton(roomActionId('clue',a.token),'🔍 '+esc(mysteryActionLabel(a)))).join('');
     else if(!roomExhausted()) ac+=btn("pickFixed('주변을 둘러본다')",'👁 살펴보기')+btn("pickFixed('이곳을 꼼꼼히 조사한다')",'🔍 조사하기');
     if(!d?.intro)ac+=btn('shelterHere()','⛺ 임시 쉼터');
@@ -9148,7 +9148,8 @@ function renderNeed(){
   const n=needState(), p=G.loc==='site'?siteProg():null;
   let h=`<span class="nb" title="공포는 걸음 수에 따라 자동으로 쌓입니다. 한계에 닿으면 체력이 줄어듭니다">😨 공포 ${fearNow()}/${fearMax()} <span class="pips">${pips(Math.ceil(fearNow()/fearMax()*5),5)}</span> <span class="${n.wWarn?'warn':''}">${n.wl}</span></span>`+
         `<span class="nb" title="배터리는 이동·문자·전화로 닳습니다. 어두운 곳에서는 자동 조명이 행동당 1% (터널 2%)를 사용합니다. 방전되면 연락과 휴대폰 조명을 쓸 수 없습니다">🔋 배터리 ${batteryPct()}% <span class="pips">${pips(Math.ceil(n.f/capF()*5),5)}</span> <span class="${n.fWarn?'warn':''}">${n.fl}</span></span>`;
-  if(p) h+=`<span class="nb" title="방문한 공간 / 전체 공간">🧭 조사도 <span class="pips">${pips(p.vis,p.total)}</span> <span class="${p.done?'ok':''}">${p.vis}/${p.total}공간${p.done?' · 조사 완료':''}</span>`+(!p.done?` <span class="muted">(미탐험 발견 ${p.found}${p.hidden>0?` · 아직 못 찾은 ${p.hidden}`:''})</span>`:'')+`</span>`;
+  if(p&&mysteryV2(G.site)) h+=`<span class="nb" title="지금까지 둘러본 공간">🧭 둘러본 공간 ${p.vis}곳${p.done?' · 조사 완료':''}</span>`;   // v2 사건: 전체 공간 수(분모)는 보여 주지 않는다
+  else if(p) h+=`<span class="nb" title="방문한 공간 / 전체 공간">🧭 조사도 <span class="pips">${pips(p.vis,p.total)}</span> <span class="${p.done?'ok':''}">${p.vis}/${p.total}공간${p.done?' · 조사 완료':''}</span>`+(!p.done?` <span class="muted">(미탐험 발견 ${p.found}${p.hidden>0?` · 아직 못 찾은 ${p.hidden}`:''})</span>`:'')+`</span>`;
   const rf=returnForecast(); if(rf) h+=`<span class="nb ${rf.late||rf.urgent?'warn':''}">🕒 ${esc(rf.text)}</span>`;
   h+=wardStatusHTML()+fightStatusHTML();
   if(inDark()) h+=`<span class="nb" title="보조배터리로 충전하거나 구역 밖으로 나가세요">🌑 <span class="warn">어둠 — 4행동마다 공포 +1 · 이동 2행동(시간 1칸) · 넘어질 위험 · 단서·조각 못 찾음</span></span>`;
