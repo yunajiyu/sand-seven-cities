@@ -250,5 +250,13 @@ await test('Saved games, exports and imports never carry key material',async()=>
  assert.doesNotMatch(f.run('snapG()'),/iam\.gserviceaccount/);
  f.run('VERTEX_BROWSER=null');f.run(`try{prepareSavedGame(JSON.stringify({...G,VERTEX_BROWSER:{project:'x'},vertex:{key:'k'}}))}catch(e){}`);assert.equal(f.run('VERTEX_BROWSER'),null);
 });
+await test('The title screen shows whether the Vertex connection is remembered or only for this page',async()=>{
+ const idb=fakeIDB();const title=f=>{f.run("fields.aiStatus={textContent:''};fields.btnContinue={disabled:false};fields.game={classList:{contains:()=>true}};setTitle=()=>{};refreshTitle()");return f.run('fields.aiStatus.textContent')};
+ const mem=rememberFixture(idb,false);await mem.run('selectVertexJSON(pick())');assert.match(title(mem),/Vertex: 인증 완료 · test-project \(새로고침하면 다시 선택\)/);
+ await rememberFixture(idb).run('selectVertexJSON(pick())');
+ const f=rememberFixture(idb);f.run("AI_ROLES.forEach(r=>SET.roles[r.k]={provider:'vertex',model:vertexModelFor(r.k)})");assert.doesNotMatch(title(f),/Vertex:/);await f.run('vertexRestore()');assert.match(f.run('fields.aiStatus.textContent'),/Vertex: 기억된 연결 · test-project/,'restore refreshes the title by itself');
+ assert.doesNotMatch(f.run('fields.aiStatus.textContent'),/연결 설정 없음/);
+ f.run("fetch=async()=>({ok:false,status:401,json:async()=>({})})");await assert.rejects(f.run("callAI('s','u')"));assert.doesNotMatch(f.run('fields.aiStatus.textContent'),/기억된 연결/);assert.match(f.run('fields.aiStatus.textContent'),/AI 키가 없으면/);
+});
 console.log(`${count} Vertex authentication/relay scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -1170,7 +1170,7 @@ async function vertexRestore(){
 /* 인증이 거절되면 기억된 연결을 지우고 다시 선택하게 한다 */
 function vertexAuthRejected(state){
  if(!state?.remembered)return false;
- vertexForget();if(VERTEX_BROWSER===state){VERTEX_BROWSER=null;vertexConnectionStatus('기억된 연결이 더 이상 유효하지 않아 지웠습니다 · JSON 파일을 다시 선택하세요.')}
+ vertexForget();if(VERTEX_BROWSER===state){VERTEX_BROWSER=null;vertexConnectionStatus('기억된 연결이 더 이상 유효하지 않아 지웠습니다 · JSON 파일을 다시 선택하세요.');try{if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle()}catch(e){}}
  return true;
 }
 async function selectVertexJSON(input){
@@ -9799,6 +9799,12 @@ function refreshTitle(){
   document.getElementById('aiStatus').textContent=hasKey
     ?`AI: 서술 ${roleCfg('story').model} · 구역 조사 ${roleCfg('site').model} · 사전 ${roleCfg('lex').model}`+(miss.length?` (연결 설정 없음: ${miss.map(provLabel).join(', ')})`:'')
     :'AI 키가 없으면 사건 생성은 대기하고 기본 일상 서술만 제공됩니다.';
+  const vx=vertexTitleText(),el=document.getElementById('aiStatus');if(vx&&el)el.textContent+=' · '+vx;
+}
+/* 타이틀에 보이는 Vertex JSON 연결 상태: 기억된 연결인지, 이번 페이지에서만 쓰는 연결인지 */
+function vertexTitleText(){
+  if(!VERTEX_BROWSER)return '';
+  return VERTEX_BROWSER.remembered?'Vertex: 기억된 연결 · '+VERTEX_BROWSER.project:'Vertex: 인증 완료 · '+VERTEX_BROWSER.project+' (새로고침하면 다시 선택)';
 }
 function openUsage(){
   const t=usageTotal();
