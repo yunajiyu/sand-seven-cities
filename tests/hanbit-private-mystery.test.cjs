@@ -128,5 +128,83 @@ await test('[v1 저장본] Dark and story-only actions cannot acquire optional m
 await test('Both medal and old emblem effect labels are compatible while public UI uses medals',f=>{
  assert.equal(f.run('koEffects({메달조각:true}).fragment'),true);assert.equal(f.run('koEffects({교표조각:true}).fragment'),true);assert.equal(f.run('fragFoundIn("기념 메달 조각을 발견하고 손에 넣었다.")'),true);assert.equal(f.run('fragFoundIn("기념 메달 조각을 발견한 줄 알았지만 가짜였다.")'),false);assert.ok(!html.includes('교표 조각'));assert.ok(html.includes('6개 완성 보상: 캐시'));
 });
+// ---- v2: 함정 증거·행동별 증거·실마리 ----
+const tok=(f,id)=>f.run("mysteryHash(G.site.mystery.hash+':'+"+JSON.stringify(id)+")");
+await test('[v2] Validator rejects decoys in requires/supports, bad refuted_by/points_to, unreachable evidence and too many dead ends',f=>{
+ f.run('seed();G.site.deductionRequired=true;let p='+JSON.stringify(candidate));assert.deepEqual(f.obj('validateMystery(p,G.site)'),[]);
+ const bad={"p.verification.requires.push('d1')":/requires/,"p.deduction.supports.push('d1')":/supports/,"p.evidence[3].refuted_by='h2'":/refuted_by/,"p.evidence[3].refuted_by='d1'":/refuted_by/,"p.evidence[3].points_to='h2'":/points_to/,
+  "p.evidence[0].leads=['e2']":/도달할 수 없는/,"p.start_leads=[]":/start_leads/,"p.dead_ends.push({room:'r1',action:'바닥 타일을 두드려 본다'},{room:'r2',action:'의자 밑을 들여다본다'})":/30%/,
+  "p.dead_ends=[]":/dead_ends/,"p.dead_ends.push({room:'r3',action:'천장을 올려다본다'})":/dead_ends/,"p.evidence[3].action=p.evidence[1].action":/action/,"p.evidence[3].role='core'":/./,"delete p.evidence[0].role":/role/,"p.evidence.pop()":/함정 증거/,"p.evidence[3].id='e4'":/./};
+ for(const [m,re] of Object.entries(bad)){f.run('p='+JSON.stringify(candidate)+';'+m);const errs=f.obj('validateMystery(p,G.site)');assert.ok(errs.length&&errs.some(e=>re.test(e)),m+' → '+errs.join('|'))}
+ // 함정은 핵심 증거와 같은 공간에 있어도 된다(행동만 다르면)
+ f.run('p='+JSON.stringify(candidate)+";p.evidence[3].room='r1'");assert.deepEqual(f.obj('validateMystery(p,G.site)'),[]);
+});
+await test('[v2] Intro validator: three rooms, three core facts over at least two rooms, one decoy; one room may hold no core fact',f=>{
+ f.run(`seed();G.site={intro:true,deductionRequired:true,name:'소문',cur:'r1',rooms:[{id:'r1',name:'입구',exits:['r2']},{id:'r2',name:'준비실',exits:['r1','r3']},{id:'r3',name:'장비실',exits:['r2']}]};let p=${JSON.stringify(candidate)};p.room_views=p.room_views.slice(0,3)`);
+ assert.deepEqual(f.obj('validateMystery(p,G.site)'),[]);
+ f.run("p.evidence[2].room='r2';p.verification.room='r2'");assert.deepEqual(f.obj('validateMystery(p,G.site)'),[],'core facts may share a room in the intro');
+ f.run("p.evidence.forEach(e=>e.room='r1');p.dead_ends=[{room:'r3',action:'창문 틈에 귀를 대고 바깥 소리를 듣는다'}]");assert.ok(f.obj('validateMystery(p,G.site)').some(e=>/입문/.test(e)));
+ f.run('p='+JSON.stringify(candidate)+';p.room_views=p.room_views.slice(0,3);p.evidence.pop()');assert.ok(f.obj('validateMystery(p,G.site)').some(e=>/입문|함정/.test(e)));
+});
+await test('[v2] Only opened actions are offered; the old look/search buttons are gone; dead ends and free text give nothing',async f=>{
+ await prepared(f);assert.equal(f.run('mysteryPlan().v'),2);
+ let list=choices(f).map(a=>a.label);assert.ok(list.some(l=>l.includes(candidate.evidence[0].action)));assert.ok(!list.some(l=>/현재 공간 (살펴보기|조사하기)/.test(l)));assert.doesNotMatch(f.run('fixedHTML()'),/👁 살펴보기/);
+ f.run("G.site.cur='r2'");list=choices(f).map(a=>a.label).join('|');assert.ok(!list.includes(candidate.evidence[1].action),'e2 not yet opened');assert.ok(!list.includes(candidate.evidence[3].action),'d1 not yet opened');
+ // 열리지 않은 행동을 토큰으로 위조해도 지급되지 않는다
+ f.run("pend('',{mysteryAct:{site:siteIdentity(G.site),token:"+JSON.stringify(tok(f,'e2'))+"}})");await f.run("aiTurn('피아노 옆 녹음기를 끝까지 틀어 본다')");assert.equal(f.run('G.evidence.length'),0);
+ await pick(f,'r1',candidate.evidence[0].action);assert.equal(f.run('G.evidence.length'),1);assert.deepEqual(f.obj('G.site.mystery.state.found'),['e1']);
+ f.run("G.site.cur='r2'");list=choices(f).map(a=>a.label);assert.ok(list.some(l=>l.includes(candidate.evidence[1].action)&&l.includes('앞서 확인한')),'opened with a reason');
+ // 자유 서술은 같은 문장이라도 증거를 주지 않는다
+ await f.run("aiTurn('피아노 옆 녹음기를 끝까지 틀어 확인해 본다')");assert.equal(f.run('G.evidence.length'),1);assert.ok(f.obj('events').some(e=>e.text.includes('추가 발견 없음')));
+ f.run("act('피아노 옆 녹음기를 꼼꼼히 조사한다',{src:'free'})");await settle();assert.equal(f.run('G.evidence.length'),1);
+ await pick(f,'r2',candidate.evidence[1].action);await pick(f,'r3',candidate.dead_ends[0].action);assert.equal(f.run('G.evidence.length'),2,'dead end in the same room as e3 gives nothing');
+ assert.ok(!choices(f).some(a=>a.label.includes(candidate.dead_ends[0].action)),'dead end is not offered again');assert.ok(choices(f).some(a=>a.label.includes(candidate.evidence[2].action)));
+ const log=f.obj('events').filter(e=>e.type==='fx').map(e=>e.text).join('\n');for(const k of ['확인한 사실:','사건에 미친 영향:','남은 의문:','다음 조사 후보:'])assert.ok(log.includes(k),k);
+});
+await test('[v2] A decoy is granted, logged and shown exactly like any other fact',async f=>{
+ await prepared(f);await pick(f,'r1',candidate.evidence[0].action);await pick(f,'r2',candidate.evidence[3].action);await pick(f,'r2',candidate.evidence[1].action);
+ assert.deepEqual(f.obj('G.site.mystery.state.found'),['e1','d1','e2']);
+ const panel=f.run('mysteryPanel()'),fixed=f.run('fixedHTML()'),deduce=f.run("G.site.cur='r3';mysteryDeductionHTML()"),acts=JSON.stringify(f.obj('gameActions().map(a=>a.id)'));
+ const row=e=>'<p>'+e.text+'<br><span class="muted">'+e.meaning+'</span></p>';for(const e of [candidate.evidence[0],candidate.evidence[3],candidate.evidence[1]])assert.ok(panel.includes(row(e)),e.id);
+ assert.ok(panel.indexOf(candidate.evidence[3].text)<panel.indexOf(candidate.evidence[1].text),'acquisition order');
+ const shown=[panel,fixed,deduce,acts,JSON.stringify(f.obj('events')),JSON.stringify(f.obj('notices')),f.run("buildPrompt('살펴본다','')")].join('\n');
+ for(const bad of ['decoy','함정','points_to','refuted_by','"d1"','value="d1"','value="e1"',':d1',':e2'])assert.ok(!shown.includes(bad),bad);
+ const scope=f.obj("(()=>{const s=mysteryNarrationScope({g:G,loc:'site',action:'',flags:{},mysteryOutcome:{d:G.site,type:'decoy',e:mysteryPlan().evidence[3]}});return s.public})()");assert.equal(scope.outcome.type,'evidence');
+});
+await test('[v2] No progress denominators, phases or scale hints on the player screen',async f=>{
+ await prepared(f);await pick(f,'r1',candidate.evidence[0].action);
+ const t=f.run('G.threads.find(t=>t.id===G.site.caseId)');const screens=[f.run('mysteryPanel()'),f.run('fixedHTML()'),f.run('caseCard(G.threads.find(t=>t.id===G.site.caseId))')];
+ for(const h of screens){assert.doesNotMatch(h,/(핵심 증거|확인한 사실|증거)\s*\d+\s*\/\s*\d+/);assert.doesNotMatch(h,/증거 수집|검증 가능|핵심 증거를 모두 확인하면/)}
+ assert.match(screens[0],/진행: 조사 중/);assert.match(screens[0],/의심되는 원인/);assert.match(screens[1],/확인한 사실 1개/);
+});
+await test('[v2] Submission with partial facts is allowed at the verification room but costs a chance; all-facts-checked fails',async f=>{
+ await prepared(f);await pick(f,'r1',candidate.evidence[0].action);assert.equal(f.run("G.site.cur='r3';canVerifyMystery()"),false,'needs two facts');
+ await pick(f,'r2',candidate.evidence[1].action);f.run("G.site.cur='r1'");assert.equal(f.run('canVerifyMystery()'),false,'only at the verification room');
+ f.run("G.site.cur='r3'");assert.equal(f.run('canVerifyMystery()'),true);assert.ok(f.run('fixedHTML()').includes('남은 기회 2번'));
+ await proofV2(f,'h2',['e1','e2']);assert.equal(f.run('G.site.mystery.state.solved'),false);assert.equal(f.run('G.site.mystery.state.chances'),1,'missing required fact → refuted');
+ await pick(f,'r2',candidate.evidence[3].action);await pick(f,'r3',candidate.evidence[2].action);
+ // 화면 값(토큰)으로 전부 체크하면 함정이 섞여 실패
+ const all=f.obj("G.site.mystery.state.found.map(id=>mysteryFactToken(G.site,id))");await proofV2(f,'h2',all);assert.equal(f.run('G.site.mystery.state.solved'),false);assert.equal(f.run('G.site.mystery.state.chances'),0);
+ assert.equal(f.run('canVerifyMystery()'),false);await proofV2(f,'h2',['e2','e3']);assert.equal(f.run('G.site.mystery.state.solved'),false,'no chances left');
+ assert.ok(f.run('mysteryDeductionHTML()').includes('기회를 모두 썼습니다'));
+ const rep=choices(f).find(a=>a.label.startsWith('다시 살펴보기'));assert.ok(rep,'repeat offered when out of chances');f.run('dispatchGameAction('+JSON.stringify(rep.id)+')');await settle();
+ assert.equal(f.run('G.site.mystery.state.chances'),1);assert.equal(f.run('G.evidence.length'),4);assert.ok(!choices(f).some(a=>a.label.startsWith('다시 살펴보기')));
+ await proofV2(f,'h1',['e2','e3']);assert.equal(f.run('G.site.mystery.state.solved'),false,'wrong hypothesis');assert.equal(f.run('G.site.mystery.state.chances'),0);
+ await pick(f,'r3','다시 살펴보기');await proofV2(f,'h2',['e2','e3','d1']);assert.equal(f.run('G.site.mystery.state.solved'),false,'decoy in the reasons');
+ await pick(f,'r3','다시 살펴보기');await proofV2(f,'h2',f.obj("['e2','e3','e1'].map(id=>mysteryFactToken(G.site,id))"));assert.equal(f.run('G.site.mystery.state.solved'),true);
+ assert.equal(f.run('G.threads.find(t=>t.id===G.site.caseId).status'),'closed');
+});
+await test('[v2] Medal fragments still drop from investigation choices (including dead ends) but not from free text',async f=>{
+ await prepared(f);f.run('G.fragments=0;G.site.rooms.forEach(r=>r.fragment=true);Math.random=()=>0');
+ await f.run("aiTurn('입구를 조사한다')");assert.equal(f.run('G.fragments'),0);
+ await pick(f,'r1',candidate.evidence[0].action);assert.equal(f.run('G.fragments'),1);
+ await pick(f,'r3',candidate.dead_ends[0].action);assert.equal(f.run('G.fragments'),2);
+});
+await test('[v1 저장본] An old sealed case keeps the old flow, screens and judgement',async f=>{
+ await legacy(f);assert.equal(f.run('mysteryPlan().v'),1);assert.ok(choices(f).some(a=>a.label==='현재 공간 조사하기'));
+ for(const room of ['r1','r2','r3']){f.run('G.site.cur='+JSON.stringify(room));await f.run("aiTurn('이 공간을 조사한다')")}
+ assert.equal(f.run('G.evidence.length'),3);assert.match(f.run('mysteryPanel()'),/핵심 증거 3\/3개/);assert.match(f.run('fixedHTML()'),/원인 후보·증거 연결 검증/);
+ f.run('G=JSON.parse(JSON.stringify(G));migrate()');assert.equal(f.run('mysteryPlan().v'),1);f.run('verifyMystery()');await settle();assert.equal(f.run('G.site.mystery.state.solved'),true);
+});
 console.log(`${count} private-mystery scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});

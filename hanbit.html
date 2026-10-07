@@ -9090,7 +9090,7 @@ function fixedHTML(){
     if(mysteryV2(d)&&!d.mystery.state.solved) ac+=mysteryRoomActions(d).map(a=>gameActionButton(roomActionId('clue',a.token),'🔍 '+esc(mysteryActionLabel(a)))).join('');
     else if(!roomExhausted()) ac+=btn("pickFixed('주변을 둘러본다')",'👁 살펴보기')+btn("pickFixed('이곳을 꼼꼼히 조사한다')",'🔍 조사하기');
     if(!d?.intro)ac+=btn('shelterHere()','⛺ 임시 쉼터');
-    if(d.lore){ const all=d.rooms.filter(x=>x.clue); ac+=btn('openZoneJournal()',`📝 조사 수첩 ${all.filter(x=>x.clue.got).length}/${all.length}`,'','data-rj="1"') }
+    if(d.lore&&!mysteryV2(d)){ const all=d.rooms.filter(x=>x.clue); ac+=btn('openZoneJournal()',`📝 조사 수첩 ${all.filter(x=>x.clue.got).length}/${all.length}`,'','data-rj="1"') }
   }else if(L==='home'){
     mvLbl='🧭 이동';
     mv=btn('enterCampus(false)','↩ 중앙 캠퍼스 지구 상점가로')+btn('startExpedition()','🔦 구역 조사 떠나기','primary');
