@@ -184,24 +184,23 @@ await test('[v2] No progress denominators, phases or scale hints on the player s
  for(const h of screens){assert.doesNotMatch(h,/(핵심 증거|확인한 사실|증거)\s*\d+\s*\/\s*\d+/);assert.doesNotMatch(h,/증거 수집|검증 가능|핵심 증거를 모두 확인하면/)}
  assert.match(screens[0],/진행: 조사 중/);assert.match(screens[0],/의심되는 원인/);assert.match(screens[1],/확인한 사실 1개/);
 });
-await test('[v2] Deduction is open anywhere in the zone once two facts are known; wrong answers can be retried without any limit',async f=>{
+await test('[v2] Deduction is open anywhere in the zone once two facts are known; the right cause with two real reasons solves it, and wrong answers can be retried without limit',async f=>{
  await prepared(f);await pick(f,'r1',candidate.evidence[0].action);assert.equal(f.run("G.site.cur='r3';canVerifyMystery()"),false,'needs two facts');
  assert.match(f.run('fixedHTML()'),/<button disabled[^>]*>🧩 추리하기 \(확인한 사실 2개부터\)/,'the button is visible with the reason before two facts');
  await pick(f,'r2',candidate.evidence[1].action);f.run("G.site.cur='r1'");assert.equal(f.run('canVerifyMystery()'),true,'any room in the zone');assert.ok(f.run('fixedHTML()').includes('onclick="verifyMystery()">🧩 추리하기<'));
  f.run("G.loc='road'");assert.equal(f.run('canVerifyMystery()'),false,'not from outside the zone');f.run("G.loc='site'");
  f.run("G.site.cur='r3'");assert.equal(f.run('canVerifyMystery()'),true);assert.ok(f.run('fixedHTML()').includes('🧩 추리하기<'));assert.ok(!f.run('fixedHTML()').includes('남은 기회'));
- await proofV2(f,'h2',['e1','e2']);assert.equal(f.run('G.site.mystery.state.solved'),false,'missing required fact → refuted');
- await pick(f,'r2',candidate.evidence[3].action);await pick(f,'r3',candidate.evidence[2].action);
- // 화면 값(토큰)으로 전부 체크하면 함정이 섞여 실패
- const all=f.obj("G.site.mystery.state.found.map(id=>mysteryFactToken(G.site,id))");await proofV2(f,'h2',all);assert.equal(f.run('G.site.mystery.state.solved'),false);
- await proofV2(f,'h1',['e2','e3']);assert.equal(f.run('G.site.mystery.state.solved'),false,'wrong hypothesis');
- await proofV2(f,'h2',['e2','e3','d1']);assert.equal(f.run('G.site.mystery.state.solved'),false,'decoy in the reasons');
- // 네 번 틀린 뒤에도 추리 버튼이 남아 있고, 다시 살펴보기를 하지 않아도 바로 다시 추리할 수 있다
+ await proofV2(f,'h1',['e1','e2']);assert.equal(f.run('G.site.mystery.state.solved'),false,'wrong cause');
+ assert.ok(f.obj('events').some(e=>/고른 원인으로는 지금까지 알아낸 사실이 잘 설명되지 않아요/.test(e.text)),'tells the cause is off');
+ await pick(f,'r2',candidate.evidence[3].action);
+ await proofV2(f,'h2',['e1','d1']);assert.equal(f.run('G.site.mystery.state.solved'),false,'only one real reason');
+ assert.ok(f.obj('events').some(e=>/고른 원인은 그럴듯해요/.test(e.text)),'tells the reasons are off');
+ // 여러 번 틀린 뒤에도 추리 버튼이 남아 있고, 다시 살펴보기를 하지 않아도 바로 다시 추리할 수 있다
  assert.equal(f.run('canVerifyMystery()'),true);assert.ok(f.run('fixedHTML()').includes('verifyMystery()'));assert.ok(!choices(f).some(a=>a.label.startsWith('다시 살펴보기')));
- assert.ok(!f.run('mysteryDeductionHTML()').includes('기회'));
- assert.ok(f.obj('events').some(e=>/원인과 이유를 다시 골라 추리해 보세요/.test(e.text)));assert.ok(!f.obj('events').some(e=>/남은 기회/.test(e.text)));
- assert.equal(f.run('G.site.mystery.state.attempts.length'),4);
- await proofV2(f,'h2',f.obj("['e2','e3','e1'].map(id=>mysteryFactToken(G.site,id))"));assert.equal(f.run('G.site.mystery.state.solved'),true);
+ assert.ok(!f.run('mysteryDeductionHTML()').includes('기회'));assert.match(f.run('mysteryDeductionHTML()'),/모든 사실을 고를 필요는 없습니다/);
+ assert.ok(!f.obj('events').some(e=>/남은 기회/.test(e.text)));assert.equal(f.run('G.site.mystery.state.attempts.length'),2);
+ // 화면에 보이는 사실을 전부 골라도(함정 포함) 원인이 맞고 핵심 사실이 2개 이상이면 성공. 모든 핵심 증거를 찾지 않아도 된다
+ const all=f.obj("G.site.mystery.state.found.map(id=>mysteryFactToken(G.site,id))");assert.equal(all.length,3);await proofV2(f,'h2',all);assert.equal(f.run('G.site.mystery.state.solved'),true);
  assert.equal(f.run('G.threads.find(t=>t.id===G.site.caseId).status'),'closed');
 });
 await test('[v2] An old save that already ran out of chances can deduce again right away',async f=>{

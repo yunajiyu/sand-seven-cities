@@ -4588,7 +4588,7 @@ function mysteryDeductionHTML(d=G.site){
   const x=mysteryPublic(d),st=d.mystery.state;
   if(p.v>=2){
     const ch=mysteryChances(st),facts=st.found.map(id=>p.evidence.find(e=>e.id===id)).filter(Boolean);
-    return `<p>${p.deduction?'의심되는 원인 중 지금까지 알아낸 걸 모두 설명할 수 있는 것을 하나 고르고, 그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.':'그렇게 생각한 이유가 되는 사실을 2개 이상 골라 보세요.'}</p>${(p.deduction?.hypotheses||[]).map(h=>`<label style="display:block"><input type="radio" name="mysteryGuess" value="${esc(h.id)}" style="width:auto"> ${esc(h.text)}</label>`).join('')}<h4>이유로 삼을 사실</h4>${facts.map(e=>`<label style="display:block"><input type="checkbox" class="mysterySupport" value="${esc(mysteryFactToken(d,e.id))}" style="width:auto"> ${esc(e.text)}</label>`).join('')||'<p class="muted">아직 확인한 사실이 없습니다.</p>'}<p class="muted">추리가 맞으면 「${esc(x.verification.room||'')}」에서 확인합니다: ${esc(p.verification.action)}</p>${(st.attempts||[]).length?'<p class="muted">지난번 추리는 앞뒤가 맞지 않았습니다. 사실을 다시 읽어 보고 골라 보세요.</p>':''}<button class="primary" ${canVerifyMystery(d)?'':'disabled'} data-mystery="${esc(siteIdentity(d))}" onclick="submitMysteryDeduction(this.dataset.mystery)">이 추리로 확인해 보기</button>`;
+    return `<p>${p.deduction?'가장 그럴듯한 원인을 하나 고르고, 그렇게 생각한 이유가 되는 사실을 2개 골라 보세요. 모든 사실을 고를 필요는 없습니다.':'그렇게 생각한 이유가 되는 사실을 2개 골라 보세요. 모든 사실을 고를 필요는 없습니다.'}</p>${(p.deduction?.hypotheses||[]).map(h=>`<label style="display:block"><input type="radio" name="mysteryGuess" value="${esc(h.id)}" style="width:auto"> ${esc(h.text)}</label>`).join('')}<h4>이유로 삼을 사실</h4>${facts.map(e=>`<label style="display:block"><input type="checkbox" class="mysterySupport" value="${esc(mysteryFactToken(d,e.id))}" style="width:auto"> ${esc(e.text)}</label>`).join('')||'<p class="muted">아직 확인한 사실이 없습니다.</p>'}<p class="muted">추리가 맞으면 「${esc(x.verification.room||'')}」에서 확인합니다: ${esc(p.verification.action)}</p>${(st.attempts||[]).length?'<p class="muted">지난번 추리는 앞뒤가 맞지 않았습니다. 사실을 다시 읽어 보고 골라 보세요.</p>':''}<button class="primary" ${canVerifyMystery(d)?'':'disabled'} data-mystery="${esc(siteIdentity(d))}" onclick="submitMysteryDeduction(this.dataset.mystery)">이 추리로 확인해 보기</button>`;
   }
   const all=p.evidence.every(e=>st.found.includes(e.id));if(!all)return '<p>조사를 더 이어 간 뒤 원인 후보를 비교할 수 있습니다.</p>';
   return `<p>지금까지 알아낸 걸 모두 설명할 수 있는 원인을 하나 고르고, 그렇게 생각한 이유로 증거를 2개 이상 골라 보세요.</p>${p.deduction.hypotheses.map(h=>`<label style="display:block"><input type="radio" name="mysteryGuess" value="${esc(h.id)}" style="width:auto"> ${esc(h.text)}</label>`).join('')}<h4>이유로 삼을 증거</h4>${p.evidence.map(e=>`<label style="display:block"><input type="checkbox" class="mysterySupport" value="${esc(e.id)}" style="width:auto"> ${esc(e.text)}</label>`).join('')}<p class="muted">확인할 곳: ${esc(x.verification?.room||'')} · ${esc(p.verification.action)}<br>틀려도 괜찮습니다. 다시 골라 볼 수 있어요.</p>${(st.attempts||[]).length?'<p class="muted">지난번 추리는 앞뒤가 맞지 않았습니다. 증거를 다시 읽어 보고 골라 보세요.</p>':''}<button class="primary" ${canVerifyMystery(d)?'':'disabled'} data-mystery="${esc(siteIdentity(d))}" onclick="submitMysteryDeduction(this.dataset.mystery)">이 추리로 확인해 보기</button>`;
@@ -4992,9 +4992,11 @@ function mysteryTurnV2(T,d,p){
   if(T.flags.mysteryVerify===siteIdentity(d)&&canVerifyMystery(d)){
     const proof=T.flags.mysteryProof,q=p.deduction;
     if(!proof||!Array.isArray(proof.supports)||proof.supports.length<2||new Set(proof.supports).size!==proof.supports.length||proof.supports.some(id=>!st.found.includes(id))||(q&&!q.hypotheses.some(h=>h.id===proof.guess))) return;
-    const decoys=new Set(p.evidence.filter(e=>e.role==='decoy').map(e=>e.id));
-    const ok=p.verification.requires.every(id=>st.found.includes(id))&&!proof.supports.some(id=>decoys.has(id))&&(!q||(proof.guess===q.answer_id&&q.supports.every(id=>proof.supports.includes(id))));
-    if(!ok){ T.mysteryOutcome={d,type:'refuted',proof}; T.extra+=MYSTERY_REFUTED_NOTE; return }
+    // 판정은 너그럽게: 원인을 맞히고, 이유로 고른 사실 중 핵심 사실(함정이 아닌 것)이 2개 이상이면 성공.
+    // 모든 사실을 고르거나 특정 조합을 맞힐 필요는 없고, 함정 사실이 섞여도 핵심 사실 2개가 있으면 인정한다.
+    const core=new Set(p.evidence.filter(e=>e.role!=='decoy').map(e=>e.id));
+    const causeOk=!q||proof.guess===q.answer_id, reasonsOk=proof.supports.filter(id=>core.has(id)).length>=2;
+    if(!causeOk||!reasonsOk){ T.mysteryOutcome={d,type:'refuted',proof,why:causeOk?'reasons':'cause'}; T.extra+=MYSTERY_REFUTED_NOTE; return }
     return mysteryVerifiedNote(T,d,p);
   }
   const a=mysteryActFor(T,d);
@@ -5037,8 +5039,9 @@ on('after',24,T=>{
   const t=(G.threads||[]).find(t=>t.id===d.caseId);if(t){ const x=mysteryPublic(d);t.next=x.verification?[x.verification.room+': '+x.verification.action]:x.next }
 });
 function mysterySolveCase(d,p,st){
-  const ids=p.verification.requires.map(id=>st.evidenceIds[id]);
-  if(ids.every(Boolean)){ st.solved=true; if(!resolveCase(d.caseId,p.conclusion,ids)) st.solved=false }
+  // 해결 근거: 지금까지 확인한 핵심 사실(함정 제외). 모든 핵심 증거를 찾지 않아도 추리가 맞으면 해결된다
+  const ids=st.found.filter(id=>p.evidence.find(e=>e.id===id)?.role!=='decoy').map(id=>st.evidenceIds[id]);
+  if(ids.length&&ids.every(Boolean)){ st.solved=true; if(!resolveCase(d.caseId,p.conclusion,ids)) st.solved=false }
   if(st.solved&&compactCampaign()){
     if(d.intro){G.campaign.introSolved=true;checkState()}
     if(d.big){G.campaign.links[d.key]={name:d.name,text:p.main_link};addLog('fx','🧭 본편 연결 — '+p.main_link)}
@@ -5068,7 +5071,7 @@ function mysteryAfterV2(o,d,p,st){
     else mysteryNothingLog();
   }else if(o.type==='refuted'){
     st.attempts=st.attempts||[];st.attempts.push({guess:o.proof.guess,supports:o.proof.supports,day:G.day});
-    addLog('fx','🧩 아직 앞뒤가 맞지 않습니다. 고른 원인이나 이유 중에 설명되지 않는 게 있어요. 원인과 이유를 다시 골라 추리해 보세요.');
+    addLog('fx',o.why==='reasons'?'🧩 고른 원인은 그럴듯해요. 다만 이유로 고른 사실 중에 그 원인과 이어지지 않는 게 많아요. 원인을 뒷받침하는 사실로 다시 골라 보세요.':'🧩 고른 원인으로는 지금까지 알아낸 사실이 잘 설명되지 않아요. 다른 원인을 골라 보세요.');
   }else if(o.type==='verified'){
     mysterySolveCase(d,p,st); mysterySolvedLog(d,p,st);
   }else if(o.type==='dark') addLog('sys','🔎 조사 결과 — 관찰 불가: 빛을 확보해야 합니다.');
