@@ -274,7 +274,7 @@ await test('[v2] Reachability is checked over the whole lead graph: a valid bran
 await test('[v2] A free action that finds nothing gets a short notice, not empty "없음" fields, and multi-line notices keep their line breaks',async f=>{
  await prepared(f);f.run('events.length=0');await f.run("aiTurn('입구를 자세히 살펴본다')");
  const t=f.obj('events').filter(e=>e.type==='fx').map(e=>e.text).join('\n');
- assert.match(t,/추가 발견 없음/);assert.match(t,/조사 선택지/);assert.match(t,/조사할 거리가 남은 곳: /);
+ assert.equal(t,'🔎 조사 결과 — 추가 발견 없음','only the one-line notice');
  assert.doesNotMatch(t,/확인한 사실: 없음|사건에 미친 영향: 없음/);
  assert.match(html,/\.entry\.sys,\.entry\.fx\{white-space:pre-line\}/);
 });

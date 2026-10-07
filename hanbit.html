@@ -5029,7 +5029,7 @@ on('after',24,T=>{
     addLog('fx','🧩 아직 앞뒤가 맞지 않습니다. 고른 원인이나 이유 중에 설명되지 않는 게 있어요. 증거를 다시 읽고 골라 보세요.');
   }else if(o.type==='verified'){
     mysterySolveCase(d,p,st);mysterySolvedLog(d,p,st);
-  }else addLog('sys','🔎 조사 결과 — '+(o.type==='dark'?'관찰 불가: 빛을 확보해야 합니다.':'추가 발견 없음: 이번 조사로 새로운 핵심 증거가 기록되지는 않았습니다.'));
+  }else addLog('sys','🔎 조사 결과 — '+(o.type==='dark'?'관찰 불가: 빛을 확보해야 합니다.':'추가 발견 없음'));
   const t=(G.threads||[]).find(t=>t.id===d.caseId);if(t){ const x=mysteryPublic(d);t.next=x.verification?[x.verification.room+': '+x.verification.action]:x.next }
 });
 function mysterySolveCase(d,p,st){
@@ -5050,11 +5050,8 @@ function mysteryResultLog(title,fact,effect,d,p){
   addLog('fx',`🔎 조사 결과 — ${title}\n확인한 사실: ${fact}\n사건에 미친 영향: ${effect}\n남은 의문: ${p.question}\n${mysteryWhereLine(next)}`);
 }
 const mysteryWhereLine=next=>next.length?'조사할 거리가 남은 곳: '+next.join(' / '):'조사할 거리를 모두 살펴봤습니다. 확인한 사실로 추리를 확인해 보세요.';
-/* 아무것도 나오지 않은 행동: '확인한 사실: 없음' 같은 빈 칸 대신 짧게 알리고 다음 후보만 보여 준다 */
-function mysteryNothingLog(d,p,hint){
-  const next=mysteryNextList(d,p);
-  addLog('fx',`🔎 조사 결과 — 추가 발견 없음: 이 행동으로는 사건과 이어지는 새 사실이 나오지 않았습니다.${hint?'\n'+hint:''}\n${mysteryWhereLine(next)}`);
-}
+/* 아무것도 나오지 않은 행동: 한 줄로만 알린다(설명·조사할 곳 목록 없이) */
+function mysteryNothingLog(){ addLog('fx','🔎 조사 결과 — 추가 발견 없음') }
 function mysteryAfterV2(o,d,p,st){
   st.done=Array.isArray(st.done)?st.done:[];
   if((o.type==='evidence'||o.type==='decoy')&&!st.found.includes(o.e.id)){
@@ -5064,7 +5061,7 @@ function mysteryAfterV2(o,d,p,st){
     mysteryResultLog('새로운 사실',o.e.text,o.e.meaning,d,p);
   }else if(o.type==='repeat'){
     if(mysteryChances(st)===0){ st.chances=1; addLog('fx',`🔁 다시 살펴보기 — 추가 발견 없음\n확인한 사실: ${o.e.text} (앞서 본 그대로)\n사건에 미친 영향: 생각을 정리해 추리 기회가 1번 돌아왔습니다.\n남은 의문: ${p.question}`) }
-    else mysteryResultLog('추가 발견 없음','앞서 본 사실 그대로입니다','없음',d,p);
+    else mysteryNothingLog();
   }else if(o.type==='refuted'){
     st.attempts=st.attempts||[];st.attempts.push({guess:o.proof.guess,supports:o.proof.supports,day:G.day});
     st.chances=Math.max(0,mysteryChances(st)-1);
@@ -5074,7 +5071,7 @@ function mysteryAfterV2(o,d,p,st){
   }else if(o.type==='dark') addLog('sys','🔎 조사 결과 — 관찰 불가: 빛을 확보해야 합니다.');
   else{
     if(o.act&&o.act.kind==='dead'&&!st.done.includes(o.act.key)) st.done.push(o.act.key);
-    mysteryNothingLog(d,p,o.free?'사건 조사는 그 공간에 들어가면 화면 아래에 나오는 조사 선택지를 눌러 진행합니다.':'');
+    mysteryNothingLog();
   }
   const t=(G.threads||[]).find(t=>t.id===d.caseId);if(t){ const x=mysteryPublic(d);t.next=x.next.length?x.next.slice(0,3):[x.verification.room+': '+x.verification.action] }
 }
