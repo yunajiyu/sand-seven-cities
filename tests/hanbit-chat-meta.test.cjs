@@ -40,7 +40,7 @@ await test('A rumor text carries the rumor itself; progress hints go to the syst
   await f.run("chatIncoming('유민','rumor')");
   assert.match(f.run('prompts[0]'),/소문 하나를 전한다: 음악실에 대해 도는 이야기 — 밤마다 피아노가 혼자 울린다/);
   assert.doesNotMatch(f.run("chatSt('유민').map(m=>m.t).join()"),/조사 후보|수첩/);
-  assert.ok(f.obj('logs').some(l=>l.t==='sys'&&l.x.startsWith('💡 ')&&l.x.includes('조사 후보')));
+  assert.ok(f.obj('logs').some(l=>l.t==='sys'&&l.x.startsWith('💡 ')&&l.x.includes('조사할 곳')));
 });
 await test('With no key or a failing API, topic fallbacks stay in-world',async f=>{
   for(const topic of ['missed','invite','warn','rumor','chat']){
@@ -80,7 +80,7 @@ await test('Help request: the character answers in its own voice; the progress h
   await settle();
   const msgs=f.obj("chatSt('유민').map(m=>[m.f,m.t])");assert.deepEqual(msgs.at(-1),['them','3층 음악실 쪽이 수상하다던데, 한번 들어 봐']);
   assert.doesNotMatch(msgs.map(m=>m[1]).join('|'),f.run('CHAT_META_RX'));assert.doesNotMatch(msgs.map(m=>m[1]).join('|'),/조사 후보|확인해 줘/);
-  assert.ok(f.obj('logs').some(l=>l.t==='sys'&&l.x.startsWith('💡 ')&&l.x.includes('조사 후보')));
+  assert.ok(f.obj('logs').some(l=>l.t==='sys'&&l.x.startsWith('💡 ')&&l.x.includes('조사할 곳')));
   const p=f.run('prompts.at(-1)');assert.match(p,/뭐부터 보면 좋을지 물었다/);assert.match(p,/빈 방에서 소리가 반복되는 이유는\?/);assert.doesNotMatch(p,/준비실: 녹음기를 틀어 본다/);assert.match(p,/만나자는 제안·약속을 넣지 않고/);
 });
 await test('Help request falls back to an in-world line when the AI fails or keeps using game terms',async f=>{

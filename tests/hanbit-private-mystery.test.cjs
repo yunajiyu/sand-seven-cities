@@ -166,7 +166,7 @@ await test('[v2] Only opened actions are offered; the old look/search buttons ar
  f.run("act('피아노 옆 녹음기를 꼼꼼히 조사한다',{src:'free'})");await settle();assert.equal(f.run('G.evidence.length'),1);
  await pick(f,'r2',candidate.evidence[1].action);await pick(f,'r3',candidate.dead_ends[0].action);assert.equal(f.run('G.evidence.length'),2,'dead end in the same room as e3 gives nothing');
  assert.ok(!choices(f).some(a=>a.label.includes(candidate.dead_ends[0].action)),'dead end is not offered again');assert.ok(choices(f).some(a=>a.label.includes(candidate.evidence[2].action)));
- const log=f.obj('events').filter(e=>e.type==='fx').map(e=>e.text).join('\n');for(const k of ['확인한 사실:','사건에 미친 영향:','남은 의문:','다음 조사 후보:'])assert.ok(log.includes(k),k);
+ const log=f.obj('events').filter(e=>e.type==='fx').map(e=>e.text).join('\n');for(const k of ['확인한 사실:','사건에 미친 영향:','남은 의문:','조사할 거리가 남은 곳:'])assert.ok(log.includes(k),k);
 });
 await test('[v2] A decoy is granted, logged and shown exactly like any other fact',async f=>{
  await prepared(f);await pick(f,'r1',candidate.evidence[0].action);await pick(f,'r2',candidate.evidence[3].action);await pick(f,'r2',candidate.evidence[1].action);
@@ -274,9 +274,25 @@ await test('[v2] Reachability is checked over the whole lead graph: a valid bran
 await test('[v2] A free action that finds nothing gets a short notice, not empty "없음" fields, and multi-line notices keep their line breaks',async f=>{
  await prepared(f);f.run('events.length=0');await f.run("aiTurn('입구를 자세히 살펴본다')");
  const t=f.obj('events').filter(e=>e.type==='fx').map(e=>e.text).join('\n');
- assert.match(t,/추가 발견 없음/);assert.match(t,/조사 선택지/);assert.match(t,/다음 조사 후보: /);
+ assert.match(t,/추가 발견 없음/);assert.match(t,/조사 선택지/);assert.match(t,/조사할 거리가 남은 곳: /);
  assert.doesNotMatch(t,/확인한 사실: 없음|사건에 미친 영향: 없음/);
  assert.match(html,/\.entry\.sys,\.entry\.fx\{white-space:pre-line\}/);
+});
+await test('[v2] Outside the room, hints name only places: no actions, and rooms not yet visited stay unnamed (no spoilers)',async f=>{
+ await prepared(f);f.run('G.site.rooms.forEach(r=>r.visited=r.id==="r1");G.site.cur="r1";events.length=0');
+ const all=[...candidate.evidence.slice(1).map(e=>e.action),...candidate.dead_ends.map(x=>x.action)];   // e1은 플레이어가 직접 한 행동
+ const hidden=f.obj('G.site.rooms.filter(r=>!r.visited).map(r=>r.name)');
+ await pick(f,'r1',candidate.evidence[0].action);
+ f.run("G.site.rooms.forEach(r=>{if(r.id!=='r1')r.visited=false})");
+ const outside=[f.obj('mysteryPublic().next').join('|'),f.obj('events').filter(e=>e.type!=='action').map(e=>e.text).join('|'),f.run('socialHelpText()'),f.run('campaignPublic()?campaignPublic().next:""'),
+   f.obj('(G.threads||[]).map(t=>(t.next||[]).join("|"))').join('|')].join('\n');
+ f.run("openZoneJournal()");const journal=f.run('modalHTML');
+ for(const a of all){assert.ok(!outside.includes(a),'action leaked: '+a);assert.ok(!journal.includes(a),'action in journal: '+a)}
+ for(const n of hidden){assert.ok(!outside.includes(n),'unvisited room named: '+n)}
+ assert.match(f.obj('mysteryPublic().next').join('|'),/아직 가 보지 않은 공간/);
+ // 그 공간에 들어가면 행동은 조사 선택지로 그대로 보인다
+ f.run("G.site.cur='r2';G.site.rooms.find(r=>r.id==='r2').visited=true");assert.ok(choices(f).some(c=>c.label.includes(candidate.evidence[1].action)));
+ assert.ok(f.obj('mysteryPublic().next').includes(f.run("G.site.rooms.find(r=>r.id==='r2').name")),'a visited room is named');
 });
 console.log(`${count} private-mystery scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
