@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 개발 전용: 실제 AI 키로 입문 사건(v2)을 N번 생성해 통계만 출력한다.
-// 게임과 같은 경로(ensureMystery: 생성 → 정규화 → v2 검증 → AI 검토)를 그대로 탄다.
+// 게임과 같은 경로(ensureMystery: 생성 → 정규화 → v2 검증 → AI 검토 → 눈가림 풀이 검증)를 그대로 탄다.
 // 사건 내용(질문·진상·증거·가설·정답·검토 의견)은 화면·파일·로그 어디에도 남기지 않고, 통과한 사건도 바로 버린다.
 //
 // 사용법:
@@ -32,10 +32,11 @@ const run=s=>vm.runInContext(s,ctx);
 run(`addLog=()=>{};toast=()=>{};render=()=>{};renderSides=()=>{};save=()=>{};sfx=()=>{};maybeIncoming=()=>{};closeModal=()=>{};modal=()=>{};`);
 
 // 호출 관찰: 내용은 보지 않고 종류·길이·형식 판정만 센다.
-const stat={design:0,review:0,lengths:[],cats:{}};
+const stat={design:0,review:0,solve:0,lengths:[],cats:{}};
 const cat=c=>{stat.cats[c]=(stat.cats[c]||0)+1};
 ctx.__observe=async(sys,user,max,roleName,o,real)=>{
   const designer=sys.includes('비공개 미스터리 설계자'), reviewer=sys.includes('미스터리의 독립 검토자');
+  if(sys.includes('눈가림 풀이자')) stat.solve++;
   let text;
   try{ text=await real(sys,user,max,roleName,o) }
   catch(e){ if(designer||reviewer) cat(e.message==='NO_KEY'?'키 없음':'API·연결 오류'); throw e }
@@ -46,6 +47,9 @@ ctx.__observe=async(sys,user,max,roleName,o,real)=>{
 run(`{const real=callAI;callAI=(s,u,m,r,o)=>__observe(s,u,m,r,o,real)}`);
 ctx.__validated=errs=>{ for(const e of errs) cat('구성 검증: '+String(e).replace(/\(.*$/,'').trim()) };
 run(`{const real=validateMystery;validateMystery=(p,d)=>{const e=real(p,d);__validated(e);return e}}`);
+// 눈가림 풀이 문제 문장은 사건 내용이 없는 고정 문장이라 '—' 앞부분만 센다.
+ctx.__blind=issues=>{ for(const x of issues) cat('추리 검증: '+String(x).split(' — ')[0]) };
+run(`{const real=blindSolveIssues;blindSolveIssues=async p=>{const e=await real(p);__blind(e);return e}}`);
 
 function seed(){run(`
   G={v:1,_phoneLightVersion:1,_fearBalanceVersion:1,_relVersion:2,_clockVersion:2,_affLv:2,_deductionVersion:1,char:{name:'시험',age:17,stats:{str:1,wis:1,cha:1,sur:1},traits:[]},day:1,time:'방과 후',dayStep:0,loc:'site',steps:0,hp:12,maxhp:12,calm:10,battery:6,torch:0,cash:100,items:[],mat:{metal:0,ply:0,wire:0,keepsake:0},act:1,fragments:0,sitesDone:0,district:'music',comp:{met:false,joined:false,aff:10},rel:{},chronicle:[],
@@ -91,7 +95,7 @@ run(`function __judgePrompt(){
   const pass=rows.filter(r=>r.ok).length,avg=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:NaN,pct=(n,d)=>d?Math.round(n/d*100)+'%':'-';
   console.log('\n== 요약 ==');
   console.log(`통과율 ${pass}/${N} (${pct(pass,N)}) · 평균 설계 호출 ${avg(rows.map(r=>r.calls)).toFixed(2)}회 · 첫 시도 통과 ${rows.filter(r=>r.ok&&r.calls===1).length}회`);
-  console.log(`설계 응답 평균 길이 ${Math.round(avg(stat.lengths))||0}자 (호출 ${stat.design}회) · 검토 호출 ${stat.review}회`);
+  console.log(`설계 응답 평균 길이 ${Math.round(avg(stat.lengths))||0}자 (호출 ${stat.design}회) · 검토 호출 ${stat.review}회 · 눈가림 풀이 호출 ${stat.solve}회`);
   console.log('실패 사유(설계·검토 호출 단위, 한 호출에 여러 개 가능):');
   const cats=Object.entries(stat.cats).sort((a,b)=>b[1]-a[1]);
   console.log(cats.length?cats.map(([k,v])=>`  ${v}회 · ${k}`).join('\n'):'  없음');
