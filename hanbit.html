@@ -5748,11 +5748,21 @@ const CHAT_TOPIC_FALLBACK={
   invite:['이따 시간 되면 잠깐 볼래?','방과 후에 별일 없으면 얼굴 좀 보자.','오늘 끝나고 잠깐 만날 수 있어?'],
   warn:['오늘 사감 선생님 순찰 일찍 돈대. 조심해.','복도에 규율부 돌고 있어. 휴대폰 잘 숨겨.','오늘 점호 깐깐하대. 늦지 마.'],
   rumor:['요즘 이상한 얘기가 돌던데, 들었어?','애들이 수군거리는 얘기가 있던데… 나중에 해 줄게.'],
-  chat:['뭐 해? 오늘 하루 어땠어?','심심해서 문자해 봤어 ㅋㅋ','밥은 먹었어?']
+  chat:['뭐 해? 오늘 하루 어땠어?','심심해서 문자해 봤어 ㅋㅋ','밥은 먹었어?'],
+  help:['음… 나도 잘은 모르겠는데, 직접 가서 천천히 보는 게 낫지 않을까?','들은 얘기가 별로 없어. 너무 무리하지는 마.','글쎄, 이상한 데가 있으면 한 번 더 가 보는 게 어때?']
 };
 /* 예전 버전이 상대 문자로 넣던 안내 문구. 저장본은 그대로 두고 AI에게 보내는 최근 문자에서만 뺀다. */
 const CHAT_LEGACY_LINES=new Set(['약속 장소에서 기다렸어. 다음에는 시간과 장소를 다시 확인해 줘.','시간이 맞으면 함께 보자. 약속 요청에서 장소와 시간을 골라 줘.','휴대폰을 쓸 수 있는 시간인지 확인하고 조심해.','필요한 일이 있으면 약속이나 도움 요청으로 알려 줘.']);
-function chatLegacyLine(m){ return m.f!=='me'&&(CHAT_LEGACY_LINES.has(m.t)||/^(수첩에 적힌 다음 조사 후보|확인한 (핵심 증거의 기여|사실)를 비교한 뒤|지금 목표는 |조사 보드의 다음 조사 방향)/.test(m.t)) }
+function chatLegacyLine(m){ return m.f!=='me'&&(CHAT_LEGACY_LINES.has(m.t)||/^(수첩에 적힌 다음 조사 후보|확인한 (핵심 증거의 기여|사실)를 비교한 뒤|지금 목표는 |조사 보드의 다음 조사 방향)/.test(m.t)||/이동하려면 지도와 이동 선택지를 확인해 줘\.$/.test(m.t)) }
+/* 위치 확인 답장: 인물이 실제로 말할 법하게 장소만 말한다(이동 방법 안내 없음) */
+function chatLocationReply(name){
+  if(name==='유민'&&G.comp.joined) return '나 지금 너랑 같이 있잖아 ㅋㅋ';
+  const w=contactWhere(name);
+  if(w==='어디 있는지 알 수 없음') return '음… 지금 어디라고 말하기 좀 애매해.';
+  if(/^한빛시 어딘가/.test(w)) return '나 지금 밖에 나와 있어.';
+  const place=w.replace(/^중앙 캠퍼스 지구의 /,'').replace(/^중앙 캠퍼스 지구 밖 /,'학교 밖 ').replace(/[「」]/g,'').trim()||'학교';
+  return `지금 ${place}에 있어.`;
+}
 function chatSt(n){ G.chats=G.chats||{}; return G.chats[n]||(G.chats[n]=[]) }
 function bubbleHTML(m,name){ return `<div class="bub ${m.f==='me'?'me':'them'}">${esc(m.t)}<small>${esc(m.when||'')}</small></div>` }
 function chatWhen(){ return `${G.day}일째 ${isWeekend()?'(주말) ':''}${G.time==='낮'&&slotIdx()>=0?slotLabel():G.time}` }
@@ -5785,7 +5795,7 @@ function chatPrompt(name,incomingTopic,rumor,request={}){
 ${inZone?'플레이어는 구역 안이라 신호가 약해 문자가 끊기고 느리다.':''}${rs?`플레이어는 ${rs}이라 몰래 문자 중이다(짧게, 속삭이듯).`:''}
 최근 문자:
 ${hist}
-${incomingTopic?`${name}이(가) 플레이어에게 먼저 문자를 보낸다. 내용: ${top}.`:'플레이어의 마지막 문자에 대한 답장을 쓴다.'}
+${incomingTopic?`${name}이(가) 플레이어에게 먼저 문자를 보낸다. 내용: ${top}.`:'플레이어의 마지막 문자에 대한 답장을 쓴다.'}${request.help?`\n플레이어가 요즘 알아보고 있는 일${G.site?.mystery&&mysteryPublic()?.question?`(「${mysteryPublic().question}」)`:''}에 대해 뭐부터 보면 좋을지 물었다. ${name}은(는) 정답이나 숨겨진 사실을 모른다. 들은 소문이나 자기 짐작을 친구·인물 말투로 한두 문장 말하고, "~래", "~던데"처럼 들은 말임을 드러낸다. 확실한 위치나 방법을 단정하지 않는다.`:''}
 규칙: ${dec.meet==='refuse'?'[플레이어가 만나자고 했다 — 이번에는 사정이 있어 거절한다. 인물다운 말투로 짧게 이유를 대고, 다른 때를 약속으로 잡지는 않는다. appointment는 null]':dec.meet==='accept'?'[플레이어가 만나자고 했다 — 이번에는 수락한다. 플레이어가 요청한 장소와 때를 우선하여 수락한다. 장소를 임의로 학교 안 다른 곳으로 바꾸지 마라. 때가 없으면 곧으로 정한다(급식실은 점심시간에만)]':dec.propose?'이번 답장에서는 자연스러우면 만나자고 먼저 제안해도 좋다(약속 가능한 장소와 때를 구체적으로, 급식실은 점심시간에만).':'이번 답장에는 만나자는 제안·약속을 넣지 않고 대화로 끝낸다.'} 급식실은 점심시간에만 열리니 다른 때에 급식실에서 밥을 먹거나 만나자고 하지 않는다. 학생·교직원 인물의 말투로 문자답게 1~2문장(40자 안팎). 숨겨진 진실을 직접 밝히지 않는다. 관계 단계가 연애 단계라면 설렘·다정한 말·데이트 제안은 가능하다. 새로운 사실을 만들 때는 사소한 것만. 게임·시스템·기능·메뉴·버튼·요청 화면·선택·수첩·조사 후보·기회·목표·호감도·배터리 같은 게임 용어를 쓰지 않는다. 플레이어에게 무엇을 누르거나 고르라고 하지 않는다. 인물이 실제로 보낼 법한 문자만 쓴다.
 플레이어가 먼저 만나자고 했거나 네가 한 제안을 플레이어가 받아들여 장소와 때가 정해졌을 때만 appointment에 {"place":"약속 가능한 장소의 정확한 이름(임시장소·소문의 장소 포함)","when":"방과 후|점심시간|쉬는 시간|저녁|내일 아침 등"}을 적는다(없으면 null).
 JSON만: {"reply":"문자 내용","affinity":0 또는 1,"hint":"상대가 실제로 알려 주는 단서·소문이 있으면 한 문장, 없으면 빈 문자열","appointment":null}`;
@@ -5802,7 +5812,7 @@ async function chatAI(name,incomingTopic,rumor,request={}){
     if(!r) break;
     if(!CHAT_META_RX.test(r)) reply=r;
   }
-  const fallback=rand(CHAT_TOPIC_FALLBACK[incomingTopic]||CHAT_FALLBACK);
+  const fallback=rand(CHAT_TOPIC_FALLBACK[request.help?'help':incomingTopic]||CHAT_FALLBACK);
   if(!reply) j=null;   // 대체 문구일 때는 약속·호감·귀띔을 쓰지 않는다
   const hint=j&&j.hint?String(j.hint).trim().slice(0,120):'';
   return {decision,confirmed:!!reply,reply:reply||fallback,aff:j&&+j.affinity>0?1:0,hint:CHAT_META_RX.test(hint)?'':hint,appt:j&&j.appointment&&typeof j.appointment==='object'?{place:String(j.appointment.place||''),when:String(j.appointment.when||'')}:null};
@@ -6185,18 +6195,24 @@ function sendSocialMessage(name,kind,opt={}){
   addDemerit(PHONE_DEMERIT,`${rs} 휴대폰 사용 적발`);G.phoneBan=G.day+':'+G.time;addLog('sys','휴대폰 사용이 적발되어 이 시간대에는 연락할 수 없습니다.');save();render();return false;
  }
  const y=name==='유민',invite=['meet','date','outing'].includes(kind);
- const msg=invite?`${apptWhenText(opt.ord)} ${apptWhereName(opt.where)}에서 ${kind==='date'?'데이트할까?':kind==='outing'?'같이 시간을 보낼까?':'만날까?'}`:kind==='help'?'현재 조사에서 다음에 무엇을 확인할지 도와줄래?':kind==='location'?'지금 어디에 있는지 알려줄래?':'잡아 둔 약속을 취소할게.';
+ const msg=invite?`${apptWhenText(opt.ord)} ${apptWhereName(opt.where)}에서 ${kind==='date'?'데이트할까?':kind==='outing'?'같이 시간을 보낼까?':'만날까?'}`:kind==='help'?'요즘 알아보는 거 말이야, 뭐부터 보면 좋을까?':kind==='location'?'지금 어디에 있는지 알려줄래?':'잡아 둔 약속을 취소할게.';
  let reply,accepted=false,reward=false;
  if(invite){
   accepted=Math.random()>=chatRefuseP(name);
   if(accepted)accepted=scheduleSocialAppt(name,opt.where,opt.ord,kind);
   reply=accepted?`${y?'응, ':''}${apptWhenText(opt.ord)} ${apptWhereName(opt.where)}에서 기다릴게. 아직 도착한 건 아니야.`:'지금은 그 약속을 잡기 어려워. 다른 때 다시 정하자.';reward=accepted;
- }else if(kind==='help'){reply=socialHelpText();reward=true}
- else if(kind==='location')reply=`지금은 ${contactWhere(name)}에 있어. 이동하려면 지도와 이동 선택지를 확인해 줘.`;
+ }else if(kind==='help'){reply=null;reward=true}   // 인물 답장은 AI로 따로 받고, 진행 안내는 시스템 기록으로
+ else if(kind==='location')reply=chatLocationReply(name);
  else{const id=G.appts.indexOf(existing);releaseAppt(existing);G.appts.splice(id,1);s.plans.filter(p=>p.id===existing.socialId).forEach(p=>p.status='cancelled');reply='알겠어. 약속은 취소해 둘게.'}
- textDrain();chatPush(name,'me',msg);chatPush(name,'them',reply);
- G.recent.push({role:'scene',text:`[기능 문자] ${name}: ${reply}`});
+ textDrain();chatPush(name,'me',msg);
+ if(reply!=null){chatPush(name,'them',reply);G.recent.push({role:'scene',text:`[기능 문자] ${name}: ${reply}`})}
  if(reward&&!s.day.messages[name]){s.day.messages[name]=true;addAffTo(name,1);relCheck(name);addLog('fx',`${name} 문자 교류 · 호감 +1 (오늘 보상 완료)`)}
+ if(kind==='help'){
+  addLog('sys','💡 '+socialHelpText());
+  const g=G;chatAI(name,null,'',{help:true,decision:{propose:false,meet:null}}).then(o=>{
+   if(G!==g)return;chatPush(name,'them',o.reply);G.recent.push({role:'scene',text:`[기능 문자] ${name}: ${o.reply}`});save();render();renderSocialTabs();
+  }).catch(e=>console.warn(e));
+ }
  save();render();return accepted||!invite;
 }
 function socialActivityHTML(kind){
