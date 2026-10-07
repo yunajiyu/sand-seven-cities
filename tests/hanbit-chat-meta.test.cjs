@@ -72,5 +72,30 @@ await test('The reply prompt forbids game terms and no longer explains game code
   assert.match(p,/게임 용어를 쓰지 않는다\. 플레이어에게 무엇을 누르거나 고르라고 하지 않는다\. 인물이 실제로 보낼 법한 문자만 쓴다\./);
   assert.doesNotMatch(p,/게임 코드가/);assert.match(p,/약속 장소에 실제로 오는 건 그 시간이 됐을 때다/);
 });
+const settle=async()=>{for(let i=0;i<5;i++)await new Promise(r=>setImmediate(r))};
+await test('Help request: the character answers in its own voice; the progress hint goes to the system log',async f=>{
+  f.run("replies=['3층 음악실 쪽이 수상하다던데, 한번 들어 봐'];G.site={mystery:{}};mysteryPublic=()=>({v2:true,question:'빈 방에서 소리가 반복되는 이유는?',next:['준비실: 녹음기를 틀어 본다'],verification:{room:'장비실'},conclusion:null})");
+  const before=f.run("relAff('유민')");assert.equal(f.run("sendSocialMessage('유민','help')"),true);
+  assert.equal(f.run("relAff('유민')-"+before),f.run('AFF_RATE'),'reward unchanged');
+  await settle();
+  const msgs=f.obj("chatSt('유민').map(m=>[m.f,m.t])");assert.deepEqual(msgs.at(-1),['them','3층 음악실 쪽이 수상하다던데, 한번 들어 봐']);
+  assert.doesNotMatch(msgs.map(m=>m[1]).join('|'),f.run('CHAT_META_RX'));assert.doesNotMatch(msgs.map(m=>m[1]).join('|'),/조사 후보|확인해 줘/);
+  assert.ok(f.obj('logs').some(l=>l.t==='sys'&&l.x.startsWith('💡 ')&&l.x.includes('조사 후보')));
+  const p=f.run('prompts.at(-1)');assert.match(p,/뭐부터 보면 좋을지 물었다/);assert.match(p,/빈 방에서 소리가 반복되는 이유는\?/);assert.doesNotMatch(p,/준비실: 녹음기를 틀어 본다/);assert.match(p,/만나자는 제안·약속을 넣지 않고/);
+});
+await test('Help request falls back to an in-world line when the AI fails or keeps using game terms',async f=>{
+  for(const r of ["[new Error('NO_KEY')]","['수첩에 적힌 조사 후보부터 해 봐','도움 요청 버튼을 눌러']"]){
+    f.run("G.chats={};replies="+r);f.run("sendSocialMessage('유민','help')");await settle();
+    const t=f.run("chatSt('유민').at(-1).t");assert.ok(f.obj('CHAT_TOPIC_FALLBACK.help').includes(t),t);assert.doesNotMatch(t,f.run('CHAT_META_RX'));
+  }
+});
+await test('Location check names the place only, without telling the player how to move',f=>{
+  f.run("G.comp.joined=false;G.comp.spot='market';sendSocialMessage('유민','location')");const t=f.run("chatSt('유민').at(-1).t");
+  assert.match(t,/^지금 .+에 있어\.$/);assert.doesNotMatch(t,/지도|선택지|이동하려면|중앙 캠퍼스 지구|「/);
+  f.run("G.comp.joined=true");assert.equal(f.run("chatLocationReply('유민')"),'나 지금 너랑 같이 있잖아 ㅋㅋ');
+  f.run("npcWhereText=()=>'어디 있는지 알 수 없음';getRel('서연')");assert.doesNotMatch(f.run("chatLocationReply('서연')"),/알 수 없음/);
+  // 예전 위치 답장은 AI에 보내는 최근 문자에서 빠진다
+  f.run("chatPush('유민','them','지금은 중앙 캠퍼스 지구의 「매점」에 있어. 이동하려면 지도와 이동 선택지를 확인해 줘.')");assert.ok(!f.run("chatPrompt('유민',null,'')").includes('이동 선택지'));
+});
 console.log(`${count} chat-meta scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
