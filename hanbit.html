@@ -934,7 +934,8 @@ function migrate(){
   if(G.act==null) G.act=Array.isArray(G.wards)&&G.wards.length?(G.wards.every(c=>c.found)?4:3):1;   // 막 제도 이전 저장본
   if(!compactCampaign()&&G.actDone&&(G.fragments||0)<FRAG_GOAL) G.fragments=FRAG_GOAL;
   G.fragments=Math.min(FRAG_GOAL,Math.max(0,Math.floor(Number(G.fragments)||0)));
-  if(G.act>=3&&MAP_PLACES.some(p=>p.far&&!G.discovered.includes(p.id))){const g=G;setTimeout(()=>{ if(G!==g)return;try{ branchOpen(true); save(); render() }catch(e){} },0)}
+  // 곁가지 지역 단계 공개 이전 저장본: 3막이면 이미 모두 열려 있던 상태를 그대로 유지
+  if(G.act>=3&&!Array.isArray(G.branchOpenIds)){ G.branchOpenIds=MAP_PLACES.filter(p=>p.far).map(p=>p.id); MAP_PLACES.filter(p=>p.far).forEach(p=>{ if(!G.discovered.includes(p.id)) G.discovered.push(p.id) }) }
   if(G.dayStep==null) G.dayStep=(G.steps||0)%blockLen();
   if(!TIMES.includes(G.time)) G.time=G.time==='밤'?'야간':'낮';
   if(G.demerit==null) G.demerit=0; if(!G.access) G.access=1; if(!Array.isArray(G.ledger)) G.ledger=[];
@@ -989,6 +990,7 @@ function migrateRelationships(){
   });
   if(old){ G.relEvt=null; G._relSetup=false }
   G._relVersion=2;
+  if(G.campaign&&G.campaign.version===1&&!Array.isArray(G.campaign.lacunaIntel)&&(G.actDone||G.act>=2)) G.campaign.lacunaIntel=[0,1,2].map(i=>({i,day:G.day||1,how:'legacy'}));   // 라쿠나 정보 단계 이전에 이미 길이 열린 저장본
   if(G.campaign&&G.campaign.version===1&&typeof G.campaign.introHeard!=='boolean') G.campaign.introHeard=!!(G.campaign.introSite||G.campaign.introSolved||G.site?.intro);   // 이미 시작한 게임은 소문을 들은 것으로 본다
 }
 function ensureComp(){ migrate() }      // 예전 이름 호환
@@ -1460,7 +1462,7 @@ function stateFacts(){
     캐릭터:{이름:c.name,나이:c.age||17,신분:c.origin,전학이유:c.reason||c.reasonAI||'(미정 — AI가 정해 서서히 드러낼 것)',능력치:{근력:c.stats.str,지혜:c.stats.wis,매력:c.stats.cha,생존술:c.stats.sur},특성:c.traits,배경:c.bio||'(없음)'},
     상태:{체력:`${G.hp}/${G.maxhp}`,공포:`${fearNow()}/${fearMax()}`,배터리:`${batteryPct()}%`,조명:lightStatus(),캐시:G.cash,벌점:`${G.demerit||0}/${DEMERIT_WARN}`,출입권한:`${G.access||1}/${ACCESS_MAX}등급`,소지품:G.items,메달조각:`${G.fragments}/${FRAG_GOAL}`},
     날짜:`${G.day}일째(${dowName(G.day)}요일${dowIdx(G.day)>=5?' 주말':''}) ${G.time}`,
-    알려진지명:MAP_PLACES.filter(p=>p.far&&G.discovered.includes(p.id)).map(p=>`${p.n}(소문으로만 아는 곁가지 구역)`).join(' / ')||'없음',
+    알려진지명:MAP_PLACES.filter(p=>p.far&&G.discovered.includes(p.id)).map(p=>`${p.n}(${hoodOpen(p.id)?'가는 길을 아는 곳':'소문으로만 아는 곳'})`).join(' / ')||'없음',
     아지트:has('clubroom')?`${G.home.name||'폐 동아리실'} — 시설: ${FAC.filter(f=>has(f.id)).map(f=>f.n).join(', ')}`:'없음',
     탈것:G.ride?`${RIDES[G.ride.type].n} 「${G.ride.name}」 (${G._rideFed===false?'충전을 못 해 지쳐 있음':'상태 좋음'}) — 아지트 보관대에 있고 조사 외출에 데려간다. 한빛시 이동 장면에 가끔 등장`:'없음',
     자재:MATS.map(m=>`${m.n} ${G.mat[m.k]}`).join(', ')+(G.mat.keepsake?` (유실물 등급: ${keepsakeText()})`:''),
@@ -2237,12 +2239,14 @@ function gameActions(){
   }else if(G.loc==='campus'){
     for(const [id,d] of Object.entries(DISTRICTS)) if(id!==curDistrict()||spotOn()) add('district:'+id,d.n,()=>goDistrict(id),'move');
     if(compactCampaign()&&!G.campaign.introSolved&&G.campaign.introHeard&&campaignPlan()) add('campaign:intro','소문의 장소로 가기 — '+INTRO_SITE_NAME,()=>startIntroMystery(),'investigate');
+    if(canAskLacuna()&&G.campaign.lacunaAskDay!==G.day) add('campaign:lacuna-ask',askLacunaLabel().replace(/^🗞 /,''),()=>askLacuna(),'investigate');
     add('spot:enter','학교 안의 새 임시장소로 이동 (to에 장소 이름)',(text,opt)=>enterTemporarySpot(opt.target,text,opt),'move');
     if(!spotOn()&&(PLACES[curDistrict()]||{}).clueP!=null) add('investigate:campus:'+curDistrict(),'현재 장소 조사하기',text=>browsePlace(curDistrict(),text),'investigate');
     if(!spotOn()&&has('clubroom')) add('home:enter','아지트로 이동',()=>goHome(),'move');
     if(!spotOn()&&G.time!=='낮') add('rest:dorm','기숙사에서 잠들기',()=>sleepAtDorm());
   }else if(G.loc==='hood'){
     add('travel:campus','중앙 캠퍼스로 귀환',()=>travelBack(),'move');
+    if(canAskLacuna()&&G.campaign.lacunaAskDay!==G.day) add('campaign:lacuna-ask',askLacunaLabel().replace(/^🗞 /,''),()=>askLacuna(),'investigate');
     if(G.time!=='낮') add('rest:hood','현지에서 숙박',()=>hoodRest());
   }else if(G.loc==='home'){
     add('district:gate','중앙 캠퍼스로 돌아가기',()=>enterCampus(false),'move');
@@ -4187,14 +4191,16 @@ function archiveSite(){
   prev.filter(n=>n!==d.name&&!now.has(n)).forEach(purgeZoneLex);
   if(fin&&d.lore) finalizeZone(d);
 }
-function revealNextPlace(){
+function revealNextPlace(quiet){
   const c=MAP_PLACES.filter(p=>p.far&&!G.discovered.includes(p.id));
-  if(!c.length) return;
-  c.sort((a,b)=>Math.hypot(a.x-CAMPUS_POS.x,a.y-CAMPUS_POS.y)-Math.hypot(b.x-CAMPUS_POS.x,b.y-CAMPUS_POS.y));
+  if(!c.length) return null;
+  const from=basePos();
+  c.sort((a,b)=>Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y));
   const p=c[0]; G.discovered.push(p.id);
-  addLex({name:p.n,cat:'장소',desc:`${p.lore||''} (곁가지 구역 — 지금은 소문으로만 아는 곳)`},true,null);
+  addLex({name:p.n,cat:'장소',desc:`${p.lore||''} (소문으로만 아는 곳)`},true,null);
   G.chronicle.push({day:G.day,text:`소문을 통해 「${p.n}」의 이야기를 들었다`});
-  toast(`🗺 지도에 「${p.n}」이(가) 나타났습니다`);
+  if(!quiet){ toast(`🗺 「${p.n}」의 소문을 들었습니다`); branchLocate() }
+  return p;
 }
 
 /* 중단한 구역 */
@@ -4442,7 +4448,7 @@ function grantMedalReward(){
   return true;
 }
 async function actComplete(){
-  if(compactCampaign()){addLog('sys','교내에 돌던 소문의 진상을 검증했습니다. 출석부에 남은 조사 경로를 따라 라쿠나 구역으로 갈 수 있습니다.');G.chronicle.push({day:G.day,text:'교내 소문의 진상 확인 — 라쿠나 조사 경로 개방'});save();render();return}
+  if(compactCampaign()){G.chronicle.push({day:G.day,text:'교내 소문의 진상을 확인했다'});addLog('sys','🗒 소문의 진상을 기록으로 남겼다. 기록을 정리하다 보니 출석부 첫 줄의 이름이 다시 눈에 걸린다.');grantLacunaIntel('intro');save();render();return}
   addLog('sys','기념 메달 조각이 모두 모였습니다.');
   await aiTurn(`모은 기념 메달 조각 ${FRAG_GOAL}개를 맞추어 본다`,'[특별 장면] 조각들이 맞물려 하나의 기념 메달이 되고, 그 문양 위로 지도에 없는 라쿠나 구역의 입구 위치가 겹쳐 보인다. 섬뜩하면서도 장엄하게 그려라. 마지막 문장은 다음 여정을 향한 기대감으로 끝내라.',false);
   G.chronicle.push({day:G.day,text:'기념 메달을 완성해 라쿠나 구역의 입구 위치를 알아냈다 — 1막 완료'});
@@ -4500,14 +4506,57 @@ function hearIntroRumor(how=''){
   if(!r) return '';
   upsertLex(r.region+'의 괴담','괴담',r.belief); if(!G.heardRumors.includes(r.region)) G.heardRumors.push(r.region);
   G.chronicle.push({day:G.day,text:`교내에 도는 소문을 들었다: ${INTRO_SITE_NAME}`});
-  addLog('sys','🗣 교내에 도는 소문을 들었습니다. 소문의 장소로 가 볼 수 있습니다.');
+  addLog('sys','🗣 교내에 도는 소문을 들었다.');
   return ` ${how} 교내에는 「${INTRO_SITE_NAME}」(${INTRO_SITE_THEME})에 얽힌 소문이 돈다: "${r.belief}". 이 소문이 ${INTRO_SITE_NAME} 이야기라는 것이 서술에서 분명히 드러나게 하라. 플레이어에게 조사하러 가라고 단정하지 말고, 믿을지는 플레이어가 정하게 둔다.`;
 }
+/* 라쿠나 정보: 입문 사건과 별개로 라쿠나가 무엇이었는지(0)·어디쯤인지(1)·어떻게 들어가는지(2)를 차례로 알아내야 출발할 수 있다.
+   문장은 본편 설계 때 함께 만들어 검토를 거친 공개 문장(lacuna_intel). 예전 설계본처럼 없으면 진상과 무관한 기본 문장을 쓴다. */
+const LACUNA_INTEL_N=3, LACUNA_INTEL_KIND=['무엇이었는지','어디쯤인지','어떻게 들어가는지'];
+const LACUNA_INTEL_FALLBACK=['출석부 첫 줄의 이름은 한때 학생들이 살고 공부하던 구역의 이름이었다. 지금의 공식 지도에는 그 이름이 없다.','그 구역은 동남쪽 저수지가 넓어지면서 물에 잠겼다고 한다. 둑 너머 물밑에 옛 지붕들이 비친다는 말이 있다.','수위가 크게 낮아지는 때에만 옛길이 물 위로 드러나 걸어 들어갈 수 있다고 한다.'];
+function lacunaIntelTexts(){ const a=campaignPlan()?.lacuna_intel; return Array.isArray(a)&&a.length===LACUNA_INTEL_N&&a.every(x=>typeof x==='string'&&x.trim().length>=4)?a:LACUNA_INTEL_FALLBACK }
+function lacunaIntelCount(){ const a=G?.campaign?.lacunaIntel; return Array.isArray(a)?Math.min(LACUNA_INTEL_N,a.length):0 }
+function lacunaKnown(){ return !compactCampaign()||lacunaIntelCount()>=1||G.act>=2 }   // 화면·서술에 「라쿠나」라는 이름을 써도 되는지
+function lacunaOnMap(){ return compactCampaign()?(lacunaIntelCount()>=2||G.act>=2):!!G.actDone }
+function lacunaReady(){ return compactCampaign()?!!(G.campaign.introSolved&&lacunaIntelCount()>=LACUNA_INTEL_N):!!G.actDone }
+function grantLacunaIntel(how){
+  if(!compactCampaign()||!campaignPlan()) return null;
+  const c=G.campaign; if(!Array.isArray(c.lacunaIntel)) c.lacunaIntel=[];
+  const i=c.lacunaIntel.length; if(i>=LACUNA_INTEL_N) return null;
+  const all=lacunaIntelTexts(), t=all[i];
+  c.lacunaIntel.push({i,day:G.day,how:how||''});
+  upsertLex('라쿠나 구역','장소',all.slice(0,i+1).join(' '),{fav:true});
+  G.chronicle.push({day:G.day,text:`출석부 첫 줄의 이름 「라쿠나」에 대해 알게 되었다 — ${LACUNA_INTEL_KIND[i]}`});
+  addLog('fx',`📜 라쿠나에 대해 알게 된 것 — ${LACUNA_INTEL_KIND[i]}\n${t}`);
+  return t;
+}
+/* 수소문: 소문을 푼 뒤 학교·지구에서 하루 한 번, 사람이나 오래된 기록으로 라쿠나에 대해 하나씩 알아낸다 */
+function canAskLacuna(){ return compactCampaign()&&!!campaignPlan()&&!!G.campaign.introSolved&&lacunaIntelCount()<LACUNA_INTEL_N&&!G.site&&(G.loc==='hood'||(G.loc==='campus'&&!spotOn())) }
+function askLacunaLabel(){ return lacunaKnown()?'🗞 라쿠나에 대해 수소문하기':'🗞 출석부 첫 줄의 이름 수소문하기' }
+function askLacuna(){
+  if(busy||!canAskLacuna()) return false;
+  if(G.campaign.lacunaAskDay===G.day) return toast('오늘은 더 물어볼 곳이 떠오르지 않습니다. 내일 다시 알아보세요'),false;
+  const name=lacunaKnown()?'라쿠나':'출석부 첫 줄의 이름';
+  G.campaign.lacunaAskDay=G.day;
+  const t=grantLacunaIntel('ask'); if(!t) return false;
+  story(`${name}에 대해 수소문한다`,{src:'fixed',extra:`\n[수소문 결과 — 이번에 알게 되는 것] ${t}\n플레이어가 사람(사서·오래 산 주민·선배 등)이나 오래된 기록에서 바로 위 내용을 알아내는 장면으로 쓴다. 위 문장에 있는 사실만 전하고, 그 밖의 비밀·다른 지워진 구역·사건의 정답은 말하지 않는다. effects는 0.`});
+  return true;
+}
+/* 화면과 서술 AI에 주는 공개 진행. 게임 구조(지역 수·진행도·다음에 할 일)를 지시하지 않고, 지금 마음에 걸리는 것만 이야기 속 말로 알려 준다 */
 function campaignPublic(){
   if(!compactCampaign()) return null;
   const c=G.campaign,links=c.links||{};
-  const m=G.site?.mystery&&mysteryPublic(),next=!campaignPlan()?'본편 준비 재시도로 사건 구성을 준비하세요':!c.introSolved&&!G.site?.intro?(c.introHeard?'교내 「'+INTRO_SITE_NAME+'」의 소문을 확인하러 가세요':'교내에 도는 이야기에 귀를 기울여 보세요(조례·쉬는 시간·급식실)'):m&&!G.site.mystery.state.solved?(m.v2?(m.next.length?'조사할 거리가 남은 곳: '+m.next.slice(0,2).join(' / '):'확인한 사실을 비교하고 '+m.verification.room+'에서 원인과 근거를 골라 추리를 확인하세요'):m.verification?'확인한 사실을 비교하고 '+m.verification.room+'에서 원인 후보와 근거를 선택해 검증하세요':'다음 조사 후보: '+m.next.join(' / ')):G.site?.intro?'교내로 돌아가 라쿠나 조사에 나서세요':G.site?.big&&!G.site.done?(G.site.key==='lacuna'?'출석부 보관실로 가서 출석부를 해독하세요':'지역의 심장으로 가서 검증한 기록을 본편에 연결하세요'):G.act<3?'정문 또는 지구에서 라쿠나 구역으로 떠나세요':G.act<4?'출석부가 가리키는 두 지역 중 남은 사건을 조사하세요':'확인한 세 연결 사실과 최종 진상을 비교하세요';
-  return {next,stage:!campaignPlan()?'사건 준비':!c.introSolved?'교내 소문':G.act<3?'라쿠나 조사':G.act<4?'두 주요 구역 조사':'진상 확인',introSolved:!!c.introSolved,links:Object.entries(links).map(([key,x])=>({key,name:x.name,text:x.text})),goal:'입문 사건을 풀고 주요 지역 3곳의 검증된 사실을 연결한다. 기념 메달 조각 수집은 선택 활동이다.'};
+  const m=G.site?.mystery&&mysteryPublic(), n=lacunaIntelCount();
+  const next=!campaignPlan()?'이야기를 준비하지 못했습니다. 「이야기 준비 재시도」를 눌러 주세요'
+    :!c.introSolved&&!G.site?.intro?(c.introHeard?'「'+INTRO_SITE_NAME+'」에 얽힌 소문이 마음에 걸린다':'교실과 복도, 급식실에서 오가는 이야기에 귀를 기울여 볼 만하다')
+    :m&&!G.site.mystery.state.solved?(m.v2?(m.next.length?'조사할 거리가 남은 곳: '+m.next.slice(0,2).join(' / '):'확인한 사실들을 맞춰 보면 원인을 짐작할 수 있을 것 같다'):m.verification?'확인한 사실들을 맞춰 보면 원인을 짐작할 수 있을 것 같다':'조사할 거리가 남은 곳: '+m.next.join(' / '))
+    :G.site?.intro?'소문의 진상은 확인했다. 출석부 첫 줄의 이름이 다시 눈에 걸린다'
+    :G.site?.big&&!G.site.done?(G.site.key==='lacuna'?'이 구역 깊은 곳에 출석부와 같은 기록이 남아 있을 것 같다':'이 구역의 가장 깊은 곳이 마음에 걸린다')
+    :G.act<2&&!lacunaReady()?(n?'라쿠나에 대해 더 알아볼 곳이 있을 것 같다':'출석부 첫 줄의 이름을 아는 사람이 있을지도 모른다')
+    :G.act<3?'라쿠나로 들어가는 길을 짐작할 수 있게 되었다'
+    :G.act<4?'출석부의 ??? 칸이 가리킨 곳들이 아직 남아 있다'
+    :'알게 된 사실들을 처음부터 다시 맞춰 볼 때다';
+  const stage=!campaignPlan()?'이야기 준비':!c.introSolved?'교내 소문':G.act<2?(lacunaKnown()?'라쿠나':'출석부 첫 줄의 이름'):G.act<3?'라쿠나':G.act<4?'출석부의 남은 이름':'진상';
+  return {next,stage,introSolved:!!c.introSolved,intel:lacunaIntelTexts().slice(0,n),links:Object.entries(links).map(([key,x])=>({key,name:x.name,text:x.text}))};
 }
 function validateCampaign(p){
   const txt=(v,n=800)=>typeof v==='string'&&v.trim().length>=4&&v.length<=n,errs=[];
@@ -4516,6 +4565,7 @@ function validateCampaign(p){
   for(const c of Array.isArray(p?.chapters)?p.chapters:[]) if(!c||!txt(c.role,120)||!txt(c.fragment)||!txt(c.link,400)||!txt(c.riddle,200)||!txt(c.lore)) errs.push('구역 연결 근거');
   if(Array.isArray(p?.chapters)&&(new Set(p.chapters.map(c=>c?.link)).size!==3||new Set(p.chapters.map(c=>c?.fragment)).size!==3))errs.push('서로 다른 연결 사실');
   if(!Array.isArray(p?.rumors)||p.rumors.length!==4||p.rumors.some(r=>!r||typeof r.region!=='string'||!txt(r.belief,400))) errs.push('지역 소문');
+  if(!Array.isArray(p?.lacuna_intel)||p.lacuna_intel.length!==3||p.lacuna_intel.some(t=>!txt(t,240))) errs.push('라쿠나 공개 정보 3문장(lacuna_intel)');
   return [...new Set(errs)];
 }
 /* 사건·본편 준비 실패 원인을 짧게 정리해 알려 줍니다 (키 없음·시간 초과·응답 형식 등을 구분) */
@@ -4530,7 +4580,7 @@ async function genCampaignWorld(){
   if(G.campaign.world?.status==='ready'){toast('본편 저장 기록이 손상됐습니다. 이전 저장본을 불러와 주세요');return false}
   const g=G;if(campaignWorldJob?.g===g)return campaignWorldJob.promise;
   const regions=[HOME_REGION,HOODS.east.n,HOODS.south.n,HOODS.north.n];
-  const prompt=`제작자도 정답을 모르는 학원 공포 추리 게임의 본편을 비공개로 설계한다. 새 게임마다 원인·관계·증거의 조합이 다른 사건을 만들되 추론 가능한 하나의 진상을 고정한다. 입문 사건은 본편과 독립된 작은 사건이며 장소는 항상 교내 「${INTRO_SITE_NAME}」(${INTRO_SITE_THEME})이다. opening·roster·rumors 어디에도 다른 장소를 입문 조사의 대상이나 첫 조사지로 암시하지 말고, ${HOME_REGION}의 소문은 이 특별교실동 이야기로 쓴다. 단 opening과 roster에는 이 소문이나 특별교실동을 언급하지 않는다(그 소문은 이후 학교 일과에서 전해진다). 이후 주요 지역은 라쿠나(lacuna), 안개 기숙사(c0), 방송·음악 시설의 배수 터널(c1) 정확히 세 곳이다. 세 곳은 각각 본편 진상의 다른 부분(누가/어떤 과정으로/왜 지웠는지 등)을 증명한다. fragment는 비공개 담당 사실, link는 그 지역 사건을 해결한 후 공개할 관찰·기록의 연결 사실이다. link 세 개를 합치면 truth/detail을 설명해야 한다. 처음부터 전체 정답을 말하는 link는 금지한다. 아직 방문하지 않은 지역에 대한 증거를 대신 공개하지 않는다. opening/roster/rumors/riddle은 비밀을 누설하지 않는다. 공개 소문은 서로 다른 관점을 담고 증언과 사실을 구분한다. 기념 메달 조각 6개 수집이나 일곱 지역은 요구하지 않는다. 캐릭터: ${JSON.stringify(G.char)}. 소문 지역: ${JSON.stringify(regions)}. 공개 경로의 실제 좌표: ${JSON.stringify(wardPositions())}. 방위를 쓰면 이 좌표와 모순되지 않게 하라. 캐릭터의 전학 이유가 미정이면 entry_reason에 공개 가능한 한 문장을 적는다. 정답을 암시하지 않는다. JSON만: {"truth":"정체","detail":"진상의 경위","entry_reason":"전학 이유(기존 설정 유지)","opening":"전학 첫날 교실 문 앞 장면, 2인칭 현재형. 친구와 만남은 아직 없다","roster":"라쿠나에서 해독 후 공개할 두 다른 구역의 방향만","rumors":[{"region":"지역명","belief":"소문"}],"chapters":[{"key":"lacuna","role":"증명할 부분","fragment":"비공개 사실","link":"해결 후 공개할 연결 사실","riddle":"공개 현상","lore":"숨은 사연과 교칙"},{"key":"c0","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."},{"key":"c1","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."}]}`;
+  const prompt=`제작자도 정답을 모르는 학원 공포 추리 게임의 본편을 비공개로 설계한다. 새 게임마다 원인·관계·증거의 조합이 다른 사건을 만들되 추론 가능한 하나의 진상을 고정한다. 입문 사건은 본편과 독립된 작은 사건이며 장소는 항상 교내 「${INTRO_SITE_NAME}」(${INTRO_SITE_THEME})이다. opening·roster·rumors 어디에도 다른 장소를 입문 조사의 대상이나 첫 조사지로 암시하지 말고, ${HOME_REGION}의 소문은 이 특별교실동 이야기로 쓴다. 단 opening과 roster에는 이 소문이나 특별교실동을 언급하지 않는다(그 소문은 이후 학교 일과에서 전해진다). 이후 주요 지역은 라쿠나(lacuna), 안개 기숙사(c0), 방송·음악 시설의 배수 터널(c1) 정확히 세 곳이다. 세 곳은 각각 본편 진상의 다른 부분(누가/어떤 과정으로/왜 지웠는지 등)을 증명한다. fragment는 비공개 담당 사실, link는 그 지역 사건을 해결한 후 공개할 관찰·기록의 연결 사실이다. link 세 개를 합치면 truth/detail을 설명해야 한다. 처음부터 전체 정답을 말하는 link는 금지한다. 아직 방문하지 않은 지역에 대한 증거를 대신 공개하지 않는다. opening/roster/rumors/riddle은 비밀을 누설하지 않는다. 공개 소문은 서로 다른 관점을 담고 증언과 사실을 구분한다. opening·rumors에는 라쿠나·안개 기숙사·배수 터널 같은 주요 지역의 이름을 쓰지 않는다(플레이어는 아직 그 이름을 모른다). 기념 메달 조각 6개 수집이나 일곱 지역은 요구하지 않는다. 캐릭터: ${JSON.stringify(G.char)}. 소문 지역: ${JSON.stringify(regions)}. 공개 경로의 실제 좌표: ${JSON.stringify(wardPositions())}. 방위를 쓰면 이 좌표와 모순되지 않게 하라. 캐릭터의 전학 이유가 미정이면 entry_reason에 공개 가능한 한 문장을 적는다. 정답을 암시하지 않는다. lacuna_intel은 플레이어가 라쿠나로 떠나기 전에 사람·기록·소문으로 하나씩 알게 되는 공개 정보 세 문장이다: [0] 라쿠나가 무엇이었는지, [1] 어디쯤에 있는지(저수지 아래에 잠겼다 드러나는 곳이라는 설정과 실제 좌표 방위에 맞게), [2] 어떻게·언제 들어갈 수 있는지. 진상·fragment·link·다른 구역의 이름이나 사실은 넣지 않는다. JSON만: {"truth":"정체","detail":"진상의 경위","entry_reason":"전학 이유(기존 설정 유지)","opening":"전학 첫날 교실 문 앞 장면, 2인칭 현재형. 친구와 만남은 아직 없다. 출석부에 적힌 지워진 구역의 이름은 아직 읽히지 않는다","roster":"라쿠나에서 해독 후 공개할 두 다른 구역의 방향만","lacuna_intel":["라쿠나가 무엇이었는지(공개 사실 한두 문장)","어디쯤에 있는지(공개 사실 한두 문장)","어떻게·언제 들어갈 수 있는지(공개 사실 한두 문장)"],"rumors":[{"region":"지역명","belief":"소문"}],"chapters":[{"key":"lacuna","role":"증명할 부분","fragment":"비공개 사실","link":"해결 후 공개할 연결 사실","riddle":"공개 현상","lore":"숨은 사연과 교칙"},{"key":"c0","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."},{"key":"c1","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."}]}`;
   const token={g};campaignWorldJob=token;
   token.promise=(async()=>{
     let issues=[],why='';   // why는 화면 로그에 나간다: 내용 없는 고정 문장만 넣고, AI가 쓴 검토 의견(issues)은 설계 AI에게만 돌려준다
@@ -4538,10 +4588,10 @@ async function genCampaignWorld(){
       const p=parseJSON(await callAI('너는 비공개 본편 설계자다. JSON만 출력한다.',prompt+'\n수정 사항: '+JSON.stringify(issues),5000,'world'));
       if(G!==g)return false;if(!p){issues=['응답이 JSON 형식이 아니거나 중간에 잘림'];why=issues[0];continue}issues=validateCampaign(p);if(issues.length){why='구성 검증 실패: '+issues.slice(0,3).join(', ');continue}
       if(regions.some(r=>!p.rumors.some(x=>x.region===r))){issues=['소문 지역 불일치'];why=issues[0];continue}
-      const review=parseJSON(await callAI('너는 본편의 독립 검토자다. JSON만 출력한다.',`세 구역의 fragment/link가 서로 모순 없이 하나의 truth/detail을 뒷받침하는지 검사한다. 세 연결 사실로 진상을 추론할 수 있어야 한다. 하나의 link나 공개 opening/entry_reason/roster/rumors/riddle이 전체 정답 또는 미방문 구역의 사실을 미리 누설하면 거절한다. 새 단서를 무한히 추가하거나 플레이어 행동에 맞춰 정답을 바꾸는 설계는 거절한다. JSON {"valid":true,"issues":[]}만.\n${JSON.stringify(p)}`,1200,'world'));
+      const review=parseJSON(await callAI('너는 본편의 독립 검토자다. JSON만 출력한다.',`세 구역의 fragment/link가 서로 모순 없이 하나의 truth/detail을 뒷받침하는지 검사한다. 세 연결 사실로 진상을 추론할 수 있어야 한다. 하나의 link나 공개 opening/entry_reason/roster/rumors/riddle/lacuna_intel이 전체 정답 또는 미방문 구역의 사실을 미리 누설하면 거절한다. 새 단서를 무한히 추가하거나 플레이어 행동에 맞춰 정답을 바꾸는 설계는 거절한다. JSON {"valid":true,"issues":[]}만.\n${JSON.stringify(p)}`,1200,'world'));
       if(G!==g)return false;if(review?.valid!==true){issues=Array.isArray(review?.issues)?review.issues:['본편 의미 검토 실패'];why=REVIEW_HIDDEN;continue}
       const sealed=JSON.stringify(p);g.campaign.world={status:'ready',sealed,hash:mysteryHash(sealed)};
-      g.secret={truth:p.truth,detail:p.detail};if(!g.char.reason&&typeof p.entry_reason==='string')g.char.reasonAI=p.entry_reason.slice(0,80);g.rumors=p.rumors;g.openingText=p.opening;upsertLex('라쿠나 구역','장소','교내 소문의 진상을 확인한 뒤 출석부를 따라 조사할 첫 주요 지역');
+      g.secret={truth:p.truth,detail:p.detail};if(!g.char.reason&&typeof p.entry_reason==='string')g.char.reasonAI=p.entry_reason.slice(0,80);g.rumors=p.rumors;g.openingText=p.opening;
             save();return true;
     }catch(e){if(G!==g)return false;why=prepFailText(e);if(e.message==='NO_KEY')break;issues=['본편 응답 오류']}
     if(G===g){g.campaign.world={status:'pending'};addLog('sys',`본편을 준비하지 못했습니다${why?` (${why})`:''}. 「본편 준비 재시도」로 다시 시도할 수 있습니다.`);save()}
@@ -4575,14 +4625,26 @@ function leaveIntroMystery(){
 }
 function campaignPanel(){
   const x=campaignPublic();if(!x)return '';
-  return `<div class="lex"><b>현재 목표: ${esc(x.stage)}</b><p>${esc(x.goal)}</p><p><b>다음 행동:</b> ${esc(x.next)}</p><div>검증된 본편 연결 ${x.links.length}/3</div>${x.links.map(l=>`<p><b>${esc(l.name)}</b>: ${esc(l.text)}</p>`).join('')||'<p class="muted">주요 지역 사건을 해결하면 연결 사실이 기록됩니다.</p>'}<p class="muted">조사 → 증거 비교 → 원인 후보와 근거 선택 → 실제 검증 순서로 진행합니다.</p></div>`;
+  return `<div class="lex"><b>🧭 지금 마음에 걸리는 것</b><p>${esc(x.next)}</p>${x.intel.length?`<h4>📜 라쿠나에 대해 알게 된 것</h4>${x.intel.map(t=>`<p>${esc(t)}</p>`).join('')}`:''}${x.links.length?`<h4>🔗 확인해서 이어 둔 사실</h4>${x.links.map(l=>`<p><b>${esc(l.name)}</b>: ${esc(l.text)}</p>`).join('')}`:''}<p class="muted">조사 → 사실 비교 → 원인과 이유 고르기 → 직접 확인하기 순서로 풀어 갑니다.</p></div>`;
 }
-function openCampaign(){modal('🧭 사건 진행과 본편 연결',campaignPanel())}
+function openCampaign(){modal('🧭 조사 기록',campaignPanel())}
 on('fixed',8,L=>{
   if(!compactCampaign())return '';
-  return '<button onclick="openCampaign()">🧭 현재 목표·본편 연결</button>'+(!campaignPlan()?'<button onclick="prepareCampaign()">🔄 본편 준비 재시도</button>':L==='campus'&&!G.campaign.introSolved&&G.campaign.introHeard?'<button class="primary" onclick="startIntroMystery()">👣 소문의 장소로 '+(G.campaign.introSite?'돌아가기':'가기')+' · '+INTRO_SITE_NAME+'</button>':'');
+  return '<button onclick="openCampaign()">🧭 조사 기록</button>'+(!campaignPlan()?'<button onclick="prepareCampaign()">🔄 이야기 준비 재시도</button>':L==='campus'&&!G.campaign.introSolved&&G.campaign.introHeard?'<button class="primary" onclick="startIntroMystery()">👣 소문의 장소로 '+(G.campaign.introSite?'돌아가기':'가기')+' · '+INTRO_SITE_NAME+'</button>':canAskLacuna()&&G.campaign.lacunaAskDay!==G.day?'<button onclick="askLacuna()">'+askLacunaLabel()+'</button>':'');
 });
-on('context',48,()=>compactCampaign()?'\n[개편 본편의 공개 진행] '+JSON.stringify(campaignPublic())+'\n본편 정답은 비공개로 고정됐다. 미해결 지역의 원인과 연결 사실을 새로 만들거나 미리 공개하지 않는다.'+(G.campaign.introSolved?'':!G.campaign.introHeard?'\n[교내 소문 미청취] 플레이어는 아직 교내에 도는 특정 소문을 듣지 못했다. 서술·선택지·인물 대사에서 「'+INTRO_SITE_NAME+'」나 그곳의 소문을 먼저 언급하지 말고, 그 소문은 코드가 전하는 장면에서만 나온다.':'\n[입문 사건 장소] 입문 사건은 항상 교내 「'+INTRO_SITE_NAME+'」('+INTRO_SITE_THEME+')에서 벌어진다. 소문·단서·조사 제안에서 입문 조사 대상이나 첫 조사지로 다른 장소(예: 다른 지구의 폐건물)를 만들어 내지 말고, 입문 사건과 관련된 소문·분위기는 이 장소 이야기로만 쓴다. 서술과 선택지에서 "입문 사건"이라는 게임 용어는 쓰지 말고 "소문"으로 표현한다.'):'' );
+on('context',48,()=>compactCampaign()?'\n[개편 본편의 공개 진행] '+JSON.stringify(campaignPublic())+'\n본편 정답은 비공개로 고정됐다. 미해결 지역의 원인과 연결 사실을 새로 만들거나 미리 공개하지 않는다. 지역의 수, 진행도, "다음에 ~하라" 같은 게임식 안내를 서술·선택지·인물 대사에 쓰지 않는다.'+(G.campaign.introSolved?'':!G.campaign.introHeard?'\n[교내 소문 미청취] 플레이어는 아직 교내에 도는 특정 소문을 듣지 못했다. 서술·선택지·인물 대사에서 「'+INTRO_SITE_NAME+'」나 그곳의 소문을 먼저 언급하지 말고, 그 소문은 코드가 전하는 장면에서만 나온다.':'\n[입문 사건 장소] 입문 사건은 항상 교내 「'+INTRO_SITE_NAME+'」('+INTRO_SITE_THEME+')에서 벌어진다. 소문·단서·조사 제안에서 입문 조사 대상이나 첫 조사지로 다른 장소(예: 다른 지구의 폐건물)를 만들어 내지 말고, 입문 사건과 관련된 소문·분위기는 이 장소 이야기로만 쓴다. 서술과 선택지에서 "입문 사건"이라는 게임 용어는 쓰지 말고 "소문"으로 표현한다.'):'' );
+/* 플레이어가 아직 모르는 이름: 서술 AI가 먼저 꺼내지 않게 한다(새 설계 게임만) */
+function unknownNames(){
+  if(!G||!compactCampaign()) return [];
+  const out=[];
+  if(!lacunaKnown()) out.push('라쿠나');
+  if(G.act<3) mainWardNames().forEach(w=>out.push(w.n));
+  const far=MAP_PLACES.filter(p=>p.far);
+  far.filter(p=>!(G.discovered||[]).includes(p.id)).forEach(p=>out.push(p.n));
+  if(!far.some(p=>(G.discovered||[]).includes(p.id))) out.push('오러리 구역','코덱스 구역');
+  return [...new Set(out)];
+}
+on('context',47,()=>{ const n=unknownNames(); return n.length?'\n[플레이어가 아직 모르는 이름] '+n.join(', ')+' — 서술·선택지·인물 대사에서 이 이름을 먼저 쓰지 않는다. 필요하면 "지도에 없는 곳", "출석부 첫 줄의 이름"처럼 이름 없이 말한다.':'' });
 function mysteryDeductionHTML(d=G.site){
   const p=mysteryPlan(d);if(!p?.deduction&&!(p?.v>=2))return '';
   const x=mysteryPublic(d),st=d.mystery.state;
@@ -5019,8 +5081,28 @@ on('effects',11,(e,{T})=>{
   if(T.res) T.res.event=null;
   e.fragment=false;
   if(G.site?.intro){e.hp=0;e.calm=0;e.battery=0;e.torch=0}
-  e.caseUpdates=[]; e.board=[]; e.threadsDone=[]; e.lexAdd=[]; e.ledgerAdd=[];
+  // 사건 기록(진행·해결·조사 보드)은 봉인된 사건 파일만 쓴다. 사전·떡밥 장부(교칙·인물 이름 등 세계의 일관성 메모)는
+  // 남기되, 비공개 사건 문장이나 정답·원인을 단정하는 항목만 걸러 낸다.
+  e.caseUpdates=[]; e.board=[]; e.threadsDone=[];
+  const bad=caseSecretFilter(G.site);
+  e.lexAdd=(Array.isArray(e.lexAdd)?e.lexAdd:[]).filter(x=>x&&typeof x==='object'&&!bad(`${x.name||''} ${x.desc||''}`));
+  e.ledgerAdd=(Array.isArray(e.ledgerAdd)?e.ledgerAdd:[]).filter(x=>!bad(String(x&&(x.text||x)||'')));
 });
+/* 봉인된 사건·본편의 비공개 문장(아직 못 얻은 증거, 진상, 결론, 검증 결과, 추론 설명, 연결 사실)이 섞였거나
+   정답·원인을 단정하는 항목인지 판별. 문장은 쉼표·마침표 단위 조각(8자 이상)으로 나눠 대조한다. */
+const CASE_CLAIM_RX=/(범인|정답|진상|진짜\s*원인|원인은|결론|해결|증거)/;
+function caseSecretFilter(d){
+  const plain=t=>stripMd(String(t||'')).normalize('NFKC').replace(/\s+/g,'');
+  const p=d&&mysteryPlan(d), w=campaignPlan(), st=d?.mystery?.state, out=[];
+  if(p){
+    p.evidence.filter(e=>!(st?.found||[]).includes(e.id)).forEach(e=>out.push(e.text,e.meaning));
+    out.push(p.truth,p.conclusion,p.verification?.result,p.deduction?.explanation,p.main_link);
+  }
+  if(w){ out.push(w.truth,w.detail); (w.chapters||[]).forEach(c=>{ if(!G.campaign?.links?.[c.key]) out.push(c.fragment,c.link,c.lore) }) }
+  if(G.secret) out.push(G.secret.truth,G.secret.detail);
+  const parts=[...new Set(out.filter(Boolean).flatMap(t=>String(t).split(/[.,·!?。\n]|다\s/)).map(plain).filter(x=>x.length>=8))];
+  return text=>{ const t=plain(text); return !t||CASE_CLAIM_RX.test(String(text))||parts.some(x=>t.includes(x)||(t.length>=8&&x.includes(t))) };
+}
 on('after',24,T=>{
   const o=T.mysteryOutcome; if(!o||G!==T.g||G.site!==o.d) return;
   const d=o.d,p=mysteryPlan(d),st=d.mystery.state; if(!p) return;
@@ -7184,7 +7266,27 @@ on('applied',66,(e,{T})=>{
   const ev=addCanon(fact,true,true,{caseId:r.caseId||undefined,placeId:r.placeId,scope:r.scope,kind:'fact',source:'rumorcheck',role:rc.result==='refuted'?'refutes':'narrows'});
   r.checked={result:rc.result,day:G.day,factId:ev?ev.id:null};
   addLog('fx',`🔎 소문 확인 — ${RUMOR_RESULT[rc.result]}\n소문: ${r.text}\n직접 확인한 사실: ${fact}`);
+  rumorCheckReward(rc.result,r);
+  save();
 });
+/* 헛걸음에도 수확이 있게: 결과에 따라 코드가 정한 보상을 준다(AI 호출 없음).
+   사실 → 라쿠나 정보 하나(소문을 푼 뒤, 아직 다 모르면) 또는 캐시·자재 / 일부만 사실 → 작은 보급품 / 사실 아님 → 소문의 진짜 출처(새 조사 장소) */
+const RUMOR_SOURCE_PLACES=['닫힌 구 체육관','물 빠진 실내 수영장','문 닫은 학원 별관','버려진 급식 창고','멈춘 승강기 탑','옛 교복 공장','폐 시청각동','불 꺼진 지하 주차장','잊힌 기숙사 별관','방송이 멈춘 구 동아리관'];
+function rumorCheckReward(result,r){
+  const got=[], short=String(r&&r.text||'').slice(0,24);
+  if(result==='confirmed'){
+    const t=compactCampaign()&&G.campaign?.introSolved&&lacunaIntelCount()<LACUNA_INTEL_N?grantLacunaIntel('rumor'):null;
+    if(t) got.push('출석부 첫 줄의 이름에 대해 하나를 더 알게 되었다');
+    else{ const m=rand(['wire','ply','metal']), mt=MATS.find(x=>x.k===m); G.cash+=12; G.mat[m]=(G.mat[m]||0)+1; got.push('캐시 +12',`${mt.i}${mt.n} +1`) }
+  }else if(result==='partial'){
+    G.cash+=5; G.items.push('초코바'); got.push('캐시 +5','초코바');
+  }else if(result==='refuted'){
+    const name=rand(RUMOR_SOURCE_PLACES.filter(n=>!leadKnown(n)));
+    if(name&&addLead(name,`「${short}」라는 소문이 처음 흘러나온 곳으로 보인다.`,true)) got.push(`소문의 진짜 출처로 보이는 「${name}」${josa(name,'이','가')} 지도에 표시됨`);
+    else{ G.cash+=8; got.push('캐시 +8') }
+  }
+  if(got.length) addLog('fx',`🎒 ${result==='refuted'?'헛걸음만은 아니었다':'확인하러 온 보람이 있다'} — ${got.join(' · ')}`);
+}
 function caseCard(t){
   const facts=evidenceForCase(t), names={main:'본편',local:'장소',personal:'인물'};
   if(t.privateMystery) return `<div class="lex"><b>${esc(t.text)}</b><div>${t.status==='closed'?'해결 완료':'진행 중'} · 확인한 사실 ${facts.filter(e=>notebookCategory(e)==='core').length}개 · 전체 기록 ${facts.length}개</div>${notebookGroupsHTML(facts)}${t.conclusion?`<p><b>검증된 진상:</b> ${esc(t.conclusion)}</p>`:`<p class="muted">다음 조사: ${(t.next||[]).map(esc).join(' / ')||'지역의 사건 조사 수첩 확인'}<br>충분하다고 생각되면 지정 공간에서 추리를 확인해 해결합니다.</p>`}</div>`;
@@ -7892,7 +7994,7 @@ on('before',-10,T=>{
    ========================================================= */
 function curHood(){ return HOODS[G.hood]||HOODS.east }
 function hoodPos(id){ const t=HOODS[id]; if(t&&t.pos) return t.pos; const p=MAP_PLACES.find(x=>x.id===id); return p?{x:p.x,y:p.y}:CAMPUS_POS }
-function hoodOpen(id){ const t=HOODS[id]; return !!t&&(t.branch?G.act>=3:(!t.pier||G.act>=3||(G.hoodVisited||[]).includes(id))) }
+function hoodOpen(id){ const t=HOODS[id]; return !!t&&(t.branch?G.act>=3&&(G.branchOpenIds||[]).includes(id):(!t.pier||G.act>=3||(G.hoodVisited||[]).includes(id))) }
 function basePos(){ return G&&G.base&&HOODS[G.base]?hoodPos(G.base):CAMPUS_POS }
 function baseName(){ return G&&G.base&&HOODS[G.base]?HOODS[G.base].n:'중앙 캠퍼스 지구' }
 function priceHere(k){ return G&&G.loc==='hood'?curHood().price[k]:(isHood()?PRICE_HOOD:PRICE_ROAD)[k] }
@@ -7986,7 +8088,7 @@ function tripDests(){
   const here=G.loc==='hood'?G.hood:G.loc==='campus'||G.loc==='home'?'campus':null, out=[];
   if(here!=='campus') out.push({kind:'campus',key:'campus',name:'중앙 캠퍼스 지구',ic:'🏙',pos:CAMPUS_POS,desc:'한빛학원과 상점가가 있는 생활 지구. 아지트가 가까이 있다.'});
   Object.entries(HOODS).forEach(([id,t])=>{ if(id!==here&&hoodOpen(id)) out.push({kind:'hood',key:id,name:t.n,ic:t.ic,pos:hoodPos(id),desc:t.desc,perk:t.perk}) });
-  if(G.actDone&&G.act<3) out.push({kind:'big',key:'lacuna',name:'라쿠나 구역',ic:'✨',pos:LACUNA_POS,desc:'출석부가 처음 가리킨, 저수지 아래 잠겼다 드러나는 지워진 구역. 큰 구역이다.'});
+  if(lacunaReady()&&G.act<3) out.push({kind:'big',key:'lacuna',name:'라쿠나 구역',ic:'✨',pos:LACUNA_POS,desc:'출석부가 처음 가리킨, 저수지 아래 잠겼다 드러나는 지워진 구역. 큰 구역이다.'});
   return out;
 }
 function openTravel(){
@@ -7998,7 +8100,7 @@ function openTravel(){
       <div class="row" style="justify-content:space-between;margin-top:6px"><span class="muted">${needText(n)}${G.calm<n.calm||batteryEnergy()<n.feed||(n.battery>0&&G.battery<=0)?' <b style="color:var(--danger)">· 모자람 (공포 여유가 모자라면 체력 감소 · 방전 시 연락 불가)</b>':''}</span>
       <button class="small primary" ${busy?'disabled':''} onclick="${d.kind==='big'?`startBig('${d.key}')`:d.kind==='campus'?'travelBack(true)':`travelTo('${d.key}')`}">떠나기</button></div></div>`;
   }).join('');
-  modal('🧭 이동하기',`${G.act<3&&MAP_PLACES.some(p=>p.far&&placeKnown(p))?'<p class="muted" style="font-size:12.5px">🗺 지도에 (소문)으로 표시된 곁가지 구역(오러리·코덱스)은 소문으로만 아는 곳이라 3막(출석부 해독)부터 갈 수 있습니다.</p>':''}<p class="muted">지금 있는 곳: <b>${curPlaceName()}</b>. 이동은 지도 거리에 따라 1단계당 시간 2칸이 흐르고, 단계마다 공포 +1·배터리 −1%가 적용됩니다(충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반). 2단계 이상 걸리는 길에서는 이동 행상·유민·불량배를 만날 수도 있습니다. 아지트는 중앙 캠퍼스 지구 바로 옆입니다.</p>${rows}${G.act>=3?`<div class="row" style="margin-top:8px"><button class="small" onclick="openWards()">🗺 출석부가 가리키는 구역들 보기</button></div>`:''}`);
+  modal('🧭 이동하기',`${MAP_PLACES.some(p=>p.far&&placeKnown(p)&&!hoodOpen(p.id))?'<p class="muted" style="font-size:12.5px">🗺 지도에 (소문)으로 표시된 곳은 소문으로만 들었을 뿐, 아직 가는 길을 모르는 곳입니다.</p>':''}<p class="muted">지금 있는 곳: <b>${curPlaceName()}</b>. 이동은 지도 거리에 따라 1단계당 시간 2칸이 흐르고, 단계마다 공포 +1·배터리 −1%가 적용됩니다(충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반). 2단계 이상 걸리는 길에서는 이동 행상·유민·불량배를 만날 수도 있습니다. 아지트는 중앙 캠퍼스 지구 바로 옆입니다.</p>${rows}${G.act>=3?`<div class="row" style="margin-top:8px"><button class="small" onclick="openWards()">🗺 출석부가 가리키는 구역들 보기</button></div>`:''}`);
 }
 /* 이동 시작: 사건이 생기면 길 한가운데(한빛시 뒷길)에서 멈추고, 아니면 바로 도착
    dest.kind: campus · hood · big · zone(구역 조사)   dest.ret: 구역에서 돌아가는 길(조용히 도착)
@@ -8200,7 +8302,7 @@ function travelTarget(t){
   if(k==='far') return {kind:'far'};
   if(k==='wards') return G.act>=3?{kind:'wards'}:{kind:'far'};
   if(k==='campus') return G.loc==='hood'?{kind:'campus',key:'campus',name:'중앙 캠퍼스 지구',pos:CAMPUS_POS}:null;
-  if(k==='lacuna') return G.actDone&&G.act<3?{kind:'big',key:'lacuna',name:'라쿠나 구역',pos:LACUNA_POS}:G.act>=3?null:{kind:'far'};
+  if(k==='lacuna') return lacunaReady()&&G.act<3?{kind:'big',key:'lacuna',name:'라쿠나 구역',pos:LACUNA_POS}:G.act>=3?null:{kind:'far'};
   if(!hoodOpen(k)) return {kind:'far'};
   if(G.loc==='hood'&&G.hood===k) return null;
   return {kind:'hood',key:k,name:HOODS[k].n,pos:hoodPos(k)};
@@ -8361,7 +8463,7 @@ function bigRoute(sp){
   return {reservoir:false,days:travelDays(curPos(),sp.pos)};
 }
 async function startBig(key,skipConfirm){
-  if(compactCampaign()&&(!campaignPlan()||!G.campaign.introSolved||(key!=='lacuna'&&G.act<3)))return toast('교내 소문의 진상과 앞선 본편 조사를 먼저 완료해 주세요');
+  if(compactCampaign()&&(!campaignPlan()||!G.campaign.introSolved||(key==='lacuna'?!lacunaReady():G.act<3)))return toast('아직 그곳으로 가는 길을 모릅니다');
   if(busy||!isHood()) return toast('중앙 캠퍼스 지구나 다른 지구, 아지트에서 떠날 수 있습니다');
   const sp=bigSpec(key); if(!sp) return;
   const rt=bigRoute(sp), r=sp.req;
@@ -8455,7 +8557,7 @@ on('fixed',10,L=>{
     return `<button class="primary" onclick="openHeart()">${lacuna?'📜 출석부 해독하기':'✨ 구역의 심장 열기'} <span class="cbadge ck">🎲 ${SK[sk]} · ${DCN[dc]} · ${checkChance(sk,dc,lacuna?'출석부의 문자를 해독':'심장')}%</span></button>`;
   }
   if(!isHood()) return '';
-  if(G.actDone&&G.act<3) return `<button class="primary" onclick="startBig('lacuna')">✨ 라쿠나 구역으로 떠나기 (${travelDays(curPos(),LACUNA_POS)}일 · ${needText(travelNeed(travelDays(curPos(),LACUNA_POS)))})</button>`;
+  if(!compactCampaign()&&G.actDone&&G.act<3) return `<button class="primary" onclick="startBig('lacuna')">✨ 라쿠나 구역으로 떠나기 (${travelDays(curPos(),LACUNA_POS)}일 · ${needText(travelNeed(travelDays(curPos(),LACUNA_POS)))})</button>`;
   if(G.act>=3) return `<button class="primary" onclick="openWards()">🗺 출석부가 가리키는 구역들 (${G.wards.filter(c=>c.found).length}/${mainWardCount()})</button>`;
   return '';
 });
@@ -9140,16 +9242,26 @@ PET_KINDS.parrot={n:'온실 앵무새',icon:'🦜',price:0,perk:'매력 판정 +
 function branchSt(){ if(!G.branch) G.branch={done:{},tried:{}}; return G.branch }
 function hasBranch(id){ return !!(G&&G.branch&&G.branch.done&&G.branch.done[id]) }
 function branchCount(){ return Object.keys(BRANCH).filter(hasBranch).length }
-/* 3막: 곁가지 구역(오러리·코덱스)이 지도에 모두 나타나고 갈 수 있게 됨 */
+/* 곁가지 지역은 두 단계로 알게 된다: ① 소문(이름과 이야기만, 지도에 「(소문)」) → ② 가는 길 확인(3막부터, 갈 수 있음).
+   길을 확인했지만 괴담을 아직 쫓지 않은 곳은 한 번에 BRANCH_OPEN_MAX곳까지. 한 곳의 괴담을 풀면 새 소문이 들려오고 다음 길이 열린다. */
+const BRANCH_OPEN_MAX=2;
+function branchOpenIds(){ if(!Array.isArray(G.branchOpenIds)) G.branchOpenIds=[]; return G.branchOpenIds }
+function branchPending(){ return branchOpenIds().filter(id=>!hasBranch(id)).length }
+function branchLocate(quiet){
+  if(!G||G.act<3||branchPending()>=BRANCH_OPEN_MAX) return null;
+  const open=branchOpenIds(), from=basePos();
+  const p=MAP_PLACES.filter(p=>p.far&&G.discovered.includes(p.id)&&!open.includes(p.id)).sort((a,b)=>Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y))[0];
+  if(!p) return null;
+  open.push(p.id);
+  upsertLex(p.n,'장소',`${p.lore} (가는 길을 알아낸 곳)`);
+  G.chronicle.push({day:G.day,text:`소문으로만 듣던 「${p.n}」${josa(p.n,'으로','로')} 가는 길을 알아냈다`});
+  if(!quiet){ addLog('sys',`🌿 소문으로만 듣던 「${p.n}」${josa(p.n,'으로','로')} 가는 길을 알아냈다.`); toast(`🌿 「${p.n}」${josa(p.n,'으로','로')} 가는 길을 알아냈습니다`) }
+  return p;
+}
+/* 3막 시작: 출석부 여백의 메모로 소문 하나를 얻고(아직 들은 곳이 없으면), 들은 곳 가운데 최대 두 곳의 길을 확인한다 */
 function branchOpen(quiet){
-  let n=0;
-  MAP_PLACES.filter(p=>p.far).forEach(p=>{
-    if(!G.discovered.includes(p.id)){ G.discovered.push(p.id); n++ }
-    upsertLex(p.n,'장소',`${p.lore} (곁가지 구역 — 3막부터 갈 수 있음)`);
-  });
-  if(quiet) return;
-  G.chronicle.push({day:G.day,text:'곁가지 구역(오러리·코덱스)으로 가는 길이 열렸다'});
-  addLog('sys','🌿 곁가지 구역(오러리·코덱스)으로 가는 길이 열렸습니다. 🧭 이동하기에서 갈 수 있고, 구역마다 서로 다른 보상이 있습니다.');
+  if(!MAP_PLACES.some(p=>p.far&&G.discovered.includes(p.id))) revealNextPlace(true);
+  for(let i=0;i<BRANCH_OPEN_MAX;i++) branchLocate(quiet);
 }
 /* 괴담 쫓기 — 하루 한 번 판정, 성공·부분 성공이면 보상 */
 function branchQuest(){
@@ -9173,9 +9285,11 @@ function branchGrant(id){
   if(id==='pier') decorSt().owned.deco_branch_lamp=true;
   if(id==='irongate'){ decorSt().owned.deco_branch_gate=true; if(!G.pets.some(p=>p.kind==='parrot')) G.pets.push({kind:'parrot',name:'앵무새',aff:20}) }
   upsertLex(W.reward,W.kind==='칭호'?'인물':'물건',`${nm}의 괴담 끝에 얻은 ${W.kind}. ${W.eff}`,{fav:true});
-  G.chronicle.push({day:G.day,text:`${nm}의 괴담을 쫓아 「${W.reward}」${josa(W.reward,'을','를')} 얻었다 (곁가지 수집품 ${branchCount()}/8)`});
+  G.chronicle.push({day:G.day,text:`${nm}의 괴담을 쫓아 「${W.reward}」${josa(W.reward,'을','를')} 얻었다`});
   addLog('fx',`${W.ric} 곁가지 수집품 「${W.reward}」 (${W.kind}) — ${W.eff}`);
-  toast(`${W.ric} 「${W.reward}」${josa(W.reward,'을','를')} 얻었습니다 (${branchCount()}/8)`);
+  toast(`${W.ric} 「${W.reward}」${josa(W.reward,'을','를')} 얻었습니다`);
+  if(MAP_PLACES.some(p=>p.far&&!G.discovered.includes(p.id))&&revealNextPlace(true)) addLog('sys','🗣 괴담을 쫓는 동안 다른 곳의 소문을 하나 들었다.');
+  branchLocate();
   if(branchCount()===8){
     decorSt().owned.deco_branch_map=true;
     G.chronicle.push({day:G.day,text:`곁가지 구역 여덟 곳의 괴담을 모두 모아 「${BRANCH_ALL_REWARD}」${josa(BRANCH_ALL_REWARD,'이','가')} 되었다`});
@@ -9194,18 +9308,19 @@ function branchBonus(skill,text,add){
 function boatFee(){ return hasBranch('pier')?Math.ceil(BOAT_FEE/2):BOAT_FEE }
 /* 곁가지 수집품 기록 */
 function openBranch(){
-  const rows=Object.entries(BRANCH).map(([id,W])=>{
+  const known=Object.entries(BRANCH).filter(([id])=>hasBranch(id)||(G.discovered||[]).includes(id));
+  const rows=known.map(([id,W])=>{
     const t=HOODS[id], d=hasBranch(id)?G.branch.done[id]:null, open=hoodOpen(id);
-    return `<div class="lex"><div class="h"><b>${d?W.ric:'❔'} ${d?esc(W.reward):'???'}</b><span class="cat">${W.kind}</span></div>
+    return `<div class="lex"><div class="h"><b>${d?W.ric:'❔'} ${d?esc(W.reward):'???'}</b><span class="cat">${d?W.kind:open?'가는 길을 앎':'소문만 들음'}</span></div>
       <div class="muted" style="font-size:13px">${t.ic} ${esc(t.n)}${open?` · 중앙 캠퍼스 지구에서 ${hoodDays(id)}일`:''}${d?` · ${d.day}일째에 얻음`:''}</div>
-      ${d?`<div style="font-size:13px;margin-top:4px">✨ ${W.eff}</div>`:`<div class="muted" style="font-size:12px;margin-top:4px">🎲 ${SK[W.skill]} · ${DCN[W.dc]} 판정으로 괴담을 쫓습니다</div>`}</div>`;
-  }).join('');
+      ${d?`<div style="font-size:13px;margin-top:4px">✨ ${W.eff}</div>`:open?`<div class="muted" style="font-size:12px;margin-top:4px">🎲 ${SK[W.skill]} · ${DCN[W.dc]} 판정으로 괴담을 쫓습니다</div>`:''}</div>`;
+  }).join('')+(known.length<Object.keys(BRANCH).length?'<p class="muted">아직 소문조차 듣지 못한 곳이 더 있을지도 모른다.</p>':'');
   const n=branchCount();
-  modal(`🗺 곁가지 수집품 ${n}/8`,`<p class="muted">곁가지 구역 여덟 곳에는 학원도시가 숨긴 것과는 무관한, 그 구역만의 괴담이 하나씩 있고 구역마다 서로 다른 보상이 있습니다. 그곳에 가서 📜 괴담 쫓기(하루 한 번)에 성공하면 보상을 얻습니다. 여덟 곳을 모두 모으면 칭호 「${BRANCH_ALL_REWARD}」${josa(BRANCH_ALL_REWARD,'을','를')} 얻습니다.${n===8?' <b>— 모두 모았습니다!</b>':''}</p>${rows}`);
+  modal(`🗺 곁가지 수집품 ${n}개`,`<p class="muted">곁가지 지역에는 학원도시가 숨긴 것과는 무관한, 그곳만의 괴담이 하나씩 있고 곳마다 서로 다른 보상이 있습니다. 소문으로 들은 곳 가운데 가는 길을 알아낸 곳에서 📜 괴담 쫓기(하루 한 번)에 성공하면 보상을 얻습니다. 괴담 하나를 풀면 다른 곳의 소문이 들려옵니다.</p>${rows}`);
 }
 on('fixed',11,L=>{
   if(!G||G.act<3||!isHood()) return '';
-  let h=`<button onclick="openBranch()">🗺 곁가지 수집품 ${branchCount()}/8</button>`;
+  let h=`<button onclick="openBranch()">🗺 곁가지 수집품 ${branchCount()}개</button>`;
   const W=L==='hood'&&BRANCH[G.hood];
   if(W&&!hasBranch(G.hood)){
     const tried=branchSt().tried[G.hood]===G.day;
@@ -9448,9 +9563,9 @@ function mapSVG(small){
   if(has('clubroom')) s+=`<line x1="${CAMPUS_POS.x}" y1="${CAMPUS_POS.y}" x2="${HOME_POS.x}" y2="${HOME_POS.y}" style="stroke:var(--hl);stroke-width:2"/>`;
   if(G.site){ const dp=dunPos(), bp=basePos(); s+=`<line x1="${bp.x}" y1="${bp.y}" x2="${dp.x}" y2="${dp.y}" style="stroke:var(--accent);stroke-width:1.8;stroke-dasharray:2 3"/>` }
   if(G.loc==='road'&&G.nextPos){ const bp=G.trip&&G.trip.fromPos||basePos(); s+=`<line x1="${bp.x}" y1="${bp.y}" x2="${G.nextPos.x}" y2="${G.nextPos.y}" style="stroke:var(--accent);stroke-width:1.8;stroke-dasharray:2 3"/>` }
-  MAP_PLACES.forEach(p=>{ s+=placeKnown(p)?`<g transform="translate(${p.x} ${p.y})">${placeIcon(p.t)}</g>`+lab(p.x,p.y+21,p.far&&G.act<3?p.n+' (소문)':p.n,12,p.far&&G.act<3?'var(--muted)':'var(--ink)',700):unknownMark(p.x,p.y) });
+  MAP_PLACES.forEach(p=>{ s+=placeKnown(p)?`<g transform="translate(${p.x} ${p.y})">${placeIcon(p.t)}</g>`+lab(p.x,p.y+21,p.far&&!hoodOpen(p.id)?p.n+' (소문)':p.n,12,p.far&&!hoodOpen(p.id)?'var(--muted)':'var(--ink)',700):unknownMark(p.x,p.y) });
   UNKNOWN_SPOTS.forEach((u,i)=>{ if(G.wards&&WARD_SPOT_IDX.includes(i)) return; if(i===3) return; s+=unknownMark(u.x,u.y) });
-  if(!G.actDone) s+=unknownMark(LACUNA_POS.x,LACUNA_POS.y);
+  if(!lacunaOnMap()) s+=unknownMark(LACUNA_POS.x,LACUNA_POS.y);
   s+=wardsMapSVG();
   s+=`<g transform="translate(${CAMPUS_POS.x} ${CAMPUS_POS.y})">${placeIcon('campus')}</g>`+lab(CAMPUS_POS.x,CAMPUS_POS.y+24,'중앙 캠퍼스 지구',15,'var(--ink)',900);
   if(has('clubroom')) s+=`<g transform="translate(${HOME_POS.x} ${HOME_POS.y})"><path d="M-6 5 V-1 L0 -7 L6 -1 V5Z" style="fill:var(--hl);stroke:var(--ink);stroke-width:.8"/></g>`+lab(HOME_POS.x,HOME_POS.y+20,trunc(G.home.name||'폐 동아리실',8),12,'var(--ink)',700);
@@ -9459,7 +9574,7 @@ function mapSVG(small){
   (G.pausedZones||[]).forEach(d=>{ if(d.pos) s+=`<g transform="translate(${d.pos.x} ${d.pos.y})"><path d="M0 -7 L7 0 L0 7 L-7 0Z" style="fill:var(--bg);stroke:var(--danger);stroke-width:1.6"/></g>`+lab(d.pos.x,d.pos.y+20,trunc(d.name,8)+' ⏸',11.5,'var(--ink)',700) });
   if(G.site){ const dp=dunPos(); s+=`<g transform="translate(${dp.x} ${dp.y})"><path d="M0 -8 L8 0 L0 8 L-8 0Z" style="fill:var(--danger);stroke:var(--bg);stroke-width:1"/></g>`+lab(dp.x,dp.y+22,trunc(G.site.name,9),13,'var(--ink)',700) }
   if(G.loc==='road'&&G.nextPos) s+=`<g transform="translate(${G.nextPos.x} ${G.nextPos.y})"><path d="M0 -8 L8 0 L0 8 L-8 0Z" style="fill:var(--bg);stroke:var(--accent);stroke-width:1.4;stroke-dasharray:3 3"/>${svgText(0,4,'?',10,'var(--accent)',700,'middle',false)}</g>`;
-  if(G.actDone) s+=`<g transform="translate(${LACUNA_POS.x} ${LACUNA_POS.y})"><path d="M0 -10 L2.9 -3.3 L10 -3.1 L4.4 1.8 L6.2 8.9 L0 5.1 L-6.2 8.9 L-4.4 1.8 L-10 -3.1 L-2.9 -3.3Z" style="fill:var(--hl);stroke:var(--ink);stroke-width:.8"/></g>`+lab(LACUNA_POS.x,LACUNA_POS.y+25,G.act>=3?'라쿠나 구역':'라쿠나 구역 입구',14,'var(--ink)',900);
+  if(lacunaOnMap()) s+=`<g transform="translate(${LACUNA_POS.x} ${LACUNA_POS.y})"><path d="M0 -10 L2.9 -3.3 L10 -3.1 L4.4 1.8 L6.2 8.9 L0 5.1 L-6.2 8.9 L-4.4 1.8 L-10 -3.1 L-2.9 -3.3Z" style="fill:var(--hl);stroke:var(--ink);stroke-width:.8"/></g>`+lab(LACUNA_POS.x,LACUNA_POS.y+25,G.act>=3?'라쿠나 구역':'라쿠나 구역 입구',14,'var(--ink)',900);
   s+=`<g transform="translate(${pp.x} ${pp.y})"><circle class="pulse" r="7" style="fill:var(--accent)"/><circle r="5.5" style="fill:var(--accent);stroke:#fff;stroke-width:2"/></g>`+lab(pp.x,pp.y-13,'현재 위치',11.5,'var(--accent)',900,true);
   s+=yuminMapMark();
   // 지명 글자는 모든 표식 위에 (겹쳐도 이름이 가려지지 않게)
@@ -9620,7 +9735,7 @@ function renderMapPanel(){
   const x=clamp(pp.x-w/2,VB.x,VB.x+VB.w-w), y=clamp(pp.y-h/2,VB.y,VB.y+VB.h-h);
   cm.querySelectorAll('.mapart svg, .mapovl svg').forEach(e=>e.setAttribute('viewBox',`${x.toFixed(1)} ${y.toFixed(1)} ${w} ${h.toFixed(1)}`));
   document.getElementById('locp').innerHTML=locPanel();
-  document.getElementById('mapcap').textContent=mapCap()+(G.actDone?' · ★ 라쿠나 구역 입구':compactCampaign()?' · 교내 소문의 진상을 확인하면 라쿠나 개방':` · 라쿠나 구역의 위치는 메달 ${G.fragments}/${FRAG_GOAL}`);
+  document.getElementById('mapcap').textContent=mapCap()+(compactCampaign()?(lacunaReady()&&G.act<3?' · ★ 라쿠나 구역 입구':lacunaOnMap()&&G.act<3?' · ★ 라쿠나 (물에 잠긴 곳)':''):G.actDone?' · ★ 라쿠나 구역 입구':` · 라쿠나 구역의 위치는 메달 ${G.fragments}/${FRAG_GOAL}`);
 }
 
 
@@ -10073,15 +10188,15 @@ function openGuide(){
     ${row('입구 밖에서 할 수 있는 것','다시 들어가기 · 임시 쉼터(아침에도 입구 밖) · 중앙 캠퍼스 지구로 귀환 · 행상과 거래·대화')}
     ${row('중단한 구역','다 못 본 구역은 최대 3곳까지 보관되어, 나중에 마지막 공간에서 이어서 조사할 수 있습니다. 포기하거나 보관 한도에 밀려나도 밝혀낸 단서만큼은 구역의 사연이 괴담 사전에 남습니다')}
     ${row('👥 인물의 위치','인물은 역할에 맞는 일과를 따라 움직입니다(교사는 담당 교실·교무실, 사감은 기숙사, 학생은 교실·복도·급식실 등, 소등 후엔 기숙사). 방금 만나거나 약속한 칸에는 그 자리에 있고, 다른 지구·아지트에서 만난 인물은 그곳에 머뭅니다. 위치는 📱 연락처에 표시되고, 정체를 알 수 없는 존재는 위치를 모릅니다. 뒷길·구역에서 만난 인물은 다시 찾아갈 수 없습니다')}
-    ${compactCampaign()?row('새 사건 진행','교내에 도는 소문을 조사해 원인을 밝혀 보세요. 충분하다고 생각되면 추리를 제출할 수 있고, 틀리면 다시 추리하면 됩니다. 소문을 해결하면 라쿠나로 가는 길이 열립니다. 주요 지역은 라쿠나와 출석부의 두 지역, 총 3곳입니다. 기념 메달 조각 수집은 선택 활동입니다. 의심되는 원인과 그렇게 생각한 이유를 골라 지정 장소에서 확인합니다. 정답은 변하지 않습니다.'):''}
+    ${compactCampaign()?row('사건 조사','들은 이야기와 기록을 따라 조사해 원인을 밝혀 보세요. 확인한 사실이 2개 이상이면 추리를 제출할 수 있고, 틀리면 다시 추리하면 됩니다. 의심되는 원인과 그렇게 생각한 이유를 골라 직접 확인합니다. 정답은 처음부터 정해져 있고 바뀌지 않습니다. 기념 메달 조각 수집은 선택 활동입니다.'):''}
     ${row('기념 메달 조각',`6개 완성 시 캐시 ${MEDAL_REWARD_CASH}과 경험 ${MEDAL_REWARD_XP}을 한 번 지급합니다. 본편 사건의 증거와 별개의 수집물입니다. 새 구역의 약 ${Math.round((1-FRAG_SKIP)*100)}%에 하나 (${FRAG_MAX_MISS}곳 연속 없었으면 다음 구역에는 반드시). 메달 연구실 연구로 미리 알 수도 있음`)}
-    ${g&&G.actDone?h3('라쿠나 구역'+(G.act>=3?' · 출석부가 가리키는 구역들':''))+row('✨ 라쿠나 구역',`중앙 캠퍼스 지구 정문(또는 다른 지구·아지트)에서 떠남 · 중앙 캠퍼스 지구에서 ${durText(travelDays(CAMPUS_POS,LACUNA_POS))}(동부 저수지 공원·학원가 골목에서는 ${durText(travelDays(hoodPos('east'),LACUNA_POS))}) · 왕복 공포 여유·배터리가 넉넉해야 함 · ${compactCampaign()?'4개 공간의 사건을 추론·검증한 뒤 출석부 해독(추가 주사위 없음)':'큰 구역이며 가장 깊은 공간의 출석부를 🎲 지혜 판정으로 해독'}`)+(G.act>=3?Object.values(WARD_TYPES).map(t=>row(`${t.ic} ${t.n}`,`${t.reqText} · ${compactCampaign()?'사건 검증 후 본편 연결(추가 주사위 없음)':`심장 열기 🎲 ${SK[t.check]} 어려움`}<br><span class="muted">${t.rule}</span>`)).join('')+row('찾아가기','🗺 출석부가 가리키는 구역들 버튼에서 · 중간에 돌아와도 그 자리에서 이어서 조사'):''):''}
+    ${g&&lacunaReady()?h3('라쿠나 구역'+(G.act>=3?' · 출석부가 가리키는 구역들':''))+row('✨ 라쿠나 구역',`중앙 캠퍼스 지구 정문(또는 다른 지구·아지트)에서 떠남 · 중앙 캠퍼스 지구에서 ${durText(travelDays(CAMPUS_POS,LACUNA_POS))}(동부 저수지 공원·학원가 골목에서는 ${durText(travelDays(hoodPos('east'),LACUNA_POS))}) · 왕복 공포 여유·배터리가 넉넉해야 함 · ${compactCampaign()?'4개 공간의 사건을 추론·검증한 뒤 출석부 해독(추가 주사위 없음)':'큰 구역이며 가장 깊은 공간의 출석부를 🎲 지혜 판정으로 해독'}`)+(G.act>=3?Object.values(WARD_TYPES).map(t=>row(`${t.ic} ${t.n}`,`${t.reqText} · ${compactCampaign()?'사건 검증 후 본편 연결(추가 주사위 없음)':`심장 열기 🎲 ${SK[t.check]} 어려움`}<br><span class="muted">${t.rule}</span>`)).join('')+row('찾아가기','🗺 출석부가 가리키는 구역들 버튼에서 · 중간에 돌아와도 그 자리에서 이어서 조사'):''):''}
     ${h3('중앙 캠퍼스 지구 밖의 지구 (정문 → 🧭 이동하기)')}
     ${Object.entries(HOODS).filter(([id])=>!g||hoodOpen(id)).map(([id,t])=>row(`${t.ic} ${t.n} <span class="muted">(중앙 캠퍼스 지구에서 ${durText(hoodDays(id))})</span>`,`${t.perk}<br><span class="muted">진정 음료 💳${t.price.calm} · 배터리 💳${t.price.battery}</span>`)).join('')}
     ${row('가는 길',`이동 시간은 지도 거리로 자동 계산(지도 거리 약 ${DAY_DIST}당 한 단계=시간 ${TRAVEL_TICKS}칸 · 낮 9칸과 방과 후/야간/새벽 각 4칸, 하루 21칸 · 조사·이동·학교가 같은 시계를 사용) · 이동 단계마다 공포 +1·배터리 −1% (충전해 둔 전동 스쿠터가 있으면 공포 누적은 절반, 공포 여유가 모자라면 그만큼 체력 감소) · 지구끼리도 바로 오감 · 지구에서 떠난 조사 외출은 그 지구로 돌아옴 · 아지트는 중앙 캠퍼스 지구 바로 옆`)}
     ${row('🕒 이동 중의 시간','이동·조사·학교가 같은 시계를 사용합니다. 이동 단계 1개는 시간 2칸이고 0단계는 시간이 흐르지 않습니다. 이동 중 지나간 수업도 결석으로 기록하며 주말·승인된 결석일은 제외합니다. 출발 전 예상 도착/귀교 시각, 구역 상단에 바로 돌아갈 경우의 귀교 시각이 표시됩니다. 돌발 사건과 추가 조사로 늦어질 수 있습니다')}
     ${row('길 위의 사건',`두 단계(시간 4칸) 이상 걸리는 육로 이동에서 ${Math.round(TRIP_EVENT*100)}% 확률로 길 한가운데서 멈춤 — 🧭 이동 행상(거래) · 🎵 유민 · 🏴 적대 세력(전투) · 🗡 불량배(통행세 캐시의 20%, 최소 💳10 / ⚔ 근력 판정 — 지면 캐시 30% 빼앗김 / 🏃 생존술 판정 — 지면 한 단계 더·공포 +1·배터리 −1%)`)}
-    ${(G&&G.act>=3?row('곁가지 구역 🌿','3막부터 오러리 구역(구 식물원·천문대)과 코덱스 구역(구 본관 도서관)의 여덟 곳으로 이동할 수 있음(🧭 이동하기). 곳마다 📜 괴담 쫓기 — 하루 한 번 판정, 성공·부분 성공이면 구역마다 다른 보상(고유 물건·칭호·탈것·동물 친구·아지트 장식). 🗺 곁가지 수집품에 기록되고, 여덟 곳을 모두 모으면 칭호와 최대 체력 +1. 곁가지 구역에는 조사할 폐구역이 없어 구역 조사 버튼이 나타나지 않음'):'')}
+    ${(G&&G.act>=3?row('곁가지 구역 🌿','소문으로 들은 곳 가운데 가는 길을 알아낸 곳으로 이동할 수 있음(🧭 이동하기). 가는 길은 한 번에 두 곳까지 알게 되고, 그곳의 괴담을 풀면 다른 곳의 소문이 들려옴. 곳마다 📜 괴담 쫓기 — 하루 한 번 판정, 성공·부분 성공이면 곳마다 다른 보상(고유 물건·칭호·탈것·동물 친구·아지트 장식). 🗺 곁가지 수집품에 기록됨'):'')}
     ${(G&&G.act>=3?row('선착장 🚤','출석부가 저수지 아래 구역을 가리킨 뒤(3막) 서쪽 저수지·동쪽 배수지 두 곳이 지도에 나타남. 수몰 구역으로 가는 보트(💳'+boatFee()+')는 가까운 선착장에서만'):'')}
     ${row('글로 쓴 이동','「학원가으로 간다」처럼 쓰면 이동 비용이 적힌 확인 칩이 뜸 · 아직 소문으로만 아는 곳은 갈 수 없음')}
     ${h3('적대 세력 — 규율부와 청소반')}
@@ -10656,7 +10771,7 @@ async function finishCreation(){
   };
   migrate();
   gameTab='play';socialContact='';show('game'); renderLogAll();
-  addLog('sys','전학 서류를 정리하는 중입니다… (본편 진상과 세 지역의 연결 사실을 비공개로 생성·검증합니다)');
+  addLog('sys','전학 서류를 정리하는 중입니다… (이야기를 준비하고 있습니다)');
   busy=true; render();
   await genWorld();
   busy=false;
