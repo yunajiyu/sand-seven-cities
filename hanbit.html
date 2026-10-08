@@ -1251,7 +1251,80 @@ async function aiRequest(url,init){
   return {r,d};
 }
 /* opt.cache: 시스템 프롬프트(매 턴 같은 앞부분)를 캐시 — 서술 턴에서만 씀 (짧거나 한 번뿐인 호출에 붙이면 쓰기 비용만 늘어남) */
+/* ---------- 고유 지명 무작위화 — 지워진 구역·곁가지 구역의 이름을 새 게임마다 뽑는다 ----------
+   코드·저장·봉인 해시는 원래 이름(정식 토큰)을 그대로 쓰고, 화면에 보일 때와 AI에게 보낼 때만 이번 게임의 이름으로 바꾼다.
+   AI 응답과 플레이어가 직접 쓴 글은 반대로 정식 토큰으로 되돌려 코드가 알아듣게 한다. 제작자도 이번 게임의 이름을 모른다. */
+const ZONE_POOLS={
+  '라쿠나':['리멘','카비타','세레스','마레나','라구사','템페','엘로디','오필렌'],
+  '애시우드':['실바니','팰로우','블랑카','버치필드','알바렌','리넨가'],
+  '브룸':['네불라','브루마','칼리고','미스탈','님바','포그렌'],
+  '칸토':['리라엘','칸타벨','아르파','플라우타','코랄리','무지카'],
+  '움브라':['녹스베일','테네브','오닉센','누아렌','섀도엔','칼리스'],
+  '엠버':['스칼렌','카미나','루베라','오텀린','메이펠','포를라'],
+  '널':['보이덴','논테라','아포리','엔노아','제로나','공백가'],
+  '오러리':['스텔라리','루미넬','플라네아','아스트라','셀레네','갈릴렌'],
+  '코덱스':['리브라온','팔림프','스크립타','렉시아','폴리엔','마르기나']};
+const ZONE_TOKENS=Object.keys(ZONE_POOLS);
+function zoneCanonTok(k){ return k==='널'?'널 구역':k }   // '널'은 흔한 말이라 '널 구역'으로만 바꾼다
+function pickZoneNames(rnd){
+  rnd=rnd||Math.random;
+  for(let tries=0;tries<50;tries++){
+    const out={};
+    for(const k of ZONE_TOKENS){ const p=ZONE_POOLS[k]; out[k]=p[Math.floor(rnd()*p.length)%p.length] }
+    const vals=Object.values(out), toks=ZONE_TOKENS.map(zoneCanonTok);
+    const clash=vals.some((v,i)=>vals.some((w,j)=>i!==j&&(w.includes(v)))||toks.some(t=>v.includes(t)||t.includes(v)));
+    if(!clash) return out;
+  }
+  return null;
+}
+let _znCache=null;
+function zoneMap(){
+  const z=typeof G!=='undefined'&&G&&G.zoneNames;
+  if(!z||typeof z!=='object') return null;
+  if(_znCache&&_znCache.src===z) return _znCache;
+  const pairs=ZONE_TOKENS.filter(k=>typeof z[k]==='string'&&z[k]).map(k=>[zoneCanonTok(k),k==='널'?z[k]+' 구역':z[k]]);
+  if(!pairs.length) return null;
+  const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), byLen=a=>a.slice().sort((x,y)=>y.length-x.length);
+  const out=new Map(pairs), back=new Map(pairs.map(([a,b])=>[b,a]));
+  _znCache={src:z,out,back,
+    outRx:new RegExp(byLen(pairs.map(p=>p[0])).map(esc).join('|'),'g'),
+    backRx:new RegExp(byLen(pairs.map(p=>p[1])).map(esc).join('|'),'g')};
+  return _znCache;
+}
+function zoneOut(s){ const m=zoneMap(); return (m&&typeof s==='string')?s.replace(m.outRx,x=>m.out.get(x)):s }
+function zoneIn(s){ const m=zoneMap(); return (m&&typeof s==='string')?s.replace(m.backRx,x=>m.back.get(x)):s }
+/* 화면 표시 — 그려지는 글자 노드와 title·placeholder 속성을 이번 게임의 이름으로 바꾼다 */
+function zoneFixNode(root){
+  if(!zoneMap()||!root) return;
+  const fixAttr=el=>{ for(const a of ['title','placeholder','aria-label']){ const v=el.getAttribute&&el.getAttribute(a); if(v){ const n=zoneOut(v); if(n!==v) el.setAttribute(a,n) } } };
+  if(root.nodeType===3){ const n=zoneOut(root.data); if(n!==root.data) root.data=n; return }
+  if(root.nodeType!==1) return;
+  if(/^(SCRIPT|STYLE|TEXTAREA)$/.test(root.tagName)) return;
+  fixAttr(root);
+  const w=document.createTreeWalker(root,5);   // SHOW_ELEMENT | SHOW_TEXT
+  let nd; while((nd=w.nextNode())){
+    if(nd.nodeType===3){ const p=nd.parentNode; if(p&&/^(SCRIPT|STYLE|TEXTAREA)$/.test(p.tagName)) continue; const n=zoneOut(nd.data); if(n!==nd.data) nd.data=n }
+    else fixAttr(nd);
+  }
+}
+if(typeof MutationObserver!=='undefined'&&typeof document!=='undefined'&&document.body){
+  new MutationObserver(recs=>{
+    if(!zoneMap()) return;
+    for(const r of recs){
+      if(r.type==='characterData') zoneFixNode(r.target);
+      else if(r.type==='attributes'){ const v=r.target.getAttribute(r.attributeName); if(v){ const n=zoneOut(v); if(n!==v) r.target.setAttribute(r.attributeName,n) } }
+      else r.addedNodes.forEach(zoneFixNode);
+    }
+  }).observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['title','placeholder','aria-label']});
+}
+/* AI 경계 — 보낼 때는 이번 게임의 이름으로, 받은 글은 정식 토큰으로 */
 async function callAI(system,user,maxTokens=1200,role='story',opt){
+  if(!zoneMap()) return callAIRaw(system,user,maxTokens,role,opt);
+  const o={...(opt||{})};
+  if(o.stable>0&&typeof user==='string') o.stable=zoneOut(user.slice(0,o.stable)).length;
+  return zoneIn(await callAIRaw(zoneOut(system),zoneOut(user),maxTokens,role,o));
+}
+async function callAIRaw(system,user,maxTokens=1200,role='story',opt){
   opt=opt||{};
   const c=roleCfg(role), key=(SET.keys||{})[c.provider];
   if(c.provider==='vertex'){
@@ -2348,7 +2421,7 @@ function pickFixed(a){ if(busy||!G) return; const r=curRoom(); if(G.loc==='site'
 
 function act(text,opt={}){
   if(busy||!G) return;
-  const t=String(text);
+  const t=zoneIn(String(text));   // 플레이어가 이번 게임의 지명으로 쓴 글 → 정식 토큰
   if(indirectMove(t)||RX.NEG.test(t)) return story(t,opt);
   if(compoundMove(t)){ const targets=movementCandidates(t,true); if(targets.length) return showMovementOptions(t,targets); return story(t,opt) }
   const moves=movementCandidates(t);
@@ -7304,7 +7377,7 @@ function openCaseResolution(id){
   modal('사건 결론 기록',`<p>${esc(t.text)}</p><textarea id="caseConclusion" placeholder="밝혀낸 원인·결론을 적어 주세요" maxlength="240"></textarea>${facts.map(e=>`<label style="display:block"><input type="checkbox" class="caseSupport" value="${esc(e.id)}" style="width:auto"> ${esc(e.text)}</label>`).join('')}<button class="primary" data-case="${esc(id)}" onclick="saveCaseResolution(this.dataset.case)">선택한 증거로 결론 기록</button>`);
 }
 function saveCaseResolution(id){
-  const text=(document.getElementById('caseConclusion')||{}).value||'', ids=[...document.querySelectorAll('.caseSupport:checked')].map(x=>x.value);
+  const text=zoneIn((document.getElementById('caseConclusion')||{}).value||''), ids=[...document.querySelectorAll('.caseSupport:checked')].map(x=>x.value);
   if(!resolveCase(id,text,ids,true)) return toast('관찰·증언 증거와 구체적인 결론을 함께 기록해 주세요');
   save(); render(); openThreads();
 }
@@ -7735,7 +7808,7 @@ function openLex(){
   let items=G.lexicon.map((e,i)=>({e,i})).filter(({e})=>{
     if(lexTab==='📦'){ if(!e.arch) return false }
     else{ if(e.arch) return false; if(lexTab==='⭐'&&!e.fav) return false; if(LEX_CATS.includes(lexTab)&&e.cat!==lexTab) return false }
-    return !lexQ||(e.name+e.desc).includes(lexQ);
+    return !lexQ||(e.name+e.desc).includes(zoneIn(lexQ));
   }).reverse();
   if(lexTab!=='📦') items=[...items.filter(x=>x.e.fav),...items.filter(x=>!x.e.fav)];
   const total=items.length, list=items.slice(0,lexShown);
@@ -7751,7 +7824,7 @@ function openLex(){
       <input id="nlName" placeholder="이름" style="margin-top:6px">
       <select id="nlCat" style="margin-top:6px">${LEX_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
       <textarea id="nlDesc" rows="2" placeholder="설명" style="margin-top:6px"></textarea>
-      <button class="small" style="margin-top:6px" onclick="addLex({name:nlName.value.trim(),cat:nlCat.value,desc:nlDesc.value.trim()},true,null);save();openLex()">추가</button>
+      <button class="small" style="margin-top:6px" onclick="addLex({name:zoneIn(nlName.value.trim()),cat:nlCat.value,desc:zoneIn(nlDesc.value.trim())},true,null);save();openLex()">추가</button>
     </details>`);
   G.lexicon.forEach(e=>e.isNew=false); save();
 }
@@ -10735,7 +10808,7 @@ function addLeadManual(){
   const el=document.getElementById('leadName'); const v=(el&&el.value||'').trim();
   if(!v) return;
   const h=document.getElementById('leadHint');
-  if(!addLead(v,h&&h.value.trim())) return toast('이미 알고 있는 장소이거나 이름이 올바르지 않습니다');
+  if(!addLead(zoneIn(v),h&&zoneIn(h.value.trim()))) return toast('이미 알고 있는 장소이거나 이름이 올바르지 않습니다');
   save(); render(); openLeads();
 }
 function openLeads(){
@@ -10809,7 +10882,7 @@ async function finishCreation(){
   const maxhp=10+stats.str*2;
   resetUndo();
   G={
-    v:1,_relVersion:2,_clockVersion:2,_privateMysteryVersion:1,_deductionVersion:1,campaign:{version:1,links:{},introSolved:false,introHeard:false},
+    v:1,_relVersion:2,_clockVersion:2,_privateMysteryVersion:1,_deductionVersion:1,zoneNames:pickZoneNames(),campaign:{version:1,links:{},introSolved:false,introHeard:false},
     char:{name,age:17,origin:'한빛학원 2학년 7반 전학생',region:HOME_REGION,reason,stats,traits:draft.traits.map(id=>TRAITS.find(t=>t.id===id).n),bio:document.getElementById('cBio').value.trim()},
     hp:maxhp,maxhp,calm:FEAR_BASE-1,battery:CAP_BASE,torch:0,cash:30,_phoneLightVersion:1,_fearBalanceVersion:1,_growthBalanceVersion:1,
     items:['오래된 출석부'],
