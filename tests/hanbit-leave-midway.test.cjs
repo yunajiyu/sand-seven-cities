@@ -30,7 +30,7 @@ async function test(name,fn){await fn(fixture());count++;console.log('PASS',name
 (async()=>{
 await test('Inside a zone the exit and return buttons come first in the move row, even before the case is solved',async({run})=>{
   run("seed('site')");assert.ok(run('G.site&&G.site.rooms.length>0'));
-  const h=run('fixedHTML()'), row=h.slice(h.indexOf('<div class="hscroll">')+21);
+  const h=run('fixedHTML()'), m=h.match(/<div class="hscroll[^"]*">/), row=h.slice(m.index+m[0].length);
   assert.match(row,/^<button[^>]*onclick="exitZone\(\)"/,'exit is the first button');
   assert.ok(row.indexOf('returnToCampus()')<row.indexOf('→ '),'return comes before the room moves');
   assert.ok(run("gameActions().some(a=>a.id==='zone:exit')&&gameActions().some(a=>a.id==='zone:return')"));

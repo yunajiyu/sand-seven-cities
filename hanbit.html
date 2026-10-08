@@ -147,7 +147,9 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 .side summary{cursor:pointer;font-size:14px;display:flex;justify-content:space-between;gap:6px;align-items:center}
 .side details p{margin:6px 0 2px;font-size:13px;color:var(--muted)}
 .nw{color:var(--accent);font-size:11px;font-weight:700}
-.lt{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.lt{display:flex;gap:4px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-bottom:8px}
+.lt::-webkit-scrollbar{display:none}
+.lt button{flex:0 0 auto}
 .lt button.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .sbtn{display:flex;flex-direction:column;gap:6px}
 
@@ -349,6 +351,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
   #game.mapcol .navmap{display:inline-block}
 }
 .navmap{display:none}
+.hscroll.wrapRow{flex-wrap:wrap;overflow-x:visible}
 /* ---------- 조사 수첩 ---------- */
 .rj-clue{border-left:3px solid var(--hl);padding:4px 10px;margin:6px 0;background:var(--bg);border-radius:0 8px 8px 0}
 .rj-clue.locked{border-left-color:var(--line);color:var(--muted)}
@@ -378,13 +381,10 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
     <div class="btns">
       <button class="primary" onclick="startCreation()">전학 오기</button>
       <button id="btnContinue" onclick="continueGame()">기숙사로 돌아가기</button>
-      <button onclick="openGuide()">📖 게임 가이드</button>
-      <button onclick="openSettings()">AI 설정</button>
-      <button onclick="importSave()">저장 파일 불러오기</button>
-      <button onclick="restoreSaveBackup()">가져오기 이전 저장 복구</button>
-      <button class="small themeBtn" onclick="cycleTheme()">🌓 자동</button><button class="small sfxBtn" onclick="cycleSfx()">🔊 보통</button>
+      <button onclick="openPrefs()">⚙ 설정</button>
+      <button onclick="openGuide()">📖 가이드</button>
     </div>
-    <p class="muted" style="margin-top:20px" id="aiStatus"></p>
+    <p class="muted" style="margin-top:20px;padding:0 16px" id="aiStatus"></p>
   </div>
 </section>
 
@@ -428,7 +428,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
       <div class="tb">
         <button class="small only-narrow" onclick="toggleSide('L')" aria-label="캐릭터 정보 열기">👤</button>
         <div class="stats" id="stats"></div>
-        <button class="small" id="readingBtn" onclick="toggleReadingMode()" aria-pressed="false" title="패널과 지도를 접고 선택지는 유지">읽기 모드</button>
+        <button class="small" onclick="openPrefs()" aria-label="설정" title="설정">⚙</button>
         <button class="small" id="topFold" onclick="toggleTopFold()">▲</button>
         <button class="small only-narrow" onclick="toggleSide('R')" aria-label="기록 열기">📜<span id="rBadge"></span></button>
       </div>
@@ -467,7 +467,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
         <button class="small" id="dockBtn" onclick="toggleDock()" style="width:100%;margin-bottom:6px">▼ 선택지 접기</button>
         <div class="choices" id="choices"></div>
         <div class="fixed" id="fixed"></div>
-        <div class="row"><button id="undoBtn" onclick="undoLast()" disabled>↩ 되돌리기</button><button class="small" onclick="openGuide()">게임 안내</button></div>
+        <div class="row"><button id="undoBtn" onclick="undoLast()" disabled>↩ 되돌리기</button><button class="small" onclick="openGuide()">📖 가이드</button></div>
       </div>
     </div>
   </div>
@@ -2911,7 +2911,7 @@ function enterCampus(first){
   G.district=first?'classroom':'gate';
   if(first){ G.time='낮'; G.dayStep=0 }
   if(first){
-    addLog('scene',G.openingText||`전학 첫날, 한빛학원 정문을 지나자 형광등 불빛과 소독약 냄새가 한꺼번에 밀려온다. 너, ${G.char.name}${josa(G.char.name,'은','는')} 학기 중간에 전학 온 2학년 7반 전학생이다. 조례 종이 울리기 직전, 닫힌 교실 문 앞에서 담임 선생님을 기다린다. 손에 든 서류 사이에는 오래된 출석부가 섞여 있고, 그 안에는 이 도시의 지도에 없는 구역들의 이름이 적혀 있다.\n\n문 너머로 아이들의 웅성거림이 들린다. 곧 문이 열리면 전학 인사를 해야 한다.`);
+    addLog('scene',G.openingText||`전학 첫날, 한빛학원 정문을 지나자 형광등 불빛과 소독약 냄새가 한꺼번에 밀려온다. 당신은 학기 중간에 2학년 7반으로 전학 온 ${G.char.name}${josa(G.char.name,'이다','다')}. 조례 종이 울리기 직전, 닫힌 교실 문 앞에서 담임 선생님을 기다린다. 손에 든 서류 사이에는 오래된 출석부가 섞여 있고, 그 안에는 이 도시의 지도에 없는 구역들의 이름이 적혀 있다.\n\n문 너머로 아이들의 웅성거림이 들린다. 곧 문이 열리면 전학 인사를 해야 한다.`);
     G.recent.push({role:'scene',text:G.openingText||'중앙 캠퍼스 지구에 도착했다.'});
     G.chronicle.push({day:1,text:`${G.char.name}, 한빛학원 2학년 7반에 전학 오다`});
   }
@@ -3142,7 +3142,7 @@ function penanceBlock(k){
   if(st[k]) return '오늘은 이미 했습니다';
   return '';
 }
-function penanceHTML(k){ const p=PENANCE[k]; return `<button onclick="doPenance('${k}')">${p.ic} ${p.n} (벌점 −${p.cut} · 한 칸 · 하루 한 번)</button>` }
+function penanceHTML(k){ const p=PENANCE[k]; return `<button onclick="doPenance('${k}')" title="한 칸 · 하루 한 번">${p.ic} ${p.n} <span class="cbadge sys">벌점 −${p.cut}</span></button>` }
 function doPenance(k){
   if(busy||spotBlock()) return;
   const p=PENANCE[k]; if(!p||curDistrict()!==p.at) return;
@@ -3512,7 +3512,7 @@ function schoolInfo(){
   if(isWeekend()) return `🔔 지금: <b>${esc(SCHOOL[i])}</b> · 다음: ${esc(SCHOOL[i+1]||'방과 후')} · ${dowName(G.day)}요일 주말 — 수업이 없습니다`;
   const c=clsSt(), nx=SCHOOL[i+1]||'방과 후';
   const tt=CLASS_SLOTS.map((_,j)=>`${j+1}교시 ${subjectAt(j).n}`).join(' · ');
-  return `🔔 지금: <b>${esc(slotLabel())}</b>${classActive()?` · 📚 수업 진행 ${classActive().n}/${CLASS_ACTIONS} (선택지·입력도 수업 행동으로 셈)`:''} · 다음: ${esc(nx)} · 오늘 시간표 ${esc(tt)} (출석 ${c.n}회${c.skip?` · 땡땡이 ${c.skip}회`:''}${c.absent?` · 결석 ${c.absent}회`:''})${G.attendance&&G.attendance.missed?` · 이전 누적 결석 ${G.attendance.missed}교시`:''}`;
+  return `🔔 지금: <b>${esc(slotLabel())}</b>${classActive()?` · 📚 수업 ${classActive().n}/${CLASS_ACTIONS}`:''} · 다음: ${esc(nx)}`;
 }
 /* 점호 시간까지 기다리기: 방과 후(수업이 끝난 뒤)에 야간(점호)이 될 때까지 시간을 보내고 기숙사 점호 장면으로 */
 function rollCallBlock(){
@@ -4022,6 +4022,7 @@ const SHELTER_BLOCK_DANGER=3;   // 위험도 3에서는 임시 쉼터 불가
 function ambientLight(){ const r=curRoom();return !!G?.site?.intro||r?.light==='lit'||(r?.light==='outdoor'&&!isDarkTime()) }
 function needsPhoneLight(){return !!G&&G.loc==='site'&&!G.site?.intro&&!ambientLight()&&!hasTrait('밤눈')}
 function phoneLightOn(){return needsPhoneLight()&&batteryEnergy()>0&&G.phoneBan!==G.day+':'+G.time}
+function lightShort(){ const t=lightStatus(); return /켜짐/.test(t)?'켜짐':t==='불빛 없음'?'없음':t==='주변 조명'?'밝음':t }
 function lightStatus(){if(!G||G.loc!=='site')return '휴대폰 조명 꺼짐';return ambientLight()?'주변 조명':hasTrait('밤눈')?'밤눈':phoneLightOn()?'휴대폰 조명 켜짐':needsPhoneLight()?'불빛 없음':'휴대폰 조명 꺼짐'}
 function inDark(){ return needsPhoneLight()&&!phoneLightOn() }
 function useLight(){
@@ -5136,7 +5137,7 @@ function mysterySolvedLog(d,p,st){
 /* v2 기록: 확인한 사실 / 사건에 미친 영향 / 남은 의문 / 조사할 곳. 핵심·함정 구분은 남기지 않는다. */
 function mysteryResultLog(title,fact,effect,d,p){
   const next=mysteryNextList(d,p);
-  addLog('fx',`🔎 조사 결과 — ${title}\n확인한 사실: ${fact}\n사건에 미친 영향: ${effect}\n남은 의문: ${p.question}\n${mysteryWhereLine(next)}`);
+  addLog('fx',`🔎 조사 결과 — ${title}\n확인한 사실: ${fact}\n사건에 미친 영향: ${effect}${next.length?'':'\n'+mysteryWhereLine(next)}`);
 }
 const mysteryWhereLine=next=>next.length?'조사할 거리가 남은 곳: '+next.join(' / '):'조사할 거리를 모두 살펴봤습니다. 확인한 사실로 추리를 확인해 보세요.';
 /* 아무것도 나오지 않은 행동: 한 줄로만 알린다(설명·조사할 곳 목록 없이) */
@@ -6380,7 +6381,7 @@ function socialMessageFormHTML(name,purpose='meet'){
 }
 function phonePanelHTML(){
  const contacts=socialContactsHTML(),name=socialContact,why=phoneBlock('text');
- const head=`<h3>💬 문자</h3><p class="muted">약속·도움 요청·위치 확인·약속 취소를 고르거나, 문자 기록 아래 입력창에 하고 싶은 말을 직접 써서 보낼 수 있습니다. 문자 1통은 배터리 1%를 쓰고 시간은 흐르지 않습니다. 수락한 약속이나 도움 요청의 호감 보상은 상대마다 하루 한 번입니다.</p><div class="row">${contacts}</div>`;
+ const head=`<h3>💬 문자</h3><p class="muted">문자 1통에 배터리 1%</p><div class="row">${contacts}</div>`;
  if(!name)return head;
  const r=getRel(name),ap=(G.appts||[]).find(a=>a.name===name);
  return head+`<div class="lex"><b>${esc(name)} · ${esc(STAGES[r.stage].n)} · Lv.${relLv(name)}</b><p>📍 ${esc(contactWhere(name))}</p>${why?`<p class="warn">${esc(why)}</p>`:''}${socialMessageFormHTML(name)}<div class="row"><button data-name="${esc(name)}" onclick="sendSocialMessage(this.dataset.name,'help')">🧩 조사 방향 도움 요청</button><button data-name="${esc(name)}" onclick="sendSocialMessage(this.dataset.name,'location')">📍 현재 위치 확인</button>${ap?`<button data-name="${esc(name)}" onclick="sendSocialMessage(this.dataset.name,'cancel')">약속 취소</button>`:''}</div></div><details open><summary>📅 약속 ${(G.appts||[]).length}건</summary>${apptListHTML()}</details><h4>문자 기록</h4><div id="chatLog" class="chat">${chatSt(name).map(m=>bubbleHTML(m,name)).join('')||'<p class="muted">아직 문자가 없습니다.</p>'}</div>${freeMessageHTML(name,why)}`;
@@ -6436,12 +6437,12 @@ function sendSocialMessage(name,kind,opt={}){
 }
 function socialActivityHTML(kind){
  const s=socialState(),a=activeSocial(),names=relList();
- const intro=`<h3>${kind==='date'?'💕 데이트':'🧑‍🤝‍🧑 외출'}</h3><p class="muted">${kind==='date'?'서로 가까워진 상대와':'알고 지내는 인물과'} 실제로 같은 장소에서 시작합니다. ${kind==='date'?'캐시 8':'캐시 5'} · 시간 2칸 · 선택 3회 · 두 활동을 합쳐 하루 한 번. 호감은 선택에 따라 최대 +3이며 관계 단계는 별도 조건을 지킵니다.</p>`;
+ const intro=`<h3>${kind==='date'?'💕 데이트':'🧑‍🤝‍🧑 외출'}</h3><p class="muted">${kind==='date'?'캐시 8':'캐시 5'} · 시간 2칸 · 하루 한 번</p>`;
  if(a)return intro+socialSessionHTML(a);
  const completed=s.session?.status==='done'?`<details open class="lex"><summary>마지막 활동의 이야기 · ${esc(s.session.name)}</summary>${s.session.scenes.map(t=>`<p>${esc(fixCalling(t))}</p>`).join('')}${romanceReady(s.session.name)?romanceChoiceHTML(s.session.name):''}</details>`:'';
  const eligible=names.filter(n=>kind!=='date'||socialDateEligible(n));
  const rows=eligible.map(n=>`<div class="lex"><b>${esc(n)} · ${esc(STAGES[getRel(n).stage].n)} · Lv.${relLv(n)}</b><p>📍 ${esc(contactWhere(n))}</p>${socialMessageFormHTML(n,kind)}<button data-name="${esc(n)}" data-kind="${kind}" ${busy||s.day.activity||!socialActivityTime()||!socialVenue(placeKey())||!canMeetHere(n)?'disabled':''} onclick="startSocialActivity(this.dataset.name,this.dataset.kind)">${canMeetHere(n)?'함께하는 활동 시작':'약속 장소에서 만난 뒤 시작'}</button></div>`).join('')||`<p class="muted">${kind==='date'?'아직 데이트를 제안할 만큼 가까워진 상대가 없습니다. 함께 시간을 보내며 알아가세요.':'아직 함께할 인물이 없습니다.'}</p>`;
- return intro+completed+`<p class="muted">${s.day.activity?'오늘의 관계 활동은 완료했습니다.':!socialActivityTime()?'수업 중·야간·구역 안에서는 시작할 수 없습니다. 방과 후나 주말 자유시간에 만나세요.':'같은 장소에서 함께 시간을 보낼 수 있습니다.'}</p><button class="small" onclick="openRel()">👥 인연 보기</button>`+`<button class="small" onclick="switchGameTab('play')">지도·이동 선택지로 약속 장소 가기</button>`+rows+socialHistoryHTML()+(kind==='date'?dateMemoriesHTML():'');
+ return intro+completed+`<p class="muted">${s.day.activity?'오늘의 관계 활동은 완료했습니다.':!socialActivityTime()?'방과 후나 주말 자유시간에 만날 수 있습니다.':''}</p><button class="small" onclick="openRel()">👥 인연 보기</button>`+`<button class="small" onclick="switchGameTab('play')">지도·이동 선택지로 약속 장소 가기</button>`+rows+socialHistoryHTML()+(kind==='date'?dateMemoriesHTML():'');
 }
 function socialHistoryHTML(){return `<details><summary>함께한 활동 기록</summary>${socialState().history.slice(-12).reverse().map(h=>`<p>${h.day}일 · ${esc(h.name)} · ${h.kind==='date'?'데이트':'외출'} · ${esc(h.result)}${h.aff==null?'':` · 호감 ${h.aff>=0?'+':''}${h.aff}`}</p>${h.memories?.length?`<details><summary>그날 나눈 마음</summary>${h.memories.map(e=>`<p>${esc(e.text)}<br><span class="muted">${esc(e.reaction)}</span></p>`).join('')}</details>`:''}`).join('')||'<p class="muted">아직 기록이 없습니다.</p>'}</details>`}
 function socialSessionHTML(a){
@@ -6501,7 +6502,10 @@ function cancelSocialActivity(id,reason='플레이어가 활동을 중단했다'
 }
 function renderSocialTabs(){
  if(!G)return;const panel=document.getElementById('socialPanel'),nav=document.getElementById('gameNav');
- if(nav)nav.innerHTML=[['play','🔎 이야기·조사'],['messages','💬 문자'],['dates','💕 데이트'],['outings','🧑‍🤝‍🧑 외출']].map(([id,n])=>`<button class="small ${gameTab===id?'primary':''}" onclick="switchGameTab('${id}')">${n}</button>`).join('')+'<button class="small navmap" onclick="toggleMap()" aria-label="지도 펼치기">🗺 지도</button>';
+ const act=activeSocial(),hist=socialState().history||[],people=relList();
+ const showDates=gameTab==='dates'||act?.kind==='date'||hist.some(h=>h.kind==='date')||people.some(n=>socialDateEligible(n));
+ const showOut=gameTab==='outings'||(act&&act.kind!=='date')||hist.some(h=>h.kind!=='date')||people.length>0;
+ if(nav)nav.innerHTML=[['play','🔎 이야기'],['messages','💬 문자'],...(showDates?[['dates','💕 데이트']]:[]),...(showOut?[['outings','🧑‍🤝‍🧑 외출']]:[])].map(([id,n])=>`<button class="small ${gameTab===id?'primary':''}" onclick="switchGameTab('${id}')">${n}</button>`).join('')+'<button class="small navmap" onclick="toggleMap()" aria-label="지도 펼치기">🗺 지도</button>';
  const a=activeSocial();if(a&&a.where!==placeKey()&&!busy){a.status='cancelled';socialState().history.push({day:G.day,name:a.name,kind:a.kind,result:'장소를 떠나 활동 중단'});save()}
  for(const id of ['mapbox','log']){const e=document.getElementById(id);if(e)e.style.display=gameTab==='play'?'':'none'}
  const ctl=document.querySelector('#game .controls');if(ctl)ctl.style.display=gameTab==='play'?'':'none';
@@ -7715,8 +7719,8 @@ function lexSideBase(){ return G.lexicon.filter(e=>!e.arch&&(sideLexTab==='전�
 function lexSideList(){ return lexOrder(lexSideBase()).slice(0,sideLexN) }
 function lexSideMoreHTML(){
   const tot=lexSideBase().length, arch=G.lexicon.filter(e=>e.arch).length, shown=Math.min(sideLexN,tot);
-  return `<div class="muted" style="margin:6px 2px 2px;font-size:12px">${tot}개 중 ${shown}개 표시${arch?` · 📦 보관 ${arch}`:''}</div>
-    <div class="row" style="gap:6px;margin-top:4px">${tot>shown?`<button class="small" onclick="sideLexN+=10;_sigR='';renderSides()">+10 더 보기</button>`:(sideLexN>8?`<button class="small" onclick="sideLexN=8;_sigR='';renderSides()">접기</button>`:'')}<button class="small" onclick="openLex()">전체 보기</button></div>`;
+  const more=tot>shown?`<button class="small" onclick="sideLexN+=10;_sigR='';renderSides()">+${Math.min(10,tot-shown)} 더 보기</button>`:(sideLexN>8?`<button class="small" onclick="sideLexN=8;_sigR='';renderSides()">접기</button>`:'');
+  return more?`<div class="row" style="gap:6px;margin-top:6px">${more}</div>`:'';
 }
 function setSideLex(c){ sideLexTab=c; _sigR=''; renderSides() }
 function lexRefresh(){ _sigR=''; save(); renderSides(); if(document.querySelector('#modalRoot .modal')) openLex() }
@@ -9373,13 +9377,13 @@ function render(){
   const low=(v,t)=>v<=t?'low':'';
   document.getElementById('stats').innerHTML=
     `<span class="st ${low(G.hp,3)}">❤ ${G.hp}/${G.maxhp}</span>
-     <span class="st ${fearRatio()>=FEAR_RED?'low':''}" title="공포 — 높을수록 위험합니다. 한계에 닿으면 체력이 줄고, 아지트에서 쉬면 가라앉습니다">😨 공포 ${fearNow()}/${fearMax()}${G._wCredit>0?` 🍫${G._wCredit}`:''}</span>
-     <span class="st ${low(G.battery,1)}" title="휴대폰 배터리">🔋 배터리 ${batteryPct()}%</span>
-     <span class="st" title="어두운 구역에서는 휴대폰 조명이 자동으로 켜집니다">📱 ${lightStatus()}</span>
+     <span class="st ${fearRatio()>=FEAR_RED?'low':''}" title="공포 — 높을수록 위험합니다. 한계에 닿으면 체력이 줄고, 아지트에서 쉬면 가라앉습니다">😨 ${fearNow()}/${fearMax()}${G._wCredit>0?` 🍫${G._wCredit}`:''}</span>
+     <span class="st ${low(G.battery,1)}" title="휴대폰 배터리">🔋 ${batteryPct()}%</span>
+     ${G.loc==='site'?`<span class="st" title="조명 — ${lightStatus()}">📱 ${lightShort()}</span>`:''}
      <span class="st">💳 ${G.cash}</span>
-     <span class="st ${(G.demerit||0)>=DEMERIT_WARN?'low':''}" title="벌점 — 점호 누락·무단 외출로 늘어납니다. ${DEMERIT_WARN}점 이상이면 외출 금지 경고">📕 벌점 ${G.demerit||0}</span>
-     <span class="st" title="출입 권한 등급 (1~${ACCESS_MAX})">🪪 권한 ${G.access||1}등급</span>
-     <span class="st" title="기념 메달 조각${compactCampaign()?' — 선택 수집':''} · 6개 완성: 캐시 +300, 경험 +3 (한 번)">★ 기념 메달 조각${compactCampaign()?'(선택)':''} ${G.fragments}/${FRAG_GOAL}</span>
+     <span class="st ${(G.demerit||0)>=DEMERIT_WARN?'low':''}" title="벌점 — 점호 누락·무단 외출로 늘어납니다. ${DEMERIT_WARN}점 이상이면 외출 금지 경고">📕 ${G.demerit||0}</span>
+     <span class="st" title="출입 권한 등급 (1~${ACCESS_MAX})">🪪 ${G.access||1}등급</span>
+     <span class="st" title="기념 메달 조각${compactCampaign()?' — 선택 수집':''} · 6개 완성: 캐시 +300, 경험 +3 (한 번)">★ ${G.fragments}/${FRAG_GOAL}</span>
      <span class="st dup" title="철제 부품 · 합판 · 전선 · 유실물">${MATS.map(m=>m.i+G.mat[m.k]).join(' ')}</span>
      <span class="st" title="월~일 · 토·일은 학교를 가지 않는 주말">${G.day}일째(${dowName(G.day)}) ${timeIcon()} ${G.time}</span>
      ${G.comp&&G.comp.met?`<span class="st dup" title="유민 호감도">🎵 유민${G.comp.joined?' (동행)':''}</span>`:''}`;
@@ -9418,11 +9422,10 @@ function whereText(){
 function choicesHTML(){
   const ex=roomExhausted();
   let lbl='';
-  if(ex) lbl='🔎 이 공간에서는 더 찾을 것이 없어 보입니다 — 아래 → 버튼으로 이동하세요';
-  else if(G.choices.length) lbl=(G.loc==='site'?'💬 이야기 — 이 공간 안에서의 행동 (공간은 바뀌지 않음)':G.loc==='campus'?'💬 이야기 선택지':'💬 이야기 선택지 (1걸음)')+' · 🎲는 판정, 🧭는 게임 기능으로 바로 처리';
+  if(ex) lbl='🔎 이 공간에서는 더 찾을 것이 없어 보입니다';
   const TL={rest:'휴식',shelter:'임시 쉼터',return:'귀환',exit:'나가기',trade:'거래'};
-  const slide=G.choices.length>2?' <span class="slidehint">· 옆으로 밀어 더 보기 ⇆</span>':'';
-  return (lbl?`<div class="lbl">${lbl}${slide}</div>`:'')+'<div class="cslide">'+G.choices.map((c,i)=>{
+  const slide=G.choices.length>2?'<span class="slidehint">옆으로 밀어 더 보기 ⇆</span>':'';
+  return (lbl||slide?`<div class="lbl">${lbl}${lbl&&slide?' · ':''}${slide}</div>`:'')+'<div class="cslide">'+G.choices.map((c,i)=>{
     const m=metaOf(c); let b='';
     if(m&&m.type==='check') b=`<span class="cbadge ck">🎲 ${SK[m.skill]} · 난이도 무작위</span>`;
     else if(m&&TL[m.type]) b=`<span class="cbadge sys">🧭 ${TL[m.type]}</span>`;
@@ -9445,7 +9448,7 @@ function fixedHTML(){
     mv=btn('exitZone()',d.intro?'↩ 교내로 돌아가기':'🚪 구역 밖으로 나가기','','data-exit="1" title="구역은 그대로 두고 입구 밖으로 (이동 행상을 만날 수도 있음)"');
     if(!d.intro) mv+=p&&p.done?btn('returnToCampus()',`✅ 조사 완료 · ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${durText(returnRoute().days)})`,'primary'):btn('returnToCampus()',`↩ 귀환 (${p?mysteryV2(d)?`둘러본 공간 ${p.vis}곳`:'조사 '+p.vis+'/'+p.total:'조사'} · ${durText(returnRoute().days)})`);
     mv+=r.exits.map(id=>{ const o=d.rooms.find(x=>x.id===id); const hint=fd&&fd[id]<fd[r.id]?' ✧':''; return gameActionButton(roomActionId('move',id),`→ ${o.visited?esc(o.name):'❓ 미탐험 공간'}${o.fragTaken?' ★':''}${hint}`,'mv') }).join('');
-    if(mysteryV2(d)&&!d.mystery.state.solved) ac+=mysteryRoomActions(d).map(a=>gameActionButton(roomActionId('clue',a.token),'🔍 '+esc(mysteryActionLabel(a)))).join('');
+    if(mysteryV2(d)&&!d.mystery.state.solved) ac+=mysteryRoomActions(d).map(a=>gameActionButton(roomActionId('clue',a.token),'🔍 '+esc(a.kind==='repeat'?'다시 살펴보기: '+a.action:a.action))).join('');
     else if(!roomExhausted()) ac+=btn("pickFixed('주변을 둘러본다')",'👁 살펴보기')+btn("pickFixed('이곳을 꼼꼼히 조사한다')",'🔍 조사하기');
     if(!d?.intro)ac+=btn('shelterHere()','⛺ 임시 쉼터');
     if(d.lore&&!mysteryV2(d)){ const all=d.rooms.filter(x=>x.clue); ac+=btn('openZoneJournal()',`📝 조사 수첩 ${all.filter(x=>x.clue.got).length}/${all.length}`,'','data-rj="1"') }
@@ -9486,9 +9489,11 @@ function fixedHTML(){
   }
   let h=compactCampaign()?`<div class="lbl"><b>🧭 ${esc(campaignPublic().stage)}</b> · ${esc(campaignPublic().next)}</div>`:'';
   const forecast=returnForecast();
-  if(forecast&&!d?.intro) h+=`<div class="lbl ${forecast.late||forecast.urgent?'warn':''}">🕒 ${esc(forecast.text)} (바로 귀환 · 돌발 지연 제외)</div>`;
-  if(mv) h+=`<div class="hscroll">${mv}</div>`+(mvLbl?`<div class="lbl">${mvLbl}</div>`:'');
-  if(ac) h+=`<div class="hscroll">${ac}</div>`+(acLbl?`<div class="lbl">${acLbl}</div>`:'');
+  if(forecast&&!d?.intro) h+=`<div class="lbl ${forecast.late||forecast.urgent?'warn':''}">🕒 ${esc(forecast.text)}</div>`;
+  const tidy=t=>String(t||'').replace(/(\s*·\s*)?🧭 (행동|이동( \(시간·자원이 정확히 계산됩니다\))?|공간 이동 · 나가기 · 귀환)$/,'').replace(/ · 장소 이동$/,'').trim();
+  mvLbl=tidy(mvLbl); acLbl=tidy(acLbl);
+  if(mv) h+=(mvLbl?`<div class="lbl">${mvLbl}</div>`:'')+`<div class="hscroll${L==='site'?' wrapRow':''}">${mv}</div>`;
+  if(ac) h+=(acLbl?`<div class="lbl">${acLbl}</div>`:'')+`<div class="hscroll">${ac}</div>`;
   if(hint) h+=`<div class="lbl hint">${esc(hint)}</div>`;
   return h;
 }
@@ -9749,14 +9754,14 @@ function leftHTML(){
     <div class="chips" style="margin-top:8px">${c.traits.map(t=>`<span class="chip">${esc(t)}</span>`).join('')||'<span class="muted">특성 없음</span>'}</div>
     ${c.bio?`<div class="bio">${esc(c.bio)}</div>`:''}
     <button class="small" style="margin-top:6px" onclick="openChar()">배경 보기·편집</button></div>`;
-  if(compactCampaign())h+=`<div class="sec"><h4>🧭 현재 목표</h4><b>${esc(campaignPublic().stage)}</b><p>${esc(campaignPublic().next)}</p><button class="small" onclick="openCampaign()">본편 연결 ${campaignPublic().links.length}/3 보기</button></div>`;
-  h+=`<div class="sec"><h4>소지품</h4>
+  if(compactCampaign())h+=`<div class="sec"><button class="small" onclick="openCampaign()">🧭 조사 기록</button></div>`;
+  h+=`<div class="sec"><h4>상태</h4>
     <div style="display:flex;justify-content:space-between;align-items:center">❤ 체력 <b>${G.hp}/${G.maxhp}</b><button class="small ${(G.growth||0)>0?'primary':''}" onclick="openGrowth()">🌟 성장${(G.growth||0)>0?` (${G.growth})`:` ${(G.xp||0)%GROW_XP}/${GROW_XP}`}</button></div><div class="bar"><i style="width:${hpP}%"></i></div>
-    <div class="grid2"><div><span>😨 공포</span><b>${fearNow()}/${fearMax()}</b></div><div><span>🔋 배터리</span><b>${batteryPct()}%</b></div><div><span>📱 조명</span><b>${lightStatus()}</b></div><div><span>💳 캐시</span><b>${G.cash}</b></div><div><span>📕 벌점</span><b>${G.demerit||0}</b></div><div><span>🪪 출입 권한</span><b>${G.access||1}등급</b></div></div>
-    <div class="grid2" style="margin-top:6px">${MATS.map(m=>`<div><span>${m.i} ${m.n}</span><b>${G.mat[m.k]}</b></div>`).join('')}</div>
+    <div class="grid2"><div><span>😨 공포</span><b>${fearNow()}/${fearMax()}</b></div><div><span>🔋 배터리</span><b>${batteryPct()}%</b></div>${G.loc==='site'?`<div><span>📱 조명</span><b>${lightShort()}</b></div>`:''}<div><span>💳 캐시</span><b>${G.cash}</b></div><div><span>📕 벌점</span><b>${G.demerit||0}</b></div><div><span>🪪 출입 권한</span><b>${G.access||1}등급</b></div></div>
+    </div><div class="sec"><h4>소지품</h4>
+    ${MATS.some(m=>G.mat[m.k]>0)?`<div class="grid2">${MATS.filter(m=>G.mat[m.k]>0).map(m=>`<div><span>${m.i} ${m.n}</span><b>${G.mat[m.k]}</b></div>`).join('')}</div>`:''}
     ${G.mat.keepsake?`<div class="muted" style="font-size:12px;margin-top:2px">📦 ${keepsakeText()}</div>`:''}
-    <div style="margin-top:8px;font-size:14px">기념 메달 조각${compactCampaign()?' (선택 수집)':''} ${'★'.repeat(G.fragments)}${'☆'.repeat(Math.max(0,FRAG_GOAL-G.fragments))}</div>
-    <div class="muted">${G.medalRewardClaimed?'🏅 완성 보상 지급 완료':`6개 완성 보상: 캐시 +${MEDAL_REWARD_CASH} · 경험 +${MEDAL_REWARD_XP} (한 번)`}</div>
+    <div style="margin-top:6px;font-size:14px">기념 메달 조각${compactCampaign()?' (선택 수집)':''} ${'★'.repeat(G.fragments)}${'☆'.repeat(Math.max(0,FRAG_GOAL-G.fragments))}${G.medalRewardClaimed?' 🏅':''}</div>
     <div class="chips" style="margin-top:6px">${G.ride?`<span class="chip">🚲 ${esc(G.ride.name)}${G._rideFed===false?' (지침)':''}</span>`:''}${reserveBatteryHTML()}${calmDrinkHTML()}${G.items.map((i,n)=>itemChipHTML(i,n)).join('')||(G.ride?'':'<span class="muted">보관품 없음</span>')}</div></div>`;
   const d=rideDef();
   if(d) h+=`<div class="sec"><h4>탈것</h4><div><b>${esc(G.ride.name)}</b> <span class="muted">${d.n}</span></div>
@@ -9786,7 +9791,7 @@ function rightHTML(){
     ${list.map(e=>`<details data-n="${esc(e.name)}" ${openLexSet.has(e.name)?'open':''}><summary><span>${e.fav?'⭐ ':''}${e.sum?'📚 ':''}${esc(e.name)}</span><span>${e.isNew?'<span class="nw">NEW</span> ':''}<span class="muted">${e.cat}</span></span></summary><p>${esc(e.desc)}</p></details>`).join('')||'<div class="muted">항목이 없습니다.</div>'}${lexSideMoreHTML()}</div>`;
   h+=rivalSideHTML();
   h+=threadsSideHTML();
-  h+=`<div class="sec"><h4>메뉴</h4>${screenMenuHTML()}<div class="sbtn"><button onclick="openSettings()">⚙ AI 설정</button><button onclick="openGuide()">📖 게임 가이드</button><button onclick="openZoneJournal()">📝 조사 수첩 · 구역 연혁</button><button onclick="exportSave()">💾 저장 내보내기</button><button onclick="toTitle()">🏠 타이틀로</button></div></div>`;
+  h+=`<div class="sec"><div class="sbtn"><button onclick="openZoneJournal()">📝 조사 수첩 · 구역 연혁</button><button onclick="openPrefs()">⚙ 설정</button><button onclick="openGuide()">📖 가이드</button></div></div>`;
   return h;
 }
 function renderSides(){
@@ -9911,6 +9916,20 @@ function setNarrCustom(){
   SET.narrMin=clamp(Math.round(+a.value)||5,1,40); SET.narrMax=clamp(Math.round(+b.value)||10,SET.narrMin,40);
   saveSettings();   // 입력 중인 칸이 다시 그려지지 않도록 화면은 그대로
 }
+function openPrefs(){
+  const inGame=!!(G&&G.char)&&!document.getElementById('game')?.classList.contains('hidden');
+  let backup=false; try{ backup=!!localStorage.getItem(SAVE_BACKUP_KEY) }catch(e){}
+  modal('⚙ 설정',`
+    <h4 style="margin:0 0 6px">🤖 AI 연결</h4>
+    <p class="muted" style="margin:0 0 6px">${esc(aiStatusText())}</p>
+    <div class="sbtn"><button onclick="closeModal();openSettings()">AI 연결 설정 열기</button><button onclick="closeModal();openUsage()">💰 토큰 사용량</button></div>
+    <h4 style="margin:14px 0 6px">🖥 화면과 소리</h4>
+    ${screenMenuHTML()}
+    ${inGame?`<button style="width:100%;margin-top:6px" onclick="toggleReadingMode();openPrefs()">📖 읽기 모드 ${readingMode?'끄기':'켜기'} <span class="muted">(패널과 지도를 접고 선택지만)</span></button>`:''}
+    <h4 style="margin:14px 0 6px">💾 저장</h4>
+    <div class="sbtn">${inGame?'<button onclick="exportSave()">저장 내보내기</button>':''}<button onclick="closeModal();importSave()">저장 파일 불러오기</button>${backup?'<button onclick="closeModal();restoreSaveBackup()">가져오기 이전 저장 복구</button>':''}</div>
+    ${inGame?'<div class="sbtn" style="margin-top:14px"><button onclick="closeModal();toTitle()">🏠 타이틀로</button></div>':''}`);
+}
 function screenMenuHTML(){
   const cur=(SET&&SET.narrLen)||'m', c=narrCfg();
   const opts=Object.entries(NARR_LEVELS).map(([k,v])=>`<option value="${k}" ${cur===k?'selected':''}>${v.n} (${v.s[0]}~${v.s[1]}문장)</option>`).join('')+`<option value="custom" ${cur==='custom'?'selected':''}>직접 설정</option>`;
@@ -9920,8 +9939,7 @@ function screenMenuHTML(){
     <button class="sfxBtn" onclick="cycleSfx()">${sfxLabel()}</button>
     <div class="row" style="justify-content:space-between;align-items:center"><span class="muted">글자 크기</span>
       <span style="display:inline-flex;align-items:center;gap:6px"><button class="small" onclick="setFontScale(fontScale-0.1)">가−</button><b class="fsLabelM" style="min-width:42px;text-align:center">${Math.round(fontScale*100)}%</b><button class="small" onclick="setFontScale(fontScale+0.1)">가+</button></span></div>
-    <div><label class="muted" style="display:block;margin-bottom:4px">서술 분량</label><select onchange="setNarrLen(this.value)" aria-label="서술 분량">${opts}</select>${custom}<p class="muted" style="margin:4px 0 0">길수록 출력 토큰과 비용이 늘어납니다.</p></div>
-    <button onclick="openUsage()">💰 토큰 사용량</button></div>`;
+    <div><label class="muted" style="display:block;margin-bottom:4px">서술 분량 <span style="font-size:12px">(길수록 비용이 늘어남)</span></label><select onchange="setNarrLen(this.value)" aria-label="서술 분량">${opts}</select>${custom}</div></div>`;
 }
 
 
@@ -9973,17 +9991,10 @@ function openSettings(){
       <div class="row" style="margin-top:8px"><button class="small" onclick="testRole('${r.k}')">연결 테스트</button><span class="muted" id="to_${r.k}"></span></div>
     </div>`}).join('');
   const keyRow=p=>`<label>${provLabel(p)} API 키</label><input id="k_${p}" type="password" value="${esc((SET.keys||{})[p]||'')}" placeholder="키는 이 브라우저에만 저장됩니다">`;
-  modal('AI 설정',`
-    <p class="muted">용도별로 다른 모델을 쓸 수 있습니다. 제공자가 같으면 키는 하나만 입력하면 됩니다.</p>
-    <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="small" onclick="applySavingModels()">💸 부가 역할을 저렴한 모델로</button><span class="muted" style="font-size:12px">사전 추출·연대기 압축을 Gemini 3.5 Flash-Lite로 채웁니다(저장을 눌러야 적용)</span></div>
-    ${cards}
-    <h4 style="margin:14px 0 0">API 키</h4>
-    ${keyRow('anthropic')}
-    <label>Anthropic 워크스페이스 ID (키가 워크스페이스에 묶여 있지 않다는 오류가 날 때만 입력)</label>
-    <input id="sWs" value="${esc(SET.wsId||'')}" placeholder="콘솔의 워크스페이스 설정에서 확인한 ID">
-    ${keyRow('gemini')}
+  modal('AI 연결 설정',`
+    <p class="muted">API 키나 Vertex AI JSON 키 하나만 연결하면 됩니다. 키는 이 브라우저에만 저장됩니다.</p>
     <h4>Google Vertex AI · 서비스 계정 JSON 키</h4>
-    <p class="muted">JSON 파일을 선택하면 인증과 모델 설정을 자동으로 적용합니다. 기본으로는 현재 페이지에서만 쓰고 저장하지 않으므로 새로고침하면 다시 선택해야 합니다. 「이 기기에서 연결 기억하기」를 켜면 꺼낼 수 없는 형태의 키와 프로젝트·계정 이름만 이 브라우저에 남기고, JSON 파일 내용은 저장하지 않습니다. 공용 기기에서는 켜지 마세요. 이 사이트의 스크립트가 선택한 키를 사용할 수 있으므로 신뢰하는 사이트에서만 연결하세요.</p>
+    <p class="muted">JSON 파일을 고르면 바로 연결됩니다. 「이 기기에서 연결 기억하기」를 켜면 새로고침해도 유지됩니다(공용 기기에서는 끄세요). JSON 내용 자체는 저장하지 않습니다.</p>
     <label>연결 방식</label><select id="sVertexMode"><option value="browser" ${vertexMode()==='browser'?'selected':''}>JSON 파일 선택 (설치 없이 연결)</option><option value="relay" ${vertexMode()==='relay'?'selected':''}>중계 서버 (고급 설정)</option></select>
     <label>서비스 계정 JSON 파일</label><div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><input type="file" accept=".json,application/json" onchange="selectVertexJSON(this)" style="flex:1;min-width:180px"><label style="display:flex;gap:4px;align-items:center;margin:0"><input type="checkbox" id="sVertexRemember" style="width:auto"> 이 기기에서 연결 기억하기</label></div>
     <p class="muted" id="vertexStatus">${VERTEX_BROWSER?(VERTEX_BROWSER.remembered?'기억된 연결 · ':'인증 완료 · ')+esc(VERTEX_BROWSER.project):'JSON 파일을 선택하세요.'}</p>
@@ -9993,10 +10004,20 @@ function openSettings(){
     <label>Vertex AI 중계 서버 주소</label><input id="sVertex" value="${esc(SET.vertexRelayUrl||'')}" placeholder="http://127.0.0.1:8899 또는 HTTPS 중계 주소">
     <label>중계 접속 토큰</label><input id="k_vertex" type="password" value="${esc((SET.keys||{}).vertex||'')}" placeholder="중계 서버 실행 시 표시되는 토큰" autocomplete="off">
     </details>
-    <button class="small" onclick="applyVertexModels()">모든 역할을 Vertex AI로 설정</button>
+    <button class="small" style="margin-top:8px" onclick="applyVertexModels()">모든 역할을 Vertex AI로 설정</button>
+    <h4 style="margin:10px 0 0">API 키</h4>
+    ${keyRow('anthropic')}
+    ${keyRow('gemini')}
     <details style="margin-top:10px"><summary>다른 제공자 키 · 사용자 지정 주소</summary>
+    <label>Anthropic 워크스페이스 ID (키가 워크스페이스에 묶여 있지 않다는 오류가 날 때만 입력)</label>
+    <input id="sWs" value="${esc(SET.wsId||'')}" placeholder="콘솔의 워크스페이스 설정에서 확인한 ID">
       ${provs.filter(p=>!['anthropic','gemini','vertex'].includes(p)).map(keyRow).join('')}
       <label>사용자 지정 API 주소 (OpenAI 호환)</label><input id="sBase" value="${esc(SET.baseUrl||'')}">
+    </details>
+    <details style="margin-top:12px"><summary>⚙ 고급 — 용도별 모델 · 생각 강도</summary>
+    <p class="muted">용도별로 다른 모델을 쓸 수 있습니다. 제공자가 같으면 키는 하나만 입력하면 됩니다.</p>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="small" onclick="applySavingModels()">💸 부가 역할을 저렴한 모델로</button><span class="muted" style="font-size:12px">사전 추출·연대기 압축을 Gemini 3.5 Flash-Lite로 채웁니다(저장을 눌러야 적용)</span></div>
+    ${cards}
     </details>
     <div class="row" style="margin-top:12px"><button class="primary" onclick="saveSet()">저장</button></div>
     <p class="muted" style="margin-top:12px">브라우저에서 직접 연결이 막히는 회사가 있을 수 있습니다. 그럴 때는 OpenRouter를 쓰면 대부분 해결됩니다. 모델 이름은 각 회사 문서의 최신 목록으로 확인하세요.</p>`);
@@ -10058,12 +10079,15 @@ function refreshTitle(){
   document.getElementById('btnContinue').disabled=!hasSave();
   try{ }catch(e){}
   setTitle(false);
+  document.getElementById('aiStatus').textContent=aiStatusText(true);
+  const vx=vertexTitleText(),el=document.getElementById('aiStatus');if(vx&&el)el.textContent+=' · '+vx;
+}
+function aiStatusText(){
   const hasKey=Object.keys(PRESETS).some(aiProviderReady);
   const miss=[...new Set(AI_ROLES.map(r=>roleCfg(r.k).provider))].filter(p=>!aiProviderReady(p));
-  document.getElementById('aiStatus').textContent=hasKey
-    ?`AI: 서술 ${roleCfg('story').model} · 구역 조사 ${roleCfg('site').model} · 사전 ${roleCfg('lex').model}`+(miss.length?` (연결 설정 없음: ${miss.map(provLabel).join(', ')})`:'')
-    :'AI 키가 없으면 사건 생성은 대기하고 기본 일상 서술만 제공됩니다.';
-  const vx=vertexTitleText(),el=document.getElementById('aiStatus');if(vx&&el)el.textContent+=' · '+vx;
+  return hasKey
+    ?`AI 연결됨 · ${roleCfg('story').model}`+(miss.length?` (연결 설정 없음: ${miss.map(provLabel).join(', ')})`:'')
+    :'⚠ AI 키가 없으면 사건을 만들 수 없습니다 — ⚙ 설정에서 연결하세요';
 }
 /* 타이틀에 보이는 Vertex JSON 연결 상태: 기억된 연결인지, 이번 페이지에서만 쓰는 연결인지 */
 function vertexTitleText(){
@@ -10112,9 +10136,17 @@ function openGuide(){
   }
   const S=6, ex=(extra,noW)=>{ const w=(noW?0:2)+Math.floor(S/(wBase+extra)), f=2+Math.floor(S/MOVE_STEPS.battery); return {w,f} };
   const e0=ex(0,false), e1=ex(RIDES.bike.fearStep,false), e3=ex(RIDES.scooter.fearStep,true);
-  modal('게임 구조 가이드',`
-    <p class="muted">이 게임에서 시간이 흐르고 자원이 변하는 규칙입니다. 숫자는 지금 코드의 값입니다. 숫자·위치·시간은 게임(버튼)이 정하고, 이야기 AI는 "어떻게·왜·누구와"를 서술합니다. AI가 제안하는 변화는 한 장면에 ${fxRangeText()} 안에서만 반영되고(물건을 살 때만 배터리 +${FX_BUY_MAX}까지), 근거 없는 회복은 코드가 막습니다.</p>
+  modal('📖 게임 가이드',`
+    <div class="lex"><b>처음 하는 분께</b>
+    <p>• 화면 아래 <b>선택지</b>를 골라 이야기를 진행합니다. 직접 입력해도 됩니다.</p>
+    <p>• <b>🔍 조사 버튼</b>으로만 사건의 사실을 얻습니다. 확인한 사실이 2개 이상이면 <b>🧩 추리</b>를 제출할 수 있고, 틀려도 다시 할 수 있습니다.</p>
+    <p>• 학교 밖에서는 시간이 흐를수록 <b>😨 공포</b>가 쌓이고 <b>🔋 배터리</b>가 줄어듭니다. 아지트나 기숙사에서 쉬면 회복됩니다.</p>
+    <p>• 어두운 곳에서는 휴대폰 조명이 배터리를 씁니다. 배터리가 없으면 아무것도 찾을 수 없습니다.</p>
+    <p>• 수업·점호를 빠지면 결석이나 벌점이 붙습니다. 밤에 학교 밖으로 나가면 무단 외출입니다.</p>
+    <p>• 알게 된 것은 📜 기록(연대기·괴담 사전·조사 보드)에 남습니다.</p></div>
     ${live}
+    <details style="margin-top:10px"><summary>📚 자세한 규칙 보기</summary>
+    <p class="muted">이 게임에서 시간이 흐르고 자원이 변하는 규칙입니다. 숫자는 지금 코드의 값입니다. 숫자·위치·시간은 게임(버튼)이 정하고, 이야기 AI는 "어떻게·왜·누구와"를 서술합니다. AI가 제안하는 변화는 한 장면에 ${fxRangeText()} 안에서만 반영되고(물건을 살 때만 배터리 +${FX_BUY_MAX}까지), 근거 없는 회복은 코드가 막습니다.</p>
     ${h3('행동 방식 — 버튼 · 이야기 · 판정')}
     ${row('🧭 버튼 (게임 기능)','이동·휴식·귀환·거래·공포 가라앉히기처럼 시간·자원·위치가 바뀌는 행동. 정확히 계산됩니다')}
     ${row('💬 이야기 선택지','화면에 제시된 행동을 골라 관찰·대화·조사를 진행합니다. 이동 같은 기능 선택지는 저장된 장소 ID와 현재 조건을 검증해 실행합니다.')}
@@ -10266,7 +10298,7 @@ function openGuide(){
     ${h3('소문의 장소')}
     ${row('📍 소문의 장소','이야기 속에서 새 장소와 가는 길을 알게 되면 지도에 ◇ 표식으로 나타나고 📍 소문의 장소 목록에 기록됩니다(최대 '+LEAD_MAX+'곳). 중앙 캠퍼스 지구 정문이나 지구에서 일반 조사 외출과 같은 비용으로 찾아가면 그 이름의 구역이 열립니다. 지도에 안 뜬 장소는 이름을 직접 적어 추가할 수 있고, "폐 방송국으로 간다"처럼 글로 써도 됩니다. AI가 장소 사건을 빠뜨려도 서술에 「이름」과 가는 길이 함께 나오면 코드가 보완해 기록합니다(하루 최대 2곳). 인물에게 소문의 장소로 오라고 약속하면 「○○ 입구」 약속으로 기록되고, 약속 때부터 이틀 안에 조사 외출로 그 구역에 도착하면 입구에서 인물이 맞이하고 그 구역을 조사하는 동안 함께합니다(구역을 떠나거나 🤝 헤어지기를 누르면 헤어짐. 유민은 기존 동행 시스템). 놓치면 호감 하락')}
     ${h3('효과음')}
-    ${row('🔊 효과음','버튼 누르기·판정(주사위와 결과)·구매와 판매·피해와 회복·기념 메달 조각과 유실물 획득(학교 종 차임)·성장·이동 출발과 도착·건설·전투 시작·승패·쓰러짐·임시 쉼터·출석부 해독·불량배 조우·결말·하루가 바뀔 때 짧은 소리가 남. 위험할 때는 끊기는 교내 방송 노이즈, 지구 안에서는 형광등 웅웅거림이 낮게 깔립니다. 한 순간에 여러 소리가 겹치면 중요한 것 하나나 둘만 남. 상단의 🔊 버튼으로 끔 → 작게 → 보통 → 크게 (브라우저에 저장). 브라우저 규칙상 화면을 한 번 누르기 전에는 소리가 나지 않음')}`);
+    ${row('🔊 효과음','버튼 누르기·판정(주사위와 결과)·구매와 판매·피해와 회복·기념 메달 조각과 유실물 획득(학교 종 차임)·성장·이동 출발과 도착·건설·전투 시작·승패·쓰러짐·임시 쉼터·출석부 해독·불량배 조우·결말·하루가 바뀔 때 짧은 소리가 남. 위험할 때는 끊기는 교내 방송 노이즈, 지구 안에서는 형광등 웅웅거림이 낮게 깔립니다. 한 순간에 여러 소리가 겹치면 중요한 것 하나나 둘만 남. 상단의 🔊 버튼으로 끔 → 작게 → 보통 → 크게 (브라우저에 저장). 브라우저 규칙상 화면을 한 번 누르기 전에는 소리가 나지 않음')}</details>`);
 }
 
 

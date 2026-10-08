@@ -133,7 +133,7 @@ await test('[v1 저장본] Dark and story-only actions cannot acquire optional m
  f.run('callAI=async(sys)=>JSON.stringify(sys.includes("본문 일치 검토자")?{valid:true,issues:[]}:{narration:"너는 조용히 기다린다.",choices:[],effects:{items_add:[{name:"기념 메달 조각",key:true}],메달조각:true}})');await f.run("aiTurn('조용히 기다린다')");assert.equal(f.run('G.fragments'),0);assert.ok(!f.obj('G.items').includes('기념 메달 조각'));
 });
 await test('Both medal and old emblem effect labels are compatible while public UI uses medals',f=>{
- assert.equal(f.run('koEffects({메달조각:true}).fragment'),true);assert.equal(f.run('koEffects({교표조각:true}).fragment'),true);assert.equal(f.run('fragFoundIn("기념 메달 조각을 발견하고 손에 넣었다.")'),true);assert.equal(f.run('fragFoundIn("기념 메달 조각을 발견한 줄 알았지만 가짜였다.")'),false);assert.ok(!html.includes('교표 조각'));assert.ok(html.includes('6개 완성 보상: 캐시'));
+ assert.equal(f.run('koEffects({메달조각:true}).fragment'),true);assert.equal(f.run('koEffects({교표조각:true}).fragment'),true);assert.equal(f.run('fragFoundIn("기념 메달 조각을 발견하고 손에 넣었다.")'),true);assert.equal(f.run('fragFoundIn("기념 메달 조각을 발견한 줄 알았지만 가짜였다.")'),false);assert.ok(!html.includes('교표 조각'));assert.ok(html.includes('6개 완성: 캐시'));
 });
 // ---- v2: 함정 증거·행동별 증거·실마리 ----
 const tok=(f,id)=>f.run("mysteryHash(G.site.mystery.hash+':'+"+JSON.stringify(id)+")");
@@ -166,7 +166,7 @@ await test('[v2] Only opened actions are offered; the old look/search buttons ar
  f.run("act('피아노 옆 녹음기를 꼼꼼히 조사한다',{src:'free'})");await settle();assert.equal(f.run('G.evidence.length'),1);
  await pick(f,'r2',candidate.evidence[1].action);await pick(f,'r3',candidate.dead_ends[0].action);assert.equal(f.run('G.evidence.length'),2,'dead end in the same room as e3 gives nothing');
  assert.ok(!choices(f).some(a=>a.label.includes(candidate.dead_ends[0].action)),'dead end is not offered again');assert.ok(choices(f).some(a=>a.label.includes(candidate.evidence[2].action)));
- const log=f.obj('events').filter(e=>e.type==='fx').map(e=>e.text).join('\n');for(const k of ['확인한 사실:','사건에 미친 영향:','남은 의문:','조사할 거리가 남은 곳:'])assert.ok(log.includes(k),k);
+ const log=f.obj('events').filter(e=>e.type==='fx').map(e=>e.text).join('\n');for(const k of ['확인한 사실:','사건에 미친 영향:'])assert.ok(log.includes(k),k);assert.ok(!log.includes('남은 의문:'),'the remaining question stays in the notebook, not every log');
 });
 await test('[v2] A decoy is granted, logged and shown exactly like any other fact',async f=>{
  await prepared(f);await pick(f,'r1',candidate.evidence[0].action);await pick(f,'r2',candidate.evidence[3].action);await pick(f,'r2',candidate.evidence[1].action);
