@@ -905,6 +905,7 @@ function migrate(){
   ['mapDone','discovered','pets','chronicle','lexicon','recent','log','choices','items','heardRumors','rumors','threads'].forEach(k=>{ if(!Array.isArray(G[k])) G[k]=[] });
   if(!G.rel) G.rel={};
   migrateCases();
+  demoteMainThreads();
   if(G.site) siteIdentity();
   migrateRelationships();
   if(G._clockVersion!==2){ resetSoftClock(); G._clockVersion=2 }
@@ -5203,7 +5204,7 @@ function mysterySolveCase(d,p,st){
   const ids=st.found.filter(id=>p.evidence.find(e=>e.id===id)?.role!=='decoy').map(id=>st.evidenceIds[id]);
   if(ids.length&&ids.every(Boolean)){ st.solved=true; if(!resolveCase(d.caseId,p.conclusion,ids)) st.solved=false }
   if(st.solved&&compactCampaign()){
-    if(d.intro){G.campaign.introSolved=true;checkState()}
+    if(d.intro){G.campaign.introSolved=true;settleIntroRumors();checkState()}
     if(d.big){G.campaign.links[d.key]={name:d.name,text:p.main_link};addLog('fx','🧭 본편 연결 — '+p.main_link)}
   }
 }
@@ -7156,6 +7157,47 @@ function knowledgePlace(g=G){
   return g.loc||'unknown';
 }
 function scopeForText(text){ return /교표|출석부|지워진.{0,5}구역|라쿠나/.test(text)?'main':/유민|속마음|가족|약속|부탁/.test(text)?'personal':'local' }
+/* 본편(출석부) 사건 분류 숨기기 — 진상은 봉인돼 있어 서술 AI도 어떤 소문이 본편과 이어지는지 모른다.
+   그러니 AI·글자 판정으로 '본편' 칸에 모으면 근거 없는 구분이 생기고, 플레이어는 그 칸만 보고 본편 소문을 가려낼 수 있다.
+   압축 캠페인에서는 모든 기록을 장소별로만 묶는다. 입문 사건 장소의 소문은 그 장소의 칸으로 모은다. */
+const INTRO_RUMOR_PLACE='intro:site', INTRO_RUMOR_RX=/특별교실동/;
+function caseScope(scope){ return compactCampaign()&&scope==='main'?'local':scope }
+function introRumorText(text){ return compactCampaign()&&!G.campaign.introSolved&&INTRO_RUMOR_RX.test(String(text||'')) }
+function placeLabel(id){
+  id=String(id||'');
+  if(id===INTRO_RUMOR_PLACE) return INTRO_SITE_NAME;
+  if(id.startsWith('campus:spot:')) return id.slice(12);
+  if(id.startsWith('campus:')) return (DISTRICTS[id.slice(7)]||{}).n||'';
+  if(id.startsWith('hood:')) return (HOODS[id.slice(5)]||{}).n||'';
+  if(id.startsWith('zone:')) return G.site&&G.site.uid&&id==='zone:'+siteIdentity(G.site)?G.site.name:'조사한 구역';
+  if(id==='person:yumin') return '유민';
+  return '';
+}
+/* 예전 저장의 '본편' 칸을 풀어 기록마다 그 장소의 칸으로 옮긴다 */
+function demoteMainThreads(){
+  if(!G||!compactCampaign()||G._mainDemoted) return;
+  G._mainDemoted=1;
+  for(const t of (G.threads||[]).filter(t=>t.scope==='main'&&!t.parentId)){
+    const ids=(t.evidenceIds||[]).slice(); let first=null;
+    for(const id of ids){
+      const e=(G.evidence||[]).find(e=>e.id===id&&!e.deleted); if(!e) continue;
+      const placeId=introRumorText(e.text)?INTRO_RUMOR_PLACE:(e.placeId&&e.placeId!=='main'?e.placeId:'legacy');
+      const nt=caseRecord(placeId===INTRO_RUMOR_PLACE?`「${INTRO_SITE_NAME}」에 얽힌 소문은 사실인가?`:'이 장소에서 실제로 무슨 일이 있었는가?',{scope:'local',placeId,force:true});
+      if(!nt) continue; first=first||nt;
+      e.caseId=nt.id; e.scope='local'; e.placeId=placeId; if(!nt.evidenceIds.includes(e.id)) nt.evidenceIds.push(e.id);
+      const c=(G.canon||[]).find(c=>c.id===e.id); if(c) Object.assign(c,{caseId:nt.id,scope:'local',placeId});
+    }
+    t.scope='local'; t.evidenceIds=[];
+    if(t.status==='open'){ if(first){ t.status='merged'; t.parentId=first.id; if(!first.questions.includes(t.text)) first.questions.push(t.text) } }
+  }
+}
+/* 입문 사건을 풀면 그 장소의 소문 칸은 사건으로 정리된다 */
+function settleIntroRumors(){
+  for(const t of (G.threads||[]).filter(t=>t.placeId===INTRO_RUMOR_PLACE&&t.status==='open'&&!t.parentId)){
+    for(const e of evidenceForCase(t)) if(['rumor','hypothesis'].includes(e.kind)&&!e.checked) e.checked={result:'case',day:G.day,factId:null};
+    t.status='closed'; t.closedDay=G.day; t.conclusion=`${INTRO_SITE_NAME} 사건을 풀며 정리되었다.`;
+  }
+}
 function oldCluePlace(text){
   const k=destKey(text); return k?'campus:'+k:/유민/.test(text)?'person:yumin':'legacy';
 }
@@ -7170,7 +7212,7 @@ function nextCaseId(g=G){ let id; do{ g.threadN=(g.threadN||0)+1; id='t'+g.threa
 function caseRecord(text,opt={},g=G){
   text=clueKey(text).slice(0,160); if(text.length<4) return null;
   if(!g.threads) g.threads=[];
-  const scope=CASE_SCOPES.includes(opt.scope)?opt.scope:scopeForText(text), placeId=opt.placeId||knowledgePlace(g);
+  const scope=caseScope(CASE_SCOPES.includes(opt.scope)?opt.scope:scopeForText(text)), placeId=opt.placeId||knowledgePlace(g);
   const exact=g.threads.find(t=>t.text===text&&!t.parentId&&t.scope===scope&&t.placeId===placeId); if(exact) return exact;
   const same=g.threads.find(t=>t.status==='open'&&!t.parentId&&t.scope===scope&&t.placeId===placeId&&(opt.key?t.topicKey===opt.key:true));
   if(same&&!opt.newCase){ if(!same.questions) same.questions=[]; if(!same.questions.includes(text)&&text!==same.text) same.questions.push(text); same.touched=g.day; return same }
@@ -7210,7 +7252,7 @@ function recordEvidence(text,opt={}){
   if(!Array.isArray(G.evidence)) G.evidence=[];
   const t=(G.threads||[]).find(t=>t.id===opt.caseId&&!t.parentId);
   if(t?.privateMystery&&opt.source!=='mystery') return null;
-  const placeId=opt.placeId||(t&&t.placeId)||knowledgePlace(), scope=opt.scope||(t&&t.scope)||scopeForText(text);
+  const placeId=opt.placeId||(t&&t.placeId)||knowledgePlace(), scope=caseScope(opt.scope||(t&&t.scope)||scopeForText(text));
   const kind=EVIDENCE_KINDS.includes(opt.kind)?opt.kind:'fact';
   const old=G.evidence.find(e=>!e.deleted&&e.text===text&&e.placeId===placeId&&e.kind===kind&&e.caseId===(t?t.id:opt.caseId||null)); if(old) return old;
   let id; do{ G.evidenceN=(G.evidenceN||0)+1; id='e'+G.evidenceN }while(G.evidence.some(e=>e.id===id));
@@ -7221,7 +7263,9 @@ function recordEvidence(text,opt={}){
 }
 function caseForEvidence(text,opt={}){
   if(opt.caseId) return (G.threads||[]).find(t=>t.id===opt.caseId&&!t.parentId)||null;
-  const scope=opt.scope||scopeForText(text), placeId=opt.placeId||knowledgePlace();
+  const scope=caseScope(opt.scope||scopeForText(text));
+  if(introRumorText(text)) return threadsOpen().find(t=>t.placeId===INTRO_RUMOR_PLACE)||caseRecord(`「${INTRO_SITE_NAME}」에 얽힌 소문은 사실인가?`,{scope:'local',placeId:INTRO_RUMOR_PLACE,force:true});
+  const placeId=opt.placeId||knowledgePlace();
   if(scope==='main') return threadsOpen().find(t=>t.scope==='main')||caseRecord('출석부와 지워진 구역은 어떻게 이어지는가?',{scope,placeId:'main'});
   const roots=threadsOpen().filter(t=>t.scope===scope&&t.placeId===placeId);
   return roots[0]||caseRecord(scope==='personal'?'이 인물의 사정은 어떻게 이어지는가?':'이 장소에서 실제로 무슨 일이 있었는가?',{scope,placeId});
@@ -7253,6 +7297,7 @@ function applyCaseUpdates(updates,opt={}){
     for(const e of (Array.isArray(u.evidence)?u.evidence:[]).slice(0,2)){
       if(!e||typeof e.text!=='string'||!EVIDENCE_KINDS.includes(e.kind)||!['narrows','refutes','route','observation'].includes(e.role)) continue;
       // 소문과 추정의 종류를 유지하여 같은 사건의 증거로 보관한다.
+      if(introRumorText(e.text)){ addCanon(e.text,false,false,{kind:EVIDENCE_KINDS.includes(e.kind)?e.kind:'fact',role:e.role,source:opt.source||'scene'}); continue }   // 입문 사건 장소의 소문은 그 장소 칸으로
       addCanon(e.text,false,false,{caseId:t.id,scope:t.scope,placeId:opt.placeId||knowledgePlace(),kind:EVIDENCE_KINDS.includes(e.kind)?e.kind:'fact',role:e.role,relatedPlaces:e.related_places,source:opt.source||'scene'});
     }
     if(Array.isArray(u.next)) t.next=[...new Set(u.next.map(clueKey).filter(Boolean))].slice(0,3).map(s=>s.slice(0,100));
@@ -7314,13 +7359,14 @@ function notebookGroupsHTML(records,allowDelete=false){
 }
 /* 소문 직접 확인: 조사 보드의 소문·추정을 그 장소에서 직접 확인해 '사실 / 사실 아님 / 일부만 사실'로 매듭짓는다.
    결과는 AI가 장면 속에서 정하고(effects.rumor_check), 코드는 확인한 사실을 같은 사건의 관찰 사실로 남긴 뒤 소문을 '확인함'으로 옮긴다 */
-const RUMOR_RESULT={confirmed:'사실로 확인',refuted:'사실 아님',partial:'일부만 사실'};
+const RUMOR_RESULT={confirmed:'사실로 확인',refuted:'사실 아님',partial:'일부만 사실',case:'사건으로 정리됨'};
 function rumorRecord(id){ const e=(G.evidence||[]).find(e=>e.id===id&&!e.deleted); return e&&['rumor','hypothesis'].includes(e.kind)&&!e.checked&&!(G.threads||[]).find(t=>t.id===e.caseId)?.privateMystery?e:null }
 function rumorWhere(e){
   const id=String(e&&e.placeId||'');
   if(id.startsWith('campus:spot:')) return {kind:'spot',name:id.slice(12)};
   if(id.startsWith('campus:')&&DISTRICTS[id.slice(7)]) return {kind:'district',k:id.slice(7),name:DISTRICTS[id.slice(7)].n};
   if(id.startsWith('hood:')) return {kind:'away',name:(HOODS[id.slice(5)]||{}).n||'그 동네'};
+  if(id===INTRO_RUMOR_PLACE) return {kind:'case',name:INTRO_SITE_NAME};
   if(id.startsWith('zone:')) return {kind:'away',name:'그 소문이 나온 구역'};
   return {kind:'any'};   // 본편·인물·예전 기록: 지금 있는 곳에서 수소문해 확인한다
 }
@@ -7328,12 +7374,14 @@ function rumorCheckButton(e){
   if(!e||!e.id||!rumorRecord(e.id)) return '';
   const w=rumorWhere(e), here=e.placeId===knowledgePlace();
   const go=here||w.kind==='any'?'🔎 직접 확인하기':w.kind==='district'&&G.loc==='campus'?`🔎 ${w.name}에서 확인하기`:'';
+  if(w.kind==='case') return `<span class="muted small">📍 ${esc(w.name)}에 가서 밝혀야 함</span>`;
   return go?`<button class="small" data-ev="${esc(e.id)}" onclick="checkRumor(this.dataset.ev)">${esc(go)}</button>`:`<span class="muted small">📍 ${esc(w.name)}에서 확인 가능</span>`;
 }
 function checkRumor(id){
   if(busy||!G) return false;
   const e=rumorRecord(id); if(!e) return toast('이미 확인했거나 확인할 수 없는 기록입니다'),false;
   const w=rumorWhere(e);
+  if(w.kind==='case') return toast(`「${w.name}」에 직접 가서 밝혀야 합니다`),false;
   if(e.placeId!==knowledgePlace()&&w.kind!=='any'){
     if(w.kind!=='district'||G.loc!=='campus') return toast(`「${w.name}」에 가야 직접 확인할 수 있습니다`),false;
     goDistrict(w.k);
@@ -7350,7 +7398,7 @@ on('applied',66,(e,{T})=>{
   const id=T&&T.flags&&T.flags.rumorCheck; if(!id) return;
   const r=rumorRecord(id); if(!r) return;
   const rc=e.rumor_check&&typeof e.rumor_check==='object'?e.rumor_check:null, fact=rc&&typeof rc.fact==='string'?clueKey(rc.fact).slice(0,200):'';
-  if(!rc||!RUMOR_RESULT[rc.result]||fact.length<4){ r.checkTries=(r.checkTries||0)+1; addLog('sys','🔎 이번에는 소문이 맞는지 확실히 알아내지 못했습니다. 조사 보드에서 다시 확인할 수 있습니다.'); return }
+  if(!rc||!['confirmed','refuted','partial'].includes(rc.result)||fact.length<4){ r.checkTries=(r.checkTries||0)+1; addLog('sys','🔎 이번에는 소문이 맞는지 확실히 알아내지 못했습니다. 조사 보드에서 다시 확인할 수 있습니다.'); return }
   const ev=addCanon(fact,true,true,{caseId:r.caseId||undefined,placeId:r.placeId,scope:r.scope,kind:'fact',source:'rumorcheck',role:rc.result==='refuted'?'refutes':'narrows'});
   r.checked={result:rc.result,day:G.day,factId:ev?ev.id:null};
   addLog('fx',`🔎 소문 확인 — ${RUMOR_RESULT[rc.result]}\n소문: ${r.text}\n직접 확인한 사실: ${fact}`);
@@ -7376,9 +7424,9 @@ function rumorCheckReward(result,r){
   if(got.length) addLog('fx',`🎒 ${result==='refuted'?'헛걸음만은 아니었다':'확인하러 온 보람이 있다'} — ${got.join(' · ')}`);
 }
 function caseCard(t){
-  const facts=evidenceForCase(t), names={main:'본편',local:'장소',personal:'인물'};
+  const facts=evidenceForCase(t), names={main:'출석부',local:'장소',personal:'인물'}, where=compactCampaign()?placeLabel(t.placeId):'';
   if(t.privateMystery) return `<div class="lex"><b>${esc(t.text)}</b><div>${t.status==='closed'?'해결 완료':'진행 중'} · 확인한 사실 ${facts.filter(e=>notebookCategory(e)==='core').length}개 · 전체 기록 ${facts.length}개</div>${notebookGroupsHTML(facts)}${t.conclusion?`<p><b>검증된 진상:</b> ${esc(t.conclusion)}</p>`:`<p class="muted">다음 조사: ${(t.next||[]).map(esc).join(' / ')||'지역의 사건 조사 수첩 확인'}<br>충분하다고 생각되면 지정 공간에서 추리를 확인해 해결합니다.</p>`}</div>`;
-  return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${names[t.scope]||'사건'} · 기록 ${facts.length}개</span></div>${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${notebookGroupsHTML(facts)}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
+  return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${compactCampaign()?(where?'📍 '+esc(where)+' · ':''):(names[t.scope]||'사건')+' · '}기록 ${facts.length}개</span></div>${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${notebookGroupsHTML(facts)}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
 }
 function openCaseResolution(id){
   const t=(G.threads||[]).find(t=>t.id===id); if(!t) return;
@@ -7445,7 +7493,7 @@ function addCanon(text,quiet,force,opt={}){
   if(!G) return null; text=clueKey(text).slice(0,240); if(text.length<4) return null;
   const t=caseForEvidence(text,opt); if(opt.caseId&&!t) return null;
   if(t?.privateMystery&&opt.source!=='mystery') return null;
-  const placeId=opt.placeId||knowledgePlace(), kind=opt.kind||'fact';
+  const placeId=t&&t.placeId===INTRO_RUMOR_PLACE?INTRO_RUMOR_PLACE:(opt.placeId||knowledgePlace()), kind=opt.kind||'fact';
   const same=(G.evidence||[]).find(e=>!e.deleted&&e.text===text&&e.placeId===placeId&&e.kind===kind&&(!t||e.caseId===t.id)); if(same) return same;
   if(!quiet&&!force){ const day=G.canonDay&&G.canonDay.day===G.day?G.canonDay:(G.canonDay={day:G.day,n:0}); if(day.n>=CANON_DAILY) return null; day.n++ }
   const e=recordEvidence(text,{...opt,caseId:t&&t.id,placeId,kind}); if(!e) return null;
