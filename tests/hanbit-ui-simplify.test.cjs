@@ -60,5 +60,15 @@ await test('Default opening speaks to the player as 당신, and guide starts wit
  assert.doesNotMatch(html,/너, \$\{G\.char\.name\}/);assert.match(html,/당신은 학기 중간에 2학년 7반으로 전학 온/);
  await root(f);f.run('openGuide()');const g=f.run('modalHTML');assert.ok(g.indexOf('처음 하는 분께')<g.indexOf('자세한 규칙'));assert.match(g,/<details[^>]*><summary>📚 자세한 규칙 보기<\/summary>/);
 });
+await test('Utility buttons live in one 🧰 tools menu at the bottom, not in the action row',async f=>{
+ await root(f);f.run("G.loc='campus'");const fx=f.run('fixedHTML()');
+ for(const t of ['openPhone()','openInv()','openSleuth()','openCanon()','openAnimals()'])assert.ok(!fx.includes(t),t);
+ assert.match(html,/onclick="openTools\(\)">🧰 도구</);f.run('openTools()');const m=f.run('modalHTML');for(const t of ['소지품','휴대폰','추리 도우미','증거 기록','동물 친구'])assert.ok(m.includes(t),t);
+});
+await test('Detailed guide is split into themed sections with current rules and no act jargon',async f=>{
+ await root(f);f.run('openGuide()');const g=f.run('modalHTML');
+ for(const t of ['🎮 기본','🕒 시간','🏫 학교 생활','🛏 쉬기와 회복','🔦 조사 외출과 구역','🔎 사건과 추리','👥 사람들','📜 기록과 설정'])assert.ok(g.includes(t),t);
+ assert.doesNotMatch(g,/[13]막|숫자는 지금 코드의 값|4개 공간의 사건|상단의 🔊/);assert.match(g,/구역 어디서든 🧩 추리/);assert.match(g,/⚙ 설정/);
+});
 console.log(`${count} ui-simplify scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
