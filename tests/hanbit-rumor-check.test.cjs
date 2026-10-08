@@ -70,5 +70,24 @@ await test('No clear answer from the AI keeps the rumor open to try again; place
   // 고정 사건(비공개 미스터리)의 기록과 이미 사실인 기록에는 버튼이 없다
   run("const F=addCanon('복도 끝 창문이 열려 있었다',true,true,{scope:'local',placeId:here,kind:'fact'})");assert.equal(run('rumorCheckButton(F)'),'');
 });
+await test('Every rumor check yields something: true gives supplies, partly true a snack, false points to where the rumor really came from',async({run})=>{
+  run(setup);run("const c0=G.cash,m0=G.mat.metal+G.mat.ply+G.mat.wire");
+  run("queue.push({narration:'거울 앞에 서자 정말로 낯선 얼굴이 비친다.',choices:[],effects:{rumor_check:{result:'confirmed',fact:'계단 거울에 다른 학생의 얼굴이 비쳤다.'}}})");
+  run('checkRumor(R1.id)');await run('pendingStory');
+  assert.equal(run('G.cash-c0'),12);assert.equal(run('G.mat.metal+G.mat.ply+G.mat.wire-m0'),1);assert.ok(run("logs.some(([t,x])=>/🎒/.test(x))"));
+  run("const leads0=(G.leads||[]).length;queue.push({narration:'사물함은 평범하다.',choices:[],effects:{rumor_check:{result:'refuted',fact:'사물함 안에는 낡은 체육복이 그대로 들어 있었다.'}}})");
+  run('checkRumor(R2.id)');await run('pendingStory');
+  assert.equal(run('G.leads.length-leads0'),1);assert.match(run('G.leads.at(-1).hint'),/처음 흘러나온 곳/);assert.ok(run("logs.some(([t,x])=>/헛걸음만은 아니었다/.test(x))"));
+  run("const R4=addCanon('도서관 창가 자리는 늘 따뜻하다는 소문',true,true,{scope:'local',placeId:here,kind:'rumor'});queue.push({narration:'창가는 따뜻하지만 늘 그렇지는 않다.',choices:[],effects:{rumor_check:{result:'partial',fact:'창가는 오후에만 볕이 들어 따뜻했다.'}}})");
+  run('checkRumor(R4.id)');await run('pendingStory');assert.ok(run("G.items.includes('초코바')"));
+});
+await test('A true rumor after the first case teaches the next thing about the first name in the roster',async({run})=>{
+  run(setup);
+  run(`{const plan={lacuna_intel:['INTEL_A 첫 이름의 정체','INTEL_B 첫 이름의 위치','INTEL_C 들어가는 방법']};const S=JSON.stringify(plan);G.campaign={version:1,links:{},introSolved:true,introHeard:true,lacunaIntel:[{i:0,day:1}],world:{status:'ready',sealed:S,hash:mysteryHash(S)}}}`);
+  run("const c0=G.cash;queue.push({narration:'정말이었다.',choices:[],effects:{rumor_check:{result:'confirmed',fact:'계단 거울에 다른 학생의 얼굴이 비쳤다.'}}})");
+  run('checkRumor(R1.id)');await run('pendingStory');
+  assert.equal(run('lacunaIntelCount()'),2);assert.equal(run('G.cash-c0'),0,'the knowledge replaces the supplies');
+  assert.ok(run("logs.some(([t,x])=>/INTEL_B/.test(x))"));
+});
 console.log(`${count} rumor-check scenario groups passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1});
