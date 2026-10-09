@@ -995,7 +995,23 @@ function migrateRelationships(){
   });
   if(old){ G.relEvt=null; G._relSetup=false }
   G._relVersion=2;
-  if(G.campaign&&G.campaign.version===1&&!Array.isArray(G.campaign.lacunaIntel)&&(G.actDone||G.act>=2)) G.campaign.lacunaIntel=[0,1,2].map(i=>({i,day:G.day||1,how:'legacy'}));   // 라쿠나 정보 단계 이전에 이미 길이 열린 저장본
+  /* 라쿠나 정보: 예전 게임(정보 단계 이전 설계본에서 1막을 마쳤거나, 이미 라쿠나로 떠난 적이 있는 act≥2)만 세 가지를 다 아는 것으로 본다.
+     (예전에는 actDone만 보고도 채웠는데, 입문 사건을 푼 직후 actDone이 먼저 켜지고 정보 기록은 잠시 뒤에 생겨서
+      그 사이 migrate가 돌면 아무것도 알아내지 않았는데 세 가지를 다 아는 것으로 처리되는 버그가 있었다) */
+  if(G.campaign&&G.campaign.version===1){
+    const c=G.campaign, oldPlan=!!campaignPlan()&&!Array.isArray(campaignPlan().lacuna_intel);   // 라쿠나 정보 문장이 없는 예전 설계본 = 정보 단계 이전에 시작한 게임
+    if(!Array.isArray(c.lacunaIntel)) c.lacunaIntel=(G.act>=2||(oldPlan&&G.actDone))?[0,1,2].map(i=>({i,day:G.day||1,how:'legacy'})):[];
+    else if(!c._intelFix&&G.act<2&&!oldPlan&&c.lacunaIntel.some(x=>x&&x.how==='legacy')){   // 그 버그로 채워진 저장 고치기 — 실제로 알아낸 것만 남긴다
+      c.lacunaIntel=c.lacunaIntel.filter(x=>x&&x.how!=='legacy').map((x,i)=>({...x,i}));
+      if(c.introSolved&&!c.lacunaIntel.some(x=>x.how==='intro')) c.lacunaIntel.unshift({i:0,day:G.day||1,how:'intro'}), c.lacunaIntel.forEach((x,i)=>x.i=i);
+      c._intelRepaired=true;
+      const n=c.lacunaIntel.length, lx=(G.lexicon||[]).find(l=>l.name==='라쿠나 구역');
+      if(n&&campaignPlan()) upsertLex('라쿠나 구역','장소',lacunaIntelTexts().slice(0,n).join(' '),{fav:true});
+      else if(lx) G.lexicon=G.lexicon.filter(l=>l!==lx);
+      if(Array.isArray(G.log)) G.log.push({type:'sys',text:'🛠 조사 기록을 실제로 알아낸 내용만 남도록 바로잡았습니다.'});
+    }
+    c._intelFix=1;
+  }
   if(G.campaign&&G.campaign.version===1&&typeof G.campaign.introHeard!=='boolean') G.campaign.introHeard=!!(G.campaign.introSite||G.campaign.introSolved||G.site?.intro);   // 이미 시작한 게임은 소문을 들은 것으로 본다
 }
 function ensureComp(){ migrate() }      // 예전 이름 호환
@@ -10960,7 +10976,7 @@ async function finishCreation(){
   const maxhp=10+stats.str*2;
   resetUndo();
   G={
-    v:1,_relVersion:2,_clockVersion:2,_privateMysteryVersion:1,_deductionVersion:1,zoneNames:pickZoneNames(),campaign:{version:1,links:{},introSolved:false,introHeard:false},
+    v:1,_relVersion:2,_clockVersion:2,_privateMysteryVersion:1,_deductionVersion:1,zoneNames:pickZoneNames(),campaign:{version:1,links:{},introSolved:false,introHeard:false,lacunaIntel:[],_intelFix:1},
     char:{name,age:17,origin:'한빛학원 2학년 7반 전학생',region:HOME_REGION,reason,stats,traits:draft.traits.map(id=>TRAITS.find(t=>t.id===id).n),bio:document.getElementById('cBio').value.trim()},
     hp:maxhp,maxhp,calm:FEAR_BASE-1,battery:CAP_BASE,torch:0,cash:30,_phoneLightVersion:1,_fearBalanceVersion:1,_growthBalanceVersion:1,
     items:['오래된 출석부'],
