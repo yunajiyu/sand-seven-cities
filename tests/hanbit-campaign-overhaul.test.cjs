@@ -53,7 +53,7 @@ await test('The rumor trip never spoils the case type in player-facing labels',a
   await root(f);
   assert.doesNotMatch(f.run('fixedHTML()'),/입문 사건/);assert.doesNotMatch(f.run('campaignPublic().next+campaignPublic().stage'),/입문 사건/);
   assert.ok(f.run("gameActions().some(a=>/소문의 장소로 가기 — 방과 후 특별교실동/.test(a.label||a.name||a.text||''))")||f.run("JSON.stringify(gameActions()).includes('소문의 장소로 가기')"));
-  await f.run('startIntroMystery()');assert.match(f.run('fixedHTML()'),/🧭 교내 소문/);assert.doesNotMatch(f.run('fixedHTML()'),/입문 사건/);
+  await f.run('startIntroMystery()');assert.match(f.run('fixedHTML()'),/🧭 (조사할 거리가 남은 곳|확인한 사실들을)/);assert.doesNotMatch(f.run('fixedHTML()'),/🧭 교내 소문/);assert.doesNotMatch(f.run('fixedHTML()'),/입문 사건/);
   assert.match(f.run("buildPrompt('교실을 바라본다','')"),/"입문 사건"이라는 게임 용어는 쓰지 말고 "소문"으로 표현한다/);
 });
 await test('Starting the rumor trip during class time carries no skipping, absence or demerit penalty',async f=>{
