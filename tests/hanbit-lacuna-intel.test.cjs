@@ -65,8 +65,26 @@ await test('Lacuna stays nameless and closed until three pieces are learned from
  assert.doesNotMatch(panel,/\/3|현재 목표|다음 행동|ROOT_SECRET/);assert.doesNotMatch(f.run('campaignPublic().next'),/하세요|떠나세요/);
 });
 await test('Saves that had already opened Lacuna keep it open after the update',async f=>{
- await root(f);f.run('G.campaign.introSolved=true;G.actDone=true;delete G.campaign.lacunaIntel;migrate()');
+ await root(f);
+ // 라쿠나 정보 단계 이전 설계본(lacuna_intel 없음)에서 1막을 마친 예전 저장
+ f.run("{const p=campaignPlan();delete p.lacuna_intel;const S=JSON.stringify(p);G.campaign.world.sealed=S;G.campaign.world.hash=mysteryHash(S)}");
+ f.run('G.campaign.introSolved=true;G.actDone=true;delete G.campaign.lacunaIntel;delete G.campaign._intelFix;migrate()');
  assert.equal(f.run('lacunaIntelCount()'),3);assert.equal(f.run('lacunaReady()'),true);
+});
+await test('Solving the intro never hands over all Lacuna intel silently, even if a save/migrate runs before the intel is written',async f=>{
+ await root(f);f.run('delete G.campaign.lacunaIntel;delete G.campaign._intelFix;G.campaign.introSolved=true;G.actDone=true;migrate()');
+ assert.equal(f.run('lacunaIntelCount()'),0);
+ await f.run('actComplete()');
+ assert.equal(f.run('lacunaIntelCount()'),1);assert.equal(f.run('lacunaReady()'),false);
+ assert.doesNotMatch(f.run('campaignPublic().next'),/들어가는 길을 짐작/);
+});
+await test('Saves already hit by that bug keep only what was really learned',async f=>{
+ await root(f);
+ f.run("G.campaign.introSolved=true;G.actDone=true;G.campaign.lacunaIntel=[0,1,2].map(i=>({i,day:1,how:'legacy'}));delete G.campaign._intelFix;migrate()");
+ assert.equal(f.run('lacunaIntelCount()'),1);assert.equal(f.run("G.campaign.lacunaIntel[0].how"),'intro');
+ assert.equal(f.run('lacunaReady()'),false);assert.equal(f.run('lacunaOnMap()'),false);
+ assert.match(f.run("G.lexicon.find(l=>l.name==='라쿠나 구역').desc"),/INTEL_0/);assert.doesNotMatch(f.run("G.lexicon.find(l=>l.name==='라쿠나 구역').desc"),/INTEL_1/);
+ f.run("G.campaign.lacunaIntel.push({i:1,day:2,how:'ask'});migrate()");assert.equal(f.run('lacunaIntelCount()'),2,'repair runs only once');
 });
 await test('Case-zone notes keep world facts but drop hidden case sentences and answer claims',async f=>{
  await intro(f);
