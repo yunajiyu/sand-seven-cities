@@ -7145,6 +7145,27 @@ function openRel(){
 }
 /* 지금 이 자리에 있는 인물(유민 제외) 말 걸기 버튼 — 약속 상대·함께하는 인물을 먼저, 최대 3명
    (예전에는 이 버튼이 없어서 약속 장소에 가도 글로 직접 "~에게 말을 건다"고 써야만 대화할 수 있었다) */
+/* 이 장소에 얽힌 기록 이어 가기: 이곳에서 들은 소문 확인하기 · 이곳에서 열린 사건 직접 알아보기(사건마다 하루 한 번) */
+function casesHere(){ const k=knowledgePlace(); return threadsOpen().filter(t=>!t.privateMystery&&t.placeId===k) }
+function caseHereButtons(){
+  if(!G) return '';
+  const k=knowledgePlace(), out=[], short=t=>{ t=String(t||''); return t.length>18?t.slice(0,18)+'…':t };
+  const r=(G.evidence||[]).find(e=>!e.deleted&&e.placeId===k&&rumorRecord(e.id));
+  if(r) out.push(`<button data-ev="${esc(r.id)}" onclick="checkRumor(this.dataset.ev)">🔎 소문 확인: 「${esc(short(r.text))}」</button>`);
+  const t=casesHere().find(t=>t.lookDay!==G.day);
+  if(t) out.push(`<button data-id="${esc(t.id)}" onclick="lookIntoCase(this.dataset.id)">🔎 이곳에서 있었던 일 알아보기</button>`);
+  return out.join('');
+}
+function lookIntoCase(id){
+  if(busy||!G) return false;
+  const t=casesHere().find(t=>t.id===id); if(!t) return toast('이곳에서 알아볼 일이 없습니다'),false;
+  if(t.lookDay===G.day) return toast('오늘은 이 일을 이미 알아봤습니다. 내일 다시 살펴보세요'),false;
+  t.lookDay=G.day; t.touched=G.day;
+  const ev=evidenceForCase(t).slice(-4).map(e=>`- ${e.text} (${EVIDENCE_NAMES[e.kind]||'기록'})`).join('\n')||'- (아직 기록 없음)';
+  pend(`\n[마음에 걸리던 일 알아보기 — 사건 ${t.id}] 플레이어가 이 장소에서 「${t.text}」를 직접 알아본다.\n지금까지의 기록:\n${ev}${t.next&&t.next.length?`\n다음 조사 방향: ${t.next.join(' / ')}`:''}\n이번 장면에서 플레이어가 이곳에서 직접 보거나 듣는 것(주변 사람의 증언, 흔적, 물건 등)으로 한 걸음 나아가게 하라. effects.사건진행에 case_id "${t.id}"로 새 관찰 사실이나 증언 1개를 남기고 next를 갱신한다. 기록이 충분히 쌓였고 장면에서 원인이 분명히 드러났을 때만 resolution을 붙인다. 소문을 근거 없이 사실로 단정하지 말고, 본편(출석부·지워진 구역)의 정답을 새로 만들지 않는다.`);
+  story(`이곳에서 있었던 일을 직접 알아본다`,{src:'fixed'});
+  return true;
+}
 const NPC_HERE_MAX=3;
 function npcsHere(){
   if(!G||!G.rel) return [];
@@ -9665,7 +9686,8 @@ function fixedHTML(){
     if(G.pausedZones&&G.pausedZones.length) ac+=btn('openZones()',`🏚 중단한 구역 (${G.pausedZones.length}) — 이어서/관리`,'primary');
     if(L==='campus'&&G.fragMerchant&&needFrag()) ac+=btn('openMerchant()',`🕵 수상한 상인 (캐시 ${G.fragMerchant.price})`,'primary');
   }
-  if(!busy&&!G.fight&&['campus','home','hood','site','road'].includes(L)) ac=npcHereButtons()+ac;   // 약속·동행 중이거나 지금 이 자리에 있는 인물에게 말 걸기
+  if(!busy&&!G.fight&&['campus','home','hood','site','road'].includes(L)) ac=npcHereButtons()+ac;
+  if(!busy&&!G.fight&&['campus','hood'].includes(L)) ac=caseHereButtons()+ac;   // 「마음에 걸리는 것」에 뜬 장소에 오면 직접 알아보기   // 약속·동행 중이거나 지금 이 자리에 있는 인물에게 말 걸기
   let h=compactCampaign()?`<div class="lbl">🧭 ${esc(concerns()[0]||'')}</div>`:'';
   const forecast=returnForecast();
   if(forecast&&!d?.intro) h+=`<div class="lbl ${forecast.late||forecast.urgent?'warn':''}">🕒 ${esc(forecast.text)}</div>`;
