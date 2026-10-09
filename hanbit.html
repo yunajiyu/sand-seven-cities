@@ -2363,7 +2363,7 @@ function gameActions(){
   }
   if(peddlerHere()) add('trade:peddler','이동 행상과 거래',()=>openPeddler());
   if(G.comp&&G.comp.met&&(G.comp.joined||canMeetHere('유민'))) add('talk:yumin','유민과 대화',text=>talkYumin(text),'talk');
-  for(const name of Object.keys(G.rel||{})) if(name!=='유민'&&canMeetHere(name)) add('talk:'+actionToken(name),name+'와 대화',text=>visitNPC(name,text),'talk');
+  for(const name of Object.keys(G.rel||{})) if(name!=='유민'&&canMeetHere(name)) add('talk:'+actionToken(name),name+josa(name,'과','와')+' 대화',text=>visitNPC(name,text),'talk');
   for(const name of relList())if(romanceReady(name))add(romanceActionId(name),name+'에게 좋아하는 마음을 전하고 사귀자고 한다',text=>proposeTo(name,text),'story');
   return out;
 }
@@ -7143,6 +7143,17 @@ function openRel(){
       <div class="row">${btns}</div></div>`;
   }).join('')||'<p class="muted">아직 알게 된 인물이 없습니다.</p>'));
 }
+/* 지금 이 자리에 있는 인물(유민 제외) 말 걸기 버튼 — 약속 상대·함께하는 인물을 먼저, 최대 3명
+   (예전에는 이 버튼이 없어서 약속 장소에 가도 글로 직접 "~에게 말을 건다"고 써야만 대화할 수 있었다) */
+const NPC_HERE_MAX=3;
+function npcsHere(){
+  if(!G||!G.rel) return [];
+  const pk=placeKey(), pri=n=>((G.appts||[]).some(a=>a.name===n&&a.arrived&&a.where===pk)||(guestHere()&&G.guest.name===n)||socialPinned(n))?0:1;
+  return Object.keys(G.rel).filter(n=>n!=='유민'&&!NPC_UNKNOWN.test(n)&&canMeetHere(n)).sort((a,b)=>pri(a)-pri(b)).slice(0,NPC_HERE_MAX);
+}
+function npcHereButtons(){
+  return npcsHere().map(n=>{ const appt=(G.appts||[]).some(a=>a.name===n&&a.arrived&&a.where===placeKey()); return `<button ${appt?'class="primary" ':''}data-n="${esc(n)}" onclick="visitNPC(this.dataset.n)">💬 ${esc(n)}에게 말 걸기${appt?' (약속)':''}</button>` }).join('');
+}
 function visitNPC(name,topic){
   closeModal();
   if(busy) return;
@@ -9654,6 +9665,7 @@ function fixedHTML(){
     if(G.pausedZones&&G.pausedZones.length) ac+=btn('openZones()',`🏚 중단한 구역 (${G.pausedZones.length}) — 이어서/관리`,'primary');
     if(L==='campus'&&G.fragMerchant&&needFrag()) ac+=btn('openMerchant()',`🕵 수상한 상인 (캐시 ${G.fragMerchant.price})`,'primary');
   }
+  if(!busy&&!G.fight&&['campus','home','hood','site','road'].includes(L)) ac=npcHereButtons()+ac;   // 약속·동행 중이거나 지금 이 자리에 있는 인물에게 말 걸기
   let h=compactCampaign()?`<div class="lbl">🧭 ${esc(concerns()[0]||'')}</div>`:'';
   const forecast=returnForecast();
   if(forecast&&!d?.intro) h+=`<div class="lbl ${forecast.late||forecast.urgent?'warn':''}">🕒 ${esc(forecast.text)}</div>`;
