@@ -4702,9 +4702,30 @@ function leaveIntroMystery(){
   G.campaign.introSite=d;G.site=null;G.loc='campus';G.district=origin.district||'music';G.spot=origin.spot||null;G.spotKey=origin.spotKey||null;G.choices=[];
   addLog('sys',d.mystery?.state?.solved?'소문의 진상을 기록으로 남기고 교내로 돌아왔다.':'교내로 돌아왔다. 소문의 장소는 이어서 조사할 수 있다.');save();render();
 }
+/* 「지금 마음에 걸리는 것」 — 진행 단서 하나에 곁가지 거리 1~2개를 같은 말투로 섞어 보여 준다(AI 호출 없음).
+   순서는 날마다 바뀌어, 이 칸에 떴다고 필수 경로라는 걸 알 수 없게 한다. 진행 단서 자체는 campaignPublic().next 그대로. */
+const CONCERN_SIDE_MAX=2;
+function concernHash(str){ let h=2166136261; for(const ch of String(str)){ h^=ch.charCodeAt(0); h=Math.imul(h,16777619) } return h>>>0 }
+function concernSide(){
+  const out=[], short=t=>{ t=String(t||'').replace(/\s+/g,' ').trim(); return t.length>34?t.slice(0,34)+'…':t };
+  for(const e of G.evidence||[]) if(!e.deleted&&['rumor','hypothesis'].includes(e.kind)&&!e.checked&&e.placeId!==INTRO_RUMOR_PLACE&&!(G.threads||[]).find(t=>t.id===e.caseId)?.privateMystery)
+    out.push({k:'r:'+e.id,t:`「${short(e.text)}」라는 이야기가 사실인지 마음에 걸린다`});
+  for(const t of threadsOpen()) if(!t.privateMystery&&t.placeId!==INTRO_RUMOR_PLACE){ const w=placeLabel(t.placeId); if(w) out.push({k:'t:'+t.id,t:`${w}에서 있었던 일이 아직 마음에 걸린다`}) }
+  for(const l of G.leads||[]) if(l&&l.name) out.push({k:'l:'+l.id,t:`소문으로 들은 「${l.name}」이 어떤 곳인지 궁금하다`});
+  const seen=new Set(); return out.filter(x=>!seen.has(x.t)&&seen.add(x.t));
+}
+const CONCERN_FILLER=['쉬는 시간에 들은 이야기가 아직 귀에 맴돈다','상점가 게시판에 붙은 낡은 쪽지가 떠오른다','방과 후 텅 빈 복도에서 들린 발소리가 마음에 남아 있다','급식실에서 누군가 소리 죽여 하던 이야기가 생각난다'];
+function concerns(){
+  const x=campaignPublic(); if(!x) return [];
+  if(!campaignPlan()||(G.site&&['site','shelter'].includes(G.loc))) return [x.next];   // 구역 안에서는 그 구역의 조사 진행만
+  const day=G.day||1, rank=k=>concernHash(day+'|'+k);
+  let side=concernSide().sort((a,b)=>rank(a.k)-rank(b.k)).slice(0,CONCERN_SIDE_MAX);
+  if(!side.length) side=[{k:'f',t:CONCERN_FILLER[concernHash('f'+day)%CONCERN_FILLER.length]}];
+  return [{k:'main',t:x.next},...side].sort((a,b)=>rank(a.k)-rank(b.k)).map(c=>c.t);
+}
 function campaignPanel(){
   const x=campaignPublic();if(!x)return '';
-  return `<div class="lex"><b>🧭 지금 마음에 걸리는 것</b><p>${esc(x.next)}</p>${x.intel.length?`<h4>📜 라쿠나에 대해 알게 된 것</h4>${x.intel.map(t=>`<p>${esc(t)}</p>`).join('')}`:''}${x.links.length?`<h4>🔗 확인해서 이어 둔 사실</h4>${x.links.map(l=>`<p><b>${esc(l.name)}</b>: ${esc(l.text)}</p>`).join('')}`:''}<p class="muted">조사 → 사실 비교 → 원인과 이유 고르기 → 직접 확인하기 순서로 풀어 갑니다.</p></div>`;
+  return `<div class="lex"><b>🧭 지금 마음에 걸리는 것</b>${concerns().map(t=>`<p>· ${esc(t)}</p>`).join('')}${x.intel.length?`<h4>📜 라쿠나에 대해 알게 된 것</h4>${x.intel.map(t=>`<p>${esc(t)}</p>`).join('')}`:''}${x.links.length?`<h4>🔗 확인해서 이어 둔 사실</h4>${x.links.map(l=>`<p><b>${esc(l.name)}</b>: ${esc(l.text)}</p>`).join('')}`:''}<p class="muted">조사 → 사실 비교 → 원인과 이유 고르기 → 직접 확인하기 순서로 풀어 갑니다.</p></div>`;
 }
 function openCampaign(){modal('🧭 조사 기록',campaignPanel())}
 on('fixed',8,L=>{
@@ -6475,7 +6496,7 @@ function sendSocialForm(name,purpose){return sendSocialMessage(name,purpose,{whe
 function socialHelpText(){
  const x=G.site?.mystery&&mysteryPublic();
  if(x&&!x.conclusion)return x.v2?(x.next.length?`수첩에 적힌 조사할 곳 ${x.next.slice(0,2).join(' / ')}부터 가 봐. 소문과 확인한 사실을 구분해.`:`확인한 사실을 비교한 뒤 ${x.verification.room}에서 추리를 확인해 봐. 틀려도 다시 생각해 보면 돼.`):x.verification?`확인한 사실을 비교한 뒤 ${x.verification.room}에서 검증해 봐. 아직 정답을 단정하지는 말자.`:`수첩에 적힌 다음 조사 후보 ${x.next.join(' / ')||'현재 공간'}부터 확인해 봐. 소문과 확인한 사실을 구분해.`;
- const p=compactCampaign()&&campaignPublic();return p?`지금 목표는 ${p.stage}야. ${p.next}`:'조사 보드의 다음 조사 방향과 관찰·증언·소문 구분을 먼저 확인해 봐.';
+ const p=compactCampaign()&&campaignPublic();return p?`요즘 이게 신경 쓰여 — ${concerns()[0]||p.next}. 하나씩 알아보는 건 어때?`:'조사 보드의 다음 조사 방향과 관찰·증언·소문 구분을 먼저 확인해 봐.';
 }
 function scheduleSocialAppt(name,where,ord,purpose){
  if(!apptKnown(name)||!apptRunnable(name,where)||!apptOrdOptions().some(x=>x[0]===ord)||ord<apptOrd()||where==='campus:canteen'&&ord%20!==4)return false;
@@ -9617,7 +9638,7 @@ function fixedHTML(){
     if(G.pausedZones&&G.pausedZones.length) ac+=btn('openZones()',`🏚 중단한 구역 (${G.pausedZones.length}) — 이어서/관리`,'primary');
     if(L==='campus'&&G.fragMerchant&&needFrag()) ac+=btn('openMerchant()',`🕵 수상한 상인 (캐시 ${G.fragMerchant.price})`,'primary');
   }
-  let h=compactCampaign()?`<div class="lbl"><b>🧭 ${esc(campaignPublic().stage)}</b> · ${esc(campaignPublic().next)}</div>`:'';
+  let h=compactCampaign()?`<div class="lbl">🧭 ${esc(concerns()[0]||'')}</div>`:'';
   const forecast=returnForecast();
   if(forecast&&!d?.intro) h+=`<div class="lbl ${forecast.late||forecast.urgent?'warn':''}">🕒 ${esc(forecast.text)}</div>`;
   const tidy=t=>String(t||'').replace(/(\s*·\s*)?🧭 (행동|이동( \(시간·자원이 정확히 계산됩니다\))?|공간 이동 · 나가기 · 귀환)$/,'').replace(/ · 장소 이동$/,'').trim();
