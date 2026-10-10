@@ -23,8 +23,10 @@ test('the progress clue is mixed with side leads and its position changes by day
   assert.ok(pos.size>1,'main clue is not always in the same slot');
   const panel=run('campaignPanel()');assert.doesNotMatch(panel,/본편|필수|곁가지|교내 소문/);
 });
-test('with nothing else to mix in, an ambient line keeps the list from being a single answer',run=>{
-  const c=J(run,'concerns()');assert.equal(c.length,2);assert.ok(c.includes(run('campaignPublic().next')));
+test('on a fresh game nothing invented is mixed in; real encounters are',run=>{
+  assert.deepEqual(J(run,'concerns()'),[run('campaignPublic().next')],'only the progress clue on day one');
+  run("G.comp.met=true");const c=J(run,'concerns()');assert.equal(c.length,2);assert.ok(c.some(t=>/유민이 무심코 흘린 말/.test(t)));
+  assert.doesNotMatch(run('campaignPanel()'),/쉬는 시간에 들은 이야기|게시판에 붙은 낡은 쪽지/);
 });
 test('the always-visible label never shows the stage name',run=>{
   run(`G.loc='campus';busy=false`);const h=run('fixedHTML()');
