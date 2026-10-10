@@ -4747,13 +4747,19 @@ function concernSide(){
   for(const l of G.leads||[]) if(l&&l.name) out.push({k:'l:'+l.id,t:`소문으로 들은 「${l.name}」이 어떤 곳인지 궁금하다`});
   const seen=new Set(); return out.filter(x=>!seen.has(x.t)&&seen.add(x.t));
 }
-const CONCERN_FILLER=['쉬는 시간에 들은 이야기가 아직 귀에 맴돈다','상점가 게시판에 붙은 낡은 쪽지가 떠오른다','방과 후 텅 빈 복도에서 들린 발소리가 마음에 남아 있다','급식실에서 누군가 소리 죽여 하던 이야기가 생각난다'];
+/* 곁가지 거리가 없을 때 섞는 줄: 실제로 만난 사람·겪은 일에서만 만든다(지어낸 '들은 이야기'는 쓰지 않는다) */
+function concernMemory(){
+  const out=[];
+  if(G.comp&&G.comp.met) out.push({k:'m:yumin',t:'유민이 무심코 흘린 말이 아직 마음에 남아 있다'});
+  for(const n of Object.keys(G.rel||{})) if(n!=='유민'&&!NPC_UNKNOWN.test(n)&&(G.lexicon||[]).some(l=>l.name===n)) out.push({k:'m:'+n,t:`${n}${josa(n,'과','와')} 나눈 이야기가 마음에 남아 있다`});
+  return out;
+}
 function concerns(){
   const x=campaignPublic(); if(!x) return [];
   if(!campaignPlan()||(G.site&&['site','shelter'].includes(G.loc))) return [x.next];   // 구역 안에서는 그 구역의 조사 진행만
   const day=G.day||1, rank=k=>concernHash(day+'|'+k);
   let side=concernSide().sort((a,b)=>rank(a.k)-rank(b.k)).slice(0,CONCERN_SIDE_MAX);
-  if(!side.length) side=[{k:'f',t:CONCERN_FILLER[concernHash('f'+day)%CONCERN_FILLER.length]}];
+  if(!side.length) side=concernMemory().sort((a,b)=>rank(a.k)-rank(b.k)).slice(0,1);   // 섞을 기록이 없으면 실제로 겪은 일만 — 아무 일도 없던 첫날엔 진행 단서 하나만
   return [{k:'main',t:x.next},...side].sort((a,b)=>rank(a.k)-rank(b.k)).map(c=>c.t);
 }
 function campaignPanel(){
