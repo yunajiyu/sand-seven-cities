@@ -7184,6 +7184,22 @@ function caseHereButtons(){
   if(t) out.push(`<button data-id="${esc(t.id)}" onclick="lookIntoCase(this.dataset.id)">🔎 이곳에서 있었던 일 알아보기</button>`);
   return out.join('');
 }
+/* 조사 보드 카드에서 바로 다음 조사로: 그 장소에 있으면 알아보기, 같은 지구 안 다른 장소면 가서 알아보기 */
+function caseGoButton(t){
+  if(!t||t.privateMystery||t.status!=='open') return '';
+  if(t.lookDay===G.day) return '<span class="muted small">🔎 오늘은 이미 알아봄</span>';
+  const id=String(t.placeId||''), k=id.startsWith('campus:')&&!id.startsWith('campus:spot:')?id.slice(7):null, here=id===knowledgePlace();
+  if(here) return `<button class="small primary" data-case="${esc(t.id)}" onclick="closeModal();lookIntoCase(this.dataset.case)">🔎 지금 알아보기</button>`;
+  if(k&&DISTRICTS[k]&&G.loc==='campus'&&!G.site) return `<button class="small primary" data-case="${esc(t.id)}" onclick="goCaseAndLook(this.dataset.case)">🚶 ${esc(DISTRICTS[k].n)}에 가서 알아보기</button>`;
+  const w=placeLabel(id); return w?`<span class="muted small">📍 ${esc(w)}에서 알아볼 수 있음</span>`:'';
+}
+function goCaseAndLook(id){
+  const t=(G.threads||[]).find(t=>t.id===id); if(!t||busy) return false;
+  const k=String(t.placeId).slice(7); closeModal();
+  if(knowledgePlace()!==t.placeId) goDistrict(k);
+  if(knowledgePlace()!==t.placeId) return toast(`지금은 ${DISTRICTS[k]?.n||'그곳'}에 갈 수 없습니다`),false;   // 소등·점검 등으로 이동하지 못함
+  return lookIntoCase(id);
+}
 function lookIntoCase(id){
   if(busy||!G) return false;
   const t=casesHere().find(t=>t.id===id); if(!t) return toast('이곳에서 알아볼 일이 없습니다'),false;
@@ -7523,7 +7539,7 @@ function rumorCheckReward(result,r){
 function caseCard(t){
   const facts=evidenceForCase(t), names={main:'출석부',local:'장소',personal:'인물'}, where=compactCampaign()?placeLabel(t.placeId):'';
   if(t.privateMystery) return `<div class="lex"><b>${esc(t.text)}</b><div>${t.status==='closed'?'해결 완료':'진행 중'} · 확인한 사실 ${facts.filter(e=>notebookCategory(e)==='core').length}개 · 전체 기록 ${facts.length}개</div>${notebookGroupsHTML(facts)}${t.conclusion?`<p><b>검증된 진상:</b> ${esc(t.conclusion)}</p>`:`<p class="muted">다음 조사: ${(t.next||[]).map(esc).join(' / ')||'지역의 사건 조사 수첩 확인'}<br>충분하다고 생각되면 지정 공간에서 추리를 확인해 해결합니다.</p>`}</div>`;
-  return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${compactCampaign()?(where?'📍 '+esc(where)+' · ':''):(names[t.scope]||'사건')+' · '}기록 ${facts.length}개</span></div>${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${notebookGroupsHTML(facts)}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
+  return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${compactCampaign()?(where?'📍 '+esc(where)+' · ':''):(names[t.scope]||'사건')+' · '}기록 ${facts.length}개</span></div>${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${notebookGroupsHTML(facts)}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`${caseGoButton(t)}<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
 }
 function openCaseResolution(id){
   const t=(G.threads||[]).find(t=>t.id===id); if(!t) return;
