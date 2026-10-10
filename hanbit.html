@@ -379,10 +379,10 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 <section id="title">
   <div>
     <h1>명부에 없는 병동</h1>
-    <div class="sub serif">한빛학원 2학년 7반 괴담 조사 기록</div>
+    <div class="sub serif">해무요양원 2병동 신입 직원의 괴담 조사 기록</div>
     <div class="btns">
-      <button class="primary" onclick="startCreation()">전학 오기</button>
-      <button id="btnContinue" onclick="continueGame()">기숙사로 돌아가기</button>
+      <button class="primary" onclick="startCreation()">섬으로 부임하기</button>
+      <button id="btnContinue" onclick="continueGame()">숙소로 돌아가기</button>
       <button onclick="openPrefs()">⚙ 설정</button>
       <button onclick="openGuide()">📖 가이드</button>
     </div>
@@ -394,14 +394,14 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 <section id="create" class="hidden">
   <div class="wrap">
     <div class="card">
-      <h2 style="margin-top:0">전학 신청서</h2>
+      <h2 style="margin-top:0">부임 서류</h2>
       <label>이름</label>
       <input id="cName" maxlength="20" value="도현" placeholder="예: 도현">
       <label>나이 <span class="muted">(23세 고정 · 신입 직원)</span></label>
-      <input id="cAge" type="number" value="17" min="17" max="17" readonly style="width:90px">
+      <input id="cAge" type="number" value="23" min="23" max="23" readonly style="width:90px">
       <label>신분</label>
-      <div class="opt sel" style="cursor:default"><b>한빛학원 2학년 7반 전학생</b><span>학기 중간에 전학 온 고등학교 2학년 학생. 반에서는 '전학생'으로 불립니다.</span></div>
-      <label>중간 전학 이유 <span class="muted">(선택 사항 · 고르지 않으면 AI가 정해 서서히 드러냅니다)</span></label>
+      <div class="opt sel" style="cursor:default"><b>해무요양원 2병동 신입 직원</b><span>섬에 막 부임한 생활지원 직원. 병동에서는 '신입'으로 불립니다.</span></div>
+      <label>이 섬에 온 이유 <span class="muted">(선택 사항 · 고르지 않으면 AI가 정해 서서히 드러냅니다)</span></label>
       <div class="opt-grid" id="originGrid"></div>
       <input id="cReason" class="hidden" maxlength="60" placeholder="직접 입력 (예: 육지에서 일하던 병원이 문을 닫았다)" style="margin-top:8px">
       <label>능력치 <span class="muted" id="ptsLeft"></span></label>
@@ -409,10 +409,10 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
       <label>특성 <span class="muted">(2개까지)</span></label>
       <div class="opt-grid" id="traitGrid"></div>
       <label>외형과 배경 이야기 <span class="muted">(AI가 이야기에 엮어 넣습니다)</span></label>
-      <textarea id="cBio" rows="4" placeholder="예: 늘 후드를 눌러쓴다. 전에 다니던 학원에서 이상한 소문을 들은 적이 있다."></textarea>
+      <textarea id="cBio" rows="4" placeholder="예: 늘 낡은 바람막이를 입는다. 전에 일하던 병원에서 이 섬에 대한 이상한 소문을 들은 적이 있다."></textarea>
       <div class="row" style="margin-top:16px;justify-content:space-between">
         <button onclick="show('title')">뒤로</button>
-        <button class="primary" onclick="finishCreation()">전학 오기</button>
+        <button class="primary" onclick="finishCreation()">섬으로 부임하기</button>
       </div>
     </div>
   </div>
@@ -421,7 +421,7 @@ body.fear2::after{opacity:1;animation:fearflick 3.2s steps(1) infinite;
 <!-- 게임 -->
 <section id="game" class="hidden">
   <aside class="side left" id="sideL" aria-label="캐릭터 정보">
-    <div class="sidehead"><b>👤 학생</b><button class="small only-narrow" onclick="closeSides()">닫기</button><button class="small only-wide" onclick="hideSide('L',true)" title="사이드바 접기">접기</button></div>
+    <div class="sidehead"><b>👤 직원</b><button class="small only-narrow" onclick="closeSides()">닫기</button><button class="small only-wide" onclick="hideSide('L',true)" title="사이드바 접기">접기</button></div>
     <div class="sbody"></div>
   </aside>
 
