@@ -57,7 +57,7 @@ await test('Dates and outings tabs appear only when someone can join',async f=>{
  f.run("getRel('서연');renderSocialTabs()");assert.match(f.run('nav.innerHTML'),/외출/);assert.doesNotMatch(f.run('nav.innerHTML'),/데이트/);
 });
 await test('Default opening speaks to the player as 당신, and guide starts with a short summary',async f=>{
- assert.doesNotMatch(html,/너, \$\{G\.char\.name\}/);assert.match(html,/당신은 학기 중간에 2학년 7반으로 전학 온/);
+ assert.doesNotMatch(html,/너, \$\{G\.char\.name\}/);assert.match(html,/당신은 2병동에 새로 배정된 신입 직원/);
  await root(f);f.run('openGuide()');const g=f.run('modalHTML');assert.ok(g.indexOf('처음 하는 분께')<g.indexOf('자세한 규칙'));assert.match(g,/<details[^>]*><summary>📚 자세한 규칙 보기<\/summary>/);
 });
 await test('Utility buttons live in one 🧰 tools menu at the bottom, not in the action row',async f=>{

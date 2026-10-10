@@ -28,12 +28,12 @@ const at=(f,slot,district='classroom',day=1)=>f.run(`seed('campus');G.day=${day}
 await test('A story action in the classroom at class time starts the class automatically',async f=>{
   at(f,1);f.run("story('필기를 한다')");
   assert.ok(f.run('!!classActive()'));assert.equal(f.run('G.dayStep'),1);
-  assert.match(f.run('PENDING.note'),/\[수업 시작\]/);
+  assert.match(f.run('PENDING.note'),/\[근무 시작\]/);
   assert.ok(f.run('logs.some(l=>/수업 시간이라 이 행동은 수업 중 행동으로/.test(l))'));
 });
 await test('The second action finishes the class and the clock moves to the break',async f=>{
   at(f,1);f.run("story('필기를 한다')");f.run("PENDING={note:'',flags:{}}");f.run("story('질문을 한다')");
-  assert.match(f.run('PENDING.note'),/\[수업 끝/);assert.equal(f.run('G.dayStep'),2);assert.equal(f.run('slotLabel()'),'쉬는 시간');
+  assert.match(f.run('PENDING.note'),/\[근무 끝/);assert.equal(f.run('G.dayStep'),2);assert.equal(f.run('slotLabel()'),'쉬는 시간');
 });
 await test('Break time: the first action keeps the break, the second rings the bell and moves to the next class',async f=>{
   at(f,2);f.run("story('복도를 둘러본다')");
@@ -48,7 +48,7 @@ await test('Second break (6) works the same and the break counter resets each br
   f.run('G.dayStep=6');f.run("story('창가에 선다')");assert.equal(f.run('G._brk.slot'),6);assert.equal(f.run('G._brk.n'),1);assert.equal(f.run('G.dayStep'),6);
 });
 await test('Outside the classroom, weekends, excused days and zones are left alone',async f=>{
-  at(f,1,'gate');f.run("story('정문을 바라본다')");assert.equal(f.run('G.dayStep'),1);assert.equal(f.run('!!classActive()'),false);assert.doesNotMatch(f.run('PENDING.note'),/수업 시작/);
+  at(f,1,'gate');f.run("story('정문을 바라본다')");assert.equal(f.run('G.dayStep'),1);assert.equal(f.run('!!classActive()'),false);assert.doesNotMatch(f.run('PENDING.note'),/근무 시작/);
   at(f,2,'classroom',6);f.run("story('늦잠을 잔다')");assert.equal(f.run('G.dayStep'),2);assert.doesNotMatch(f.run('PENDING.note'),/쉬는 시간/);
   at(f,2);f.run("G.excuse={day:G.day};story('쉬는 시간이다')");assert.equal(f.run('G.dayStep'),2);assert.doesNotMatch(f.run('PENDING.note'),/쉬는 시간/);
 });

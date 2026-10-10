@@ -87,7 +87,7 @@ await test('System instructions use fixed answers and remove obsolete compact-ca
  assert.ok(!f.run('instructions').includes('6개 모으기'));
  assert.ok(!f.run('instructions').includes('애시우드 구역'));
  assert.ok(f.run('instructions').includes('정답·핵심 증거는 비공개 설계에 미리 정해져 있다'));
- f.run('delete G.campaign');assert.ok(f.run('sysBase()').includes('기념 메달 조각 6개 모으기'));
+ f.run('delete G.campaign');assert.ok(f.run('sysBase()').includes('개원 기념패 조각 6개 모으기'));
 });
 await test('[v1 저장본] A matching scene is reviewed before display without disclosing unseen evidence or answers',async f=>{
  await legacy(f);f.run(`const core=${JSON.stringify(legacyCandidate.evidence[0].text)};callAI=async(sys,user)=>{api.push({sys,user});return JSON.stringify(sys.includes('본문 일치 검토자')?{valid:true,issues:[]}:{narration:'바람이 문틈을 스친다. '+core,choices:[],effects:{}})}`);
