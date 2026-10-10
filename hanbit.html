@@ -3067,10 +3067,10 @@ function campusFixedHTML(){
   if(G.time!=='낮'&&has('clubroom')) a+=`<button onclick="sleepAtHome()">🏠 아지트로 가서 잠들기 (무료 · 하루 경과 · 공포 회복)</button>`;
   a+=`<button onclick="openSchoolMap()">🏫 학교 지도</button><button onclick="openRel()">👥 인연</button>`;
   if(G.comp.met){
-    if(G.comp.joined) a+=`<button onclick="talkYumin()">🎵 유민과 이야기</button>`;
+    if(G.comp.joined) a+=`<button onclick="talkYumin()">🎵 유민과 이야기</button><button onclick="yuminPersonalTalk()">💬 사적인 이야기</button>`;
     else{
       const here=canMeetHere('유민');
-      a+=here?`<button onclick="talkYumin()">🎵 유민에게 말 걸기</button>`:`<button onclick="seekYumin()">🎵 유민 만나러 가기 <span class="muted">(지금: ${esc(yuminWhereText())})</span></button>`;
+      a+=here?`<button onclick="talkYumin()">🎵 유민에게 말 걸기</button><button onclick="yuminPersonalTalk()">💬 사적인 이야기</button>`:`<button onclick="seekYumin()">🎵 유민 만나러 가기 <span class="muted">(지금: ${esc(yuminWhereText())})</span></button>`;
     }
   }
   return {mv:bar,mvLbl:sp?`📍 ${esc(G.spot.name)} (임시 장소) · ${DISTRICTS[d].n} 지점 · 장소 이동`:`📍 ${DISTRICTS[d].n} (${floorName(floorOf(d))}) · 장소 이동`,ac:a,acLbl:(schoolInfo()?schoolInfo()+' · ':'')+'🧭 행동',hint};
@@ -6746,6 +6746,7 @@ function talkYumin(topic){
     if(rivalOn()&&G.rival.news.some(x=>!x.heard)) extra+=rivalRumorText();
   }else extra+=' 오늘은 이미 소문을 들었으니, 가벼운 수다와 호감도 단계에 맞는 대화.';
   extra+=relArmText('유민',0.6); if(!G.relEvt) extra+=yuminArcArm(0.6);
+  extra+=' [선택지] 선택지 가운데 하나는 사건·조사와 무관한 사적인 이야기(일상·취향·섬 생활·서로에 대한 궁금증)로 넣어라.';
   if(likeKey) extra+=` [취향 단서] 대화 중 유민이 ${YUMIN_LIKES[likeKey].story}을(를) 유난히 좋아한다는 사실이 자연스럽게 드러나는 대목을 넣어라(왜 좋아하는지 사연 한 줄, 직접 말하지 않고 슬쩍 흘려도 좋다). 플레이어가 알아챌 수 있게 분명하게.`;
   let action='유민에게 말을 건다';
   if(isWild()||G.loc==='hood') action='유민에게 말을 건다';
@@ -6766,6 +6767,27 @@ on('after',70,T=>{
   toast(`💝 유민의 취향을 알게 되었습니다: ${YUMIN_LIKES[k].n}`);
   G.chronicle.push({day:G.day,text:`유민이 ${YUMIN_LIKES[k].n}을(를) 좋아한다는 것을 알게 되었다`});
 });
+/* 유민과 사적인 이야기: 사건·소문·단서 없이 일상과 서로에 대한 이야기만. 주제는 관계 단계에 따라 깊어진다 */
+const YUMIN_PERSONAL={
+  0:['섬 생활에 적응하는 법','간호 일에서 제일 힘든 점','좋아하는 음식과 식당 메뉴 품평','쉬는 날 포구에서 부르는 노래','육지에서 처음 섬에 왔던 날'],
+  1:['요즘 자주 듣는 노래','어릴 때 꿈','잠 못 드는 밤에 하는 일','기타를 처음 배운 계기','서로의 근무 습관 흉보기'],
+  2:['할아버지와 바다에 얽힌 기억(가볍게만)','혼자 지낸 시간에 대한 농담 섞인 이야기','앞으로 하고 싶은 일','서로에게 처음 받은 인상','지금 가장 아끼는 물건'],
+  3:['요즘 자꾸 생각나는 사람','둘이 같이 가 보고 싶은 곳','외로움을 대하는 각자의 방식','서로에게 털어놓지 못한 작은 비밀','이 섬을 떠난다면']};
+function yuminPersonalTalk(){
+  if(busy||!G||!G.comp||!G.comp.met) return false;
+  if(!G.comp.joined&&!canMeetHere('유민')) return toast(`유민은 지금 ${yuminWhereText()}에 있는 것 같습니다.`),false;
+  const meetingSpot=G.comp.spot; migrate(); tick(G.loc==='site'||G.loc==='shelter');
+  if(!G.comp.joined) setYuminSpot(meetingSpot); G._yuminHere=true;
+  const st=(getRel('유민')||{}).stage||0, pool=YUMIN_PERSONAL[Math.min(3,st)].filter(x=>x!==G.comp.lastPersonalTopic), topic=rand(pool);
+  G.comp.lastPersonalTopic=topic;
+  if(G.comp.lastPersonalDay!==G.day){ G.comp.lastPersonalDay=G.day; changeAff(2,null) }   // 하루 첫 사적인 대화에만 호감
+  let likeKey=null; const locked=Object.keys(YUMIN_LIKES).filter(k=>!G.comp.likes[k]); if(locked.length&&Math.random()<0.5) likeKey=rand(locked);
+  let extra=`[유민과 사적인 이야기] 이번 장면은 사건·조사·소문·단서와 무관하다(그런 이야기는 꺼내지 말고, 유민이 꺼내려 해도 웃으며 넘긴다). 주제: ${topic}. 관계 단계(${STAGES[st].n})에 맞는 거리감으로, 유민의 말투와 회피 패턴을 지키며 짧은 일상 대화를 쓴다. 내면과 과거는 대사로 직접 털어놓지 않고 서술로만 살짝 비친다. 선택지는 이 대화를 이어 가거나 다른 사적인 화제로 넘어가는 말로.`;
+  extra+=relArmText('유민',0.4); if(!G.relEvt) extra+=yuminArcArm(0.4);
+  if(likeKey){ extra+=` [취향 단서] 대화 중 유민이 ${YUMIN_LIKES[likeKey].story}을(를) 유난히 좋아한다는 사실이 자연스럽게 드러나게 하라.`; pend('',{likeKey}) }
+  aiTurn('유민과 사적인 이야기를 나눈다',extra);
+  return true;
+}
 function joinYumin(fx){
   G.comp.joined=true; G._yuminHere=true; G.comp.spot='with';
   G.chronicle.push({day:G.day,text:'유민이 조사에 함께하게 되었다'});
@@ -7001,7 +7023,7 @@ function yuminArcHTML(full){
 function yuminActionsHTML(){
   if(!G.comp||!G.comp.met) return '';
   const here=canMeetHere('유민')&&!busy, giftDone=G.comp.lastGiftDay===G.day;
-  let b=`<button class="small" ${here?'':'disabled'} onclick="talkYumin()">🎵 이야기하기</button>`;
+  let b=`<button class="small" ${here?'':'disabled'} onclick="talkYumin()">🎵 이야기하기</button><button class="small" ${here?'':'disabled'} onclick="closeModal();yuminPersonalTalk()">💬 사적인 이야기</button>`;
   b+=`<button class="small" ${here&&!giftDone?'':'disabled'} onclick="openGiftYumin()">🎁 ${giftDone?'오늘 선물함':'선물하기'}</button>`;
   if(!G.comp.joined){ const ok=yuminLv()>=JOIN_LV; b+=`<button class="small ${ok&&here?'primary':''}" ${ok&&here?'':'disabled'} onclick="proposeJoinYumin()">🤝 함께 가자고 제안</button>` }
   const note=(!G.comp.joined&&yuminLv()<JOIN_LV)?`<div class="muted" style="font-size:12px;margin-top:4px">조금 더 가까워지면 동행을 제안할 수 있습니다.</div>`
@@ -8585,7 +8607,7 @@ function hoodFixedHTML(){
   if(t.keepsakeBuy) a+=b('appraise()','📦 고물상 (유실물 +20%)');
   a+=b('openRel()','👥 인연');
   if(!t.branch) a+=b('openLeads()',`📍 소문의 장소 (${(G.leads||[]).length})`);
-  if(G.comp&&G.comp.met) a+=(G.comp.joined||canMeetHere('유민'))?b('talkYumin()','🎵 유민과 이야기'):b('seekYumin()',`🎵 유민 만나러 가기 (지금: ${yuminWhereText()})`);
+  if(G.comp&&G.comp.met) a+=(G.comp.joined||canMeetHere('유민'))?b('talkYumin()','🎵 유민과 이야기')+b('yuminPersonalTalk()','💬 사적인 이야기'):b('seekYumin()',`🎵 유민 만나러 가기 (지금: ${yuminWhereText()})`);
   const mv=(t.branch?'':b('startExpedition()',`🔦 ${t.n} 근처 구역 조사`,'primary'))+b('openTravel()','🧭 이동하기 (중앙 캠퍼스 지구·다른 지구)')+b('travelBack()',`↩ 중앙 캠퍼스 지구로 돌아가기 (${durText(travelDays(curPos(),CAMPUS_POS))})`);
   return {mv,mvLbl:`📍 ${t.n} · ✨ ${t.perk}`,ac:a,acLbl:'🧭 행동'};
 }
@@ -9712,11 +9734,11 @@ function fixedHTML(){
     if(d) mv+=btn('returnToCampus()',`↩ ${returnRoute().name}${josa(returnRoute().name,'으로','로')} 귀환 (${durText(returnRoute().days)})`);
     if(peddlerHere()) ac+=btn('openPeddler()',`🧭 이동 행상 (진정 음료·배터리 💳${PRICE_ROAD.calm})`);
     if(!d?.intro)ac+=btn('shelterHere()','⛺ 임시 쉼터');
-    if(G.comp&&G.comp.met&&!G.comp.joined&&G._yuminHere) ac+=btn('talkYumin()','🎵 유민에게 말 걸기');
+    if(G.comp&&G.comp.met&&!G.comp.joined&&G._yuminHere) ac+=btn('talkYumin()','🎵 유민에게 말 걸기')+btn('yuminPersonalTalk()','💬 사적인 이야기');
   }else if(L==='shelter'){
     mvLbl='🧭 이동';
     mv=btn('breakCamp()','🌅 아침까지 쉬고 출발','primary');
-    if(G.comp&&G.comp.joined) ac+=btn('talkYumin()','🎵 유민과 이야기');
+    if(G.comp&&G.comp.joined) ac+=btn('talkYumin()','🎵 유민과 이야기')+btn('yuminPersonalTalk()','💬 사적인 이야기');
   }
   for(const x of HOOKS.fixed){ try{ ac+=x.fn(L)||'' }catch(e){ console.warn('[fixed]',e) } }
   ac+=excuseBtn()+inboxHTML();
