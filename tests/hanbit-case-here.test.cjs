@@ -27,3 +27,10 @@ test('elsewhere there is no button; an unchecked rumor here gets its own check b
   assert.match(run('fixedHTML()'),/🔎 소문 확인: 「도서관 서가 끝에서/);
 });
 console.log(n+' passed');
+{const run=fixture();
+ run(`G.district='library'`);let card=run('caseCard(threadsOpen()[0])');
+ if(!/가서 알아보기/.test(card)) throw Error('board card should offer going there: '+card.slice(0,300));
+ const id=run('threadsOpen()[0].id');run(`goCaseAndLook('${id}')`);
+ if(run('G.district')!=='classroom'||run('told.length')!==1) throw Error('go-and-look should move and start the scene');
+ card=run('caseCard(threadsOpen()[0])'); if(!/오늘은 이미 알아봄/.test(card)) throw Error('once per day');
+ console.log('PASS board card go-and-look button');}
