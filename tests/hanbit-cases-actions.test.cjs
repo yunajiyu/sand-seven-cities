@@ -79,8 +79,8 @@ await test('Nine local observations occupy one case and never close the question
 await test('Similar prefixes with different numbers survive while exact duplicates do not',({run})=>{
   run("addCanon('피아노실 출석부의 마지막 장 3번 칸이 지워졌다',true);addCanon('피아노실 출석부의 마지막 장 5번 칸이 지워졌다',true);addCanon('피아노실 출석부의 마지막 장 3번 칸이 지워졌다',true)");assert.equal(run('G.evidence.length'),2);
 });
-await test('Ten active cases still accept existing-case evidence; local independent cases stop at three',({run})=>{
-  run("for(let i=0;i<10;i++)caseRecord('독립 질문 '+i+' 원인은?',{scope:'local',placeId:'campus:place'+i,newCase:true});const t=G.threads[0];applyCaseUpdates([{case_id:t.id,evidence:[{text:'기존 사건의 원인 후보가 한 가지 줄었다',kind:'fact',role:'narrows'}]}]);caseRecord('새로운 독립 질문의 원인은?',{newCase:true});");assert.equal(run('clueLoad()'),10);assert.equal(run('G.evidence.length'),1);
+await test('Place cases cap at three and still accept existing-case evidence; local independent cases stop at three',({run})=>{
+  run("for(let i=0;i<10;i++)caseRecord('독립 질문 '+i+' 원인은?',{scope:'local',placeId:'campus:place'+i,newCase:true});const t=G.threads[0];applyCaseUpdates([{case_id:t.id,evidence:[{text:'기존 사건의 원인 후보가 한 가지 줄었다',kind:'fact',role:'narrows'}]}]);caseRecord('새로운 독립 질문의 원인은?',{newCase:true});");assert.equal(run('clueLoad()'),3,'place cases cap at PLACE_CASE_MAX');assert.equal(run('G.evidence.length'),1);
   run("seed('campus');for(let i=0;i<5;i++)caseRecord('서로 독립된 질문 '+i+'?',{newCase:true})");assert.equal(run('threadsOpen().length'),3);
 });
 await test('Structured updates need a reason; only one independent case is created per turn',({run})=>{
