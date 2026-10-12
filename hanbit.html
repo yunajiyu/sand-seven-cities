@@ -1272,7 +1272,7 @@ async function aiRequest(url,init){
 /* opt.cache: 시스템 프롬프트(매 턴 같은 앞부분)를 캐시 — 서술 턴에서만 씀 (짧거나 한 번뿐인 호출에 붙이면 쓰기 비용만 늘어남) */
 /* ---------- 세계관 말 바꾸기(요양원판) — 코드와 저장은 예전(학교판) 말을 그대로 쓰고, 화면과 AI에게는 섬 요양원 말로 보인다 ----------
    AI 응답과 플레이어가 쓴 글은 반대로 되돌려 코드가 알아듣게 한다. 목록의 오른쪽 말은 왼쪽 말을 품지 않아야 한다(다시 바뀌는 고리 방지). */
-const THEME_TERMS=[["조례 듣기", "인수인계 받기"], ["종례 듣기", "저녁 인계 받기"], ["점호 방송", "야간 점검 방송"], ["점호 누락", "점검 누락"], ["점호 후", "야간 점검 후"], ["점호", "야간 점검"], ["땡땡이", "근무 이탈"], ["룸메이트", "숙소 동료"], ["비성적 청소년 연애", "비성적 연애"], ["청소년 연애", "연애"], ["늦은 귀가", "늦은 복귀"], ["귀교", "복귀"], ["공부하기", "자료 읽기"], ["공부", "자기 계발"], ["학기 중간", "계절 중간"], ["학기", "근무 기간"], ["전학 온", "새로 부임한"], ["반 아이들", "병동 사람들"], ["반 분위기", "병동 분위기"], ["반 담임", "수간호사"], ["7반", "2병동"], ["규율부 학생", "감독반원"], ["수업 듣기", "근무 서기"], ["수업을 듣는다", "근무를 선다"], ["수업을 듣고", "근무를 서고"], ["수업을 듣", "근무를 서"], ["교과 선생님", "담당 의사"], ["선생님 심부름", "수간호사 심부름"], ["체육 창고", "비품 창고"], ["아이들", "사람들"], ["결석", "결근"], ["반성문", "경위서"], ["프린트물", "서류 뭉치"], ["교탁", "간호 스테이션"], ["자습", "개인 정리"], ["등교", "출근"], ["버스커", "거리 가수"], ["방과 후 특별교실동", "닫힌 별관 병동"], ["닫힌 특별교실에서 반복되는 현상", "닫힌 병실에서 반복되는 현상"], ["특별교실동", "별관 병동"], ["특별교실", "별관 병실"], ["한빛 교육특구", "해무섬 요양 특구"], ["교육특구", "요양 특구"], ["학원도시", "요양섬"], ["한빛학원", "해무요양원"], ["한빛시", "해무섬"], ["한빛", "해무"], ["중앙 캠퍼스 지구", "요양원 본관 구역"], ["캠퍼스", "요양원 구내"], ["학원가 골목", "섬마을 골목"], ["학원가", "섬마을"], ["구 신시가 재개발지구", "폐염전 마을"], ["재개발지구", "폐염전 마을"], ["재개발", "폐염전"], ["신시가", "옛 마을"], ["동부 저수지 공원", "동쪽 소나무 숲길"], ["서쪽 저수지 선착장", "서쪽 포구"], ["동쪽 배수지 선착장", "동쪽 포구"], ["저수지 둑길", "방파제 길"], ["둑길", "방파제 길목"], ["저수지", "바다"], ["배수지", "갯골"], ["선착장", "포구"], ["고등학교 2학년", "신입 직원"], ["고등학생", "신입 직원"], ["고등학교", "요양원"], ["2학년 7반", "2병동"], ["2학년", "2병동 소속"], ["학생 자치위원회 규율부", "원장 직속 감독반"], ["학생 자치위원회", "원장 직속 위원회"], ["규율부원", "감독반원"], ["규율부", "감독반"], ["시설관리공단 특수관리팀", "본토 재단 정리팀"], ["시설관리공단", "본토 재단"], ["특수관리팀", "정리팀"], ["청소반", "정리팀원들"], ["전학생", "신입 직원"], ["전학 이유", "이 섬에 온 이유"], ["전학이유", "부임이유"], ["전학", "부임"], ["담임 선생님", "수간호사"], ["담임", "수간호사님"], ["반 친구", "병동 동료"], ["반 동기", "입사 동기"], ["같은 반", "같은 병동"], ["반장", "병동 대표"], ["선배", "선임"], ["외부 학생", "외부인"], ["학생", "입소자"], ["학교", "요양원"], ["학원", "요양원"], ["급식 조리원", "식당 조리원"], ["급식실", "식당"], ["급식", "배식"], ["교무실", "원무과"], ["보건 선생님", "의무실 간호사"], ["보건실", "의무실"], ["사감 선생님", "숙소 관리인"], ["사감", "관리인"], ["기숙사", "직원 숙소"], ["운동장", "산책 마당"], ["체육관", "실내 운동실"], ["도서관", "자료실"], ["사서 선생님", "자료실 담당자"], ["사서", "자료실 지기"], ["음악실", "음악 치료실"], ["미술실", "미술 치료실"], ["가사실", "세탁실"], ["과학실", "약품 창고"], ["자습실", "직원 휴게실"], ["컴퓨터실", "기록 보관실"], ["상점가", "포구 상가"], ["폐 동아리실", "옛 직원 관사"], ["동아리실", "관사"], ["동아리", "모임"], ["교내", "원내"], ["교칙", "원내 수칙"], ["교표", "옛 휘장"], ["교복", "근무복"], ["교과서", "업무 지침서"], ["칠판", "화이트보드"], ["과목", "업무 종류"], ["출석부", "입소자 명부"], ["출석 번호", "명부 번호"], ["출석", "출근"], ["1교시", "오전 업무Ⅰ"], ["2교시", "오전 업무Ⅱ"], ["3교시", "오후 업무Ⅰ"], ["4교시", "오후 업무Ⅱ"], ["교시", "업무 칸"], ["조례", "아침 인수인계"], ["종례", "저녁 인계"], ["쉬는 시간", "휴식 시간"], ["방과 후", "퇴근 후"], ["수업", "근무"], ["교실", "병동 휴게실"], ["벌점", "근무 경고"], ["기념 메달 조각", "개원 기념패 조각"], ["기념 메달", "개원 기념패"], ["메달조각", "기념패조각"], ["메달", "기념패"], ["버스킹", "거리 공연"]];
+const THEME_TERMS=[["청소반장", "정리팀장"], ["조례 듣기", "인수인계 받기"], ["종례 듣기", "저녁 인계 받기"], ["점호 방송", "야간 점검 방송"], ["점호 누락", "점검 누락"], ["점호 후", "야간 점검 후"], ["점호", "야간 점검"], ["땡땡이", "근무 이탈"], ["룸메이트", "숙소 동료"], ["비성적 청소년 연애", "비성적 연애"], ["청소년 연애", "연애"], ["늦은 귀가", "늦은 복귀"], ["귀교", "복귀"], ["공부하기", "자료 읽기"], ["공부", "자기 계발"], ["학기 중간", "계절 중간"], ["학기", "근무 기간"], ["전학 온", "새로 부임한"], ["반 아이들", "병동 사람들"], ["반 분위기", "병동 분위기"], ["반 담임", "수간호사"], ["7반", "2병동"], ["규율부 학생", "감독반원"], ["수업 듣기", "근무 서기"], ["수업을 듣는다", "근무를 선다"], ["수업을 듣고", "근무를 서고"], ["수업을 듣", "근무를 서"], ["교과 선생님", "담당 의사"], ["선생님 심부름", "수간호사 심부름"], ["체육 창고", "비품 창고"], ["아이들", "사람들"], ["결석", "결근"], ["반성문", "경위서"], ["프린트물", "서류 뭉치"], ["교탁", "간호 스테이션"], ["자습", "개인 정리"], ["등교", "출근"], ["버스커", "거리 가수"], ["방과 후 특별교실동", "닫힌 별관 병동"], ["닫힌 특별교실에서 반복되는 현상", "닫힌 병실에서 반복되는 현상"], ["특별교실동", "별관 병동"], ["특별교실", "별관 병실"], ["한빛 교육특구", "해무섬 요양 특구"], ["교육특구", "요양 특구"], ["학원도시", "요양섬"], ["한빛학원", "해무요양원"], ["한빛시", "해무섬"], ["한빛", "해무"], ["중앙 캠퍼스 지구", "요양원 본관 구역"], ["캠퍼스", "요양원 구내"], ["학원가 골목", "섬마을 골목"], ["학원가", "섬마을"], ["구 신시가 재개발지구", "폐염전 마을"], ["재개발지구", "폐염전 마을"], ["재개발", "폐염전"], ["신시가", "옛 마을"], ["동부 저수지 공원", "동쪽 소나무 숲길"], ["서쪽 저수지 선착장", "서쪽 포구"], ["동쪽 배수지 선착장", "동쪽 포구"], ["저수지 둑길", "방파제 길"], ["둑길", "방파제 길목"], ["저수지", "바다"], ["배수지", "갯골"], ["선착장", "포구"], ["고등학교 2학년", "신입 직원"], ["고등학생", "신입 직원"], ["고등학교", "요양원"], ["2학년 7반", "2병동"], ["2학년", "2병동 소속"], ["학생 자치위원회 규율부", "원장 직속 감독반"], ["학생 자치위원회", "원장 직속 위원회"], ["규율부원", "감독반원"], ["규율부", "감독반"], ["시설관리공단 특수관리팀", "본토 재단 정리팀"], ["시설관리공단", "본토 재단"], ["특수관리팀", "정리팀"], ["청소반", "정리팀원들"], ["전학생", "신입 직원"], ["전학 이유", "이 섬에 온 이유"], ["전학이유", "부임이유"], ["전학", "부임"], ["담임 선생님", "수간호사"], ["담임", "수간호사님"], ["반 친구", "병동 동료"], ["반 동기", "입사 동기"], ["같은 반", "같은 병동"], ["선배", "선임"], ["외부 학생", "외부인"], ["학생", "입소자"], ["학교", "요양원"], ["학원", "요양원"], ["급식 조리원", "식당 조리원"], ["급식실", "식당"], ["급식", "배식"], ["교무실", "원무과"], ["보건 선생님", "의무실 간호사"], ["보건실", "의무실"], ["사감 선생님", "숙소 관리인"], ["사감", "관리인"], ["기숙사", "직원 숙소"], ["운동장", "산책 마당"], ["체육관", "실내 운동실"], ["도서관", "자료실"], ["사서 선생님", "자료실 담당자"], ["사서", "자료실 지기"], ["음악실", "음악 치료실"], ["미술실", "미술 치료실"], ["가사실", "세탁실"], ["과학실", "약품 창고"], ["자습실", "직원 휴게실"], ["컴퓨터실", "기록 보관실"], ["상점가", "포구 상가"], ["폐 동아리실", "옛 직원 관사"], ["동아리실", "관사"], ["동아리", "모임"], ["교내", "원내"], ["교칙", "원내 수칙"], ["교표", "옛 휘장"], ["교복", "근무복"], ["교과서", "업무 지침서"], ["칠판", "화이트보드"], ["과목", "업무 종류"], ["출석부", "입소자 명부"], ["출석 번호", "명부 번호"], ["출석", "출근"], ["1교시", "오전 업무Ⅰ"], ["2교시", "오전 업무Ⅱ"], ["3교시", "오후 업무Ⅰ"], ["4교시", "오후 업무Ⅱ"], ["교시", "업무 칸"], ["조례", "아침 인수인계"], ["종례", "저녁 인계"], ["쉬는 시간", "휴식 시간"], ["방과 후", "퇴근 후"], ["수업", "근무"], ["교실", "병동 휴게실"], ["벌점", "근무 경고"], ["기념 메달 조각", "개원 기념패 조각"], ["기념 메달", "개원 기념패"], ["메달조각", "기념패조각"], ["메달", "기념패"], ["버스킹", "거리 공연"]];
 /* ---------- 고유 지명 무작위화 — 지워진 구역·곁가지 구역의 이름을 새 게임마다 뽑는다 ----------
    코드·저장·봉인 해시는 원래 이름(정식 토큰)을 그대로 쓰고, 화면에 보일 때와 AI에게 보낼 때만 이번 게임의 이름으로 바꾼다.
    AI 응답과 플레이어가 직접 쓴 글은 반대로 정식 토큰으로 되돌려 코드가 알아듣게 한다. 제작자도 이번 게임의 이름을 모른다. */
@@ -4670,6 +4670,22 @@ function campaignPublic(){
   const stage=!campaignPlan()?'이야기 준비':!c.introSolved?'교내 소문':G.act<2?(lacunaKnown()?'라쿠나':'출석부 첫 줄의 이름'):G.act<3?'라쿠나':G.act<4?'출석부의 남은 이름':'진상';
   return {next,stage,introSolved:!!c.introSolved,intel:lacunaIntelTexts().slice(0,n),links:Object.entries(links).map(([key,x])=>({key,name:x.name,text:x.text}))};
 }
+/* 중심 사건(전임 직원 실종) 설계 검사: 용의자 3~4명, 범인 1명, 증거 4개(입문 1 + 지역 3)로 범인 외 전원이 풀리고 범인은 한 번 이상 의심받아야 한다 */
+function incidentIssues(p){
+  const txt=(v,n=300)=>typeof v==='string'&&v.trim().length>=4&&v.length<=n, nm=v=>typeof v==='string'&&v.trim().length>=2&&v.length<=12, out=[];
+  const S=Array.isArray(p?.suspects)?p.suspects:[], ids=S.map(x=>x?.id);
+  if(!p?.incident||!nm(p.incident.missing)||!txt(p.incident.public,300)) out.push('중심 사건 incident(missing·public)');
+  if(S.length<3||S.length>4||new Set(ids).size!==S.length||S.some(x=>!x||!/^s[1-4]$/.test(x.id)||!nm(x.name)||!(typeof x.role==='string'&&x.role.trim().length>=2&&x.role.length<=40)||!txt(x.motive,160)||!txt(x.alibi,160))) out.push('용의자 3~4명(id s1~s4·이름·역할·동기·알리바이)');
+  if(!ids.includes(p?.culprit)||!txt(p?.culprit_why,600)) out.push('범인 culprit·culprit_why');
+  const clues=[p?.intro_clue,...(Array.isArray(p?.chapters)?p.chapters.map(c=>c?.suspect_clue):[])];
+  if(clues.length!==4||clues.some(c=>!c||!txt(c.text,200)||!Array.isArray(c.clears)||c.clears.some(id=>!ids.includes(id))||(c.implicates!=null&&!ids.includes(c.implicates)))) out.push('증거 4개(intro_clue + 지역별 suspect_clue)의 text·clears·implicates');
+  else{
+    if(clues.some(c=>c.clears.includes(p.culprit))) out.push('범인을 clears에 넣음');
+    if(!clues.some(c=>c.implicates===p.culprit)) out.push('범인을 implicates하는 증거가 없음');
+    const cleared=new Set(clues.flatMap(c=>c.clears)); if(ids.some(id=>id!==p.culprit&&!cleared.has(id))) out.push('범인 외 용의자 중 혐의를 벗지 못하는 사람이 있음');
+  }
+  return out;
+}
 function validateCampaign(p){
   const txt=(v,n=800)=>typeof v==='string'&&v.trim().length>=4&&v.length<=n,errs=[];
   if(!p||!txt(p.truth)||!txt(p.detail,1600)||!txt(p.opening,1600)||!txt(p.roster,500)) errs.push('본편 설정/공개 장면');
@@ -4678,6 +4694,7 @@ function validateCampaign(p){
   if(Array.isArray(p?.chapters)&&(new Set(p.chapters.map(c=>c?.link)).size!==3||new Set(p.chapters.map(c=>c?.fragment)).size!==3))errs.push('서로 다른 연결 사실');
   if(!Array.isArray(p?.rumors)||p.rumors.length!==4||p.rumors.some(r=>!r||typeof r.region!=='string'||!txt(r.belief,400))) errs.push('지역 소문');
   if(!Array.isArray(p?.lacuna_intel)||p.lacuna_intel.length!==3||p.lacuna_intel.some(t=>!txt(t,240))) errs.push('라쿠나 공개 정보 3문장(lacuna_intel)');
+  errs.push(...incidentIssues(p));
   return [...new Set(errs)];
 }
 /* 사건·본편 준비 실패 원인을 짧게 정리해 알려 줍니다 (키 없음·시간 초과·응답 형식 등을 구분) */
@@ -4692,7 +4709,7 @@ async function genCampaignWorld(){
   if(G.campaign.world?.status==='ready'){toast('본편 저장 기록이 손상됐습니다. 이전 저장본을 불러와 주세요');return false}
   const g=G;if(campaignWorldJob?.g===g)return campaignWorldJob.promise;
   const regions=[HOME_REGION,HOODS.east.n,HOODS.south.n,HOODS.north.n];
-  const prompt=`제작자도 정답을 모르는 학원 공포 추리 게임의 본편을 비공개로 설계한다. 새 게임마다 원인·관계·증거의 조합이 다른 사건을 만들되 추론 가능한 하나의 진상을 고정한다. 진상과 연결 사실은 사람들의 선택·관계·숨긴 사정으로 만들고, 배관·펌프·밸브·전기 회로처럼 원리를 알아야 이해되는 기술 장치를 진상의 핵심으로 삼지 않는다. 입문 사건은 본편과 독립된 작은 사건이며 장소는 항상 교내 「${INTRO_SITE_NAME}」(${INTRO_SITE_THEME})이다. opening·roster·rumors 어디에도 다른 장소를 입문 조사의 대상이나 첫 조사지로 암시하지 말고, ${HOME_REGION}의 소문은 이 특별교실동 이야기로 쓴다. 단 opening과 roster에는 이 소문이나 특별교실동을 언급하지 않는다(그 소문은 이후 학교 일과에서 전해진다). 이후 주요 지역은 라쿠나(lacuna), 안개 기숙사(c0), 방송·음악 시설의 배수 터널(c1) 정확히 세 곳이다. 세 곳은 각각 본편 진상의 다른 부분(누가/어떤 과정으로/왜 지웠는지 등)을 증명한다. fragment는 비공개 담당 사실, link는 그 지역 사건을 해결한 후 공개할 관찰·기록의 연결 사실이다. link 세 개를 합치면 truth/detail을 설명해야 한다. 처음부터 전체 정답을 말하는 link는 금지한다. 아직 방문하지 않은 지역에 대한 증거를 대신 공개하지 않는다. opening/roster/rumors/riddle은 비밀을 누설하지 않는다. 공개 소문은 서로 다른 관점을 담고 증언과 사실을 구분한다. opening·rumors에는 라쿠나·안개 기숙사·배수 터널 같은 주요 지역의 이름을 쓰지 않는다(플레이어는 아직 그 이름을 모른다). 기념 메달 조각 6개 수집이나 일곱 지역은 요구하지 않는다. 캐릭터: ${JSON.stringify(G.char)}. 소문 지역: ${JSON.stringify(regions)}. 공개 경로의 실제 좌표: ${JSON.stringify(wardPositions())}. 방위를 쓰면 이 좌표와 모순되지 않게 하라. 캐릭터의 전학 이유가 미정이면 entry_reason에 공개 가능한 한 문장을 적는다. 정답을 암시하지 않는다. lacuna_intel은 플레이어가 라쿠나로 떠나기 전에 사람·기록·소문으로 하나씩 알게 되는 공개 정보 세 문장이다: [0] 라쿠나가 무엇이었는지, [1] 어디쯤에 있는지(저수지 아래에 잠겼다 드러나는 곳이라는 설정과 실제 좌표 방위에 맞게), [2] 어떻게·언제 들어갈 수 있는지. 진상·fragment·link·다른 구역의 이름이나 사실은 넣지 않는다. JSON만: {"truth":"정체","detail":"진상의 경위","entry_reason":"전학 이유(기존 설정 유지)","opening":"전학 첫날 교실 문 앞 장면, 2인칭 현재형. 친구와 만남은 아직 없다. 출석부에 적힌 지워진 구역의 이름은 아직 읽히지 않는다","roster":"라쿠나에서 해독 후 공개할 두 다른 구역의 방향만","lacuna_intel":["라쿠나가 무엇이었는지(공개 사실 한두 문장)","어디쯤에 있는지(공개 사실 한두 문장)","어떻게·언제 들어갈 수 있는지(공개 사실 한두 문장)"],"rumors":[{"region":"지역명","belief":"소문"}],"chapters":[{"key":"lacuna","role":"증명할 부분","fragment":"비공개 사실","link":"해결 후 공개할 연결 사실","riddle":"공개 현상","lore":"숨은 사연과 교칙"},{"key":"c0","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."},{"key":"c1","role":"...","fragment":"...","link":"...","riddle":"...","lore":"..."}]}`;
+  const prompt=`제작자도 정답을 모르는 학원 공포 추리 게임의 본편을 비공개로 설계한다. 새 게임마다 원인·관계·증거의 조합이 다른 사건을 만들되 추론 가능한 하나의 진상을 고정한다. 진상과 연결 사실은 사람들의 선택·관계·숨긴 사정으로 만들고, 배관·펌프·밸브·전기 회로처럼 원리를 알아야 이해되는 기술 장치를 진상의 핵심으로 삼지 않는다. 입문 사건은 본편과 독립된 작은 사건이며 장소는 항상 교내 「${INTRO_SITE_NAME}」(${INTRO_SITE_THEME})이다. opening·roster·rumors 어디에도 다른 장소를 입문 조사의 대상이나 첫 조사지로 암시하지 말고, ${HOME_REGION}의 소문은 이 특별교실동 이야기로 쓴다. 단 opening과 roster에는 이 소문이나 특별교실동을 언급하지 않는다(그 소문은 이후 학교 일과에서 전해진다). 이후 주요 지역은 라쿠나(lacuna), 안개 기숙사(c0), 방송·음악 시설의 배수 터널(c1) 정확히 세 곳이다. 세 곳은 각각 본편 진상의 다른 부분(누가/어떤 과정으로/왜 지웠는지 등)을 증명한다. fragment는 비공개 담당 사실, link는 그 지역 사건을 해결한 후 공개할 관찰·기록의 연결 사실이다. link 세 개를 합치면 truth/detail을 설명해야 한다. 처음부터 전체 정답을 말하는 link는 금지한다. 아직 방문하지 않은 지역에 대한 증거를 대신 공개하지 않는다. opening/roster/rumors/riddle은 비밀을 누설하지 않는다. 공개 소문은 서로 다른 관점을 담고 증언과 사실을 구분한다. opening·rumors에는 라쿠나·안개 기숙사·배수 터널 같은 주요 지역의 이름을 쓰지 않는다(플레이어는 아직 그 이름을 모른다). 기념 메달 조각 6개 수집이나 일곱 지역은 요구하지 않는다. 캐릭터: ${JSON.stringify(G.char)}. 소문 지역: ${JSON.stringify(regions)}. 공개 경로의 실제 좌표: ${JSON.stringify(wardPositions())}. 방위를 쓰면 이 좌표와 모순되지 않게 하라. 캐릭터의 전학 이유가 미정이면 entry_reason에 공개 가능한 한 문장을 적는다. 정답을 암시하지 않는다. [중심 사건 — 전임 직원 실종] 게임의 중심 목표는 하나의 사건이다: 플레이어가 맡게 된 자리의 전임 직원이 부임 직전 밤에 사라졌고, 인수인계 서류 속 오래된 출석부는 그 전임자가 남긴 것이다. 전임자는 지워진 구역의 비밀에 다가갔다가 사라졌다. 용의자 3~4명(입소자·동료·감독반·재단 사람 등, 한국식 이름)을 정하고 그중 정확히 한 명이 실종에 책임이 있다(culprit). 범인과 동기는 사람의 선택과 숨긴 사정으로 만들고 괴이는 범인이 아니다. 각 용의자에게는 공개적으로 의심받을 만한 동기(motive)와 스스로 주장하는 알리바이(alibi)를 준다. 증거 배치: intro_clue는 입문 사건을 풀면 공개되는 증거, 각 chapter의 suspect_clue는 그 지역 사건을 풀면 공개되는 증거다. 각 증거는 clears(혐의를 벗기는 용의자 id 목록)와 implicates(의심이 커지는 용의자 id 하나 또는 null)를 가진다. 범인을 clears에 넣지 않는다. 범인 외 모든 용의자는 네 증거 중 어딘가에서 한 번 이상 clears 되어야 하고, 범인은 적어도 한 증거에서 implicates 되어야 한다. 증거 text는 누구나 바로 이해하는 구체적 관찰 한 문장(시간·물건·장소·사람)이다. incident.public은 첫날 알려지는 공개 사실(누가 언제 사라졌고 마지막으로 어디서 보였는지)이며 범인을 암시하지 않는다. opening에는 incident.public이 자연스럽게 드러나게 한다. lacuna_intel은 플레이어가 라쿠나로 떠나기 전에 사람·기록·소문으로 하나씩 알게 되는 공개 정보 세 문장이다: [0] 라쿠나가 무엇이었는지, [1] 어디쯤에 있는지(저수지 아래에 잠겼다 드러나는 곳이라는 설정과 실제 좌표 방위에 맞게), [2] 어떻게·언제 들어갈 수 있는지. 진상·fragment·link·다른 구역의 이름이나 사실은 넣지 않는다. JSON만: {"truth":"정체","detail":"진상의 경위","entry_reason":"전학 이유(기존 설정 유지)","opening":"전학 첫날 교실 문 앞 장면, 2인칭 현재형. 친구와 만남은 아직 없다. 출석부에 적힌 지워진 구역의 이름은 아직 읽히지 않는다","roster":"라쿠나에서 해독 후 공개할 두 다른 구역의 방향만","lacuna_intel":["라쿠나가 무엇이었는지(공개 사실 한두 문장)","어디쯤에 있는지(공개 사실 한두 문장)","어떻게·언제 들어갈 수 있는지(공개 사실 한두 문장)"],"rumors":[{"region":"지역명","belief":"소문"}],"incident":{"missing":"전임 직원 이름","public":"첫날 알려지는 공개 사건 개요 1~2문장"},"suspects":[{"id":"s1","name":"이름","role":"직책·관계","motive":"공개 동기","alibi":"주장하는 알리바이"}],"culprit":"s2","culprit_why":"범인의 진짜 동기와 경위(비공개)","intro_clue":{"text":"입문 사건 해결 후 공개할 증거","clears":["s1"],"implicates":null},"chapters":[{"key":"lacuna","role":"증명할 부분","fragment":"비공개 사실","link":"해결 후 공개할 연결 사실","riddle":"공개 현상","lore":"숨은 사연과 교칙","suspect_clue":{"text":"해결 후 공개할 용의자 관련 증거","clears":[],"implicates":"s2"}},{"key":"c0","role":"...","fragment":"...","link":"...","riddle":"...","lore":"...","suspect_clue":{"text":"...","clears":["s3"],"implicates":null}},{"key":"c1","role":"...","fragment":"...","link":"...","riddle":"...","lore":"...","suspect_clue":{"text":"...","clears":["s4"],"implicates":"s2"}}]}`;
   const token={g};campaignWorldJob=token;
   token.promise=(async()=>{
     let issues=[],why='';   // why는 화면 로그에 나간다: 내용 없는 고정 문장만 넣고, AI가 쓴 검토 의견(issues)은 설계 AI에게만 돌려준다
@@ -4762,9 +4779,73 @@ function concerns(){
   if(!side.length) side=concernMemory().sort((a,b)=>rank(a.k)-rank(b.k)).slice(0,1);   // 섞을 기록이 없으면 실제로 겪은 일만 — 아무 일도 없던 첫날엔 진행 단서 하나만
   return [{k:'main',t:x.next},...side].sort((a,b)=>rank(a.k)-rank(b.k)).map(c=>c.t);
 }
+/* ---------- 중심 사건: 전임 직원 실종 — 용의자 보드와 범인 지목 ---------- */
+function incidentPlan(){ const p=campaignPlan(); return p&&p.incident&&Array.isArray(p.suspects)?p:null }
+function incidentClueOf(key,p=incidentPlan()){ return !p?null:key==='intro'?p.intro_clue:(p.chapters.find(c=>c.key===key)||{}).suspect_clue||null }
+function incidentClues(){ const p=incidentPlan(); return p?(G.campaign.clues||[]).map(k=>({key:k,...incidentClueOf(k,p)})).filter(c=>c.text):[] }
+function grantIncidentClue(key){
+  const p=incidentPlan(), c=incidentClueOf(key,p); if(!c) return;
+  if(!Array.isArray(G.campaign.clues)) G.campaign.clues=[];
+  if(G.campaign.clues.includes(key)) return;
+  G.campaign.clues.push(key);
+  const nm=id=>(p.suspects.find(s=>s.id===id)||{}).name||'';
+  const eff=[...(c.clears||[]).map(id=>`${nm(id)}의 혐의가 옅어졌다`),...(c.implicates?[`${nm(c.implicates)}에 대한 의심이 커졌다`]:[])].join(' · ');
+  addLog('fx',`🕯 ${p.incident.missing} 실종 사건의 단서 — ${c.text}${eff?`\n→ ${eff}`:''}`);
+  G.chronicle.push({day:G.day,text:`${p.incident.missing} 실종 사건의 단서를 얻었다`});
+}
+function suspectStatus(id){
+  const cl=incidentClues(), cleared=cl.some(c=>(c.clears||[]).includes(id)), sus=cl.filter(c=>c.implicates===id).length;
+  return (G.campaign.wrongAccused||[]).includes(id)?'지목했지만 아니었다':cleared?'혐의 옅어짐':sus?'의심 커짐'+(sus>1?` ×${sus}`:''):'아직 모름';
+}
+function incidentPublic(){
+  const p=incidentPlan(); if(!p) return null;
+  return {missing:p.incident.missing,public:p.incident.public,suspects:p.suspects.map(s=>({name:s.name,role:s.role,motive:s.motive,alibi:s.alibi,status:suspectStatus(s.id)})),clues:incidentClues().map(c=>c.text),solved:!!G.campaign.caseSolved};
+}
+function incidentPanel(){
+  const p=incidentPlan(); if(!p) return '';
+  const cl=incidentClues(), solved=G.campaign.caseSolved;
+  return `<div class="lex"><b>🕯 ${esc(p.incident.missing)} 실종 사건</b><p>${esc(p.incident.public)}</p>
+    <h4>👥 용의자</h4>${p.suspects.map(s=>`<div style="margin:6px 0"><b>${esc(s.name)}</b> <span class="muted">${esc(s.role)} · ${esc(suspectStatus(s.id))}</span><br><span class="small">동기: ${esc(s.motive)}</span><br><span class="small muted">알리바이: ${esc(s.alibi)}</span></div>`).join('')}
+    <h4>🧷 확보한 단서 (${cl.length}/4)</h4>${cl.length?cl.map(c=>`<p>· ${esc(c.text)}</p>`).join(''):'<p class="muted">아직 없습니다. 소문의 장소와 지워진 구역의 사건을 풀면 하나씩 드러납니다.</p>'}
+    ${solved?`<p><b>✅ 해결:</b> ${esc((p.suspects.find(s=>s.id===p.culprit)||{}).name)}</p>`:`<button ${cl.length>=2?'class="primary"':'disabled'} onclick="openAccuse()">🔍 범인 지목하기${cl.length>=2?'':' (단서 2개부터)'}</button>`}</div>`;
+}
+function openAccuse(){
+  const p=incidentPlan(); if(!p||G.campaign.caseSolved) return;
+  const cl=incidentClues(); if(cl.length<2) return toast('단서를 2개 이상 모은 뒤 지목할 수 있습니다');
+  modal('🔍 범인 지목',`<p>${esc(p.incident.missing)}의 실종에 책임이 있는 사람을 고르고, 근거가 되는 단서를 2개 이상 고르세요. 틀려도 다시 지목할 수 있습니다.</p>
+    ${p.suspects.map(s=>`<label style="display:block;margin:4px 0"><input type="radio" name="accuseWho" value="${esc(s.id)}" style="width:auto"> ${esc(s.name)} <span class="muted">(${esc(suspectStatus(s.id))})</span></label>`).join('')}
+    <h4>근거 단서</h4>${cl.map(c=>`<label style="display:block;margin:4px 0"><input type="checkbox" class="accuseClue" value="${esc(c.key)}" style="width:auto"> ${esc(c.text)}</label>`).join('')}
+    <button class="primary" onclick="submitAccuse()">지목하기</button>`);
+}
+function submitAccuse(){
+  const p=incidentPlan(); if(!p) return false;
+  const who=(document.querySelector('input[name="accuseWho"]:checked')||{}).value, keys=[...document.querySelectorAll('.accuseClue:checked')].map(x=>x.value);
+  return accuse(who,keys);
+}
+function accuse(who,keys){
+  const p=incidentPlan(); if(!p||G.campaign.caseSolved) return false;
+  if(!p.suspects.some(s=>s.id===who)) return toast('지목할 사람을 골라 주세요'),false;
+  keys=[...new Set(keys)].filter(k=>(G.campaign.clues||[]).includes(k)); if(keys.length<2) return toast('근거 단서를 2개 이상 골라 주세요'),false;
+  const sel=keys.map(k=>incidentClueOf(k,p)), others=p.suspects.filter(s=>s.id!==who).map(s=>s.id);
+  const backed=sel.some(c=>c.implicates===who)||others.every(id=>sel.some(c=>(c.clears||[]).includes(id)));
+  closeModal();
+  if(who===p.culprit&&backed){
+    G.campaign.caseSolved=true; G.act=Math.max(G.act,4);
+    addLog('fx',`✅ ${p.incident.missing} 실종 사건 — 범인은 ${(p.suspects.find(s=>s.id===who)||{}).name}였다.`);
+    G.chronicle.push({day:G.day,text:`${p.incident.missing} 실종 사건의 범인을 밝혀냈다`});
+    save(); render(); openEnding(); return true;
+  }
+  const nm=(p.suspects.find(s=>s.id===who)||{}).name;
+  if(who===p.culprit) addLog('sys',`🔍 ${nm}를 지목했지만, 고른 단서만으로는 몰아붙일 근거가 부족했다. 다른 단서를 함께 내밀어 보자.`);
+  else{ G.campaign.wrongAccused=[...new Set([...(G.campaign.wrongAccused||[]),who])]; addLog('sys',`🔍 ${nm}를 지목했지만 아니었다. 단서를 다시 맞춰 보자.`) }
+  G.calm=Math.max(0,G.calm-1); save(); render(); return false;
+}
+on('context',49,()=>{ const x=compactCampaign()&&incidentPublic(); if(!x) return '';
+  return `\n[중심 사건 — 공개된 것만] ${x.missing}이(가) 실종됐다: ${x.public} 용의자: ${x.suspects.map(s=>`${s.name}(${s.role}, ${s.status})`).join(' / ')}. 확보한 단서: ${x.clues.join(' / ')||'없음'}.${x.solved?' 사건은 해결됐다.':' 범인과 진짜 동기는 비공개로 고정돼 있다 — 서술자는 범인을 암시하거나 새 증거를 만들지 않는다. 용의자들은 장면에 자연스럽게 등장해 말을 아끼거나 알리바이를 되풀이할 수 있다.'}`;
+});
 function campaignPanel(){
   const x=campaignPublic();if(!x)return '';
-  return `<div class="lex"><b>🧭 지금 마음에 걸리는 것</b>${concerns().map(t=>`<p>· ${esc(t)}</p>`).join('')}${x.intel.length?`<h4>📜 라쿠나에 대해 알게 된 것</h4>${x.intel.map(t=>`<p>${esc(t)}</p>`).join('')}`:''}${x.links.length?`<h4>🔗 확인해서 이어 둔 사실</h4>${x.links.map(l=>`<p><b>${esc(l.name)}</b>: ${esc(l.text)}</p>`).join('')}`:''}<p class="muted">조사 → 사실 비교 → 원인과 이유 고르기 → 직접 확인하기 순서로 풀어 갑니다.</p></div>`;
+  return `${incidentPanel()}<div class="lex"><b>🧭 지금 마음에 걸리는 것</b>${concerns().map(t=>`<p>· ${esc(t)}</p>`).join('')}${x.intel.length?`<h4>📜 라쿠나에 대해 알게 된 것</h4>${x.intel.map(t=>`<p>${esc(t)}</p>`).join('')}`:''}${x.links.length?`<h4>🔗 확인해서 이어 둔 사실</h4>${x.links.map(l=>`<p><b>${esc(l.name)}</b>: ${esc(l.text)}</p>`).join('')}`:''}<p class="muted">조사 → 사실 비교 → 원인과 이유 고르기 → 직접 확인하기 순서로 풀어 갑니다.</p></div>`;
 }
 function openCampaign(){modal('🧭 조사 기록',campaignPanel())}
 on('fixed',8,L=>{
@@ -4955,7 +5036,7 @@ function mysteryJargon(p){ const parts=[p?.question,p?.truth,p?.conclusion,p?.ve
 function mysteryPrompt(d){
   const seen=(G.evidence||[]).filter(e=>e.placeId==='zone:'+siteIdentity(d)).map(e=>e.text);
   const extra=(d.deductionRequired?'\n추론 JSON 필드 deduction을 추가한다: {hypotheses:[{id:"h1",text:"원인 후보"},{id:"h2",text:"다른 원인 후보"},{id:"h3",text:"다른 원인 후보"}],answer_id:"h2",supports:["e1","e2"],explanation:"정답과 근거 관계"}. 정답은 세 후보 중 하나이고, supports는 그것을 구별하는 증거 2개 이상이다. 후보와 정답 순서는 매번 다르게 구성한다. 단서 소재는 문서·음원·장치·흔적·증언 등 사건마다 다르게 조합하고 원인도 새로 설계한다. NPC 증언을 쓰면 해당 인물의 기존 성격과 이미 공개한 사실을 유지한다. 오답은 설득력 있지만 공개 증거로 반박할 수 있어야 한다. 세 후보는 조사 시작부터 \'의심되는 원인\'(소문·추측)으로 공개되므로 후보 문장에 미발견 사실을 넣지 않는다. 정답 후보만 길거나 자세해서 답이 드러나지 않게 한다. supports에는 함정 증거(decoy)를 넣지 않는다.\n[함정 증거] evidence에 role:"decoy"인 함정 증거를 정확히 1개(id "d1") 넣는다: {"id":"d1","role":"decoy","room":"공간 ID","action":"얻는 행동","text":"...","meaning":"...","points_to":"오답 후보 ID","refuted_by":"핵심 증거 ID","leads":[]}. 함정 증거는 직접 보거나 들은 사실이며 거짓이 아니다. 다만 그것만 보면 오답 후보 points_to가 맞아 보인다. refuted_by 핵심 증거와 함께 보면 그 오답이 틀렸음이 드러나야 한다. 함정 증거의 text·meaning 길이와 구체성은 핵심 증거와 비슷하게 써서 문장 모양으로 구별되지 않게 한다.': '')+(d.intro?'\n입문 사건: 공간 3개에 핵심 증거(core) 정확히 3개와 함정 증거 1개. 핵심 증거는 최소 2개 공간에 나누되 한 공간에 2개가 몰려도 되고, 한 공간은 핵심 증거 없이 함정 증거나 dead_end만 있어도 된다. 교내의 안전한 관찰과 비교만으로 해결 가능. 본편 정체와 관계없는 독립 사건이다.': '')+(compactCampaign()&&d.big?'\n비공개 본편 담당 사실: '+JSON.stringify(campaignChapter(d.key))+'\n이 사건의 결론으로 담당 사실을 입증하도록 증거와 검증 행동을 구성하라. main_link 필드에 담당 link를 그대로 넣는다. 담당하지 않은 다른 구역의 사실이나 전체 진상을 미리 말하지 않는다.':'');
-  return `플레이어이자 제작자도 정답을 모르는 새 미스터리를 설계한다. 아래 장소의 중심 사건 하나를 비공개로 완성하라. 정답과 모든 증거를 지금 확정하고, 이후 행동에 맞춰 바꾸지 않는다. 핵심 증거(role:"core", id e1~e4) 3~4개는 서로 다른 접근 가능한 공간에서 얻고(입문 사건은 아래 예외), 적어도 2개의 관찰을 연결해야 원인을 추론할 수 있게 한다. [행동별 증거] 증거마다 action에 그 증거를 얻는 구체적인 행동 한 문장(30자 안팎, 쉬운 입말, 예: "피아노 뚜껑 안쪽을 손전등으로 비춰 본다")을 쓴다. 같은 공간이라도 행동이 다르면 결과가 다르다. leads에는 이 증거를 얻으면 새로 조사할 수 있게 되는 증거 ID를 넣고, start_leads에는 처음부터 조사할 수 있는 증거 ID 1~2개를 넣는다. 모든 증거(함정 증거 d1 포함)는 start_leads에서 leads를 따라 도달할 수 있어야 한다: 다른 증거의 leads에 한 번도 나오지 않는 증거는 반드시 start_leads에 있어야 한다(예: start_leads ["e1"], e1.leads ["e2","d1"], e2.leads ["e3"], e3.leads []). dead_ends에는 그럴듯하지만 아무것도 나오지 않는 행동을 공간마다 최대 1개 넣되, 전체 행동(증거 action + dead_ends) 중 dead_ends는 30% 이하로 한다(증거가 4~5개면 dead_end 1~2개). 모든 action 문장은 서로 달라야 한다. 모든 핵심 증거를 verification.requires에 넣고(함정 증거는 넣지 않는다) 구체적인 검증 행동으로 원인과 결과의 관계를 확인한다. room_views는 위 공간 목록의 모든 공간마다 정확히 하나씩 쓰고 room에는 공간 ID(r1 등)를 그대로 넣으며 text는 400자 이하로 쓴다. ${MYSTERY_PLAIN_RULE} [문체] 읽는 사람은 고등학생이다. 전문용어·한자어·학술 말투(공명, 유입, 기류, 오작동, 기인 등)를 쓰지 말고 짧고 쉬운 입말로 쓴다. 가설 text는 한 문장(40자 안팎)으로 '무엇이 어떻게 해서 이런 일이 생겼다'만, 증거 text는 직접 보거나 들은 구체적인 모습 한 문장(60자 안팎), meaning은 '그렇다면 ~일 수도 있다' 정도의 짧은 한 줄(40자 안팎), verification.action도 한 문장으로 쓴다. 공간은 반드시 이름으로 부르고 r1·r2 같은 ID는 어떤 문장에도 쓰지 않는다. 분위기와 증거를 구분하고, 소문만으로 정답을 확정하지 않는다. 공개 묘사/도착 장면은 원인이나 아직 읽지 않은 증거를 밝히지 않는다. 의미(meaning)는 해당 증거만으로 알 수 있는 기여이며 정답을 미리 설명하지 않는다. 다음 증거의 행동은 leads로 열린 뒤에만 조사 후보로 공개된다. 학원 공포 세계관이며 본편 진상을 새로 만들거나 바꾸지 않는다.\n장소: ${d.name} / ${d.theme}\n공간과 연결: ${JSON.stringify(d.rooms.map(r=>({id:r.id,name:r.name,light:r.light||'dark',exits:r.exits})))}\n이미 플레이어가 관찰한 사실(바꾸지 말 것): ${JSON.stringify(seen)}\n기존 사건의 확정 배경(있다면 유지): ${d.lore?JSON.stringify({what:d.lore.what,fate:d.lore.fate}):'(새 사건)'}\n본편과의 비공개 본편 진상(바꾸지 말 것): ${JSON.stringify(compactCampaign()?{truth:campaignPlan()?.truth,detail:campaignPlan()?.detail}:G.secret||{})}\n본편과의 비공개 연결 제약: ${d.big?JSON.stringify((G.wards||[]).find(w=>w.id===d.key)||{}):'(독립 사건)'}\nJSON만: {"question":"중심 질문","opening":"정답 없는 도착 장면","truth":"실제 원인과 사건 경위","room_views":[{"room":"r1","text":"진입 시 보이는 분위기만(공간 ID 그대로, 400자 이하)"}],"evidence":[{"id":"e1","role":"core","room":"r1","action":"이 증거를 얻는 구체적인 행동 한 문장","text":"구체적인 관찰 사실","meaning":"이 사실이 좁히는 질문","leads":["e2"]}],"start_leads":["e1"],"dead_ends":[{"room":"r2","action":"그럴듯하지만 아무것도 나오지 않는 행동"}],"verification":{"room":"방 ID","action":"플레이어가 실행할 검증 방법","requires":["e1","e2"],"result":"실제 검증 결과"},"conclusion":"모든 근거를 연결한 최종 진상"}${extra}`;
+  return `플레이어이자 제작자도 정답을 모르는 새 미스터리를 설계한다. 아래 장소의 중심 사건 하나를 비공개로 완성하라. 정답과 모든 증거를 지금 확정하고, 이후 행동에 맞춰 바꾸지 않는다. 핵심 증거(role:"core", id e1~e4) 3~4개는 서로 다른 접근 가능한 공간에서 얻고(입문 사건은 아래 예외), 적어도 2개의 관찰을 연결해야 원인을 추론할 수 있게 한다. [행동별 증거] 증거마다 action에 그 증거를 얻는 구체적인 행동 한 문장(30자 안팎, 쉬운 입말, 예: "피아노 뚜껑 안쪽을 손전등으로 비춰 본다")을 쓴다. 같은 공간이라도 행동이 다르면 결과가 다르다. leads에는 이 증거를 얻으면 새로 조사할 수 있게 되는 증거 ID를 넣고, start_leads에는 처음부터 조사할 수 있는 증거 ID 1~2개를 넣는다. 모든 증거(함정 증거 d1 포함)는 start_leads에서 leads를 따라 도달할 수 있어야 한다: 다른 증거의 leads에 한 번도 나오지 않는 증거는 반드시 start_leads에 있어야 한다(예: start_leads ["e1"], e1.leads ["e2","d1"], e2.leads ["e3"], e3.leads []). dead_ends에는 그럴듯하지만 아무것도 나오지 않는 행동을 공간마다 최대 1개 넣되, 전체 행동(증거 action + dead_ends) 중 dead_ends는 30% 이하로 한다(증거가 4~5개면 dead_end 1~2개). 모든 action 문장은 서로 달라야 한다. 모든 핵심 증거를 verification.requires에 넣고(함정 증거는 넣지 않는다) 구체적인 검증 행동으로 원인과 결과의 관계를 확인한다. room_views는 위 공간 목록의 모든 공간마다 정확히 하나씩 쓰고 room에는 공간 ID(r1 등)를 그대로 넣으며 text는 400자 이하로 쓴다. ${MYSTERY_PLAIN_RULE} [문체] 읽는 사람은 고등학생이다. 전문용어·한자어·학술 말투(공명, 유입, 기류, 오작동, 기인 등)를 쓰지 말고 짧고 쉬운 입말로 쓴다. 가설 text는 한 문장(40자 안팎)으로 '무엇이 어떻게 해서 이런 일이 생겼다'만, 증거 text는 직접 보거나 들은 구체적인 모습 한 문장(60자 안팎), meaning은 '그렇다면 ~일 수도 있다' 정도의 짧은 한 줄(40자 안팎), verification.action도 한 문장으로 쓴다. 공간은 반드시 이름으로 부르고 r1·r2 같은 ID는 어떤 문장에도 쓰지 않는다. 분위기와 증거를 구분하고, 소문만으로 정답을 확정하지 않는다. 공개 묘사/도착 장면은 원인이나 아직 읽지 않은 증거를 밝히지 않는다. 의미(meaning)는 해당 증거만으로 알 수 있는 기여이며 정답을 미리 설명하지 않는다. 다음 증거의 행동은 leads로 열린 뒤에만 조사 후보로 공개된다. 학원 공포 세계관이며 본편 진상을 새로 만들거나 바꾸지 않는다.\n장소: ${d.name} / ${d.theme}\n공간과 연결: ${JSON.stringify(d.rooms.map(r=>({id:r.id,name:r.name,light:r.light||'dark',exits:r.exits})))}\n이미 플레이어가 관찰한 사실(바꾸지 말 것): ${JSON.stringify(seen)}\n기존 사건의 확정 배경(있다면 유지): ${d.lore?JSON.stringify({what:d.lore.what,fate:d.lore.fate}):'(새 사건)'}\n본편과의 비공개 본편 진상(바꾸지 말 것): ${JSON.stringify(compactCampaign()?{truth:campaignPlan()?.truth,detail:campaignPlan()?.detail}:G.secret||{})}\n본편과의 비공개 연결 제약: ${d.big?JSON.stringify((G.wards||[]).find(w=>w.id===d.key)||{}):'(독립 사건)'}${(()=>{const c=compactCampaign()&&incidentPlan()&&incidentClueOf(d.intro?'intro':d.big?d.key:'');return c?`\n중심 사건(${incidentPlan().incident.missing} 실종)의 단서 — 이 사건을 풀면 공개된다. 결론·검증 결과와 모순되지 않고, 이 장소에서 그 단서가 발견되는 것으로 자연스럽게 이어지게 설계하라(이 사건의 정답 자체는 독립적이어도 된다): ${c.text}`:''})()}\nJSON만: {"question":"중심 질문","opening":"정답 없는 도착 장면","truth":"실제 원인과 사건 경위","room_views":[{"room":"r1","text":"진입 시 보이는 분위기만(공간 ID 그대로, 400자 이하)"}],"evidence":[{"id":"e1","role":"core","room":"r1","action":"이 증거를 얻는 구체적인 행동 한 문장","text":"구체적인 관찰 사실","meaning":"이 사실이 좁히는 질문","leads":["e2"]}],"start_leads":["e1"],"dead_ends":[{"room":"r2","action":"그럴듯하지만 아무것도 나오지 않는 행동"}],"verification":{"room":"방 ID","action":"플레이어가 실행할 검증 방법","requires":["e1","e2"],"result":"실제 검증 결과"},"conclusion":"모든 근거를 연결한 최종 진상"}${extra}`;
 }
 async function ensureMystery(d=G&&G.site){
   if(!d||!Array.isArray(d.rooms)) return null;
@@ -5269,8 +5350,8 @@ function mysterySolveCase(d,p,st){
   const ids=st.found.filter(id=>p.evidence.find(e=>e.id===id)?.role!=='decoy').map(id=>st.evidenceIds[id]);
   if(ids.length&&ids.every(Boolean)){ st.solved=true; if(!resolveCase(d.caseId,p.conclusion,ids)) st.solved=false }
   if(st.solved&&compactCampaign()){
-    if(d.intro){G.campaign.introSolved=true;settleIntroRumors();checkState()}
-    if(d.big){G.campaign.links[d.key]={name:d.name,text:p.main_link};addLog('fx','🧭 본편 연결 — '+p.main_link)}
+    if(d.intro){G.campaign.introSolved=true;settleIntroRumors();grantIncidentClue('intro');checkState()}
+    if(d.big){G.campaign.links[d.key]={name:d.name,text:p.main_link};addLog('fx','🧭 본편 연결 — '+p.main_link);grantIncidentClue(d.key)}
   }
 }
 function mysterySolvedLog(d,p,st){
@@ -8916,12 +8997,13 @@ function wardFound(text,note){
 /* ---------- 결말 화면 — 진실은 코드가 직접 보여 준다 (AI 서술이 없거나 빗나가도) ---------- */
 function openEnding(){
   if(!G||G.act<4) return;
-  if(compactCampaign()&&(!campaignPlan()||['lacuna','c0','c1'].some(k=>!G.campaign.links[k])))return toast('주요 지역 3곳의 사건 검증이 필요합니다');
+  if(compactCampaign()&&(!campaignPlan()||(!G.campaign.caseSolved&&['lacuna','c0','c1'].some(k=>!G.campaign.links[k]))))return toast('주요 지역 3곳의 사건 검증이 필요합니다');
   sfx('ending');
   const S=(compactCampaign()?campaignPlan():G.secret)||{}, found=(G.wards||[]).filter(c=>c.found);
   const rel=Object.entries(G.rel||{}).filter(([n,r])=>r.stage>=3).map(([n])=>n);
   const comp=G.comp&&G.comp.met?(G.comp.profile&&G.comp.profile.name||'유민')+(G.comp.joined?' (끝까지 함께함)':''):null;
-  modal('🌅 결말 — 학원도시가 숨긴 것',`${campaignPanel()}<p class="muted">주요 지워진 구역이 모두 이어졌습니다. 이것이 이 세계의 숨겨진 진실입니다.</p>
+  const ip=incidentPlan(), cul=ip&&G.campaign.caseSolved?(ip.suspects.find(s=>s.id===ip.culprit)||{}):null;
+  modal('🌅 결말 — 학원도시가 숨긴 것',`${cul?`<div class="lex"><div class="h"><b>🕯 ${esc(ip.incident.missing)} 실종 사건의 진상</b></div><p><b>${esc(cul.name)}</b> (${esc(cul.role)})</p><div style="line-height:1.7">${esc(ip.culprit_why)}</div></div>`:''}${campaignPanel()}<p class="muted">이것이 이 섬이 숨겨 온 진실입니다.</p>
     <div class="lex"><div class="h"><b>🗝 숨겨진 것의 정체</b></div><div style="font-size:15px;line-height:1.7">${esc(S.truth||'(기록 없음)')}</div>${S.detail?`<div class="muted" style="margin-top:6px;line-height:1.7">${esc(S.detail)}</div>`:''}</div>
     <div class="lex"><div class="h"><b>🧭 ${esc(G.char.name)}의 조사 기록</b></div><div style="font-size:14px;line-height:1.8">
       ${G.day}일 동안 한빛시를 건넜습니다 · 조사를 마친 구역 ${G.sitesDone||0}곳<br>
