@@ -1520,8 +1520,8 @@ materials: 구역에서 실제로 쓸 만한 철제 부품·합판·전선·유�
 사전추가: 새 인물·장소·괴담 [{"cat":"인물|장소|괴담","name":"이름","desc":"한두 문장"}](핵심만, 없으면 []). 조사보드·해결단서는 옛 형식 호환용이며 새 응답에서는 빈 배열. 사건진행에 기존 사건의 증거와 다음 목표를 기록한다. 관찰 사실 추가는 사건 해결이 아니다. 떡밥장부: 네가 새로 정한 사실(교칙·정체·약속 등) "항목 = 내용" 배열. 없으면 []이고 이미 적힌 것은 반복 금지.
 [행동] 선택지마다 action_id를 [실행 가능한 행동] 목록에서 고른다. 이동 표현과 무관하게 ID가 기능을 결정한다. 등록된 방·조사 구역 ID를 임의로 만들지 않는다. 캠퍼스 안의 가까운 새 임시장소(강당·편의점 등)는 action_id "spot:enter"와 to:"장소 이름"으로 이동할 수 있다. 외부의 새 조사 장소는 event.place_lead로 먼저 이름과 가는 길을 등록하고, 이후 제공된 lead:ID로 떠난다. 일반 대사·새로운 시도는 story, 위험한 시도는 check:능력치. 이동과 조사를 한 선택지에 묶지 않는다. "위치"는 빈 문자열이며 실제 위치는 게임 실행 결과를 따른다. 없는 곳으로 이동한 서술을 만들지 않는다.
 [사건진행] 기존 사건을 이어 가는 것이 기본. 같은 괴담의 반복 관찰·증언은 같은 case_id에 붙인다. 대부분의 장면은 []. 새 증거는 새 사실이며 원인 후보 축소(narrows)·가설 반박(refutes)·새 조사 방향(route)·중요 관찰(observation) 중 하나여야 한다. 분위기·표현만 다른 반복은 추가하지 않는다. kind는 fact(관찰 사실), testimony(증언), rumor(소문), hypothesis(추정). 소문·추정을 사실로 단정하지 않는다.
-- 기존 사건: {"case_id":"t1","evidence":[{"text":"관찰 사실","kind":"fact","role":"narrows"}],"next":["다음 조사 방향"]}
-- 새 사건은 독립적인 질문과 목표가 생길 때만: {"new_case":true,"question":"미해결 질문","reason":"기존 사건으로 묶을 수 없는 이유","scope":"main|local|personal","topic_key":"지속해서 쓸 사건 키워드","place_id":"현재 장소 ID","evidence":[],"next":[]} (한 턴 최대 1개).
+- 기존 사건: {"case_id":"t1","evidence":[{"text":"관찰 사실","kind":"fact","role":"narrows","means":"그래서 좁혀진 것 한 줄"}],"next":["한 줄 행동"]}. 증거 text와 next는 전문 지식 없이 바로 이해되는 쉬운 말로 쓴다(배관·회로·수치 주기·기술 용어 금지). next는 '○○에게 묻기', '○○ 살펴보기'처럼 25자 안팎의 한 줄 행동이다. 증거마다 means에 '그래서 무엇이 좁혀졌나'를 20자 안팎으로 쓴다(예: '밤에 나간 사람이 있었다'). 질문은 현상보다 '누가 무엇을 했는가'로 쓰고, 새 사건에는 관련 인물 2~3명을 people에 적는다.
+- 새 사건은 독립적인 질문과 목표가 생길 때만: {"new_case":true,"question":"미해결 질문","reason":"기존 사건으로 묶을 수 없는 이유","scope":"main|local|personal","topic_key":"지속해서 쓸 사건 키워드","place_id":"현재 장소 ID","people":["관련 인물"],"evidence":[],"next":[]} (한 턴 최대 1개, 열린 장소 사건이 이미 3개면 만들지 않는다).
 - 해결은 구체적인 conclusion과 공개된 증거 ID support_ids가 있어야 한다: {"case_id":"t1","resolution":{"conclusion":"밝혀낸 원인·결론","support_ids":["e1","e2"]}}. 현상이 존재한다는 사실만으로 원인을 해결하지 않는다. 증거 ID를 만들거나 공개되지 않은 비밀을 쓰지 않는다.
 
 [급식실] 점심시간에만 식사를 준다. 그 밖에는 닫혀 있어 급식실 식사 장면·제안·선택지와 급식실 약속을 쓰지 않는다(방과 후 간식은 매점·상점가).
@@ -7282,7 +7282,7 @@ on('facts',90,(o,rules)=>{ const r=callRule(); if(r) rules.push(r) });
    ========================================================= */
 /* 사건 한 개에 질문·증거·다음 목표를 모은다. 원문 보관량과 AI 전달량은 독립적이다. */
 const CASE_SCOPES=['main','local','personal'], EVIDENCE_KINDS=['fact','testimony','rumor','hypothesis','note'];
-const CASE_LOCAL_LIMIT=3, CASE_PROMPT_LIMIT=6, EVIDENCE_PROMPT_LIMIT=10;
+const CASE_LOCAL_LIMIT=3, CASE_PROMPT_LIMIT=6, EVIDENCE_PROMPT_LIMIT=10, PLACE_CASE_MAX=3;   // 동시에 열린 즉석 장소 사건은 3개까지(봉인 사건 제외)
 const EVIDENCE_NAMES={fact:'관찰 사실',testimony:'증언',rumor:'소문',hypothesis:'추정',note:'기록'};
 const clueKey=t=>String(t||'').replace(/\s+/g,' ').trim();
 function knowledgePlace(g=G){
@@ -7351,6 +7351,7 @@ function caseRecord(text,opt={},g=G){
   const exact=g.threads.find(t=>t.text===text&&!t.parentId&&t.scope===scope&&t.placeId===placeId); if(exact) return exact;
   const same=g.threads.find(t=>t.status==='open'&&!t.parentId&&t.scope===scope&&t.placeId===placeId&&(opt.key?t.topicKey===opt.key:true));
   if(same&&!opt.newCase){ if(!same.questions) same.questions=[]; if(!same.questions.includes(text)&&text!==same.text) same.questions.push(text); same.touched=g.day; return same }
+  if(!opt.force&&scope==='local'&&(g.threads||[]).filter(t=>!t.parentId&&t.status==='open'&&t.scope==='local'&&!t.privateMystery).length>=PLACE_CASE_MAX) return opt.newCase?null:same||null;
   if(!opt.force&&(clueLoad(g)>=THREAD_SOFT||(scope==='local'&&threadsActive(g).filter(t=>t.scope==='local'&&t.placeId===placeId).length>=CASE_LOCAL_LIMIT))) return opt.newCase?null:same||null;
   const t={id:nextCaseId(g),text,scope,placeId,topicKey:String(opt.key||scope+':'+placeId).slice(0,100),day:g.day,touched:g.day,status:'open',shown:0,evidenceIds:[],questions:[],next:[],conclusion:'',supportIds:[]};
   g.threads.push(t); return t;
@@ -7391,7 +7392,7 @@ function recordEvidence(text,opt={}){
   const kind=EVIDENCE_KINDS.includes(opt.kind)?opt.kind:'fact';
   const old=G.evidence.find(e=>!e.deleted&&e.text===text&&e.placeId===placeId&&e.kind===kind&&e.caseId===(t?t.id:opt.caseId||null)); if(old) return old;
   let id; do{ G.evidenceN=(G.evidenceN||0)+1; id='e'+G.evidenceN }while(G.evidence.some(e=>e.id===id));
-  const e={id,text,caseId:t?t.id:opt.caseId||null,scope,placeId,kind,day:opt.day==null?G.day:opt.day,source:opt.source||'scene',role:opt.role||'observation',relatedPlaces:(Array.isArray(opt.relatedPlaces)?opt.relatedPlaces:[]).filter(knownKnowledgePlace).slice(0,3)};
+  const e={id,text,caseId:t?t.id:opt.caseId||null,scope,placeId,kind,day:opt.day==null?G.day:opt.day,source:opt.source||'scene',role:opt.role||'observation',means:opt.means||'',relatedPlaces:(Array.isArray(opt.relatedPlaces)?opt.relatedPlaces:[]).filter(knownKnowledgePlace).slice(0,3)};
   G.evidence.push(e);
   if(t){ if(!t.evidenceIds) t.evidenceIds=[]; t.evidenceIds.push(id); t.touched=G.day }
   return e;
@@ -7427,15 +7428,18 @@ function applyCaseUpdates(updates,opt={}){
     else {
       if(created>=1||!u.question||!u.reason||u.new_case!==true) continue;
       const placeId=u.place_id&&knownKnowledgePlace(u.place_id)?u.place_id:opt.placeId||knowledgePlace();
+      if(mysteryJargon({question:u.question})) continue;
       t=caseRecord(u.question,{scope:u.scope,placeId,key:u.topic_key,newCase:true}); if(!t) continue; created++;
+      if(Array.isArray(u.people)) t.people=u.people.filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim().slice(0,12)).slice(0,3);
     }
     for(const e of (Array.isArray(u.evidence)?u.evidence:[]).slice(0,2)){
       if(!e||typeof e.text!=='string'||!EVIDENCE_KINDS.includes(e.kind)||!['narrows','refutes','route','observation'].includes(e.role)) continue;
+      if(mysteryJargon({truth:e.text+' '+(e.means||'')})) continue;   // 일반인이 이해하기 어려운 기술 설명은 기록하지 않는다
       // 소문과 추정의 종류를 유지하여 같은 사건의 증거로 보관한다.
       if(introRumorText(e.text)){ addCanon(e.text,false,false,{kind:EVIDENCE_KINDS.includes(e.kind)?e.kind:'fact',role:e.role,source:opt.source||'scene'}); continue }   // 입문 사건 장소의 소문은 그 장소 칸으로
-      addCanon(e.text,false,false,{caseId:t.id,scope:t.scope,placeId:opt.placeId||knowledgePlace(),kind:EVIDENCE_KINDS.includes(e.kind)?e.kind:'fact',role:e.role,relatedPlaces:e.related_places,source:opt.source||'scene'});
+      addCanon(e.text,false,false,{means:typeof e.means==='string'?e.means.trim().slice(0,60):'',caseId:t.id,scope:t.scope,placeId:opt.placeId||knowledgePlace(),kind:EVIDENCE_KINDS.includes(e.kind)?e.kind:'fact',role:e.role,relatedPlaces:e.related_places,source:opt.source||'scene'});
     }
-    if(Array.isArray(u.next)) t.next=[...new Set(u.next.map(clueKey).filter(Boolean))].slice(0,3).map(s=>s.slice(0,100));
+    if(Array.isArray(u.next)){ const nx=[...new Set(u.next.map(clueKey).filter(Boolean))].filter(x=>!mysteryJargon({truth:x})).slice(0,2).map(s=>s.slice(0,40)); if(nx.length) t.next=nx }
     if(u.resolution&&opt.source!=='lex') resolveCase(t.id,u.resolution.conclusion,u.resolution.support_ids);
     t.touched=G.day;
   }
@@ -7487,7 +7491,7 @@ function notebookGroupsHTML(records,allowDelete=false){
     const rows=entries.map(e=>{
       const type=e.checked?`${EVIDENCE_NAMES[e.kind]||'소문'} → ${RUMOR_RESULT[e.checked.result]||'확인함'}`:e.source==='legacy'||!e.kind?'기존 기록 · 중요도 미확정':EVIDENCE_NAMES[e.kind]||'기록';
       const i=(G.canon||[]).findIndex(c=>e.id?c.id===e.id:c===e);
-      return `<div class="shop-row"><span>${canonHTML(e.text)} <span class="muted">[${esc(type)}]</span></span>${key==='rumor'?rumorCheckButton(e):''}${allowDelete&&i>=0&&key!=='core'?`<button class="small" onclick="delCanon(${i})" aria-label="기록 삭제">✕</button>`:''}</div>`;
+      return `<div class="shop-row"><span>${canonHTML(e.text)} <span class="muted">[${esc(type)}]</span>${e.means?`<br><span class="muted small">→ ${esc(e.means)}</span>`:''}</span>${key==='rumor'?rumorCheckButton(e):''}${allowDelete&&i>=0&&key!=='core'?`<button class="small" onclick="delCanon(${i})" aria-label="기록 삭제">✕</button>`:''}</div>`;
     }).join('')||'<p class="muted">아직 기록이 없습니다.</p>';
     return `<details${key==='core'?' open':''}><summary><b>${name} · ${entries.length}개</b></summary><p class="muted">${help}</p>${rows}</details>`;
   }).join('');
@@ -7561,7 +7565,7 @@ function rumorCheckReward(result,r){
 function caseCard(t){
   const facts=evidenceForCase(t), names={main:'출석부',local:'장소',personal:'인물'}, where=compactCampaign()?placeLabel(t.placeId):'';
   if(t.privateMystery) return `<div class="lex"><b>${esc(t.text)}</b><div>${t.status==='closed'?'해결 완료':'진행 중'} · 확인한 사실 ${facts.filter(e=>notebookCategory(e)==='core').length}개 · 전체 기록 ${facts.length}개</div>${notebookGroupsHTML(facts)}${t.conclusion?`<p><b>검증된 진상:</b> ${esc(t.conclusion)}</p>`:`<p class="muted">다음 조사: ${(t.next||[]).map(esc).join(' / ')||'지역의 사건 조사 수첩 확인'}<br>충분하다고 생각되면 지정 공간에서 추리를 확인해 해결합니다.</p>`}</div>`;
-  return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${compactCampaign()?(where?'📍 '+esc(where)+' · ':''):(names[t.scope]||'사건')+' · '}기록 ${facts.length}개</span></div>${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${notebookGroupsHTML(facts)}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`${caseGoButton(t)}<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
+  return `<div class="lex"><div class="h"><b>${esc(t.text)}</b><span class="cat">${compactCampaign()?(where?'📍 '+esc(where)+' · ':''):(names[t.scope]||'사건')+' · '}기록 ${facts.length}개</span></div>${Array.isArray(t.people)&&t.people.length?`<div class="muted small">👥 관련 인물: ${t.people.map(esc).join(' · ')}</div>`:''}${t.questions&&t.questions.length?`<details><summary>관련 질문 ${t.questions.length}개</summary>${t.questions.map(q=>`<div>${esc(q)}</div>`).join('')}</details>`:''}${notebookGroupsHTML(facts)}${t.next&&t.next.length?`<div class="muted">다음 조사: ${t.next.map(esc).join(' · ')}</div>`:''}${t.conclusion?`<div>결론: ${esc(t.conclusion)}</div>`:''}<div class="row">${t.status==='open'?`${caseGoButton(t)}<button class="small" data-case="${esc(t.id)}" onclick="closeThread(this.dataset.case)">보류하기</button><button class="small" data-case="${esc(t.id)}" onclick="openCaseResolution(this.dataset.case)">결론 기록</button>`:`<button class="small" data-case="${esc(t.id)}" onclick="reopenThread(this.dataset.case)">다시 조사</button>`}</div></div>`;
 }
 function openCaseResolution(id){
   const t=(G.threads||[]).find(t=>t.id===id); if(!t) return;
@@ -7588,7 +7592,7 @@ function threadResolved(t){
 
 function threadsOpen(g){ g=g||G; return (g.threads||[]).filter(t=>!t.parentId&&t.status==='open') }
 function threadsRequest(g){
-  return `\n[사건별 조사 정리]\n새 질문을 늘리기보다 기존 사건에 중요한 관찰·증언·다음 조사 방향을 붙인다. 같은 장소 괴담은 같은 case_id를 쓴다. 사실 기록만으로 질문을 해결하지 않는다. case_updates 기존 사건 형식은 {case_id:'t1',evidence:[{text:'장면에 나온 사실',kind:'fact|testimony|rumor|hypothesis',role:'narrows|refutes|route|observation'}],next:['다음 조사 방향']}. 새 사건은 new_case:true,question,reason,scope,topic_key,place_id가 있어야 하며 최대 1개. 이번 추출에서 사건 해결은 하지 않는다. threads_new는 옛 호환용이며 새 응답은 case_updates 사용. 결론에는 공개된 증거 ID와 실제 결론이 필요하다.\n[사건]\n${(g.threads||[]).filter(t=>!t.parentId&&t.status==='open').slice(-12).map(t=>`${t.id} [${t.scope} ${t.placeId}]: ${t.text}`).join('\n')||'(없음)'}`;
+  return `\n[사건별 조사 정리]\n새 질문을 늘리기보다 기존 사건에 중요한 관찰·증언·다음 조사 방향을 붙인다. 같은 장소 괴담은 같은 case_id를 쓴다. 사실 기록만으로 질문을 해결하지 않는다. case_updates 기존 사건 형식은 {case_id:'t1',evidence:[{text:'장면에 나온 사실',kind:'fact|testimony|rumor|hypothesis',role:'narrows|refutes|route|observation',means:'그래서 좁혀진 것'}],next:['한 줄 행동']}. 증거 text와 next는 전문 지식 없이 바로 이해되는 쉬운 말로 쓴다(배관·회로·수치 주기·기술 용어 금지). next는 '○○에게 묻기', '○○ 살펴보기'처럼 25자 안팎의 한 줄 행동이다. 증거마다 means에 '그래서 무엇이 좁혀졌나'를 20자 안팎으로 쓴다(예: '밤에 나간 사람이 있었다'). 질문은 현상보다 '누가 무엇을 했는가'로 쓰고, 새 사건에는 관련 인물 2~3명을 people에 적는다. 새 사건은 new_case:true,question,reason,scope,topic_key,place_id가 있어야 하며 최대 1개. 이번 추출에서 사건 해결은 하지 않는다. threads_new는 옛 호환용이며 새 응답은 case_updates 사용. 결론에는 공개된 증거 ID와 실제 결론이 필요하다.\n[사건]\n${(g.threads||[]).filter(t=>!t.parentId&&t.status==='open').slice(-12).map(t=>`${t.id} [${t.scope} ${t.placeId}]: ${t.text}`).join('\n')||'(없음)'}`;
 }
 
 function applyThreads(g,r,opt={}){
