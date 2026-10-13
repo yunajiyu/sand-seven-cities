@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0f13">
+<title>해무</title>
+<style>
+:root{
+  --bg:#0d0f13; --bg2:#151922; --panel:rgba(14,17,24,.88); --line:rgba(190,205,225,.16);
+  --ink:#e6e9ef; --mute:#97a0ae; --accent:#b9c9dd; --warn:#e2a07a; --plate:#2a3240;
+  --fs:1;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){ --bg:#e9ecf1; --bg2:#dfe3ea; --panel:rgba(250,251,253,.92); --line:rgba(40,50,70,.18); --ink:#1d222b; --mute:#5c6573; --accent:#3c5675; --warn:#a4532c; --plate:#d4dbe6 }
+}
+:root[data-theme="light"]{ --bg:#e9ecf1; --bg2:#dfe3ea; --panel:rgba(250,251,253,.92); --line:rgba(40,50,70,.18); --ink:#1d222b; --mute:#5c6573; --accent:#3c5675; --warn:#a4532c; --plate:#d4dbe6 }
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+body{overflow:hidden}
+button{font:inherit;color:inherit;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;cursor:pointer;min-height:44px}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);color:var(--bg);border-color:transparent;font-weight:600}
+button.small{min-height:36px;padding:6px 10px;font-size:14px}
+input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+label{display:block;margin:10px 0 4px;font-size:14px;color:var(--mute)}
+.muted{color:var(--mute)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hidden{display:none!important}
+section.screen{position:fixed;inset:0;display:flex;flex-direction:column}
+
+/* 타이틀 */
+#title{align-items:center;justify-content:center;padding:24px;text-align:center;background:radial-gradient(120% 80% at 50% 20%,#1c2330 0%,var(--bg) 70%)}
+#title h1{font-family:"Nanum Myeongjo","AppleMyungjo",serif;font-weight:400;font-size:44px;letter-spacing:.3em;margin:0 0 6px;padding-left:.3em}
+#title .sub{margin:0 0 36px}
+#title .menu{display:flex;flex-direction:column;gap:10px;width:min(280px,100%)}
+#aiStatus{margin-top:24px;font-size:13px;max-width:420px}
+
+/* 게임 — 글로 읽는 화면: 이야기가 위에서 아래로 쌓이고, 맨 아래에 선택지 */
+#game{background:var(--bg)}
+.top{display:flex;align-items:center;gap:8px;padding:calc(6px + env(safe-area-inset-top)) 12px 6px;border-bottom:1px solid var(--line)}
+.top .when{flex:1;font-size:14px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#saveWarning{display:none;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:rgba(160,70,40,.25);font-size:14px}
+#log{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 8px}
+#log .inner{max-width:680px;margin:0 auto}
+#log p{margin:0 0 .9em;font-size:calc(17px * var(--fs));line-height:1.8;word-break:keep-all;white-space:pre-wrap}
+#log p.say .w{font-weight:700;color:var(--accent);margin-right:.35em}
+#log p.say.me .w{color:var(--mute)}
+#log p.act{color:var(--mute);font-size:calc(15px * var(--fs));border-left:2px solid var(--line);padding-left:10px;margin:1.4em 0 1.1em}
+#log p.time{text-align:center;color:var(--mute);font-size:calc(14px * var(--fs));letter-spacing:.15em;margin:1.6em 0}
+#log p.time::before,#log p.time::after{content:" ── "}
+#log p.new{animation:fadein .5s ease both}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){#log p.new{animation:none}}
+#log p.waiting{color:var(--mute);letter-spacing:.4em;animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{50%{opacity:.25}}
+.dock{padding:8px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.dock:empty{display:none}
+#choices{display:flex;flex-direction:column;gap:8px;max-height:40vh;overflow:auto;max-width:680px;margin:0 auto}
+#choices:empty{display:none}
+#choices button{text-align:left;line-height:1.45;font-size:calc(16px * var(--fs))}
+#choices button.free{color:var(--mute);border-style:dashed}
+#freeBox textarea{min-height:76px;resize:vertical}
+
+/* 모달 */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+@media (min-width:640px){.modal-bg{align-items:center}}
+.modal{background:var(--bg);border:1px solid var(--line);border-radius:16px 16px 0 0;width:min(560px,100%);max-height:88vh;display:flex;flex-direction:column}
+@media (min-width:640px){.modal{border-radius:16px}}
+.modal header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
+.modal header h3{margin:0;font-size:17px}
+.modal .body{padding:14px 16px calc(16px + env(safe-area-inset-bottom));overflow:auto}
+.menuList{display:flex;flex-direction:column;gap:8px}
+.menuList button{text-align:left}
+.lex{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0}
+.lex .h{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.lex .cat{font-size:12px;color:var(--mute)}
+.backlog p{margin:0 0 10px;line-height:1.6}
+.backlog .w{font-weight:600;margin-right:6px}
+.backlog .act{color:var(--mute)}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--plate);border:1px solid var(--line);border-radius:10px;padding:10px 14px;opacity:0;transition:.25s;pointer-events:none;z-index:40;max-width:min(92vw,520px);font-size:14px}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- 타이틀 -->
+<section id="title" class="screen">
+  <h1>해무</h1>
+  <p class="sub muted" id="subTitle"></p>
+  <div class="menu">
+    <button class="primary" onclick="startNew()">새로 시작</button>
+    <button id="btnContinue" onclick="continueGame()">이어 하기</button>
+    <button onclick="openSettings()">⚙ AI 연결</button>
+    <button onclick="openPrefs()">화면 설정</button>
+  </div>
+  <p class="muted" id="aiStatus"></p>
+</section>
+
+<!-- 게임 -->
+<section id="game" class="screen hidden">
+  <div class="top">
+    <span class="when" id="when"></span>
+    <button class="small" id="undoBtn" onclick="undoLast()" disabled>↩ 되돌리기</button>
+    <button class="small" onclick="openMenu()" aria-label="메뉴">☰</button>
+  </div>
+  <div id="saveWarning" role="alert"><span>⚠ 자동 저장에 실패했습니다. 현재 진행을 파일로 보관해 주세요.</span><button class="small" onclick="save()">저장 재시도</button><button class="small" onclick="exportSave()">현재 진행 다운로드</button></div>
+  <div id="log" aria-live="polite"><div class="inner" id="logInner"></div></div>
+  <div class="dock"><div id="choices"></div></div>
+</section>
+
+<div id="modalRoot"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   해무 — 공포 분위기의 텍스트 연애 시뮬레이션 (1단계 뼈대)
+   - 화면: 글로 쌓이는 이야기(지문·대사) + 맨 아래 선택지
+   - AI는 행동마다 한 번 장면(JSON: 지문·대사 줄과 선택지)을 쓰고, 코드가 이야기 기록에 붙인다.
+   - 저장·가져오기·되돌리기·AI 연결(Vertex JSON 포함)은 hanbit.html에서 옮겨 왔다.
+   ========================================================= */
+const SAVE_KEY='haemu_save_v1', SET_KEY='sand7_settings';   // 설정(API 키)은 hanbit.html과 같이 씀
+const SAVE_BACKUP_KEY=SAVE_KEY+'_before_import';
+const UI_KEY='haemu_ui';
+
+/* ---------- 세계 (배경이 정해지면 이 블록과 CHARS를 바꿈) ---------- */
+const WORLD={
+  title:'해무',
+  sub:'안개 속의 이야기 · 가제',
+  setting:'남쪽 외딴 섬 「해무섬」의 해무요양원. 안개가 잦고, 밤이면 닫힌 별관 쪽에서 설명할 수 없는 일이 일어난다는 소문이 돈다. 플레이어는 23세 신입 생활지원 직원(2병동)으로 막 부임했다.',
+  tone:'잔잔한 공포와 설렘이 함께 있는 이야기. 공포는 소리·기척·빛·안개 같은 분위기로 그리고, 잔혹하거나 피가 낭자한 묘사는 하지 않는다.',
+  places:{
+    room:{n:'숙소 방'},
+    ward:{n:'2병동 휴게실'},
+    hall:{n:'병동 복도'},
+    yard:{n:'산책 마당'},
+    pier:{n:'방파제 길'},
+  },
+  start:'room',
+  slots:['아침','오전','점심','오후','저녁','밤'],
+  opening:{
+    lines:[
+      {who:'',text:'배가 포구에 닿았을 때, 섬은 안개에 반쯤 잠겨 있었다.'},
+      {who:'',text:'배정받은 숙소 방은 좁고 깨끗했다. 창밖으로 불 꺼진 건물 한 채가 보였다. 그 건물에 대해서는 아무도 말해 주지 않았다.'},
+      {who:'',text:'짐 가방을 내려놓았을 때, 복도 끝에서 누군가 낮게 콧노래를 부르며 걸어왔다.'},
+      {who:'',text:'노랫소리는 당신의 방문 앞에서 잠깐 멈췄다가, 다시 멀어졌다.'},
+    ],
+    choices:['문을 열고 복도를 내다본다','짐을 풀며 노랫소리가 사라지길 기다린다','창밖의 불 꺼진 건물을 바라본다'],
+  },
+};
+const PLACES=WORLD.places;
+const MOODS=['기본','웃음','슬픔','당황','화남','놀람'];   // 대사의 감정 (지금은 화면에 쓰지 않고 기록만 함)
+
+/* 등장인물 (대사 규칙과 숨은 설정). 숨은 설정은 AI에게만 주고 화면에는 나오지 않는다. */
+const YUMIN_DEFAULT={
+  name:'유민', job:'해무요양원 2병동 간호사 · 쉬는 날엔 포구에서 기타 치며 노래',
+  look:'24세 남성, 177cm. 근무 땐 간호복 위에 낡은 카디건을 걸친다. 날씬하지만 단단한 근육, 섬세한 이목구비. 검은 머리는 턱에서 어깨 사이 길이로 헝클어져 있고, 앞머리가 한쪽 눈을 살짝 가리며 반대쪽은 귀 뒤로 넘겨 묶었다. 가늘고 처진 회색 눈, 긴 속눈썹, 밝은 피부. 웃으면 입꼬리가 올라가고, 목선과 손가락이 길다. 늘 느긋한 미소와 장난기를 띤다.',
+  personality:'겉으로는 부드럽고 느긋하고 장난스럽다. 위기에도 농담이 먼저 나오고, 낯선 사람에게도 거리낌 없이 말을 건다. 불편할수록 말이 많아진다. 중요한 순간에는 진심이 새어 나온다.',
+  speech:'가벼운 구어체 반말. 늘임표(~)는 한 번 말할 때 최대 1~2회만. 주어와 호칭은 자주 생략하고 평소엔 "너"라고 한다. 이름은 주의를 끌거나 걱정되거나 진지한 순간에만 성 없이 "{이름}"처럼 부른다.',
+  examples:'[회피 — 불편할 때] "뭐~ 그럴 수도 있지. 배고프지 않아?" (가볍게 넘기고 화제 전환)\n[밀어내기] 같은 가벼운 톤으로 정확하게 선을 긋는 말 (예: "그 얘긴 지난 점호 방송에 날려 보냈어~")\n[밀어내기] "나 걱정하는 거야, 관리하는 거야?" (역질문으로 상대를 흔듦)\n[무의식적 누출] "조심해" (자기가 함께하지 않는 위험한 일에 상대가 나설 때, 무심코 툭)',
+  banned:'단답, 차가운 거절, 말없이 자리를 뜨는 것. "심장 빨라졌어?" 같은 직접적으로 캐묻기 — 상대의 감정을 감지해도 농담이나 웃음으로 넘기고 화제를 돌린다.',
+  ability:'노래로 소리와 원내 방송, 전자기기를 흔든다. 과하게 쓰는 게 습관이라, 한 번 쓰면 판이 크게 뒤집힌다.',
+  inner:'정서적 친밀감과 누군가에게 기대는 것을 두려워한다. 그를 키운 할아버지는 섬 출신 뱃사람으로 해무요양원 확장 공사에 관여했고, 그의 죽음과 당국의 배신이 얽혀 있다. 유민은 십 대 때부터 사실상 혼자 지냈다. 외로움을 "감당할 수 있는 것"이라 여긴다. 이 섬에 온 이유는 말하지 않는다. 유민의 노래와 학원도시 지식 일부는 할아버지에게서 배운 것이지만, 본인은 그 사실을 굳이 말하지 않는다. (내면은 대사로 직접 말하지 않고 서술로만 암시한다.)',
+  avoid:'불편해지면 말이 많아지고, 분위기를 가볍게 유지하고, 되묻거나 화제를 돌린다. 예: "뭐~ 그럴 수도 있지. 배고프지 않아?" 단답, 차가운 거절, 말없이 자리를 뜨는 것은 유민답지 않다.',
+};
+const CHARS={'유민':YUMIN_DEFAULT};
+
+/* ---------- 서술 분량 ---------- */
+const LEN_LEVELS={
+  s:{n:'짧게',lines:[3,5],tok:1300},
+  m:{n:'보통',lines:[5,9],tok:1800},
+  l:{n:'길게',lines:[8,13],tok:2500},
+};
+
+/* ---------- AI 역할 ---------- */
+const AI_ROLES=[
+  {k:'story',  n:'장면 · 대사', d:'행동마다 1회 — 대사 줄과 선택지 (가장 중요)'},
+  {k:'summary',n:'줄거리 요약', d:'오래된 장면 8개를 압축 (대략 8번 행동마다 1회, 뒤에서 실행)'},
+];
+const AI_ROLE_DEFAULT={
+  story:  {provider:'gemini',model:'gemini-3.8-flash',effort:'medium'},
+  summary:{provider:'gemini',model:'gemini-3.8-flash',effort:'low'},
+};
+/* ---------- AI 제공자·역할 ---------- */
+const PRESETS={
+  anthropic:{baseUrl:'',model:'claude-sonnet-5-5'},
+  openrouter:{baseUrl:'https://openrouter.ai/api/v1',model:'deepseek/deepseek-chat'},
+  deepseek:{baseUrl:'https://api.deepseek.com',model:'deepseek-chat'},
+  gemini:{baseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-3.8-flash'},
+  vertex:{baseUrl:'',model:'gemini-3.8-flash'},
+  openai:{baseUrl:'https://api.openai.com/v1',model:'gpt-5.4-mini'},
+  custom:{baseUrl:'',model:''},
+};
+
+/* =========================================================
+   상태
+   ========================================================= */
+let G=null;            // 게임 상태 (저장되는 전부)
+let busy=false;        // AI 응답을 기다리는 중
+let stableSnap=null, saveFailed=false;
+let undoSnap=null, undoLabel='', undoOlder=[];
+
+function loadSettings(){ try{ return JSON.parse(localStorage.getItem(SET_KEY))||{} }catch(e){ return {} } }
+let SET=Object.assign({provider:'gemini',baseUrl:'',model:'gemini-3.8-flash',apiKey:''},loadSettings());
+(function migrateSettings(){
+  if(!SET.keys) SET.keys={};
+  if(SET.apiKey&&SET.provider&&!SET.keys[SET.provider]) SET.keys[SET.provider]=SET.apiKey;
+  if(!SET.roles) SET.roles={};
+})();
+function saveSettings(){ try{ localStorage.setItem(SET_KEY,JSON.stringify(SET)) }catch(e){} }
+let UI=(function(){ try{ return Object.assign({len:'m',font:1,theme:'auto'},JSON.parse(localStorage.getItem(UI_KEY)||'{}')) }catch(e){ return {len:'m',font:1,theme:'auto'} } })();
+if(!LEN_LEVELS[UI.len]) UI.len='m';
+function saveUI(){ try{ localStorage.setItem(UI_KEY,JSON.stringify(UI)) }catch(e){} }
+function hasSave(){ try{ return !!localStorage.getItem(SAVE_KEY) }catch(e){ return false } }
+
+/* ---------- 저장 ---------- */
+function saveStatus(ok){
+  const el=document.getElementById('saveWarning'); if(el) el.style.display=ok?'none':'flex';
+  if(!ok&&!saveFailed) toast('자동 저장 실패. 현재 진행 다운로드로 백업해 주세요.');
+  saveFailed=!ok;
+}
+function persistGameSnapshot(g=G){
+  if(!g||g!==G) return false;
+  let snap; try{ snap=JSON.stringify(g) }catch{ saveStatus(false); return false }
+  if(!busy) stableSnap=snap;   // 되돌리기는 저장 공간이 가득 차도 지금 게임을 따라간다
+  try{ localStorage.setItem(SAVE_KEY,snap); saveStatus(true); return true }catch{ saveStatus(false); return false }
+}
+function save(){ return G?persistGameSnapshot():false }
+function snapG(){ if(G) return JSON.stringify(G); try{ return localStorage.getItem(SAVE_KEY) }catch{ return null } }
+
+/* ---------- 공용 도구 ---------- */
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
+function clip(s,n){ s=String(s||''); return s.length>n?s.slice(0,n-1)+'…':s }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)) }
+function toast(msg){
+  const t=document.getElementById('toast'); if(!t) return;
+  t.textContent=msg; t.classList.add('on');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2800);
+}
+function askConfirm(msg,okLabel='확인'){
+  return new Promise(res=>{
+    const bg=document.createElement('div'); bg.className='modal-bg'; bg.style.zIndex=50;
+    bg.innerHTML=`<div class="modal" role="alertdialog" aria-modal="true" aria-label="확인" style="max-width:420px"><div class="body"><p style="white-space:pre-line;margin:4px 0 14px">${esc(msg)}</p><div class="row" style="justify-content:flex-end"><button class="small" data-r="0">취소</button><button class="small primary" data-r="1">${esc(okLabel)}</button></div></div></div>`;
+    const done=v=>{ bg.remove(); res(v) };
+    bg.addEventListener('click',ev=>{ const r=ev.target.closest('[data-r]'); if(r) done(r.dataset.r==='1'); else if(ev.target===bg) done(false) });
+    document.body.appendChild(bg);
+  });
+}
+function parseJSON(t){
+  if(!t) return null;
+  t=String(t).replace(/```json|```/g,'');
+  const a=t.indexOf('{'),b=t.lastIndexOf('}');
+  if(a<0||b<=a) return null;
+  try{ return JSON.parse(t.slice(a,b+1)) }catch(e){ return null }
+}
+
+/* =========================================================
+   AI 호출 (hanbit.html에서 그대로 옮김 — 역할별 제공자·모델, Vertex JSON 키, 시간 제한·재시도)
+   ========================================================= */
+/* ---------- 4-2. AI 호출 (역할별 제공자·모델) ---------- */
+function roleCfg(role){ return Object.assign({},AI_ROLE_DEFAULT[role]||AI_ROLE_DEFAULT.story,(SET.roles||{})[role]||{}) }
+function provLabel(p){ return ({anthropic:'Anthropic',openrouter:'OpenRouter',deepseek:'DeepSeek',gemini:'Google Gemini',vertex:'Google Vertex AI (JSON 파일)',openai:'OpenAI',custom:'사용자 지정'})[p]||p }
+// JSON and imported signing keys stay only in memory, never in SET or game saves.
+let VERTEX_BROWSER=null,vertexSelection=0;
+function vertexMode(){return SET.vertexMode||(SET.vertexRelayUrl?'relay':'browser')}
+function vertexB64(bytes){return btoa(Array.from(new Uint8Array(bytes),b=>String.fromCharCode(b)).join('')).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')}
+async function vertexImport(text){
+ if(!globalThis.crypto?.subtle)throw new Error('JSON 키 연결은 HTTPS 사이트에서 지원됩니다.');
+ let raw;try{raw=JSON.parse(String(text).replace(/^\uFEFF/,''))}catch{throw new Error('올바른 JSON 파일을 선택하세요.')}
+ if(raw?.type!=='service_account'||!/^\S+@\S+\.iam\.gserviceaccount\.com$/.test(raw.client_email||'')||!/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(raw.project_id||'')||typeof raw.private_key!=='string')throw new Error('서비스 계정 JSON 키 파일을 선택하세요.');
+ const match=raw.private_key.match(/^-----BEGIN PRIVATE KEY-----\s*([A-Za-z0-9+/=\s]+)\s*-----END PRIVATE KEY-----\s*$/);
+ let key;try{if(!match)throw Error();key=await crypto.subtle.importKey('pkcs8',Uint8Array.from(atob(match[1].replace(/\s/g,'')),c=>c.charCodeAt(0)),{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['sign']);if(key.algorithm.modulusLength<2048)throw Error()}catch{throw new Error('JSON 파일의 RSA 비공개 키 형식을 확인하세요.')}
+ return {key,email:raw.client_email,project:raw.project_id,keyId:String(raw.private_key_id||''),token:null,pending:null};
+}
+/* AbortSignal.timeout이 없는 브라우저(오래된 iOS·안드로이드 웹뷰)에서도 시간 제한이 동작하게 한다 */
+const VERTEX_TIMEOUT_MS=120000;
+function timeoutSignal(ms){
+  if(typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout==='function') return AbortSignal.timeout(ms);
+  if(typeof AbortController==='undefined') return undefined;
+  const c=new AbortController(); setTimeout(()=>c.abort(),ms); return c.signal;
+}
+async function vertexBrowserToken(state){
+ if(state.token&&state.token.expires>Date.now()+60000)return state.token.value;
+ if(state.pending)return state.pending;
+ state.pending=(async()=>{
+  const enc=o=>vertexB64(new TextEncoder().encode(JSON.stringify(o))),iat=Math.floor(Date.now()/1000);
+  const unsigned=enc({alg:'RS256',typ:'JWT',...(state.keyId?{kid:state.keyId}:{})})+'.'+enc({iss:state.email,scope:'https://www.googleapis.com/auth/cloud-platform',aud:'https://oauth2.googleapis.com/token',iat,exp:iat+3600});
+  const signature=await crypto.subtle.sign('RSASSA-PKCS1-v1_5',state.key,new TextEncoder().encode(unsigned));
+  let r,d;try{r=await fetch(VERTEX_TOKEN_URL,{method:'POST',credentials:'omit',referrerPolicy:'no-referrer',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'urn:ietf:params:oauth:grant-type:jwt-bearer',assertion:unsigned+'.'+vertexB64(signature)}).toString(),signal:timeoutSignal(20000)});d=await r.json()}catch{throw new Error('Google 인증에 연결하지 못했습니다. 네트워크 또는 브라우저 연결 제한을 확인하세요.')}
+  if(!r.ok&&[400,401,403].includes(r.status)&&vertexAuthRejected(state))throw new Error('기억된 JSON 키 연결이 거절되어 지웠습니다. AI 설정에서 JSON 파일을 다시 선택하세요.');
+  if(!r.ok||!d||typeof d.access_token!=='string'||!d.access_token||!(Number(d.expires_in)>0)||String(d.token_type).toLowerCase()!=='bearer')throw new Error('Google 인증 실패: JSON 키의 유효성과 PC 시각을 확인하세요.');
+  state.token={value:d.access_token,expires:Date.now()+Number(d.expires_in)*1000};return state.token.value;
+ })();
+ try{return await state.pending}finally{state.pending=null}
+}
+function vertexConnectionStatus(text){const el=document.getElementById('vertexStatus');if(el)el.textContent=text}
+function disconnectVertex(){vertexSelection++;VERTEX_BROWSER=null;vertexForget();vertexConnectionStatus('연결 해제됨 · JSON 파일을 선택하세요.');if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle()}
+/* 「이 기기에서 연결 기억하기」: 추출 불가 CryptoKey와 서명에 필요한 공개 정보만 IndexedDB에 둔다.
+   PEM·JSON 원문은 어디에도 저장하지 않는다. IndexedDB를 못 쓰면 조용히 메모리만 쓴다. */
+const VERTEX_DB='hanbit_vertex',VERTEX_STORE='conn',VERTEX_REC='browser',VERTEX_TOKEN_URL='https://oauth2.googleapis.com/token';
+function vertexDB(){
+ return new Promise(res=>{
+  try{
+   if(typeof indexedDB==='undefined'||!indexedDB)return res(null);
+   const q=indexedDB.open(VERTEX_DB,1);
+   q.onupgradeneeded=()=>{try{if(!q.result.objectStoreNames.contains(VERTEX_STORE))q.result.createObjectStore(VERTEX_STORE)}catch(e){}};
+   q.onsuccess=()=>res(q.result);q.onerror=()=>res(null);q.onblocked=()=>res(null);
+  }catch(e){res(null)}
+ });
+}
+async function vertexStoreOp(mode,fn){
+ const db=await vertexDB();if(!db)return null;
+ return new Promise(res=>{
+  try{
+   const tx=db.transaction(VERTEX_STORE,mode),req=fn(tx.objectStore(VERTEX_STORE));
+   tx.oncomplete=()=>{try{db.close()}catch(e){}res(req?req.result:true)};tx.onerror=tx.onabort=()=>{try{db.close()}catch(e){}res(null)};
+  }catch(e){try{db.close()}catch(_){}res(null)}
+ });
+}
+function vertexRemember(state){
+ if(!state?.key||state.key.extractable!==false)return Promise.resolve(null);   // 꺼낼 수 있는 키는 절대 저장하지 않는다
+ return vertexStoreOp('readwrite',st=>st.put({v:1,key:state.key,email:state.email,project:state.project,keyId:state.keyId,tokenUrl:VERTEX_TOKEN_URL},VERTEX_REC));
+}
+function vertexForget(){return vertexStoreOp('readwrite',st=>st.delete(VERTEX_REC))}
+async function vertexRestore(){
+ if(VERTEX_BROWSER)return VERTEX_BROWSER;
+ const selection=vertexSelection,r=await vertexStoreOp('readonly',st=>st.get(VERTEX_REC));
+ if(!r||selection!==vertexSelection||VERTEX_BROWSER)return VERTEX_BROWSER;
+ if(r.v!==1||!r.key||r.key.extractable!==false||r.key.type!=='private'||!/^\S+@\S+\.iam\.gserviceaccount\.com$/.test(r.email||'')||!/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(r.project||'')){vertexForget();return null}
+ VERTEX_BROWSER={key:r.key,email:r.email,project:r.project,keyId:String(r.keyId||''),token:null,pending:null,remembered:true};
+ vertexConnectionStatus('기억된 연결 · '+r.project);
+ try{if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle()}catch(e){}
+ return VERTEX_BROWSER;
+}
+/* 인증이 거절되면 기억된 연결을 지우고 다시 선택하게 한다 */
+function vertexAuthRejected(state){
+ if(!state?.remembered)return false;
+ vertexForget();if(VERTEX_BROWSER===state){VERTEX_BROWSER=null;vertexConnectionStatus('기억된 연결이 더 이상 유효하지 않아 지웠습니다 · JSON 파일을 다시 선택하세요.');try{if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle()}catch(e){}}
+ return true;
+}
+async function selectVertexJSON(input){
+ const file=input.files?.[0];if(!file)return;
+ const selection=++vertexSelection;vertexConnectionStatus('JSON 키 확인·Google 인증 중…');
+ try{
+  if(file.size>65536)throw new Error('서비스 계정 JSON 파일은 64KB 이하만 선택할 수 있습니다.');
+  const remember=!!document.getElementById('sVertexRemember')?.checked;
+  const state=await vertexImport(await file.text());await vertexBrowserToken(state);
+  if(selection!==vertexSelection)return;
+  VERTEX_BROWSER=state;
+  if(remember){state.remembered=true;await vertexRemember(state)}else await vertexForget();   // 끈 채로 새로 고르면 예전에 기억한 연결도 지운다
+  if(selection!==vertexSelection||VERTEX_BROWSER!==state)return;const mode=document.getElementById('sVertexMode');if(mode)mode.value='browser';SET.vertexMode='browser';
+  applyVertexModels();SET.roles=SET.roles||{};
+  AI_ROLES.forEach(r=>{const effort=document.getElementById('re_'+r.k)?.value||roleCfg(r.k).effort||'low';SET.roles[r.k]={provider:'vertex',model:vertexModelFor(r.k),effort:['low','medium','high'].includes(effort)?effort:'low'}});
+  SET.provider='vertex';SET.model=SET.roles.story.model;SET.apiKey='';saveSettings();
+  vertexConnectionStatus('인증 완료 · '+state.project+(remember?' · 이 기기에서 기억합니다':'')+' · 모든 역할을 Vertex AI로 설정했습니다.');toast('JSON 키 연결 완료. 이제 게임을 진행하세요.');
+  if(document.getElementById('game')?.classList.contains('hidden'))refreshTitle();
+ }catch(e){if(selection===vertexSelection)vertexConnectionStatus('연결 실패 · '+e.message)}finally{input.value=''}
+}
+async function callVertexBrowser(system,user,maxTokens,c,role){
+ const state=VERTEX_BROWSER;if(!state)throw new Error('AI 설정에서 서비스 계정 JSON 파일을 선택하세요. 「이 기기에서 연결 기억하기」를 켜지 않았다면 새로고침 후에는 다시 선택해야 합니다.');
+ const location=SET.vertexLocation||'global';
+ if(!/^[a-z][a-z0-9-]{1,62}$/.test(location)||!/^gemini-[a-z0-9.-]+$/.test(c.model))throw new Error('Vertex AI 모델 이름 또는 리전을 확인하세요.');
+ const config={maxOutputTokens:Math.min(16384,Math.max(3000,maxTokens*2))},effort=['low','medium','high'].includes(c.effort)?c.effort:'low';
+ if(/^gemini-3\./.test(c.model))config.thinkingConfig={thinkingLevel:effort.toUpperCase()};
+ else if(/^gemini-2\.5-flash/.test(c.model))config.thinkingConfig={thinkingBudget:{low:0,medium:1024,high:4096}[effort]};
+ const host=location==='global'?'aiplatform.googleapis.com':location+'-aiplatform.googleapis.com';
+ for(let attempt=0;attempt<2;attempt++){
+  const token=await vertexBrowserToken(state);if(state!==VERTEX_BROWSER)throw new Error('JSON 키 연결이 변경되었습니다. 다시 시도하세요.');
+  let r=null,netErr=null,d;
+  try{r=await fetch('https://'+host+'/v1/projects/'+state.project+'/locations/'+location+'/publishers/google/models/'+c.model+':generateContent',{method:'POST',credentials:'omit',referrerPolicy:'no-referrer',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}],generationConfig:config}),signal:timeoutSignal(VERTEX_TIMEOUT_MS)})}catch(e){netErr=e}
+  if(!r){
+   if(netErr&&(netErr.name==='TimeoutError'||netErr.name==='AbortError'))throw new Error('Vertex AI 응답이 '+Math.round(VERTEX_TIMEOUT_MS/1000)+'초 안에 오지 않았습니다. AI 설정에서 생각 강도를 낮추거나 잠시 뒤 다시 시도해 주세요.');
+   if(attempt===0){await new Promise(res=>setTimeout(res,1500));continue}   // 모바일 회선 전환·일시 끊김은 한 번 더 시도
+   throw new Error('Vertex AI에 연결하지 못했습니다. 휴대폰에서는 화면이 꺼지거나 다른 앱으로 전환하면 연결이 끊길 수 있으니 화면을 켠 채 다시 시도해 주세요. (그래도 안 되면 Wi-Fi·VPN·광고 차단 설정을 확인하세요)');
+  }
+  try{d=await r.json()}catch{throw new Error('Vertex AI 응답을 끝까지 받지 못했습니다. 잠시 뒤 다시 시도해 주세요.')}
+  if(state!==VERTEX_BROWSER)throw new Error('JSON 키 연결이 변경되었습니다. 다시 시도하세요.');
+  if(r.status===401&&attempt===0){if(state.token?.value===token)state.token=null;continue}
+  if(r.status===401&&vertexAuthRejected(state))throw new Error('기억된 JSON 키 인증이 거절되어 지웠습니다. AI 설정에서 JSON 파일을 다시 선택하세요.');
+  if(!r.ok)throw new Error(({401:'JSON 키 인증이 만료되었거나 취소되었습니다. 파일을 다시 선택하세요.',403:'Vertex AI 권한·API 활성화·결제 연결을 확인하세요.',404:'Vertex AI 모델 이름과 리전을 확인하세요.',429:'Vertex AI 호출 한도에 도달했습니다. 잠시 뒤 다시 시도하세요.'})[r.status]||'Vertex AI 요청 오류 (HTTP '+r.status+')');
+  const candidate=d?.candidates?.[0],reason=candidate?.finishReason;
+  if(d?.promptFeedback?.blockReason||reason&&reason!=='STOP')throw new Error(reason==='MAX_TOKENS'?'응답이 길이 제한으로 중단되었습니다. 생각 강도를 낮춰 주세요.':'Vertex AI가 장면 응답을 완료하지 못했습니다.');
+  const text=(candidate?.content?.parts||[]).filter(p=>!p.thought&&typeof p.text==='string').map(p=>p.text).join('');if(!text.trim())throw new Error('Vertex AI가 빈 응답을 반환했습니다.');
+  const u=d.usageMetadata||{},num=x=>Math.max(0,Number(x)||0);trackUsage(role,'vertex/'+c.model,num(u.promptTokenCount),num(u.candidatesTokenCount)+num(u.thoughtsTokenCount),0,0,num(u.cachedContentTokenCount));return text;
+ }
+}
+function vertexRelayBase(raw=SET.vertexRelayUrl){
+ let u;try{u=new URL(String(raw||'').trim())}catch{throw new Error('Vertex AI 중계 서버 주소를 입력해 주세요.')}
+ if(u.username||u.password||u.search||u.hash||!(u.protocol==='https:'||u.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(u.hostname)))throw new Error('중계 주소는 HTTPS 또는 localhost HTTP 주소를 사용하세요.');
+ return u.href.replace(/\/$/,'');
+}
+function aiProviderReady(p){return p==='vertex'?(vertexMode()==='browser'?!!VERTEX_BROWSER:!!(SET.keys||{}).vertex&&!!SET.vertexRelayUrl):!!(SET.keys||{})[p]}
+function roleName(k){ const r=AI_ROLES.find(x=>x.k===k); return r?r.n:k }
+/* AI 요청 공통: 응답이 없으면 115초 뒤 끊고(게임이 '기다리는 중'에 멈추지 않게), 일시 오류(429·502·503·504·접속 끊김)는 한 번만 다시 시도하며, JSON이 아닌 응답은 알아볼 수 있는 안내로 바꿉니다. */
+async function aiRequest(url,init){
+  let r=null,d=null,fail=null;
+  for(let attempt=0;attempt<2;attempt++){
+    fail=null;
+    try{ r=await fetch(url,{...init,signal:timeoutSignal(115000)}) }
+    catch(e){ fail=e&&(e.name==='TimeoutError'||e.name==='AbortError')?'AI 응답이 115초 안에 오지 않아 요청을 멈췄습니다. 잠시 뒤 다시 시도해 주세요.':'AI 서버에 연결하지 못했습니다. 인터넷 연결과 주소를 확인해 주세요.'; if(e&&(e.name==='TimeoutError'||e.name==='AbortError'))break }
+    if(!fail){
+      try{ d=await r.json() }catch{ d=null }
+      if(![429,502,503,504].includes(r.status)||attempt) break;
+    }
+    await new Promise(res=>setTimeout(res,1500));
+  }
+  if(fail) throw new Error(fail);
+  if(d===null&&r.ok) throw new Error('AI 서버가 올바른 응답을 주지 않았습니다. 잠시 뒤 다시 시도해 주세요.');
+  return {r,d};
+}
+/* opt.cache: 시스템 프롬프트(매 턴 같은 앞부분)를 캐시 — 서술 턴에서만 씀 (짧거나 한 번뿐인 호출에 붙이면 쓰기 비용만 늘어남) */
+async function callAIRaw(system,user,maxTokens=1200,role='story',opt){
+  opt=opt||{};
+  const c=roleCfg(role), key=(SET.keys||{})[c.provider];
+  if(c.provider==='vertex'){
+    if(vertexMode()==='browser')return callVertexBrowser(system,user,maxTokens,c,role);
+    const base=vertexRelayBase();
+    if(!key)throw new Error('Vertex AI 중계 접속 토큰을 AI 설정에 입력해 주세요.');
+    if(/^\s*\{/.test(key)||/PRIVATE KEY|private_key/.test(key))throw new Error('서비스 계정 JSON 키는 중계 서버에서만 읽습니다. 여기에는 중계 접속 토큰을 입력하세요.');
+    let r,d;try{
+      r=await fetch(base+'/api/vertex/generate',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+key},body:JSON.stringify({model:c.model,system,user,maxTokens,role,effort:c.effort||'low'}),...(typeof AbortSignal!=='undefined'&&AbortSignal.timeout?{signal:AbortSignal.timeout(115000)}:{})});
+      d=await r.json();
+    }catch{throw new Error('Vertex AI 중계 서버에 연결하지 못했습니다. 서버 실행·주소·허용 Origin을 확인하세요.')}
+    if(!r.ok)throw new Error(d?.error?.message||'Vertex AI 중계 오류 (HTTP '+r.status+')');
+    if(!d||typeof d.text!=='string'||!d.text.trim())throw new Error('Vertex AI가 빈 응답을 반환했습니다.');
+    try{const u=d.usage||{};trackUsage(role,'vertex/'+c.model,u.inputTokens,u.outputTokens,0,0,u.cachedTokens)}catch(e){}
+    return d.text;
+  }
+  if(!key){
+    const any=Object.values(SET.keys||{}).some(Boolean);
+    throw new Error(any?`「${roleName(role)}」에 쓸 ${provLabel(c.provider)} 키가 없습니다 (AI 설정에서 입력)`:'NO_KEY');
+  }
+  const errMsg=(d,r)=>(d&&d.error&&d.error.message)||(Array.isArray(d)&&d[0]&&d[0].error&&d[0].error.message)||('HTTP '+r.status);
+  if(c.provider==='anthropic'){
+    // Claude 5 계열은 생각(adaptive thinking) 토큰도 max_tokens에 포함되므로 여유를 둡니다.
+    const is5=/claude-(sonnet|opus|fable|mythos)-5/.test(c.model);
+    const body={model:c.model,max_tokens:is5?maxTokens+2000:maxTokens,system:opt.cache?[{type:'text',text:system,cache_control:{type:'ephemeral'}}]:system,messages:[{role:'user',content:(opt.cache&&opt.stable>0&&opt.stable<user.length)?[{type:'text',text:user.slice(0,opt.stable),cache_control:{type:'ephemeral'}},{type:'text',text:user.slice(opt.stable)}]:user}]};
+    if(is5) body.output_config={effort:c.effort||'low'};
+    const hdr={'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
+    if(SET.wsId) hdr['anthropic-workspace-id']=SET.wsId;
+    const send=()=>aiRequest('https://api.anthropic.com/v1/messages',{method:'POST',headers:hdr,body:JSON.stringify(body)});
+    let {r,d}=await send();
+    if(!r.ok&&body.output_config&&/output_config|effort/i.test(errMsg(d,r))){ delete body.output_config; ({r,d}=await send()) }
+    if(!r.ok) throw new Error(errMsg(d,r));
+    try{ const u=d.usage||{}; trackUsage(role,c.model,u.input_tokens,u.output_tokens,u.cache_read_input_tokens,u.cache_creation_input_tokens) }catch(e){}
+    return (d.content||[]).map(x=>x.text||'').join('');
+  }
+  const base=(c.provider==='custom'?(SET.baseUrl||''):(PRESETS[c.provider]&&PRESETS[c.provider].baseUrl)||'').replace(/\/$/,'');
+  const body={model:c.model,max_tokens:maxTokens,temperature:0.9,messages:[{role:'system',content:system},{role:'user',content:user}]};
+  if(c.provider==='gemini'){ body.max_tokens=Math.max(maxTokens*2,3000); body.reasoning_effort=c.effort||'low' }
+  const send=()=>aiRequest(base+'/chat/completions',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+key},body:JSON.stringify(body)});
+  let {r,d}=await send();
+  if(!r.ok&&body.reasoning_effort&&/reasoning|thinking/i.test(JSON.stringify(d))){ delete body.reasoning_effort; ({r,d}=await send()) }
+  if(!r.ok) throw new Error(errMsg(d,r));
+  try{ const u=d.usage||{}, ct=(u.prompt_tokens_details&&u.prompt_tokens_details.cached_tokens)||0; trackUsage(role,c.model,u.prompt_tokens,(u.total_tokens&&u.prompt_tokens)?Math.max(u.total_tokens-u.prompt_tokens,u.completion_tokens||0):u.completion_tokens,0,0,ct) }catch(e){}
+  return (d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'';
+}
+async function callAI(system,user,maxTokens=1200,role='story',opt){ return callAIRaw(system,user,maxTokens,role,opt) }
+
+/* ---------- 4-3. 토큰 사용량 ---------- */
+const USAGE_KEY='haemu_usage';
+function priceOf(model){   // 100만 토큰당 [입력, 출력] 달러. 없는 모델은 비용 "?"
+  const m=String(model||'');
+  if(m.startsWith('vertex/'))return null; // Vertex 요금은 Cloud Billing에서 확인하며 다른 제공자 단가를 재사용하지 않는다.
+  if(/claude-sonnet-5/.test(m)) return [2,10];
+  if(/claude-opus-5/.test(m)) return [4,20];
+  if(/claude-opus-4-6/.test(m)) return [5,25];
+  if(/claude-haiku-4-5/.test(m)) return [1,5];
+  if(/gemini-3\.8-flash/.test(m)) return Date.now()<Date.parse('2027-01-01T00:00:00+09:00')?[0.75,3.75]:[1.5,7.5];
+  if(/gemini-3\.5-flash-lite/.test(m)) return [0.30,2.50];
+  if(/gemini-3\.5-flash/.test(m)) return [1.5,9];
+  return null;
+}
+let USAGE=(function(){ try{ const u=JSON.parse(localStorage.getItem(USAGE_KEY)||'null'); if(u&&u.roles) return u }catch(e){} return {roles:{},since:Date.now()} })();
+let USAGE_TURN={in:0,out:0,cost:0,unk:false};
+function saveUsage(){ try{ localStorage.setItem(USAGE_KEY,JSON.stringify(USAGE)) }catch(e){} }
+function fmtCost(c){ return c<0.01?'$'+c.toFixed(4):'$'+c.toFixed(c<1?3:2) }
+function fmtTok(n){ return n>=10000?(n/1000).toFixed(1)+'k':String(n) }
+/* cr: 캐시에서 읽은 입력(단가 0.1배) · cw: 캐시에 새로 쓴 입력(1.25배) — Anthropic은 둘 다 inTok과 따로 옴
+   cg: OpenAI 호환 제공자가 자동 캐시한 입력 수 (inTok 안에 포함 · 기록만) */
+const CACHE_READ=0.1, CACHE_WRITE=1.25;
+function trackUsage(role,model,inTok,outTok,cr,cw,cg){
+  inTok=+inTok||0; outTok=+outTok||0; cr=+cr||0; cw=+cw||0; cg=+cg||0;
+  const p=priceOf(model), cost=p?((inTok+cr*CACHE_READ+cw*CACHE_WRITE)*p[0]+outTok*p[1])/1e6:0;
+  const r=USAGE.roles[role]||(USAGE.roles[role]={calls:0,in:0,out:0,cost:0,unk:0});
+  r.calls++; r.in+=inTok+cr+cw; r.out+=outTok; r.cost+=cost; if(!p) r.unk++;
+  r.cr=(r.cr||0)+cr+cg; r.cw=(r.cw||0)+cw;
+  USAGE_TURN.cr=(USAGE_TURN.cr||0)+cr+cg;
+  inTok+=cr+cw;
+  USAGE_TURN.in+=inTok; USAGE_TURN.out+=outTok; USAGE_TURN.cost+=cost; if(!p) USAGE_TURN.unk=true;
+  saveUsage(); updateUsageChip();
+}
+function usageTotal(){
+  const t={calls:0,in:0,out:0,cost:0,unk:0};
+  for(const k in USAGE.roles){ const r=USAGE.roles[k]; t.calls+=r.calls; t.in+=r.in; t.out+=r.out; t.cost+=r.cost; t.unk+=r.unk }
+  return t;
+}
+function updateUsageChip(){
+  const el=document.getElementById('usageChip'); if(!el) return;
+  const t=usageTotal();
+  if(!t.calls){ el.textContent='💰 사용량'; el.title='토큰 사용량 (눌러서 자세히 보기)'; return }
+  el.textContent=`💰 이번 턴 ${fmtCost(USAGE_TURN.cost)} · 누적 ${fmtCost(t.cost)}${t.unk?'+':''}`;
+  el.title=`이번 턴 입력 ${USAGE_TURN.in} · 출력 ${USAGE_TURN.out} 토큰 (눌러서 자세히 보기)`;
+}
+
+/* =========================================================
+   장면 엔진
+   - 장면 = {lines:[{who,text,mood?}|{card,text,day,slot}], i: 지금 보여 주는 줄, choices:[…]}
+   - who: '' 지문 · '나' 플레이어의 말 · 인물 이름 · '???'(아직 이름을 모르는 인물)
+   ========================================================= */
+const RECENT_PROMPT=12, RECENT_SUMMARIZE=16, SUMMARY_TAKE=8, RECENT_MAX=40, LOG_MAX=400;
+function slotName(i){ return WORLD.slots[i]||WORLD.slots[0] }
+function placeName(k){ return (PLACES[k]||PLACES[WORLD.start]).n }
+function knownName(n){ return !!G&&(G.known||[]).includes(n) }
+/* 이름표에 보일 이름: 아직 장면에서 이름이 드러나지 않은 인물은 ??? */
+function displayWho(who){
+  if(!who) return '';
+  if(who==='나') return G&&G.char?G.char.name:'나';
+  if(who==='???') return '???';
+  return knownName(who)?who:'???';
+}
+function cleanWho(w){
+  w=String(w??'').trim().replace(/^[「『"'(\[]+|[」』"')\]:：]+$/g,'');
+  if(!w||/^(지문|서술|narration|narrator)$/i.test(w)) return '';
+  if(w==='나'||w==='플레이어'||w==='당신'||(G&&G.char&&w===G.char.name)) return '나';
+  if(/^\?+$/.test(w)) return '???';
+  return w.length<=12?w:'';
+}
+/* 이야기 기록(G.log): who가 ''이면 지문, '▶'는 플레이어가 고른 행동, '§'는 시간 구분선, 그 밖에는 말한 사람.
+   말한 사람 이름은 기록하는 순간의 이름표로 남긴다 — 나중에 이름을 알게 되어도 그때 ???였던 줄은 ???로 남는다. */
+function logScene(lines){
+  for(const l of lines){
+    if(l.card) G.log.push({who:'§',text:l.text});
+    else G.log.push({who:l.who==='나'?'나':displayWho(l.who),text:l.text});
+  }
+  if(G.log.length>LOG_MAX) G.log.splice(0,G.log.length-LOG_MAX);
+}
+function newGameState(name){
+  const o=WORLD.opening;
+  const g={v:2,char:{name},day:1,slot:0,place:WORLD.start,known:[],summary:'',recent:[],log:[],scene:{choices:o.choices.slice()}};
+  const prev=G; G=g; try{ logScene(o.lines) }finally{ G=prev }
+  return g;
+}
+function sceneDone(){ return !!G&&!busy }
+
+/* ---------- 프롬프트 ---------- */
+function charBlock(){
+  return Object.values(CHARS).map(c=>`■ ${c.name}${knownName(c.name)?'':' (플레이어는 아직 이름을 모름)'}
+- 하는 일: ${c.job}
+- 외모: ${c.look}
+- 성격: ${c.personality}
+- 말투: ${c.speech}
+- 피할 것: ${c.banned}
+- 숨은 설정(직접 말하지 말고 행동·분위기로만 아주 조금씩 비친다): ${c.inner}`).join('\n');
+}
+function sysPrompt(){
+  const L=LEN_LEVELS[UI.len]||LEN_LEVELS.m;
+  return `너는 공포 분위기가 깔린 텍스트 연애 시뮬레이션의 장면 작가다. 플레이어의 행동 하나를 받아 다음 장면을 대사 줄로 쓴다. 상태 변화와 진행은 코드가 맡는다.
+[세계] ${WORLD.setting}
+[분위기] ${WORLD.tone}
+[규칙]
+- 지문에서 플레이어는 "당신"으로 부른다. 플레이어의 생각·대사를 길게 대신 쓰지 않는다.
+- 모든 등장인물은 성인이다. 성적 묘사·암시는 쓰지 않는다. 설렘은 시선·말투·거리·손끝 같은 비성적 표현으로만 그린다.
+- 플레이어가 아직 모르는 정보(사건의 정답, 앞으로의 전개, 아직 만나지 않은 인물·장소의 이름)를 먼저 말하지 않는다. 안내문·설명·게임 용어·수치를 쓰지 않는다.
+- 처음 보는 인물은 이름이 장면 안에서 드러나기 전까지 who를 "???"로 쓴다. 이름이 드러나면 그 줄부터 이름을 쓰고 met에 이름을 넣는다.
+- 장면은 플레이어가 고를 수 있는 순간에서 멈춘다. 선택지는 플레이어가 할 말이나 행동 2~4개이며, 서로 성격이 다르게 쓴다.
+[등장인물]
+${charBlock()}
+[출력] JSON 하나만 쓴다.
+{"lines":[{"who":"","text":"지문"},{"who":"인물 이름 또는 ???","mood":"기본","text":"대사 (따옴표 없이)"}],"choices":["…","…","…"],"place":"","met":[],"end":false}
+- lines ${L.lines[0]}~${L.lines[1]}줄, 한 줄은 120자 이내. who는 "" (지문), "나" (플레이어가 소리 내어 한 말), 인물 이름, "???" 중 하나.
+- mood는 ${MOODS.join('|')} 중 하나 (지문이면 생략).
+- place: 장면이 끝났을 때 플레이어가 있는 곳의 키 (${Object.entries(PLACES).map(([k,p])=>k+'='+p.n).join(', ')}). 그대로면 "".
+- end: 지금 시간대(${WORLD.slots.join('·')})에 할 일이 마무리되어 다음 시간대로 넘어가도 자연스러우면 true.`;
+}
+function recentBlock(g=G){
+  return (g.recent||[]).slice(-RECENT_PROMPT).map(r=>r.role==='action'?`▶ 플레이어: ${r.text}`:r.text).join('\n')||'(없음)';
+}
+function userPrompt(action){
+  return `[지금] ${G.day}일째 · ${slotName(G.slot)} · ${placeName(G.place)}
+[플레이어] ${G.char.name}
+[이름을 아는 인물] ${(G.known||[]).join(', ')||'(아직 없음)'}
+[줄거리 요약]
+${G.summary||'(아직 없음)'}
+[최근 장면]
+${recentBlock()}
+[플레이어 행동]
+${action}`;
+}
+
+/* ---------- AI 응답 정리 ---------- */
+function normalizeScene(o){
+  if(!o||typeof o!=='object'||!Array.isArray(o.lines)) return null;
+  const L=LEN_LEVELS[UI.len]||LEN_LEVELS.m;
+  const lines=o.lines.filter(l=>l&&typeof l.text==='string'&&l.text.trim()).slice(0,L.lines[1]+4).map(l=>{
+    const who=cleanWho(l.who), x={who,text:clip(l.text.trim().replace(/^[「"]|[」"]$/g,''),320)};
+    if(who&&MOODS.includes(l.mood)) x.mood=l.mood;
+    return x;
+  });
+  if(!lines.length) return null;
+  const choices=(Array.isArray(o.choices)?o.choices:[]).map(c=>typeof c==='string'?c:c&&typeof c.text==='string'?c.text:'').map(c=>c.trim()).filter(Boolean).map(c=>clip(c,70)).slice(0,4);
+  const met=(Array.isArray(o.met)?o.met:[]).filter(n=>typeof n==='string').map(cleanWho).filter(n=>n&&n!=='나'&&n!=='???');
+  return {lines,choices,place:PLACES[o.place]?o.place:'',met,end:o.end===true};
+}
+/* JSON이 아닌 글이 오면 문단을 지문으로 쓴다 (장면이 통째로 사라지지 않게) */
+function textToScene(t){
+  const paras=String(t||'').replace(/```[a-z]*|```/g,'').split(/\n\s*\n|\n/).map(s=>s.trim()).filter(Boolean).slice(0,12);
+  if(!paras.length) return null;
+  return {lines:paras.map(p=>({who:'',text:clip(p,320)})),choices:[],place:'',met:[],end:false};
+}
+const FALLBACK_CHOICES=['주위를 조금 더 살핀다','잠시 숨을 고른다'];
+function nextTime(day,slot){ return slot+1<WORLD.slots.length?{day,slot:slot+1}:{day:day+1,slot:0} }
+
+/* ---------- 한 번의 행동 ---------- */
+let turnSeq=0;
+async function storyTurn(action){
+  const L=LEN_LEVELS[UI.len]||LEN_LEVELS.m;
+  const t=await callAI(sysPrompt(),userPrompt(action),L.tok,'story');
+  return normalizeScene(parseJSON(t))||textToScene(t);
+}
+function applyScene(action,sc){
+  G.log.push({who:'▶',text:clip(action,200)});
+  for(const n of sc.met) if(!G.known.includes(n)) G.known.push(n);   // 이번 장면에서 이름이 드러난 인물(met)만 이름표에 이름이 나온다
+  logScene(sc.lines);
+  if(sc.place) G.place=sc.place;
+  if(sc.end){ const nt=nextTime(G.day,G.slot); G.day=nt.day; G.slot=nt.slot; logScene([{card:true,text:`${nt.day}일째 · ${slotName(nt.slot)}`}]) }
+  G.recent.push({role:'action',text:clip(action,200)});
+  G.recent.push({role:'scene',text:sc.lines.map(l=>(l.who?`${l.who==='나'?G.char.name:l.who}: `:'')+l.text).join('\n')});
+  if(G.recent.length>RECENT_MAX) G.recent.splice(0,G.recent.length-RECENT_MAX);
+  G.scene={choices:sc.choices.length>=2?sc.choices:FALLBACK_CHOICES.slice()};
+}
+async function act(action,label){
+  action=String(action||'').trim();
+  if(busy||!G||!action||!sceneDone()) return false;
+  const g=G, seq=++turnSeq, prevUndo={undoSnap,undoLabel,undoOlder:undoOlder.slice()};
+  pushUndo(clip(label||action,28)); USAGE_TURN={in:0,out:0,cost:0,unk:false,cr:0};
+  busy=true; freeOpen=false; render();
+  let sc=null,err=null;
+  try{ sc=await storyTurn(action) }catch(e){ err=e }
+  if(G!==g||seq!==turnSeq) return false;   // 그 사이 다른 게임을 열었으면 늦은 응답은 버린다
+  busy=false;
+  if(!sc){
+    undoSnap=prevUndo.undoSnap; undoLabel=prevUndo.undoLabel; undoOlder=prevUndo.undoOlder; persistUndo();
+    toast(err&&err.message==='NO_KEY'?'AI가 연결되지 않았습니다. ☰ 메뉴 → AI 연결에서 연결해 주세요.':'장면을 받지 못했습니다. '+(err?err.message:'빈 응답입니다.'));
+    render(); return false;
+  }
+  applyScene(action,sc); save(); render();
+  maybeSummarize();
+  return true;
+}
+function pick(i){ const c=G&&G.scene&&G.scene.choices[i]; if(c) act(c) }
+let freeOpen=false;
+function openFree(){
+  freeOpen=true;
+  const box=document.getElementById('choices'); if(!box) return;
+  box.innerHTML=`<div id="freeBox"><textarea id="freeText" maxlength="200" placeholder="하고 싶은 말이나 행동을 적어 주세요"></textarea>
+    <div class="row" style="margin-top:6px;justify-content:flex-end"><button class="small" onclick="freeOpen=false;render()">취소</button><button class="small primary" onclick="sendFree()">보내기</button></div></div>`;
+  const t=document.getElementById('freeText'); if(t&&t.focus) t.focus();
+}
+function sendFree(){ const t=document.getElementById('freeText'); const v=t&&t.value.trim(); if(!v) return toast('내용을 적어 주세요.'); act(v) }
+
+/* ---------- 줄거리 요약 (오래된 장면을 압축 — 장기 기억) ---------- */
+let sumBusy=false;
+const SUM_SYS='너는 텍스트 연애 시뮬레이션의 줄거리 기록자다. 기존 요약에 새 장면을 합쳐, 앞으로의 장면을 쓰는 데 필요한 사실만 시간 순서로 정리한다. 인물 사이의 관계 변화, 약속, 알게 된 이름과 장소, 풀리지 않은 수상한 일을 남긴다. 짐작하거나 새로 지어내지 않는다. 1200자 이내의 평문으로만 쓴다.';
+async function maybeSummarize(){
+  if(sumBusy||!G||G.recent.length<=RECENT_SUMMARIZE) return false;
+  const g=G, take=g.recent.slice(0,SUMMARY_TAKE); sumBusy=true;
+  try{
+    const t=await callAI(SUM_SYS,`[기존 요약]\n${g.summary||'(없음)'}\n\n[새 장면]\n${take.map(r=>r.role==='action'?'▶ 플레이어: '+r.text:r.text).join('\n')}`,900,'summary');
+    if(G!==g||!String(t||'').trim()||g.recent[0]!==take[0]) return false;
+    g.summary=clip(String(t).trim(),2400); g.recent.splice(0,SUMMARY_TAKE); save(); return true;
+  }catch(e){ return false }
+  finally{ sumBusy=false }
+}
+
+/* =========================================================
+   되돌리기 (직전 행동 최대 2번)
+   ========================================================= */
+const UNDO_KEY='haemu_undo', UNDO_MAX=2;
+try{ const u=JSON.parse(localStorage.getItem(UNDO_KEY)||'null'); if(u&&u.snap){ undoSnap=u.snap; undoLabel=u.label||''; undoOlder=Array.isArray(u.older)?u.older.filter(x=>x&&typeof x.snap==='string').slice(-(UNDO_MAX-1)).map(x=>({snap:x.snap,label:String(x.label||'')})):[] } }catch(e){}
+function persistUndo(){
+  try{
+    if(!undoSnap){ localStorage.removeItem(UNDO_KEY); return }
+    try{ localStorage.setItem(UNDO_KEY,JSON.stringify({snap:undoSnap,label:undoLabel,older:undoOlder})) }
+    catch(e){ localStorage.setItem(UNDO_KEY,JSON.stringify({snap:undoSnap,label:undoLabel})) }
+  }catch(e){}
+}
+function pushUndo(label){
+  const snap=stableSnap||snapG();
+  if(snap===undoSnap){ undoLabel=label; persistUndo(); return }
+  if(undoSnap) undoOlder=[...undoOlder,{snap:undoSnap,label:undoLabel}].slice(-(UNDO_MAX-1));
+  undoSnap=snap; undoLabel=label; persistUndo();
+}
+function clearUndo(){ undoSnap=null; undoLabel=''; undoOlder=[]; persistUndo() }
+function resetUndo(){ clearUndo(); stableSnap=null; updateUndoBtn() }
+function updateUndoBtn(){
+  const b=document.getElementById('undoBtn'); if(!b) return;
+  const ok=!!undoSnap&&!busy&&!!G, n=undoSnap?1+undoOlder.length:0;
+  b.disabled=!ok;
+  b.textContent=ok&&n>1?`↩ 되돌리기 (${n})`:'↩ 되돌리기';
+  b.title=ok?`되돌리기: 「${undoLabel}」 이전 상태로${n>1?` (앞으로 ${n}번 가능)`:''}`:'되돌릴 행동이 없습니다';
+}
+async function undoLast(){
+  if(busy||!undoSnap) return;
+  if(!(await askConfirm(`「${undoLabel}」 선택을 되돌릴까요?\n(그 선택 직전 장면으로 돌아갑니다. 이미 쓴 AI 사용량은 돌아오지 않습니다.)`))) return;
+  let g=null; try{ g=JSON.parse(undoSnap) }catch(e){}
+  try{ if(g) validateSaveData(g) }catch(e){ g=null }
+  if(!g){ toast('되돌릴 수 없습니다'); resetUndo(); return }
+  G=g;
+  const prev=undoOlder.pop(); undoSnap=prev?prev.snap:null; undoLabel=prev?prev.label:''; persistUndo();
+  save(); render(); toast(undoSnap?'↩ 되돌렸습니다 (한 번 더 되돌릴 수 있습니다)':'↩ 되돌렸습니다');
+}
+
+/* =========================================================
+   화면
+   ========================================================= */
+let renderedLen=0, renderedFor=null;
+function logHTML(e,isNew){
+  const n=isNew?' new':'';
+  if(e.who==='▶') return `<p class="act${n}">${esc(e.text)}</p>`;
+  if(e.who==='§') return `<p class="time${n}">${esc(e.text)}</p>`;
+  if(!e.who) return `<p class="narr${n}">${esc(e.text)}</p>`;
+  const me=e.who==='나';
+  return `<p class="say${me?' me':''}${n}"><span class="w">${esc(me?G.char.name:e.who)}</span>「${esc(e.text)}」</p>`;
+}
+const LOG_SHOW=300;
+function renderLog(){
+  const box=document.getElementById('logInner'); if(!box) return;
+  const log=G.log||[], from=Math.max(0,log.length-LOG_SHOW);
+  const fresh=renderedFor===G&&log.length>=renderedLen?renderedLen:log.length;   // 새로 붙은 줄만 살짝 나타나게
+  box.innerHTML=log.slice(from).map((e,k)=>logHTML(e,from+k>=fresh)).join('')+(busy?'<p class="waiting">· · ·</p>':'');
+  const grew=renderedFor!==G||log.length!==renderedLen;
+  renderedLen=log.length; renderedFor=G;
+  const wrap=document.getElementById('log');
+  if(wrap&&(grew||busy)){
+    // 새 장면은 그 장면의 첫 줄(방금 고른 행동)부터 읽히도록 스크롤한다
+    const acts=box.querySelectorAll?box.querySelectorAll('p.act.new'):[];
+    const first=acts&&acts[0];
+    if(first&&first.offsetTop!==undefined) wrap.scrollTop=Math.max(0,first.offsetTop-(wrap.offsetTop||0)-12);
+    else wrap.scrollTop=wrap.scrollHeight;
+  }
+}
+function render(){
+  if(!G) return;
+  updateUndoBtn();
+  document.getElementById('when').textContent=`${G.day}일째 · ${slotName(G.slot)} · ${placeName(G.place)}`;
+  renderLog();
+  const ch=document.getElementById('choices');
+  if(busy) ch.innerHTML='';
+  else if(!freeOpen) ch.innerHTML=G.scene.choices.map((c,i)=>`<button onclick="pick(${i})">${esc(c)}</button>`).join('')+`<button class="free" onclick="openFree()">✎ 직접 쓰기</button>`;
+}
+function show(id){ for(const s of ['title','game']) document.getElementById(s).classList.toggle('hidden',s!==id); if(id==='title') refreshTitle() }
+
+/* ---------- 모달 ---------- */
+function modal(title,html){
+  document.getElementById('modalRoot').innerHTML=
+    `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" role="dialog" aria-modal="true">
+      <header><h3>${title}</h3><button class="small" onclick="closeModal()">닫기</button></header>
+      <div class="body">${html}</div></div></div>`;
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; if(G&&!document.getElementById('game').classList.contains('hidden')) render() }
+function openMenu(){
+  let backup=false; try{ backup=!!localStorage.getItem(SAVE_BACKUP_KEY) }catch(e){}
+  const t=usageTotal();
+  modal('메뉴',`<div class="menuList">
+    <button onclick="openMemory()">🧠 줄거리 기억</button>
+    <button onclick="openPrefs()">화면 설정</button>
+    <button onclick="openSettings()">⚙ AI 연결</button>
+    <button onclick="exportSave()">💾 저장 파일로 내보내기</button>
+    <button onclick="importSave()">📂 저장 파일 가져오기</button>
+    ${backup?'<button onclick="restoreSaveBackup()">♻ 가져오기 이전 저장 복구</button>':''}
+    <button onclick="closeModal();toTitle()">🏠 처음 화면으로</button>
+    </div><p class="muted" style="font-size:13px;margin-top:14px">AI 사용량: 이번 선택 ${fmtCost(USAGE_TURN.cost)} · 누적 ${fmtCost(t.cost)}${t.unk?' (+ 단가를 모르는 호출)':''} · ${t.calls}회</p>`);
+}
+function openMemory(){
+  modal('줄거리 기억',`<p class="muted" style="margin-top:0">AI가 다음 장면을 쓸 때 참고하는 요약입니다. 오래된 장면이 쌓이면 자동으로 합쳐집니다. 틀린 내용은 직접 고칠 수 있습니다.</p>
+    <textarea rows="10" onchange="G.summary=this.value.slice(0,2400);save()">${esc(G.summary)}</textarea>`);
+}
+function applyUI(){
+  document.documentElement.style.setProperty('--fs',String(UI.font));
+  if(UI.theme==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',UI.theme);
+}
+function setUI(k,v){ UI[k]=v; saveUI(); applyUI(); openPrefs() }
+function openPrefs(){
+  const opt=(obj,cur)=>Object.entries(obj).map(([k,o])=>`<option value="${k}" ${k===cur?'selected':''}>${o.n}</option>`).join('');
+  modal('화면 설정',`
+    <label>글자 크기</label><div class="row"><button class="small" onclick="setUI('font',Math.max(.8,Math.round((UI.font-.1)*10)/10))">가−</button><b style="min-width:52px;text-align:center">${Math.round(UI.font*100)}%</b><button class="small" onclick="setUI('font',Math.min(1.6,Math.round((UI.font+.1)*10)/10))">가+</button></div>
+    <label>장면 길이 <span style="font-size:12px">(길수록 AI 비용이 늘어남)</span></label><select onchange="setUI('len',this.value)">${opt(LEN_LEVELS,UI.len)}</select>
+    <label>화면 밝기</label><select onchange="setUI('theme',this.value)">${opt({auto:{n:'기기 설정 따르기'},dark:{n:'어둡게'},light:{n:'밝게'}},UI.theme)}</select>`);
+}
+
+/* ---------- AI 연결 설정 (hanbit.html과 같은 화면) ---------- */
+function openSettings(){
+  const provs=Object.keys(PRESETS);
+  const opt=sel=>provs.map(p=>`<option value="${p}" ${sel===p?'selected':''}>${provLabel(p)}</option>`).join('');
+  const effOpt=sel=>['low','medium','high'].map(e=>`<option value="${e}" ${sel===e?'selected':''}>${({low:'낮음 (저렴·빠름)',medium:'중간',high:'높음 (비쌈)'})[e]}</option>`).join('');
+  const cards=AI_ROLES.map(r=>{
+    const c=roleCfg(r.k);
+    return `<div class="lex"><div class="h"><b>${r.n}</b><span class="cat">${r.d}</span></div>
+      <label>제공자</label><select id="rp_${r.k}" onchange="onRoleProv('${r.k}')">${opt(c.provider)}</select>
+      <label>모델 이름</label><input id="rm_${r.k}" value="${esc(c.model)}">
+      <label>생각 강도 <span class="muted">(Claude 5 · Gemini 3 계열. 낮을수록 저렴)</span></label>
+      <select id="re_${r.k}">${effOpt(c.effort||'low')}</select>
+      <div class="row" style="margin-top:8px"><button class="small" onclick="testRole('${r.k}')">연결 테스트</button><span class="muted" id="to_${r.k}"></span></div>
+    </div>`}).join('');
+  const keyRow=p=>`<label>${provLabel(p)} API 키</label><input id="k_${p}" type="password" value="${esc((SET.keys||{})[p]||'')}" placeholder="키는 이 브라우저에만 저장됩니다">`;
+  modal('AI 연결',`
+    <p class="muted" style="margin-top:0">API 키나 Vertex AI JSON 키 하나만 연결하면 됩니다. 키는 이 브라우저에만 저장되고, 같은 사이트의 hanbit.html과 함께 씁니다.</p>
+    <h4>Google Vertex AI · 서비스 계정 JSON 키</h4>
+    <p class="muted">JSON 파일을 고르면 바로 연결됩니다. 「이 기기에서 연결 기억하기」를 켜면 새로고침해도 유지됩니다(공용 기기에서는 끄세요). JSON 내용 자체는 저장하지 않습니다.</p>
+    <label>연결 방식</label><select id="sVertexMode"><option value="browser" ${vertexMode()==='browser'?'selected':''}>JSON 파일 선택 (설치 없이 연결)</option><option value="relay" ${vertexMode()==='relay'?'selected':''}>중계 서버 (고급 설정)</option></select>
+    <label>서비스 계정 JSON 파일</label><div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><input type="file" accept=".json,application/json" onchange="selectVertexJSON(this)" style="flex:1;min-width:180px"><label style="display:flex;gap:4px;align-items:center;margin:0"><input type="checkbox" id="sVertexRemember" style="width:auto"> 이 기기에서 연결 기억하기</label></div>
+    <p class="muted" id="vertexStatus">${VERTEX_BROWSER?(VERTEX_BROWSER.remembered?'기억된 연결 · ':'인증 완료 · ')+esc(VERTEX_BROWSER.project):'JSON 파일을 선택하세요.'}</p>
+    <button class="small" onclick="disconnectVertex()">JSON 키 연결 해제</button>
+    <details style="margin-top:10px"><summary>리전 · 중계 서버 고급 설정</summary>
+    <label>Vertex AI 리전</label><input id="sVertexLocation" value="${esc(SET.vertexLocation||'global')}" placeholder="global">
+    <label>Vertex AI 중계 서버 주소</label><input id="sVertex" value="${esc(SET.vertexRelayUrl||'')}" placeholder="http://127.0.0.1:8899 또는 HTTPS 중계 주소">
+    <label>중계 접속 토큰</label><input id="k_vertex" type="password" value="${esc((SET.keys||{}).vertex||'')}" placeholder="중계 서버 실행 시 표시되는 토큰" autocomplete="off">
+    </details>
+    <button class="small" style="margin-top:8px" onclick="applyVertexModels()">모든 역할을 Vertex AI로 설정</button>
+    <h4 style="margin:12px 0 0">API 키</h4>
+    ${keyRow('anthropic')}
+    ${keyRow('gemini')}
+    <details style="margin-top:10px"><summary>다른 제공자 키 · 사용자 지정 주소</summary>
+    <label>Anthropic 워크스페이스 ID (키가 워크스페이스에 묶여 있지 않다는 오류가 날 때만 입력)</label>
+    <input id="sWs" value="${esc(SET.wsId||'')}">
+      ${provs.filter(p=>!['anthropic','gemini','vertex'].includes(p)).map(keyRow).join('')}
+      <label>사용자 지정 API 주소 (OpenAI 호환)</label><input id="sBase" value="${esc(SET.baseUrl||'')}">
+    </details>
+    <details style="margin-top:12px"><summary>⚙ 고급 — 용도별 모델 · 생각 강도</summary>
+    ${cards}
+    </details>
+    <div class="row" style="margin-top:12px"><button class="primary" onclick="saveSet()">저장</button></div>`);
+}
+/* JSON을 다시 고를 때 직접 정한 Vertex 모델은 유지한다 (예전 기본값 3.5 flash는 새 기본값으로 올림) */
+function vertexModelFor(k){
+  const cur=(SET.roles||{})[k],m=cur&&cur.provider==='vertex'?String(cur.model||''):'';
+  if(/^gemini-[a-z0-9.-]+$/.test(m)&&m!=='gemini-3.5-flash') return m;
+  return PRESETS.vertex.model;
+}
+function applyVertexModels(){
+  AI_ROLES.forEach(r=>{const p=document.getElementById('rp_'+r.k),m=document.getElementById('rm_'+r.k);if(p)p.value='vertex';if(m)m.value=vertexModelFor(r.k)});
+  toast('역할을 Vertex AI로 채웠습니다. 연결 방식을 선택하고 저장하세요.');
+}
+function onRoleProv(k){
+  const p=document.getElementById('rp_'+k).value, d=AI_ROLE_DEFAULT[k];
+  document.getElementById('rm_'+k).value=d.provider===p?d.model:((PRESETS[p]&&PRESETS[p].model)||'');
+}
+function saveSetQuiet(){
+  const mode=document.getElementById('sVertexMode')?.value,location=document.getElementById('sVertexLocation')?.value?.trim();
+  if(mode&&!['browser','relay'].includes(mode)){toast('Vertex AI 연결 방식을 확인하세요.');return false}
+  if(location&&!/^[a-z][a-z0-9-]{1,62}$/.test(location)){toast('Vertex AI 리전을 확인하세요.');return false}
+  const vt=document.getElementById('k_vertex')?.value?.trim(),vu=document.getElementById('sVertex')?.value?.trim();
+  if(vt&&(/^\s*\{/.test(vt)||/PRIVATE KEY|private_key/.test(vt))){toast('JSON 키는 파일 선택 버튼으로 연결하세요. 이 칸에는 중계 접속 토큰만 입력합니다.');return false}
+  if(vu){try{vertexRelayBase(vu)}catch(e){toast(e.message);return false}}
+  SET.keys=SET.keys||{};
+  Object.keys(PRESETS).forEach(p=>{ const el=document.getElementById('k_'+p); if(el) SET.keys[p]=el.value.trim() });
+  const b=document.getElementById('sBase'); if(b) SET.baseUrl=b.value.trim();
+  const ws=document.getElementById('sWs'); if(ws) SET.wsId=ws.value.trim();
+  const v=document.getElementById('sVertex'); if(v) SET.vertexRelayUrl=v.value.trim();
+  if(mode) SET.vertexMode=mode; if(location) SET.vertexLocation=location;
+  SET.roles=SET.roles||{};
+  AI_ROLES.forEach(r=>{
+    const p=document.getElementById('rp_'+r.k), m=document.getElementById('rm_'+r.k), e=document.getElementById('re_'+r.k);
+    if(p&&m) SET.roles[r.k]={provider:p.value,model:m.value.trim(),effort:e?e.value:'low'};
+  });
+  const s=roleCfg('story'); SET.provider=s.provider; SET.model=s.model; SET.apiKey=SET.keys[s.provider]||'';
+  saveSettings();
+  return true;
+}
+function saveSet(){
+  if(saveSetQuiet()===false) return; toast('설정을 저장했습니다'); closeModal();
+  if(document.getElementById('game').classList.contains('hidden')) refreshTitle();
+}
+async function testRole(k){
+  if(saveSetQuiet()===false) return;
+  const out=document.getElementById('to_'+k); if(out) out.textContent='테스트 중…';
+  try{ const t=await callAI('짧게 답하라.','안개 낀 섬의 밤을 한 문장으로 묘사해줘.',100,k); if(out) out.textContent='✅ '+t.slice(0,50) }
+  catch(e){ if(out) out.textContent='❌ '+(e.message==='NO_KEY'?'키가 없습니다':e.message) }
+}
+function setTitle(){ document.title=WORLD.title; const h=document.querySelector('#title h1'); if(h) h.textContent=WORLD.title; const s=document.getElementById('subTitle'); if(s) s.textContent=WORLD.sub }
+function refreshTitle(){
+  document.getElementById('btnContinue').disabled=!hasSave();
+  setTitle();
+  document.getElementById('aiStatus').textContent=aiStatusText();
+  const vx=vertexTitleText(),el=document.getElementById('aiStatus'); if(vx&&el) el.textContent+=' · '+vx;
+}
+function aiStatusText(){
+  const hasKey=Object.keys(PRESETS).some(aiProviderReady);
+  const miss=[...new Set(AI_ROLES.map(r=>roleCfg(r.k).provider))].filter(p=>!aiProviderReady(p));
+  return hasKey
+    ?`AI 연결됨 · ${roleCfg('story').model}`+(miss.length?` (연결 설정 없음: ${miss.map(provLabel).join(', ')})`:'')
+    :'⚠ AI 키가 없으면 장면을 이어 쓸 수 없습니다 — ⚙ AI 연결에서 연결하세요';
+}
+function vertexTitleText(){
+  if(!VERTEX_BROWSER) return '';
+  return VERTEX_BROWSER.remembered?'Vertex: 기억된 연결 · '+VERTEX_BROWSER.project:'Vertex: 인증 완료 · '+VERTEX_BROWSER.project+' (새로고침하면 다시 선택)';
+}
+
+/* =========================================================
+   새 게임 · 불러오기 · 내보내기 · 가져오기
+   ========================================================= */
+function startNew(){
+  modal('새로 시작',`<p class="muted" style="margin-top:0">${hasSave()?'지금 저장된 진행은 새 게임으로 바뀝니다. 필요하면 먼저 메뉴에서 저장 파일로 내보내 주세요.':'이야기 속에서 불릴 이름을 정해 주세요.'}</p>
+    <label for="newName">이름</label><input id="newName" maxlength="10" autocomplete="off" placeholder="예: 서윤">
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="primary" onclick="newGame(document.getElementById('newName').value)">시작</button></div>`);
+}
+function newGame(name){
+  name=String(name||'').trim().replace(/\s+/g,' ');
+  if(!name) return toast('이름을 적어 주세요.');
+  if(name.length>10) return toast('이름은 10자 이내로 적어 주세요.');
+  G=newGameState(name); busy=false; turnSeq++; resetUndo();
+  closeModal(); show('game'); save(); render();
+}
+function validateSaveData(g){
+  const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x), str=x=>typeof x==='string', int=x=>Number.isInteger(x);
+  if(!obj(g)||g.v!==2) throw Error('해무 저장 파일이 아닙니다.');
+  if(!obj(g.char)||!str(g.char.name)||!g.char.name.trim()||g.char.name.length>20) throw Error('플레이어 정보가 없거나 손상됐습니다.');
+  if(!int(g.day)||g.day<1||!int(g.slot)||g.slot<0||g.slot>=WORLD.slots.length||!PLACES[g.place]) throw Error('날짜·시간·장소 정보가 손상됐습니다.');
+  if(!Array.isArray(g.known)||g.known.some(x=>!str(x))) throw Error('인물 기록이 손상됐습니다.');
+  if(!str(g.summary)||!Array.isArray(g.recent)||g.recent.some(x=>!obj(x)||!['action','scene'].includes(x.role)||!str(x.text))) throw Error('줄거리 기록이 손상됐습니다.');
+  if(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||!str(x.who)||!str(x.text))) throw Error('이야기 기록이 손상됐습니다.');
+  if(!obj(g.scene)||!Array.isArray(g.scene.choices)||!g.scene.choices.length||g.scene.choices.some(x=>!str(x))) throw Error('지금 장면 정보가 손상됐습니다.');
+  return g;
+}
+function prepareSavedGame(text){
+  if(typeof text!=='string'||text.length>16*1024*1024) throw Error('저장 파일 크기를 확인하세요.');
+  let candidate; try{ candidate=JSON.parse(text.replace(/^﻿/,'')) }catch{ throw Error('올바른 게임 저장 JSON 파일을 선택하세요.') }
+  const visit=(x,depth=0)=>{ if(depth>100) throw Error('저장 정보가 너무 복잡합니다.'); if(x&&typeof x==='object') for(const k of Object.keys(x)){ if(['__proto__','prototype','constructor'].includes(k)) throw Error('안전하지 않은 저장 정보가 포함돼 있습니다.'); visit(x[k],depth+1) } };
+  visit(candidate);
+  return validateSaveData(candidate);
+}
+function openLoadedGame(g){ G=g; busy=false; turnSeq++; stableSnap=JSON.stringify(g); closeModal(); show('game'); render() }
+function continueGame(){
+  if(busy) return toast('현재 장면을 받은 뒤 불러와 주세요.');
+  let g; try{ const text=localStorage.getItem(SAVE_KEY); if(!text) return toast('저장된 게임이 없습니다'); g=prepareSavedGame(text) }catch(e){ return toast('저장을 불러오지 못했습니다. '+e.message) }
+  openLoadedGame(g);
+}
+function toTitle(){ save(); show('title') }
+function exportSave(){
+  if(!G) return toast('내보낼 게임이 없습니다.');
+  const blob=new Blob([JSON.stringify(G,null,1)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`해무_${G.char.name}_${G.day}일.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function installImportedGame(candidate,backup=true){
+  const previous=G; let previousDisk;
+  try{
+    previousDisk=localStorage.getItem(SAVE_KEY);
+    if(backup&&(previous||previousDisk)) localStorage.setItem(SAVE_BACKUP_KEY,previous?JSON.stringify(previous):previousDisk);
+    localStorage.setItem(SAVE_KEY,JSON.stringify(candidate));   // 실패하면 지금 게임과 원래 저장은 그대로
+  }catch{ saveStatus(false); toast('가져오기를 완료하지 못했습니다. 기존 진행은 유지됩니다. 저장 공간을 확인하고 현재 진행을 다운로드해 주세요.'); return false }
+  resetUndo(); saveStatus(true); openLoadedGame(candidate); return true;
+}
+function restoreSaveBackup(){
+  if(busy) return toast('현재 장면을 받은 뒤 복구해 주세요.');
+  try{ const text=localStorage.getItem(SAVE_BACKUP_KEY); if(!text) return toast('가져오기 이전의 백업이 없습니다.'); if(installImportedGame(prepareSavedGame(text),false)) toast('가져오기 이전 저장을 복구했습니다.') }catch(e){ toast('백업을 읽을 수 없습니다. '+e.message) }
+}
+function importSave(){
+  if(busy) return toast('현재 장면을 받은 뒤 가져와 주세요.');
+  const previous=G;
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='.json';
+  inp.onchange=()=>{ const f=inp.files[0]; if(!f) return; if(f.size>16*1024*1024) return toast('저장 파일은 16MB 이하만 선택하세요.'); const r=new FileReader();
+    r.onload=()=>{ if(busy||G!==previous) return toast('게임 상태가 바뀌었습니다. 파일을 다시 선택해 주세요.'); try{ if(installImportedGame(prepareSavedGame(r.result))) toast('저장 파일을 불러왔습니다.') }catch(e){ toast('파일을 불러오지 못했습니다. '+e.message) } };
+    r.onerror=()=>toast('저장 파일을 읽지 못했습니다. 다른 파일을 선택해 주세요.');
+    r.readAsText(f) };
+  inp.click();
+}
+
+/* 시작: 화면 설정 적용 · 공용 이벤트 */
+vertexRestore().catch(()=>{});
+document.addEventListener('keydown',ev=>{
+  if(ev.key==='Escape'){ if(document.getElementById('modalRoot').innerHTML) closeModal(); return }
+});
+applyUI(); updateUsageChip(); show('title');
+</script>
+</body>
+</html>

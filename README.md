@@ -58,10 +58,22 @@
 `KASR→CAMPUS_POS` · `IRAM_POS→LACUNA_POS` · `tablet→roster` · `G.dungeon→G.site` · `ruin→zone` · `town→hood` · `city(허브)→campus` · `cities→wards` · `west→branch` · `relic→keepsake` · `caravan→peddler` · `camp→shelter` · `MOUNTS→RIDES` · `water→calm`(공포 여유, 공포 = 한계 − calm) · `food→battery` · `gold→cash`. 시설 id: `well→tea`, `store→locker`, `stable→bikerack`, `workshop→workbench`, `garden→charger`, `guest→sofa`, `study→lab`, `land→clubroom`. 설정 저장 키(`sand7_settings` 등)는 API 키를 이어 쓰려고 그대로 둡니다.
 
 
+## 해무 (텍스트 미연시 개편 · 작업 중)
+
+`haemu.html`은 공포 분위기의 텍스트 연애 시뮬레이션으로 새로 만드는 파일입니다. `hanbit.html`은 그대로 남아 따로 열 수 있고, 저장 키가 달라(`haemu_save_v1` / `hanbit_save_v1`) 섞이지 않습니다. AI 연결 설정과 기억해 둔 Vertex JSON 연결은 두 파일이 함께 씁니다.
+
+- **화면**: 그림·배경 없이 글로만 진행합니다. 지문과 대사(「이름 「대사」」 형식)가 위에서 아래로 쌓이고, 맨 아래에 선택지와 「✎ 직접 쓰기」가 있습니다. 새 장면은 방금 고른 행동부터 읽히도록 스크롤됩니다. 상단에는 날짜·시간대·지금 있는 곳과 되돌리기, ☰ 메뉴(줄거리 기억 · 화면 설정 · AI 연결 · 저장 내보내기/가져오기)가 있습니다.
+- **AI 호출**: 행동 하나에 장면 1회입니다. AI는 지문·대사 줄과 선택지를 JSON으로 돌려주고, 코드가 이야기 기록에 붙입니다(JSON이 아닌 글이 오면 지문으로 살립니다). 오래된 장면이 16개를 넘으면 뒤에서 줄거리 요약을 1회 합니다(hanbit의 줄거리 요약과 같은 역할).
+- **미리 드러나지 않게**: 장면 안에서 이름이 드러나기 전의 인물은 대사 앞에 `???`로 나오고, 그때 ???였던 줄은 나중에 이름을 알아도 ???로 남습니다. 시간대가 끝나면 「── 1일째 · 오전 ──」 구분선이 붙고 시간이 넘어갑니다.
+- 장면을 받지 못하면 아무것도 바뀌지 않고 선택지가 그대로 남습니다. 늦게 온 다른 게임의 응답은 버립니다. 되돌리기는 직전 선택 2번까지입니다.
+- 세계 설정(`WORLD`)과 인물(`CHARS`)은 배경이 정해지면 바꿀 자리입니다. 지금 들어 있는 섬 요양원 문장은 임시입니다.
+- 검증: `node tests/haemu-scene.test.cjs` · `node tests/haemu-save.test.cjs` · `node tests/haemu-ai.test.cjs` (`tests/_haemu-fixture.cjs`는 공용 준비 파일).
+
 ## 원작 보관
 - `sand_seven_cities.html` — 개변 전 원작 「모래 아래의 일곱 도시」 (`images/home/`의 그림을 사용). `hanbit.html`(출석부에 없는 구역)과 따로 열 수 있고, 세이브 키가 달라(`sand7_save` / `hanbit_save_v1`) 서로 섞이지 않습니다. 설정·API 키는 공유합니다.
 
 ## 파일 구성
+- `haemu.html` — 해무 (텍스트 미연시 개편, 작업 중)
 - `hanbit.html` — 출석부에 없는 구역
 - `sand_seven_cities.html` — 모래 아래의 일곱 도시(원작)
 
