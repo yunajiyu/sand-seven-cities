@@ -583,17 +583,38 @@ function logScene(lines){
   }
   if(G.log.length>LOG_MAX) G.log.splice(0,G.log.length-LOG_MAX);
 }
-function newGameState(name,best){
+function newGameState(name,best,profile){
   const o=WORLD.opening, stats={};
   best=skillKey(best)||'sneak';
   for(const k in SKILLS) stats[k]=k===best?SKILL_BEST:SKILL_BASE;
-  const g={v:3,char:{name,stats},day:1,slot:0,place:WORLD.start,alert:0,known:[],summary:'',recent:[],log:[],scene:{choices:o.choices.slice()}};
+  const g={v:3,char:{name,stats,...cleanProfile(profile)},day:1,slot:0,place:WORLD.start,alert:0,known:[],summary:'',recent:[],log:[],scene:{choices:o.choices.slice()}};
   const prev=G; G=g; try{ logScene(o.lines) }finally{ G=prev }
   return g;
 }
 function sceneDone(){ return !!G&&!busy }
 
 /* ---------- 프롬프트 ---------- */
+/* 내 캐릭터 설명 — 새로 시작할 때 적고, 게임 중에는 ☰ 메뉴 → 👤 내 캐릭터에서 고친다. AI는 묘사할 때만 참고한다. */
+const PROFILE_FIELDS=[
+  {k:'look',n:'외모',max:300,ph:'예: 짧은 검은 머리, 늘 연구원 가운 소매를 걷어 올린다'},
+  {k:'persona',n:'성격·말투',max:300,ph:'예: 침착한 척하지만 거짓말을 할 때 말이 빨라진다'},
+  {k:'bio',n:'배경·특징',max:500,ph:'예: 제약 회사 연구원 출신. 여동생과 둘이 살아왔다'},
+];
+function profileHTML(prefix,ch){
+  return PROFILE_FIELDS.map(f=>`<label for="${prefix}_${f.k}">${f.n}</label><textarea id="${prefix}_${f.k}" rows="${f.k==='bio'?3:2}" maxlength="${f.max}" placeholder="${esc(f.ph)}">${esc((ch&&ch[f.k])||'')}</textarea>`).join('');
+}
+function readProfile(prefix){
+  const o={}; for(const f of PROFILE_FIELDS){ const el=document.getElementById(prefix+'_'+f.k); o[f.k]=clip(String((el&&el.value)||'').trim(),f.max) } return o;
+}
+function cleanProfile(p){ const o={}; for(const f of PROFILE_FIELDS) o[f.k]=clip(String((p&&p[f.k])||'').trim(),f.max); return o }
+function playerBlock(){
+  const c=(G&&G.char)||{}, rows=PROFILE_FIELDS.filter(f=>c[f.k]).map(f=>`- ${f.n}: ${c[f.k]}`);
+  return `[플레이어 캐릭터] ${c.name||''}
+${rows.length?rows.join('\n'):'- (따로 정하지 않음 — 플레이어의 외모·성격·과거를 지어내지 않는다)'}
+- 지문에서 플레이어를 묘사할 때 이 설정을 따르되, 플레이어의 행동·대사·감정을 대신 정하지 않는다.
+- 다른 인물은 겉으로 보이는 것(외모·말투·행동)에만 반응한다. 플레이어가 장면 안에서 말하지 않은 배경은 모르는 것으로 한다.`;
+}
+
 function charBlock(){
   return Object.values(CHARS).map(c=>`■ ${c.name}${knownName(c.name)?'':' (플레이어는 아직 이름을 모름)'}
 - 하는 일: ${c.job}
@@ -621,6 +642,7 @@ function sysPrompt(){
 - 들키면 위험한 행동(기록 몰래 열람, 감시 카메라 피하기, 출입 금지 구역 들어가기, 거짓말로 둘러대기 등)인 선택지에만 판정을 붙인다: {"text":"…","check":"${Object.values(SKILLS).map(x=>x.n).join('|')}","dc":"${Object.values(DCS).map(x=>x.n).join('|')}"}. 평범한 행동은 문자열로 쓴다. 판정 선택지는 한 장면에 많아야 2개.
 - [판정 결과]가 주어지면 그 결과를 그대로 따른다. 주사위·판정·수치는 장면에 쓰지 않는다.
 - [연구소의 경계]가 높을수록 감시와 추궁의 압박을 장면에 드러낸다.
+${playerBlock()}
 [등장인물]
 ${charBlock()}
 [출력] JSON 하나만 쓴다.
@@ -849,6 +871,7 @@ function openMenu(){
   let backup=false; try{ backup=!!localStorage.getItem(SAVE_BACKUP_KEY) }catch(e){}
   const t=usageTotal();
   modal('메뉴',`<div class="menuList">
+    <button onclick="openProfile()">👤 내 캐릭터</button>
     <button onclick="openMemory()">🧠 줄거리 기억</button>
     <p class="muted" style="font-size:13px;margin:4px 2px">${esc(G.char.name)} · ${Object.entries(SKILLS).map(([k,v])=>`${v.n} +${skillVal(k)}`).join(' · ')}</p>
     <button onclick="openPrefs()">화면 설정</button>
@@ -859,6 +882,13 @@ function openMenu(){
     <button onclick="closeModal();toTitle()">🏠 처음 화면으로</button>
     </div><p class="muted" style="font-size:13px;margin-top:14px">AI 사용량: 이번 선택 ${fmtCost(USAGE_TURN.cost)} · 누적 ${fmtCost(t.cost)}${t.unk?' (+ 단가를 모르는 호출)':''} · ${t.calls}회</p>`);
 }
+function openProfile(){
+  modal('내 캐릭터',`<p class="muted" style="margin-top:0">${esc(G.char.name)} · ${Object.entries(SKILLS).map(([k,v])=>`${v.n} +${skillVal(k)}`).join(' · ')}</p>
+    <p class="muted" style="font-size:13px">AI가 당신을 묘사할 때 참고합니다. 다른 인물은 겉으로 보이는 것만 알고, 배경은 당신이 이야기 속에서 말해야 압니다. 비워 두면 AI가 지어내지 않습니다.</p>
+    ${profileHTML('pf',G.char)}
+    <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="primary" onclick="saveProfile()">저장</button></div>`);
+}
+function saveProfile(){ if(!G) return; if(busy) return toast('장면을 받은 뒤 저장해 주세요.'); Object.assign(G.char,readProfile('pf')); save(); closeModal(); toast('내 캐릭터 설명을 저장했습니다') }
 function openMemory(){
   modal('줄거리 기억',`<p class="muted" style="margin-top:0">AI가 다음 장면을 쓸 때 참고하는 요약입니다. 오래된 장면이 쌓이면 자동으로 합쳐집니다. 틀린 내용은 직접 고칠 수 있습니다.</p>
     <textarea rows="10" onchange="G.summary=this.value.slice(0,2400);save()">${esc(G.summary)}</textarea>`);
@@ -992,13 +1022,14 @@ function startNew(){
     <label for="newName">이름</label><input id="newName" maxlength="10" autocomplete="off" placeholder="예: 서윤">
     <label>잘하는 것 <span style="font-size:12px">(들키면 위험한 일을 할 때 주사위에 더해집니다)</span></label>
     <div class="menuList">${Object.entries(SKILLS).map(([k,v],i)=>`<label style="display:flex;gap:8px;align-items:flex-start;margin:0;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px"><input type="radio" name="newSkill" value="${k}" ${i?'':'checked'} style="width:auto;margin-top:3px"><span><b>${v.n}</b><br><span class="muted" style="font-size:13px">${v.d}</span></span></label>`).join('')}</div>
-    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="primary" onclick="newGame(document.getElementById('newName').value,(document.querySelector('input[name=newSkill]:checked')||{}).value)">시작</button></div>`);
+    <details open style="margin-top:12px"><summary>✎ 내 캐릭터 설명 <span class="muted" style="font-size:13px">(선택 · 나중에 메뉴에서 고칠 수 있음)</span></summary>${profileHTML('np',null)}</details>
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="primary" onclick="newGame(document.getElementById('newName').value,(document.querySelector('input[name=newSkill]:checked')||{}).value,readProfile('np'))">시작</button></div>`);
 }
-function newGame(name,best){
+function newGame(name,best,profile){
   name=String(name||'').trim().replace(/\s+/g,' ');
   if(!name) return toast('이름을 적어 주세요.');
   if(name.length>10) return toast('이름은 10자 이내로 적어 주세요.');
-  G=newGameState(name,best); busy=false; turnSeq++; resetUndo();
+  G=newGameState(name,best,profile); busy=false; turnSeq++; resetUndo();
   closeModal(); show('game'); save(); render();
 }
 function validateSaveData(g){
@@ -1010,6 +1041,7 @@ function validateSaveData(g){
   if(!str(g.summary)||!Array.isArray(g.recent)||g.recent.some(x=>!obj(x)||!['action','scene'].includes(x.role)||!str(x.text))) throw Error('줄거리 기록이 손상됐습니다.');
   if(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||!str(x.who)||!str(x.text))) throw Error('이야기 기록이 손상됐습니다.');
   if(!obj(g.scene)||!Array.isArray(g.scene.choices)||!g.scene.choices.length||g.scene.choices.some(x=>!str(x)&&!(obj(x)&&str(x.text)&&SKILLS[x.check]&&DCS[x.dc]))) throw Error('지금 장면 정보가 손상됐습니다.');
+  if(PROFILE_FIELDS.some(f=>g.char[f.k]!==undefined&&(!str(g.char[f.k])||g.char[f.k].length>f.max))) throw Error('캐릭터 설명이 손상됐습니다.');
   if(g.char.stats!==undefined&&(!obj(g.char.stats)||Object.keys(SKILLS).some(k=>!int(g.char.stats[k])||g.char.stats[k]<0||g.char.stats[k]>6))) throw Error('능력치 정보가 손상됐습니다.');
   if(g.alert!==undefined&&(!int(g.alert)||g.alert<0||g.alert>ALERT_MAX)) throw Error('경계 정보가 손상됐습니다.');
   return g;
