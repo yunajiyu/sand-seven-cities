@@ -36,39 +36,31 @@ section.screen{position:fixed;inset:0;display:flex;flex-direction:column}
 #title .menu{display:flex;flex-direction:column;gap:10px;width:min(280px,100%)}
 #aiStatus{margin-top:24px;font-size:13px;max-width:420px}
 
-/* 게임 */
+/* 게임 — 글로 읽는 화면: 이야기가 위에서 아래로 쌓이고, 맨 아래에 선택지 */
 #game{background:var(--bg)}
-.top{display:flex;align-items:center;gap:8px;padding:calc(6px + env(safe-area-inset-top)) 12px 6px;position:relative;z-index:3}
+.top{display:flex;align-items:center;gap:8px;padding:calc(6px + env(safe-area-inset-top)) 12px 6px;border-bottom:1px solid var(--line)}
 .top .when{flex:1;font-size:14px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#saveWarning{display:none;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:rgba(160,70,40,.25);font-size:14px;position:relative;z-index:3}
-.stage{position:relative;flex:1;overflow:hidden}
-.bg{position:absolute;inset:0;transition:background 1.2s ease}
-.bg::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 40%,transparent 40%,rgba(0,0,0,.55) 100%);pointer-events:none}
-.bg.room{background:linear-gradient(180deg,#1b1f27 0%,#262a31 55%,#16181d 100%)}
-.bg.ward{background:linear-gradient(180deg,#1a2328 0%,#23312f 60%,#121816 100%)}
-.bg.hall{background:linear-gradient(90deg,#0f1216 0%,#1d2229 50%,#0f1216 100%)}
-.bg.yard{background:linear-gradient(180deg,#2a3138 0%,#3b4348 45%,#1d2420 100%)}
-.bg.pier{background:linear-gradient(180deg,#39424b 0%,#525c63 40%,#1d252c 100%)}
-.fog{position:absolute;inset:-20%;background:radial-gradient(60% 40% at 30% 60%,rgba(220,228,235,.07),transparent 70%),radial-gradient(50% 35% at 75% 45%,rgba(220,228,235,.06),transparent 70%);animation:drift 40s linear infinite alternate;pointer-events:none}
-@keyframes drift{to{transform:translateX(6%)}}
-@media (prefers-reduced-motion:reduce){.fog{animation:none}}
-.place{position:absolute;left:12px;top:8px;font-size:13px;color:var(--mute);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 10px;z-index:2}
-#card{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:"Nanum Myeongjo","AppleMyungjo",serif;font-size:22px;letter-spacing:.2em;background:rgba(0,0,0,.35);z-index:2}
-
-.dock{position:relative;z-index:3;padding:0 10px calc(10px + env(safe-area-inset-bottom))}
-#choices{display:flex;flex-direction:column;gap:8px;margin-bottom:22px;max-height:42vh;overflow:auto}
-#choices button{text-align:left;background:var(--panel);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);line-height:1.45}
+#saveWarning{display:none;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:rgba(160,70,40,.25);font-size:14px}
+#log{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 8px}
+#log .inner{max-width:680px;margin:0 auto}
+#log p{margin:0 0 .9em;font-size:calc(17px * var(--fs));line-height:1.8;word-break:keep-all;white-space:pre-wrap}
+#log p.say .w{font-weight:700;color:var(--accent);margin-right:.35em}
+#log p.say.me .w{color:var(--mute)}
+#log p.act{color:var(--mute);font-size:calc(15px * var(--fs));border-left:2px solid var(--line);padding-left:10px;margin:1.4em 0 1.1em}
+#log p.time{text-align:center;color:var(--mute);font-size:calc(14px * var(--fs));letter-spacing:.15em;margin:1.6em 0}
+#log p.time::before,#log p.time::after{content:" ── "}
+#log p.new{animation:fadein .5s ease both}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){#log p.new{animation:none}}
+#log p.waiting{color:var(--mute);letter-spacing:.4em;animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{50%{opacity:.25}}
+.dock{padding:8px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.dock:empty{display:none}
+#choices{display:flex;flex-direction:column;gap:8px;max-height:40vh;overflow:auto;max-width:680px;margin:0 auto}
+#choices:empty{display:none}
+#choices button{text-align:left;line-height:1.45;font-size:calc(16px * var(--fs))}
 #choices button.free{color:var(--mute);border-style:dashed}
 #freeBox textarea{min-height:76px;resize:vertical}
-.box{position:relative;background:var(--panel);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:22px 16px 26px;min-height:150px;cursor:pointer;user-select:none;-webkit-user-select:none}
-.plate{position:absolute;left:14px;top:-14px;background:var(--plate);border:1px solid var(--line);border-radius:8px;padding:3px 12px;font-weight:600;font-size:calc(15px * var(--fs))}
-.plate:empty{display:none}
-#text{font-size:calc(17px * var(--fs));line-height:1.75;white-space:pre-wrap;word-break:keep-all}
-#text.narr{color:var(--ink)}
-#text.speech::before{content:"「"}#text.speech::after{content:"」"}
-.next{position:absolute;right:14px;bottom:8px;font-size:12px;color:var(--mute);animation:blink 1.4s ease-in-out infinite}
-@keyframes blink{50%{opacity:.25}}
-.waiting{letter-spacing:.4em;color:var(--mute)}
 
 /* 모달 */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20}
@@ -113,19 +105,8 @@ section.screen{position:fixed;inset:0;display:flex;flex-direction:column}
     <button class="small" onclick="openMenu()" aria-label="메뉴">☰</button>
   </div>
   <div id="saveWarning" role="alert"><span>⚠ 자동 저장에 실패했습니다. 현재 진행을 파일로 보관해 주세요.</span><button class="small" onclick="save()">저장 재시도</button><button class="small" onclick="exportSave()">현재 진행 다운로드</button></div>
-  <div class="stage">
-    <div class="bg" id="bg"><div class="fog"></div></div>
-    <span class="place" id="place"></span>
-    <div id="card" class="hidden"></div>
-  </div>
-  <div class="dock">
-    <div id="choices"></div>
-    <div class="box" id="box" onclick="advance()" role="button" tabindex="0" aria-label="다음 대사">
-      <div class="plate" id="who"></div>
-      <div id="text"></div>
-      <span class="next" id="next">▼</span>
-    </div>
-  </div>
+  <div id="log" aria-live="polite"><div class="inner" id="logInner"></div></div>
+  <div class="dock"><div id="choices"></div></div>
 </section>
 
 <div id="modalRoot"></div>
@@ -133,9 +114,9 @@ section.screen{position:fixed;inset:0;display:flex;flex-direction:column}
 
 <script>
 /* =========================================================
-   해무 — 공포 분위기의 연애 비주얼 노벨 (1단계 뼈대)
-   - 화면: 배경 + 대사창(이름표·대사) + 선택지
-   - AI는 행동마다 한 번 장면(JSON: 대사 줄·선택지)을 쓰고, 코드가 한 줄씩 보여 준다.
+   해무 — 공포 분위기의 텍스트 연애 시뮬레이션 (1단계 뼈대)
+   - 화면: 글로 쌓이는 이야기(지문·대사) + 맨 아래 선택지
+   - AI는 행동마다 한 번 장면(JSON: 지문·대사 줄과 선택지)을 쓰고, 코드가 이야기 기록에 붙인다.
    - 저장·가져오기·되돌리기·AI 연결(Vertex JSON 포함)은 hanbit.html에서 옮겨 왔다.
    ========================================================= */
 const SAVE_KEY='haemu_save_v1', SET_KEY='sand7_settings';   // 설정(API 키)은 hanbit.html과 같이 씀
@@ -149,11 +130,11 @@ const WORLD={
   setting:'남쪽 외딴 섬 「해무섬」의 해무요양원. 안개가 잦고, 밤이면 닫힌 별관 쪽에서 설명할 수 없는 일이 일어난다는 소문이 돈다. 플레이어는 23세 신입 생활지원 직원(2병동)으로 막 부임했다.',
   tone:'잔잔한 공포와 설렘이 함께 있는 이야기. 공포는 소리·기척·빛·안개 같은 분위기로 그리고, 잔혹하거나 피가 낭자한 묘사는 하지 않는다.',
   places:{
-    room:{n:'숙소 방',bg:'room'},
-    ward:{n:'2병동 휴게실',bg:'ward'},
-    hall:{n:'병동 복도',bg:'hall'},
-    yard:{n:'산책 마당',bg:'yard'},
-    pier:{n:'방파제 길',bg:'pier'},
+    room:{n:'숙소 방'},
+    ward:{n:'2병동 휴게실'},
+    hall:{n:'병동 복도'},
+    yard:{n:'산책 마당'},
+    pier:{n:'방파제 길'},
   },
   start:'room',
   slots:['아침','오전','점심','오후','저녁','밤'],
@@ -168,7 +149,7 @@ const WORLD={
   },
 };
 const PLACES=WORLD.places;
-const MOODS=['기본','웃음','슬픔','당황','화남','놀람'];
+const MOODS=['기본','웃음','슬픔','당황','화남','놀람'];   // 대사의 감정 (지금은 화면에 쓰지 않고 기록만 함)
 
 /* 등장인물 (대사 규칙과 숨은 설정). 숨은 설정은 AI에게만 주고 화면에는 나오지 않는다. */
 const YUMIN_DEFAULT={
@@ -190,7 +171,6 @@ const LEN_LEVELS={
   m:{n:'보통',lines:[5,9],tok:1800},
   l:{n:'길게',lines:[8,13],tok:2500},
 };
-const TEXT_SPEEDS={instant:{n:'바로 보기',ms:0},fast:{n:'빠르게',ms:12},normal:{n:'보통',ms:28}};
 
 /* ---------- AI 역할 ---------- */
 const AI_ROLES=[
@@ -228,8 +208,8 @@ let SET=Object.assign({provider:'gemini',baseUrl:'',model:'gemini-3.8-flash',api
   if(!SET.roles) SET.roles={};
 })();
 function saveSettings(){ try{ localStorage.setItem(SET_KEY,JSON.stringify(SET)) }catch(e){} }
-let UI=(function(){ try{ return Object.assign({len:'m',speed:'fast',font:1,theme:'auto'},JSON.parse(localStorage.getItem(UI_KEY)||'{}')) }catch(e){ return {len:'m',speed:'fast',font:1,theme:'auto'} } })();
-if(!LEN_LEVELS[UI.len]) UI.len='m'; if(!TEXT_SPEEDS[UI.speed]) UI.speed='fast';
+let UI=(function(){ try{ return Object.assign({len:'m',font:1,theme:'auto'},JSON.parse(localStorage.getItem(UI_KEY)||'{}')) }catch(e){ return {len:'m',font:1,theme:'auto'} } })();
+if(!LEN_LEVELS[UI.len]) UI.len='m';
 function saveUI(){ try{ localStorage.setItem(UI_KEY,JSON.stringify(UI)) }catch(e){} }
 function hasSave(){ try{ return !!localStorage.getItem(SAVE_KEY) }catch(e){ return false } }
 
@@ -546,30 +526,22 @@ function cleanWho(w){
   if(/^\?+$/.test(w)) return '???';
   return w.length<=12?w:'';
 }
-function newGameState(name){
-  const o=WORLD.opening;
-  return {v:1,char:{name},day:1,slot:0,place:WORLD.start,known:[],summary:'',recent:[],
-    log:[{who:'',text:o.lines[0].text}],
-    scene:{lines:o.lines.map(l=>({...l})),i:0,choices:o.choices.slice()}};
-}
-function curLine(){ const s=G&&G.scene; return s&&s.lines[s.i]||null }
-function sceneDone(){ const s=G&&G.scene; return !!s&&s.i>=s.lines.length-1 }
-function logLine(l){
-  if(!l) return;
-  G.log.push(l.card?{who:'',text:'— '+l.text+' —'}:{who:displayWho(l.who),text:l.text});
+/* 이야기 기록(G.log): who가 ''이면 지문, '▶'는 플레이어가 고른 행동, '§'는 시간 구분선, 그 밖에는 말한 사람.
+   말한 사람 이름은 기록하는 순간의 이름표로 남긴다 — 나중에 이름을 알게 되어도 그때 ???였던 줄은 ???로 남는다. */
+function logScene(lines){
+  for(const l of lines){
+    if(l.card) G.log.push({who:'§',text:l.text});
+    else G.log.push({who:l.who==='나'?'나':displayWho(l.who),text:l.text});
+  }
   if(G.log.length>LOG_MAX) G.log.splice(0,G.log.length-LOG_MAX);
 }
-/* 시간 카드에 닿으면 그때 날짜·시간대를 넘긴다 (읽기 전에 상단 표시가 먼저 바뀌지 않게) */
-function reachLine(l){
-  if(l&&l.card&&Number.isInteger(l.day)&&Number.isInteger(l.slot)){ G.day=l.day; G.slot=l.slot }
-  logLine(l);
+function newGameState(name){
+  const o=WORLD.opening;
+  const g={v:2,char:{name},day:1,slot:0,place:WORLD.start,known:[],summary:'',recent:[],log:[],scene:{choices:o.choices.slice()}};
+  const prev=G; G=g; try{ logScene(o.lines) }finally{ G=prev }
+  return g;
 }
-function advance(){
-  if(!G||busy) return;
-  if(typing){ finishTyping(); return }
-  const s=G.scene; if(!s||s.i>=s.lines.length-1) return;
-  s.i++; reachLine(s.lines[s.i]); save(); render();
-}
+function sceneDone(){ return !!G&&!busy }
 
 /* ---------- 프롬프트 ---------- */
 function charBlock(){
@@ -583,7 +555,7 @@ function charBlock(){
 }
 function sysPrompt(){
   const L=LEN_LEVELS[UI.len]||LEN_LEVELS.m;
-  return `너는 공포 분위기가 깔린 연애 비주얼 노벨의 장면 작가다. 플레이어의 행동 하나를 받아 다음 장면을 대사 줄로 쓴다. 상태 변화와 진행은 코드가 맡는다.
+  return `너는 공포 분위기가 깔린 텍스트 연애 시뮬레이션의 장면 작가다. 플레이어의 행동 하나를 받아 다음 장면을 대사 줄로 쓴다. 상태 변화와 진행은 코드가 맡는다.
 [세계] ${WORLD.setting}
 [분위기] ${WORLD.tone}
 [규칙]
@@ -647,16 +619,15 @@ async function storyTurn(action){
   return normalizeScene(parseJSON(t))||textToScene(t);
 }
 function applyScene(action,sc){
-  for(const n of sc.met) if(!G.known.includes(n)) G.known.push(n);
+  G.log.push({who:'▶',text:clip(action,200)});
+  for(const n of sc.met) if(!G.known.includes(n)) G.known.push(n);   // 이번 장면에서 이름이 드러난 인물(met)만 이름표에 이름이 나온다
+  logScene(sc.lines);
   if(sc.place) G.place=sc.place;
-  const lines=sc.lines.slice();
-  if(sc.end){ const nt=nextTime(G.day,G.slot); lines.push({card:true,text:`${nt.day}일째 · ${slotName(nt.slot)}`,day:nt.day,slot:nt.slot}) }
+  if(sc.end){ const nt=nextTime(G.day,G.slot); G.day=nt.day; G.slot=nt.slot; logScene([{card:true,text:`${nt.day}일째 · ${slotName(nt.slot)}`}]) }
   G.recent.push({role:'action',text:clip(action,200)});
   G.recent.push({role:'scene',text:sc.lines.map(l=>(l.who?`${l.who==='나'?G.char.name:l.who}: `:'')+l.text).join('\n')});
   if(G.recent.length>RECENT_MAX) G.recent.splice(0,G.recent.length-RECENT_MAX);
-  G.log.push({who:'▶',text:clip(action,200)});
-  G.scene={lines,i:0,choices:sc.choices.length>=2?sc.choices:FALLBACK_CHOICES.slice()};
-  reachLine(lines[0]);
+  G.scene={choices:sc.choices.length>=2?sc.choices:FALLBACK_CHOICES.slice()};
 }
 async function act(action,label){
   action=String(action||'').trim();
@@ -690,7 +661,7 @@ function sendFree(){ const t=document.getElementById('freeText'); const v=t&&t.v
 
 /* ---------- 줄거리 요약 (오래된 장면을 압축 — 장기 기억) ---------- */
 let sumBusy=false;
-const SUM_SYS='너는 연애 비주얼 노벨의 줄거리 기록자다. 기존 요약에 새 장면을 합쳐, 앞으로의 장면을 쓰는 데 필요한 사실만 시간 순서로 정리한다. 인물 사이의 관계 변화, 약속, 알게 된 이름과 장소, 풀리지 않은 수상한 일을 남긴다. 짐작하거나 새로 지어내지 않는다. 1200자 이내의 평문으로만 쓴다.';
+const SUM_SYS='너는 텍스트 연애 시뮬레이션의 줄거리 기록자다. 기존 요약에 새 장면을 합쳐, 앞으로의 장면을 쓰는 데 필요한 사실만 시간 순서로 정리한다. 인물 사이의 관계 변화, 약속, 알게 된 이름과 장소, 풀리지 않은 수상한 일을 남긴다. 짐작하거나 새로 지어내지 않는다. 1200자 이내의 평문으로만 쓴다.';
 async function maybeSummarize(){
   if(sumBusy||!G||G.recent.length<=RECENT_SUMMARIZE) return false;
   const g=G, take=g.recent.slice(0,SUMMARY_TAKE); sumBusy=true;
@@ -743,42 +714,40 @@ async function undoLast(){
 /* =========================================================
    화면
    ========================================================= */
-let typing=false, typeT=0, shownKey='';
-function finishTyping(){ clearTimeout(typeT); typing=false; const l=curLine(), el=document.getElementById('text'); if(l&&el) el.textContent=l.text; updateNext() }
-function typeText(el,text){
-  clearTimeout(typeT);
-  const ms=(TEXT_SPEEDS[UI.speed]||TEXT_SPEEDS.fast).ms;
-  if(!ms){ el.textContent=text; typing=false; return }
-  let n=0; typing=true;
-  const step=()=>{ n+=2; el.textContent=text.slice(0,n); if(n<text.length) typeT=setTimeout(step,ms); else { typing=false; updateNext() } };
-  step();
+let renderedLen=0, renderedFor=null;
+function logHTML(e,isNew){
+  const n=isNew?' new':'';
+  if(e.who==='▶') return `<p class="act${n}">${esc(e.text)}</p>`;
+  if(e.who==='§') return `<p class="time${n}">${esc(e.text)}</p>`;
+  if(!e.who) return `<p class="narr${n}">${esc(e.text)}</p>`;
+  const me=e.who==='나';
+  return `<p class="say${me?' me':''}${n}"><span class="w">${esc(me?G.char.name:e.who)}</span>「${esc(e.text)}」</p>`;
 }
-function updateNext(){
-  const nx=document.getElementById('next'); if(!nx) return;
-  nx.style.visibility=(!busy&&G&&(typing||!sceneDone()))?'visible':'hidden';
+const LOG_SHOW=300;
+function renderLog(){
+  const box=document.getElementById('logInner'); if(!box) return;
+  const log=G.log||[], from=Math.max(0,log.length-LOG_SHOW);
+  const fresh=renderedFor===G&&log.length>=renderedLen?renderedLen:log.length;   // 새로 붙은 줄만 살짝 나타나게
+  box.innerHTML=log.slice(from).map((e,k)=>logHTML(e,from+k>=fresh)).join('')+(busy?'<p class="waiting">· · ·</p>':'');
+  const grew=renderedFor!==G||log.length!==renderedLen;
+  renderedLen=log.length; renderedFor=G;
+  const wrap=document.getElementById('log');
+  if(wrap&&(grew||busy)){
+    // 새 장면은 그 장면의 첫 줄(방금 고른 행동)부터 읽히도록 스크롤한다
+    const acts=box.querySelectorAll?box.querySelectorAll('p.act.new'):[];
+    const first=acts&&acts[0];
+    if(first&&first.offsetTop!==undefined) wrap.scrollTop=Math.max(0,first.offsetTop-(wrap.offsetTop||0)-12);
+    else wrap.scrollTop=wrap.scrollHeight;
+  }
 }
 function render(){
   if(!G) return;
   updateUndoBtn();
-  const s=G.scene, l=curLine();
-  document.getElementById('when').textContent=`${G.day}일째 · ${slotName(G.slot)}`;
-  document.getElementById('place').textContent=placeName(G.place);
-  document.getElementById('bg').className='bg '+((PLACES[G.place]||{}).bg||'');
-  const card=document.getElementById('card'), who=document.getElementById('who'), text=document.getElementById('text');
-  if(busy){
-    card.classList.add('hidden'); who.textContent=''; text.className='waiting'; text.textContent='· · ·'; shownKey='';
-  }else if(l){
-    card.classList.toggle('hidden',!l.card); if(l.card) card.textContent=l.text;
-    who.textContent=l.card?'':displayWho(l.who);
-    text.className=l.card?'narr':l.who?'speech':'narr';
-    const key=G.day+':'+s.i+':'+l.text;
-    if(key!==shownKey){ shownKey=key; typeText(text,l.card?'':l.text) }
-  }
+  document.getElementById('when').textContent=`${G.day}일째 · ${slotName(G.slot)} · ${placeName(G.place)}`;
+  renderLog();
   const ch=document.getElementById('choices');
-  if(!busy&&sceneDone()&&!freeOpen){
-    ch.innerHTML=s.choices.map((c,i)=>`<button onclick="pick(${i})">${esc(c)}</button>`).join('')+`<button class="free" onclick="openFree()">✎ 직접 쓰기</button>`;
-  }else if(busy||!sceneDone()) ch.innerHTML='';
-  updateNext();
+  if(busy) ch.innerHTML='';
+  else if(!freeOpen) ch.innerHTML=G.scene.choices.map((c,i)=>`<button onclick="pick(${i})">${esc(c)}</button>`).join('')+`<button class="free" onclick="openFree()">✎ 직접 쓰기</button>`;
 }
 function show(id){ for(const s of ['title','game']) document.getElementById(s).classList.toggle('hidden',s!==id); if(id==='title') refreshTitle() }
 
@@ -794,7 +763,6 @@ function openMenu(){
   let backup=false; try{ backup=!!localStorage.getItem(SAVE_BACKUP_KEY) }catch(e){}
   const t=usageTotal();
   modal('메뉴',`<div class="menuList">
-    <button onclick="openBacklog()">📜 지난 대사</button>
     <button onclick="openMemory()">🧠 줄거리 기억</button>
     <button onclick="openPrefs()">화면 설정</button>
     <button onclick="openSettings()">⚙ AI 연결</button>
@@ -803,11 +771,6 @@ function openMenu(){
     ${backup?'<button onclick="restoreSaveBackup()">♻ 가져오기 이전 저장 복구</button>':''}
     <button onclick="closeModal();toTitle()">🏠 처음 화면으로</button>
     </div><p class="muted" style="font-size:13px;margin-top:14px">AI 사용량: 이번 선택 ${fmtCost(USAGE_TURN.cost)} · 누적 ${fmtCost(t.cost)}${t.unk?' (+ 단가를 모르는 호출)':''} · ${t.calls}회</p>`);
-}
-function openBacklog(){
-  const rows=(G.log||[]).slice(-200).map(e=>e.who==='▶'?`<p class="act">▶ ${esc(e.text)}</p>`:`<p>${e.who?`<span class="w">${esc(e.who)}</span>`:''}${esc(e.text)}</p>`).join('');
-  modal('지난 대사',`<div class="backlog">${rows||'<p class="muted">아직 기록이 없습니다.</p>'}</div>`);
-  setTimeout(()=>{ const b=document.querySelector('.modal .body'); if(b) b.scrollTop=b.scrollHeight },0);
 }
 function openMemory(){
   modal('줄거리 기억',`<p class="muted" style="margin-top:0">AI가 다음 장면을 쓸 때 참고하는 요약입니다. 오래된 장면이 쌓이면 자동으로 합쳐집니다. 틀린 내용은 직접 고칠 수 있습니다.</p>
@@ -822,7 +785,6 @@ function openPrefs(){
   const opt=(obj,cur)=>Object.entries(obj).map(([k,o])=>`<option value="${k}" ${k===cur?'selected':''}>${o.n}</option>`).join('');
   modal('화면 설정',`
     <label>글자 크기</label><div class="row"><button class="small" onclick="setUI('font',Math.max(.8,Math.round((UI.font-.1)*10)/10))">가−</button><b style="min-width:52px;text-align:center">${Math.round(UI.font*100)}%</b><button class="small" onclick="setUI('font',Math.min(1.6,Math.round((UI.font+.1)*10)/10))">가+</button></div>
-    <label>글자 나오는 속도</label><select onchange="setUI('speed',this.value)">${opt(TEXT_SPEEDS,UI.speed)}</select>
     <label>장면 길이 <span style="font-size:12px">(길수록 AI 비용이 늘어남)</span></label><select onchange="setUI('len',this.value)">${opt(LEN_LEVELS,UI.len)}</select>
     <label>화면 밝기</label><select onchange="setUI('theme',this.value)">${opt({auto:{n:'기기 설정 따르기'},dark:{n:'어둡게'},light:{n:'밝게'}},UI.theme)}</select>`);
 }
@@ -947,19 +909,18 @@ function newGame(name){
   name=String(name||'').trim().replace(/\s+/g,' ');
   if(!name) return toast('이름을 적어 주세요.');
   if(name.length>10) return toast('이름은 10자 이내로 적어 주세요.');
-  G=newGameState(name); busy=false; turnSeq++; resetUndo(); shownKey='';
+  G=newGameState(name); busy=false; turnSeq++; resetUndo();
   closeModal(); show('game'); save(); render();
 }
 function validateSaveData(g){
   const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x), str=x=>typeof x==='string', int=x=>Number.isInteger(x);
-  if(!obj(g)||g.v!==1) throw Error('해무 저장 파일이 아닙니다.');
+  if(!obj(g)||g.v!==2) throw Error('해무 저장 파일이 아닙니다.');
   if(!obj(g.char)||!str(g.char.name)||!g.char.name.trim()||g.char.name.length>20) throw Error('플레이어 정보가 없거나 손상됐습니다.');
   if(!int(g.day)||g.day<1||!int(g.slot)||g.slot<0||g.slot>=WORLD.slots.length||!PLACES[g.place]) throw Error('날짜·시간·장소 정보가 손상됐습니다.');
   if(!Array.isArray(g.known)||g.known.some(x=>!str(x))) throw Error('인물 기록이 손상됐습니다.');
   if(!str(g.summary)||!Array.isArray(g.recent)||g.recent.some(x=>!obj(x)||!['action','scene'].includes(x.role)||!str(x.text))) throw Error('줄거리 기록이 손상됐습니다.');
-  if(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||!str(x.who)||!str(x.text))) throw Error('지난 대사 기록이 손상됐습니다.');
-  const s=g.scene;
-  if(!obj(s)||!Array.isArray(s.lines)||!s.lines.length||s.lines.some(l=>!obj(l)||!str(l.text)||(!l.card&&!str(l.who)))||!int(s.i)||s.i<0||s.i>=s.lines.length||!Array.isArray(s.choices)||s.choices.some(x=>!str(x))) throw Error('지금 장면 정보가 손상됐습니다.');
+  if(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||!str(x.who)||!str(x.text))) throw Error('이야기 기록이 손상됐습니다.');
+  if(!obj(g.scene)||!Array.isArray(g.scene.choices)||!g.scene.choices.length||g.scene.choices.some(x=>!str(x))) throw Error('지금 장면 정보가 손상됐습니다.');
   return g;
 }
 function prepareSavedGame(text){
@@ -969,7 +930,7 @@ function prepareSavedGame(text){
   visit(candidate);
   return validateSaveData(candidate);
 }
-function openLoadedGame(g){ G=g; busy=false; turnSeq++; stableSnap=JSON.stringify(g); shownKey=''; closeModal(); show('game'); render() }
+function openLoadedGame(g){ G=g; busy=false; turnSeq++; stableSnap=JSON.stringify(g); closeModal(); show('game'); render() }
 function continueGame(){
   if(busy) return toast('현재 장면을 받은 뒤 불러와 주세요.');
   let g; try{ const text=localStorage.getItem(SAVE_KEY); if(!text) return toast('저장된 게임이 없습니다'); g=prepareSavedGame(text) }catch(e){ return toast('저장을 불러오지 못했습니다. '+e.message) }
@@ -1010,9 +971,6 @@ function importSave(){
 vertexRestore().catch(()=>{});
 document.addEventListener('keydown',ev=>{
   if(ev.key==='Escape'){ if(document.getElementById('modalRoot').innerHTML) closeModal(); return }
-  if(document.getElementById('modalRoot').innerHTML||document.getElementById('game').classList.contains('hidden')) return;
-  if(/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test((ev.target&&ev.target.tagName)||'')) return;
-  if(ev.key===' '||ev.key==='Enter'){ ev.preventDefault(); advance() }
 });
 applyUI(); updateUsageChip(); show('title');
 </script>

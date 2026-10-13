@@ -3,23 +3,23 @@
 const assert=require('node:assert/strict');
 const {fixture,geminiReplies,test,done}=require('./_haemu-fixture.cjs');
 const reply=n=>({lines:[{who:'',text:'장면 '+n}],choices:['가','나'],place:'',met:[],end:false});
-const readAll=f=>{for(let i=0;i<30&&!f.run('sceneDone()');i++)f.run('advance()')};
-const begin=(f,replies=[])=>{geminiReplies(f,replies);f.run("UI.speed='instant';newGame('서윤')");readAll(f)};
+const begin=(f,replies=[])=>{geminiReplies(f,replies);f.run("newGame('서윤')")};
+const last=f=>f.run('G.log.at(-1).text');
 
 (async()=>{
-await test('Reading and acting autosave, and the game reopens on the same line after a reload',async()=>{
+await test('Acting autosaves, and the game reopens with the same story and choices after a reload',async()=>{
   const disk=new Map(),f=fixture({storage:disk});begin(f,[reply(1)]);await f.run("act('가')");
   const g=fixture({storage:disk});g.run('continueGame()');
-  assert.equal(g.run('G.char.name'),'서윤');assert.equal(g.run('G.scene.lines[0].text'),'장면 1');assert.equal(g.run('G.scene.i'),0);
+  assert.equal(g.run('G.char.name'),'서윤');assert.equal(last(g),'장면 1');assert.deepEqual(g.obj('G.scene.choices'),['가','나']);assert.match(g.el('logInner').innerHTML,/장면 1/);
   assert.equal(g.run("document.getElementById('game').classList.contains('hidden')"),false);
 });
 await test('Broken or foreign save data is refused with a readable reason',async()=>{
   const f=fixture();begin(f);
   const good=f.obj('G');
   const bad=[
-    'not json',JSON.stringify({}),JSON.stringify({...good,v:2}),JSON.stringify({...good,char:{name:''}}),
+    'not json',JSON.stringify({}),JSON.stringify({...good,v:1}),JSON.stringify({...good,char:{name:''}}),
     JSON.stringify({...good,slot:99}),JSON.stringify({...good,place:'nowhere'}),
-    JSON.stringify({...good,scene:{...good.scene,i:99}}),JSON.stringify({...good,scene:{...good.scene,lines:[]}}),
+    JSON.stringify({...good,scene:{choices:[]}}),JSON.stringify({...good,scene:{choices:[3]}}),JSON.stringify({...good,log:[{who:1,text:'x'}]}),
     JSON.stringify({...good,recent:[{role:'x',text:''}]}),'{"__proto__":{"x":1}}'];
   for(const b of bad)assert.throws(()=>f.run(`prepareSavedGame(${JSON.stringify(b)})`),e=>typeof e.message==="string"&&e.message.length>0,b.slice(0,40));
   assert.equal(f.run(`prepareSavedGame(${JSON.stringify(JSON.stringify(good))}).char.name`),'서윤');
@@ -50,18 +50,18 @@ await test('Autosave failure shows the warning once and recovers when storage wo
 });
 await test('Undo steps back through two choices, survives a reload and then stops',async()=>{
   const disk=new Map(),f=fixture({storage:disk});begin(f,[reply(1),reply(2),reply(3)]);
-  await f.run("act('A')");readAll(f);await f.run("act('B')");readAll(f);await f.run("act('C')");
+  await f.run("act('A')");await f.run("act('B')");await f.run("act('C')");
   assert.equal(f.run('undoOlder.length'),1);assert.equal(f.run('undoLabel'),'C');
-  const g=fixture({storage:disk});g.run("UI.speed='instant';continueGame()");
-  await g.run('undoLast()');assert.equal(g.run('G.scene.lines[0].text'),'장면 2');
-  await g.run('undoLast()');assert.equal(g.run('G.scene.lines[0].text'),'장면 1');
-  assert.equal(g.run('undoSnap'),null);await g.run('undoLast()');assert.equal(g.run('G.scene.lines[0].text'),'장면 1');
+  const g=fixture({storage:disk});g.run('continueGame()');
+  await g.run('undoLast()');assert.equal(last(g),'장면 2');assert.doesNotMatch(g.el('logInner').innerHTML,/장면 3/);
+  await g.run('undoLast()');assert.equal(last(g),'장면 1');
+  assert.equal(g.run('undoSnap'),null);await g.run('undoLast()');assert.equal(last(g),'장면 1');
   assert.equal(g.el('undoBtn').disabled,true);
 });
-await test('Undo returns to the choice point, not to an earlier line of the old scene',async()=>{
+await test('Undo returns to the earlier choices with the story as it was',async()=>{
   const f=fixture();begin(f,[reply(1)]);
   await f.run("act('가')");await f.run('undoLast()');
-  assert.equal(f.run('sceneDone()'),true,'the choices are offered again right away');
+  assert.equal(f.run('G.log.length'),4);assert.match(f.el('choices').innerHTML,/문을 열고/);
   assert.equal(f.run('G.scene.choices[0]'),'문을 열고 복도를 내다본다');
 });
 await test('A new game clears undo history from the previous game',async()=>{
