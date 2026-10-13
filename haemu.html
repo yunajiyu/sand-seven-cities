@@ -52,6 +52,7 @@ section.screen{position:fixed;inset:0;display:flex;flex-direction:column}
 #log p.new{animation:fadein .5s ease both}
 @keyframes fadein{from{opacity:0;transform:translateY(4px)}}
 @media (prefers-reduced-motion:reduce){#log p.new{animation:none}}
+#log p.roll{color:var(--warn);font-size:calc(14px * var(--fs));margin:-.5em 0 1.1em;padding-left:12px;font-variant-numeric:tabular-nums}
 #log p.waiting{color:var(--mute);letter-spacing:.4em;animation:blink 1.4s ease-in-out infinite}
 @keyframes blink{50%{opacity:.25}}
 .dock{padding:8px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
@@ -60,6 +61,7 @@ section.screen{position:fixed;inset:0;display:flex;flex-direction:column}
 #choices:empty{display:none}
 #choices button{text-align:left;line-height:1.45;font-size:calc(16px * var(--fs))}
 #choices button.free{color:var(--mute);border-style:dashed}
+#choices button .ck{display:block;margin-top:3px;font-size:13px;color:var(--warn)}
 #freeBox textarea{min-height:76px;resize:vertical}
 
 /* 모달 */
@@ -156,6 +158,45 @@ const WORLD={
 };
 const PLACES=WORLD.places;
 const MOODS=['기본','웃음','슬픔','당황','화남','놀람'];   // 대사의 감정 (지금은 화면에 쓰지 않고 기록만 함)
+
+/* ---------- 판정 (주사위) — 들키면 위험한 행동은 코드가 2d6으로 정하고, AI는 결과대로만 쓴다 ----------
+   2d6 + 능력치 ≥ 난이도 → 성공 · 난이도-2 이상 → 아슬아슬(해내지만 흔적·의심을 남김) · 그 밖 → 실패
+   주사위 12는 늘 성공, 2는 늘 실패. 연구소의 경계가 높으면 난이도 +1. */
+const SKILLS={
+  sneak:{n:'은신',d:'몰래 움직이기 · 감시 카메라 피하기 · 숨기'},
+  data:{n:'기록',d:'단말기·문서·잠금장치 다루기 · 몰래 열람'},
+  talk:{n:'말솜씨',d:'둘러대기 · 설득 · 의심 피하기'},
+};
+const SKILL_BASE=1, SKILL_BEST=3;
+const DCS={easy:{n:'쉬움',v:7},normal:{n:'보통',v:9},hard:{n:'어려움',v:11}};
+const ALERT_MAX=10, ALERT_HIGH=6;   // 경계: 실패 +2 · 아슬아슬 +1 · 하루가 지날 때마다 -1 (화면에는 숫자를 보이지 않음)
+function skillKey(x){ x=String(x||'').trim(); if(SKILLS[x]) return x; const k=Object.keys(SKILLS).find(k=>SKILLS[k].n===x); return k||'' }
+function dcKey(x){ x=String(x||'').trim(); if(DCS[x]) return x; const k=Object.keys(DCS).find(k=>DCS[k].n===x); return k||'normal' }
+function skillVal(k){ const st=G&&G.char&&G.char.stats; return Number.isInteger(st&&st[k])?st[k]:SKILL_BASE }
+function alertLevel(){ const a=(G&&G.alert)||0; return a>=ALERT_HIGH?'high':a>=3?'mid':'low' }
+function checkTarget(dc){ return DCS[dcKey(dc)].v+(alertLevel()==='high'?1:0) }
+/* 성공(아슬아슬 포함 아님) 확률 — 판정 전에 버튼에 보여 준다 */
+function checkChance(skill,dc){
+  const need=checkTarget(dc)-skillVal(skill); let ok=0;
+  for(let a=1;a<=6;a++) for(let b=1;b<=6;b++){ const t=a+b; if(t===12||(t!==2&&t>=need)) ok++ }
+  return Math.round(ok/36*100);
+}
+function rollCheck(skill,dc,dice){
+  skill=skillKey(skill)||'sneak'; dc=dcKey(dc);
+  const d=dice||[1+Math.floor(Math.random()*6),1+Math.floor(Math.random()*6)];
+  const mod=skillVal(skill), target=checkTarget(dc), total=d[0]+d[1]+mod;
+  const sum=d[0]+d[1];
+  const result=sum===12?'success':sum===2?'fail':total>=target?'success':total>=target-2?'partial':'fail';
+  return {skill,dc,dice:d,mod,target,total,result};
+}
+const RESULT_TEXT={success:'성공',partial:'아슬아슬',fail:'실패'};
+function rollLine(r){ return `${SKILLS[r.skill].n} 판정 · ${DCS[r.dc].n} — 🎲 ${r.dice[0]}+${r.dice[1]}${r.mod?` +${r.mod}`:''} = ${r.total} / ${r.target} · ${RESULT_TEXT[r.result]}` }
+function rollPrompt(r){
+  return `[판정 결과 — 반드시 따른다] ${SKILLS[r.skill].n} 판정 ${RESULT_TEXT[r.result]}. `+(
+    r.result==='success'?'플레이어는 들키지 않고 해낸다. 다만 얻는 것은 지금 장면에서 자연스러운 만큼만이며, 큰 비밀의 답을 한 번에 주지 않는다.':
+    r.result==='partial'?'플레이어는 해내지만 대가가 따른다: 흔적을 남기거나, 누군가 낌새를 채거나, 얻은 것이 일부뿐이다. 아직 정체가 드러나지는 않는다.':
+    '플레이어는 해내지 못한다. 들키거나 들킬 뻔한 위기로 이어지고, 원하던 것은 얻지 못한다. 결과를 뒤집어 성공으로 바꾸지 않는다. 정체가 확정적으로 드러나지는 않는다.');
+}
 
 /* 등장인물 (대사 규칙과 숨은 설정). 숨은 설정은 AI에게만 주고 화면에는 나오지 않는다.
    유민: 이터널 리턴의 실험체. 차림·능력은 원작(현대식 도사, 부채로 바람을 부림)을 따르고, 성격·말투·내면은 이 게임의 설정. */
@@ -542,9 +583,11 @@ function logScene(lines){
   }
   if(G.log.length>LOG_MAX) G.log.splice(0,G.log.length-LOG_MAX);
 }
-function newGameState(name){
-  const o=WORLD.opening;
-  const g={v:3,char:{name},day:1,slot:0,place:WORLD.start,known:[],summary:'',recent:[],log:[],scene:{choices:o.choices.slice()}};
+function newGameState(name,best){
+  const o=WORLD.opening, stats={};
+  best=skillKey(best)||'sneak';
+  for(const k in SKILLS) stats[k]=k===best?SKILL_BEST:SKILL_BASE;
+  const g={v:3,char:{name,stats},day:1,slot:0,place:WORLD.start,alert:0,known:[],summary:'',recent:[],log:[],scene:{choices:o.choices.slice()}};
   const prev=G; G=g; try{ logScene(o.lines) }finally{ G=prev }
   return g;
 }
@@ -575,10 +618,13 @@ function sysPrompt(){
 - 플레이어가 아직 모르는 정보(사건의 정답, 앞으로의 전개, 아직 만나지 않은 인물·장소의 이름)를 먼저 말하지 않는다. 안내문·설명·게임 용어·수치를 쓰지 않는다.
 - 처음 보는 인물은 이름이 장면 안에서 드러나기 전까지 who를 "???"로 쓴다. 이름이 드러나면 그 줄부터 이름을 쓰고 met에 이름을 넣는다.
 - 장면은 플레이어가 고를 수 있는 순간에서 멈춘다. 선택지는 플레이어가 할 말이나 행동 2~4개이며, 서로 성격이 다르게 쓴다.
+- 들키면 위험한 행동(기록 몰래 열람, 감시 카메라 피하기, 출입 금지 구역 들어가기, 거짓말로 둘러대기 등)인 선택지에만 판정을 붙인다: {"text":"…","check":"${Object.values(SKILLS).map(x=>x.n).join('|')}","dc":"${Object.values(DCS).map(x=>x.n).join('|')}"}. 평범한 행동은 문자열로 쓴다. 판정 선택지는 한 장면에 많아야 2개.
+- [판정 결과]가 주어지면 그 결과를 그대로 따른다. 주사위·판정·수치는 장면에 쓰지 않는다.
+- [연구소의 경계]가 높을수록 감시와 추궁의 압박을 장면에 드러낸다.
 [등장인물]
 ${charBlock()}
 [출력] JSON 하나만 쓴다.
-{"lines":[{"who":"","text":"지문"},{"who":"인물 이름 또는 ???","mood":"기본","text":"대사 (따옴표 없이)"}],"choices":["…","…","…"],"place":"","met":[],"end":false}
+{"lines":[{"who":"","text":"지문"},{"who":"인물 이름 또는 ???","mood":"기본","text":"대사 (따옴표 없이)"}],"choices":["평범한 행동",{"text":"위험한 행동","check":"은신","dc":"보통"},"…"],"place":"","met":[],"end":false}
 - lines ${L.lines[0]}~${L.lines[1]}줄, 한 줄은 120자 이내. who는 "" (지문), "나" (플레이어가 소리 내어 한 말), 인물 이름, "???" 중 하나.
 - mood는 ${MOODS.join('|')} 중 하나 (지문이면 생략).
 - place: 장면이 끝났을 때 플레이어가 있는 곳의 키 (${Object.entries(PLACES).map(([k,p])=>k+'='+p.n).join(', ')}). 그대로면 "".
@@ -587,16 +633,17 @@ ${charBlock()}
 function recentBlock(g=G){
   return (g.recent||[]).slice(-RECENT_PROMPT).map(r=>r.role==='action'?`▶ 플레이어: ${r.text}`:r.text).join('\n')||'(없음)';
 }
-function userPrompt(action){
+function userPrompt(action,roll){
   return `[지금] ${G.day}일째 · ${slotName(G.slot)} · ${placeName(G.place)}
 [플레이어] ${G.char.name}
 [이름을 아는 인물] ${(G.known||[]).join(', ')||'(아직 없음)'}
+[연구소의 경계] ${({low:'낮음',mid:'조금 높아짐',high:'높음 — 감시가 심해졌다'})[alertLevel()]}
 [줄거리 요약]
 ${G.summary||'(아직 없음)'}
 [최근 장면]
 ${recentBlock()}
 [플레이어 행동]
-${action}`;
+${action}${roll?'\n'+rollPrompt(roll):''}`;
 }
 
 /* ---------- AI 응답 정리 ---------- */
@@ -609,7 +656,12 @@ function normalizeScene(o){
     return x;
   });
   if(!lines.length) return null;
-  const choices=(Array.isArray(o.choices)?o.choices:[]).map(c=>typeof c==='string'?c:c&&typeof c.text==='string'?c.text:'').map(c=>c.trim()).filter(Boolean).map(c=>clip(c,70)).slice(0,4);
+  const choices=(Array.isArray(o.choices)?o.choices:[]).map(c=>{
+    const text=clip(String(typeof c==='string'?c:c&&typeof c.text==='string'?c.text:'').trim(),70);
+    if(!text) return null;
+    const check=c&&typeof c==='object'?skillKey(c.check):'';
+    return check?{text,check,dc:dcKey(c.dc)}:text;
+  }).filter(Boolean).slice(0,4);
   const met=(Array.isArray(o.met)?o.met:[]).filter(n=>typeof n==='string').map(cleanWho).filter(n=>n&&n!=='나'&&n!=='???');
   return {lines,choices,place:PLACES[o.place]?o.place:'',met,end:o.end===true};
 }
@@ -620,34 +672,42 @@ function textToScene(t){
   return {lines:paras.map(p=>({who:'',text:clip(p,320)})),choices:[],place:'',met:[],end:false};
 }
 const FALLBACK_CHOICES=['주위를 조금 더 살핀다','잠시 숨을 고른다'];
+/* 선택지: 문자열(평범한 행동) 또는 {text, check, dc}(판정이 필요한 행동) */
+function choiceText(c){ return typeof c==='string'?c:(c&&c.text)||'' }
+function choiceCheck(c){ return c&&typeof c==='object'&&SKILLS[c.check]?c.check:'' }
 function nextTime(day,slot){ return slot+1<WORLD.slots.length?{day,slot:slot+1}:{day:day+1,slot:0} }
 
 /* ---------- 한 번의 행동 ---------- */
 let turnSeq=0;
-async function storyTurn(action){
+async function storyTurn(action,roll){
   const L=LEN_LEVELS[UI.len]||LEN_LEVELS.m;
-  const t=await callAI(sysPrompt(),userPrompt(action),L.tok,'story');
+  const t=await callAI(sysPrompt(),userPrompt(action,roll),L.tok,'story');
   return normalizeScene(parseJSON(t))||textToScene(t);
 }
-function applyScene(action,sc){
+function applyScene(action,sc,roll){
   G.log.push({who:'▶',text:clip(action,200)});
+  if(roll){
+    G.log.push({who:'🎲',text:rollLine(roll)});
+    if(roll.result!=='success') G.alert=clamp((G.alert||0)+(roll.result==='fail'?2:1),0,ALERT_MAX);
+  }
   for(const n of sc.met) if(!G.known.includes(n)) G.known.push(n);   // 이번 장면에서 이름이 드러난 인물(met)만 이름표에 이름이 나온다
   logScene(sc.lines);
   if(sc.place) G.place=sc.place;
-  if(sc.end){ const nt=nextTime(G.day,G.slot); G.day=nt.day; G.slot=nt.slot; logScene([{card:true,text:`${nt.day}일째 · ${slotName(nt.slot)}`}]) }
-  G.recent.push({role:'action',text:clip(action,200)});
+  if(sc.end){ const nt=nextTime(G.day,G.slot); if(nt.day!==G.day) G.alert=Math.max(0,(G.alert||0)-1); G.day=nt.day; G.slot=nt.slot; logScene([{card:true,text:`${nt.day}일째 · ${slotName(nt.slot)}`}]) }
+  G.recent.push({role:'action',text:clip(action,200)+(roll?` (${SKILLS[roll.skill].n} 판정 ${RESULT_TEXT[roll.result]})`:'')});
   G.recent.push({role:'scene',text:sc.lines.map(l=>(l.who?`${l.who==='나'?G.char.name:l.who}: `:'')+l.text).join('\n')});
   if(G.recent.length>RECENT_MAX) G.recent.splice(0,G.recent.length-RECENT_MAX);
   G.scene={choices:sc.choices.length>=2?sc.choices:FALLBACK_CHOICES.slice()};
 }
-async function act(action,label){
+async function act(action,label,check){
   action=String(action||'').trim();
   if(busy||!G||!action||!sceneDone()) return false;
   const g=G, seq=++turnSeq, prevUndo={undoSnap,undoLabel,undoOlder:undoOlder.slice()};
   pushUndo(clip(label||action,28)); USAGE_TURN={in:0,out:0,cost:0,unk:false,cr:0};
+  const roll=check?rollCheck(check.skill,check.dc):null;   // 판정은 AI를 부르기 전에 코드가 정한다
   busy=true; freeOpen=false; render();
   let sc=null,err=null;
-  try{ sc=await storyTurn(action) }catch(e){ err=e }
+  try{ sc=await storyTurn(action,roll) }catch(e){ err=e }
   if(G!==g||seq!==turnSeq) return false;   // 그 사이 다른 게임을 열었으면 늦은 응답은 버린다
   busy=false;
   if(!sc){
@@ -655,20 +715,31 @@ async function act(action,label){
     toast(err&&err.message==='NO_KEY'?'AI가 연결되지 않았습니다. ☰ 메뉴 → AI 연결에서 연결해 주세요.':'장면을 받지 못했습니다. '+(err?err.message:'빈 응답입니다.'));
     render(); return false;
   }
-  applyScene(action,sc); save(); render();
+  applyScene(action,sc,roll); save(); render();
   maybeSummarize();
   return true;
 }
-function pick(i){ const c=G&&G.scene&&G.scene.choices[i]; if(c) act(c) }
+function pick(i){
+  const c=G&&G.scene&&G.scene.choices[i]; if(!c) return false;
+  const ck=choiceCheck(c);
+  return act(choiceText(c),null,ck?{skill:ck,dc:c.dc}:null);
+}
 let freeOpen=false;
 function openFree(){
   freeOpen=true;
   const box=document.getElementById('choices'); if(!box) return;
+  const opts=`<option value="">판정 없이</option>`+Object.entries(SKILLS).map(([k,v])=>`<option value="${k}">🎲 ${v.n} 판정 (보통 · ${checkChance(k,'normal')}%)</option>`).join('');
   box.innerHTML=`<div id="freeBox"><textarea id="freeText" maxlength="200" placeholder="하고 싶은 말이나 행동을 적어 주세요"></textarea>
+    <div class="row" style="margin-top:6px"><select id="freeCheck" aria-label="판정" style="flex:1;min-width:0">${opts}</select></div>
+    <p class="muted" style="font-size:13px;margin:6px 0 0">들키면 위험한 행동이면 판정을 골라 주세요.</p>
     <div class="row" style="margin-top:6px;justify-content:flex-end"><button class="small" onclick="freeOpen=false;render()">취소</button><button class="small primary" onclick="sendFree()">보내기</button></div></div>`;
   const t=document.getElementById('freeText'); if(t&&t.focus) t.focus();
 }
-function sendFree(){ const t=document.getElementById('freeText'); const v=t&&t.value.trim(); if(!v) return toast('내용을 적어 주세요.'); act(v) }
+function sendFree(){
+  const t=document.getElementById('freeText'); const v=t&&t.value.trim(); if(!v) return toast('내용을 적어 주세요.');
+  const ck=skillKey(document.getElementById('freeCheck')?.value);
+  return act(v,null,ck?{skill:ck,dc:'normal'}:null);
+}
 
 /* ---------- 줄거리 요약 (오래된 장면을 압축 — 장기 기억) ---------- */
 let sumBusy=false;
@@ -730,6 +801,7 @@ function logHTML(e,isNew){
   const n=isNew?' new':'';
   if(e.who==='▶') return `<p class="act${n}">${esc(e.text)}</p>`;
   if(e.who==='§') return `<p class="time${n}">${esc(e.text)}</p>`;
+  if(e.who==='🎲') return `<p class="roll${n}">${esc(e.text)}</p>`;
   if(!e.who) return `<p class="narr${n}">${esc(e.text)}</p>`;
   const me=e.who==='나';
   return `<p class="say${me?' me':''}${n}"><span class="w">${esc(me?G.char.name:e.who)}</span>「${esc(e.text)}」</p>`;
@@ -758,7 +830,10 @@ function render(){
   renderLog();
   const ch=document.getElementById('choices');
   if(busy) ch.innerHTML='';
-  else if(!freeOpen) ch.innerHTML=G.scene.choices.map((c,i)=>`<button onclick="pick(${i})">${esc(c)}</button>`).join('')+`<button class="free" onclick="openFree()">✎ 직접 쓰기</button>`;
+  else if(!freeOpen) ch.innerHTML=G.scene.choices.map((c,i)=>{
+    const ck=choiceCheck(c);
+    return `<button onclick="pick(${i})">${esc(choiceText(c))}${ck?`<span class="ck">🎲 ${SKILLS[ck].n} · ${DCS[dcKey(c.dc)].n} · 성공 ${checkChance(ck,c.dc)}%</span>`:''}</button>`;
+  }).join('')+`<button class="free" onclick="openFree()">✎ 직접 쓰기</button>`;
 }
 function show(id){ for(const s of ['title','game']) document.getElementById(s).classList.toggle('hidden',s!==id); if(id==='title') refreshTitle() }
 
@@ -775,6 +850,7 @@ function openMenu(){
   const t=usageTotal();
   modal('메뉴',`<div class="menuList">
     <button onclick="openMemory()">🧠 줄거리 기억</button>
+    <p class="muted" style="font-size:13px;margin:4px 2px">${esc(G.char.name)} · ${Object.entries(SKILLS).map(([k,v])=>`${v.n} +${skillVal(k)}`).join(' · ')}</p>
     <button onclick="openPrefs()">화면 설정</button>
     <button onclick="openSettings()">⚙ AI 연결</button>
     <button onclick="exportSave()">💾 저장 파일로 내보내기</button>
@@ -914,13 +990,15 @@ function vertexTitleText(){
 function startNew(){
   modal('새로 시작',`<p class="muted" style="margin-top:0">${hasSave()?'지금 저장된 진행은 새 게임으로 바뀝니다. 필요하면 먼저 메뉴에서 저장 파일로 내보내 주세요.':'이야기 속에서 불릴 이름을 정해 주세요.'}</p>
     <label for="newName">이름</label><input id="newName" maxlength="10" autocomplete="off" placeholder="예: 서윤">
-    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="primary" onclick="newGame(document.getElementById('newName').value)">시작</button></div>`);
+    <label>잘하는 것 <span style="font-size:12px">(들키면 위험한 일을 할 때 주사위에 더해집니다)</span></label>
+    <div class="menuList">${Object.entries(SKILLS).map(([k,v],i)=>`<label style="display:flex;gap:8px;align-items:flex-start;margin:0;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px"><input type="radio" name="newSkill" value="${k}" ${i?'':'checked'} style="width:auto;margin-top:3px"><span><b>${v.n}</b><br><span class="muted" style="font-size:13px">${v.d}</span></span></label>`).join('')}</div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="primary" onclick="newGame(document.getElementById('newName').value,(document.querySelector('input[name=newSkill]:checked')||{}).value)">시작</button></div>`);
 }
-function newGame(name){
+function newGame(name,best){
   name=String(name||'').trim().replace(/\s+/g,' ');
   if(!name) return toast('이름을 적어 주세요.');
   if(name.length>10) return toast('이름은 10자 이내로 적어 주세요.');
-  G=newGameState(name); busy=false; turnSeq++; resetUndo();
+  G=newGameState(name,best); busy=false; turnSeq++; resetUndo();
   closeModal(); show('game'); save(); render();
 }
 function validateSaveData(g){
@@ -931,7 +1009,9 @@ function validateSaveData(g){
   if(!Array.isArray(g.known)||g.known.some(x=>!str(x))) throw Error('인물 기록이 손상됐습니다.');
   if(!str(g.summary)||!Array.isArray(g.recent)||g.recent.some(x=>!obj(x)||!['action','scene'].includes(x.role)||!str(x.text))) throw Error('줄거리 기록이 손상됐습니다.');
   if(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||!str(x.who)||!str(x.text))) throw Error('이야기 기록이 손상됐습니다.');
-  if(!obj(g.scene)||!Array.isArray(g.scene.choices)||!g.scene.choices.length||g.scene.choices.some(x=>!str(x))) throw Error('지금 장면 정보가 손상됐습니다.');
+  if(!obj(g.scene)||!Array.isArray(g.scene.choices)||!g.scene.choices.length||g.scene.choices.some(x=>!str(x)&&!(obj(x)&&str(x.text)&&SKILLS[x.check]&&DCS[x.dc]))) throw Error('지금 장면 정보가 손상됐습니다.');
+  if(g.char.stats!==undefined&&(!obj(g.char.stats)||Object.keys(SKILLS).some(k=>!int(g.char.stats[k])||g.char.stats[k]<0||g.char.stats[k]>6))) throw Error('능력치 정보가 손상됐습니다.');
+  if(g.alert!==undefined&&(!int(g.alert)||g.alert<0||g.alert>ALERT_MAX)) throw Error('경계 정보가 손상됐습니다.');
   return g;
 }
 function prepareSavedGame(text){
