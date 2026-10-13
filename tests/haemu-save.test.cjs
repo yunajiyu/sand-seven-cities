@@ -17,7 +17,7 @@ await test('Broken or foreign save data is refused with a readable reason',async
   const f=fixture();begin(f);
   const good=f.obj('G');
   const bad=[
-    'not json',JSON.stringify({}),JSON.stringify({...good,v:1}),JSON.stringify({...good,char:{name:''}}),
+    'not json',JSON.stringify({}),JSON.stringify({...good,v:2}),JSON.stringify({...good,char:{name:''}}),
     JSON.stringify({...good,slot:99}),JSON.stringify({...good,place:'nowhere'}),
     JSON.stringify({...good,scene:{choices:[]}}),JSON.stringify({...good,scene:{choices:[3]}}),JSON.stringify({...good,log:[{who:1,text:'x'}]}),
     JSON.stringify({...good,recent:[{role:'x',text:''}]}),'{"__proto__":{"x":1}}'];
@@ -34,11 +34,11 @@ await test('Importing keeps a backup of the previous game, and restoring brings 
 });
 await test('A failed import write keeps the current game and the original save',async()=>{
   const f=fixture();begin(f);
-  const before=f.disk.get('haemu_save_v1');
+  const before=f.disk.get('lumia_save_v1');
   f.run("localStorage.setItem=(k,v)=>{throw new Error('quota')}");
   const other=f.obj('newGameState("다른 사람")');
   assert.equal(f.run(`installImportedGame(prepareSavedGame(${JSON.stringify(JSON.stringify(other))}))`),false);
-  assert.equal(f.run('G.char.name'),'서윤');assert.equal(f.disk.get('haemu_save_v1'),before);
+  assert.equal(f.run('G.char.name'),'서윤');assert.equal(f.disk.get('lumia_save_v1'),before);
   assert.equal(f.el('saveWarning').style.display,'flex');
 });
 await test('Autosave failure shows the warning once and recovers when storage works again',async()=>{
@@ -61,16 +61,16 @@ await test('Undo steps back through two choices, survives a reload and then stop
 await test('Undo returns to the earlier choices with the story as it was',async()=>{
   const f=fixture();begin(f,[reply(1)]);
   await f.run("act('가')");await f.run('undoLast()');
-  assert.equal(f.run('G.log.length'),4);assert.match(f.el('choices').innerHTML,/문을 열고/);
-  assert.equal(f.run('G.scene.choices[0]'),'문을 열고 복도를 내다본다');
+  assert.equal(f.run('G.log.length'),5);assert.match(f.el('choices').innerHTML,/창가로 다가가/);
+  assert.equal(f.run('G.scene.choices[0]'),'창가로 다가가 숲을 더 살핀다');
 });
 await test('A new game clears undo history from the previous game',async()=>{
   const f=fixture();begin(f,[reply(1)]);await f.run("act('가')");
-  f.run("newGame('새 사람')");assert.equal(f.run('undoSnap'),null);assert.equal(f.disk.has('haemu_undo'),false);
+  f.run("newGame('새 사람')");assert.equal(f.run('undoSnap'),null);assert.equal(f.disk.has('lumia_undo'),false);
 });
-await test('Saves use their own key and never touch the hanbit.html save',async()=>{
-  const disk=new Map([['hanbit_save_v1','{"keep":true}']]),f=fixture({storage:disk});begin(f);
-  assert.equal(disk.get('hanbit_save_v1'),'{"keep":true}');assert.ok(disk.has('haemu_save_v1'));
+await test('Saves use their own key and never touch the hanbit.html save or the earlier sanatorium draft',async()=>{
+  const disk=new Map([['hanbit_save_v1','{"keep":true}'],['haemu_save_v1','{"old":true}']]),f=fixture({storage:disk});begin(f);
+  assert.equal(disk.get('hanbit_save_v1'),'{"keep":true}');assert.equal(disk.get('haemu_save_v1'),'{"old":true}');assert.ok(disk.has('lumia_save_v1'));
 });
 done('save/undo');
 })().catch(e=>{console.error(e);process.exitCode=1});
