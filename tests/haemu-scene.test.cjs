@@ -3,35 +3,29 @@
 // ??? speaker names, time dividers, failure handling, late replies and summary timing.
 const assert=require('node:assert/strict');
 const {fixture,geminiReplies,test,done}=require('./_haemu-fixture.cjs');
-const scene=(o={})=>({lines:[{who:'',text:'복도는 비어 있었다.'},{who:'???',mood:'웃음',text:'신입이야?'},{who:'유민',text:'나 유민. 2병동이야.'}],choices:['인사한다','고개만 끄덕인다','왜 여기 있었는지 묻는다'],place:'lab',met:['유민'],end:false,...o});
+const scene=(o={})=>({lines:[{who:'',text:'복도는 비어 있었다.'},{who:'???',mood:'웃음',text:'신입이야?'},{who:'유민',text:'나 유민. 2병동이야.'}],choices:['인사한다','고개만 끄덕인다','왜 여기 있었는지 묻는다'],place:'hall',met:['유민'],end:false,...o});
 const start=f=>{f.run("newGame('서윤')");assert.equal(f.run('G.char.name'),'서윤')};
 const logText=f=>f.el('logInner').innerHTML;
 
 (async()=>{
-await test('The opening tells the player their own secret but names no one they have not met',async()=>{
-  const f=fixture();start(f);
-  const t=f.run("G.log.map(e=>e.text).join(' ')");
-  assert.match(t,/여동생/);assert.match(t,/치료제/);assert.match(t,/아글라이아/);
-  assert.doesNotMatch(t,/유민|재키|현우|아야|나딘|매그너스/);assert.ok(f.run("G.log.every(e=>e.who==='')"));
-});
 await test('A new game shows the whole fixed opening as text with choices, without any AI call or unknown names',async()=>{
   const f=fixture();geminiReplies(f,[]);start(f);
   assert.equal(f.run('sent.length'),0);
-  assert.equal(f.run('G.log.length'),5);assert.match(logText(f),/루미아 섬 위를 낮게/);assert.match(logText(f),/천천히 잠잠해졌다/);
+  assert.equal(f.run('G.log.length'),4);assert.match(logText(f),/안개에 반쯤 잠겨/);assert.match(logText(f),/다시 멀어졌다/);
   assert.doesNotMatch(f.run('JSON.stringify(G.log)'),/유민/,'the opening never names someone the player has not met');
-  assert.match(f.el('choices').innerHTML,/창가로 다가가 숲을 더 살핀다/);assert.match(f.el('choices').innerHTML,/직접 쓰기/);
-  assert.equal(f.el('when').textContent,'1일째 · 아침 · 연구원 숙소');
+  assert.match(f.el('choices').innerHTML,/문을 열고 복도를 내다본다/);assert.match(f.el('choices').innerHTML,/직접 쓰기/);
+  assert.equal(f.el('when').textContent,'1일째 · 아침 · 숙소 방');
 });
 await test('One action makes exactly one story call and the whole scene is added to the story at once',async()=>{
   const f=fixture();geminiReplies(f,[scene()]);start(f);
   assert.equal(await f.run('act(G.scene.choices[0])'),true);
   assert.equal(f.run('sent.length'),1);assert.equal(f.run('sent[0].model'),'gemini-3.8-flash');
-  assert.deepEqual(f.obj('G.log.slice(5).map(e=>e.who)'),['▶','','???','유민']);
-  assert.equal(f.run('G.place'),'lab');assert.equal(f.el('when').textContent,'1일째 · 아침 · 연구소 복도');
+  assert.deepEqual(f.obj('G.log.slice(4).map(e=>e.who)'),['▶','','???','유민']);
+  assert.equal(f.run('G.place'),'hall');assert.equal(f.el('when').textContent,'1일째 · 아침 · 병동 복도');
   const html=logText(f);
-  assert.match(html,/class="act new">창가로 다가가 숲을 더 살핀다/);
+  assert.match(html,/class="act new">문을 열고 복도를 내다본다/);
   assert.match(html,/<span class="w">유민<\/span>「나 유민\. 2병동이야\.」/);
-  assert.doesNotMatch(html,/class="narr new">헬기가 루미아/,'earlier text is not re-animated');
+  assert.doesNotMatch(html,/class="narr new">배가 포구에/,'earlier text is not re-animated');
   assert.match(f.el('choices').innerHTML,/왜 여기 있었는지 묻는다/);
 });
 await test('While waiting, choices disappear and a waiting line is shown',async()=>{
@@ -42,13 +36,10 @@ await test('While waiting, choices disappear and a waiting line is shown',async(
   assert.equal(await f.run("act('또 누른다')"),false,'a second action is refused while waiting');
   f.run('release()');assert.equal(await pending,true);assert.doesNotMatch(logText(f),/class="waiting"/);
 });
-await test('The prompt carries the world, the secret, the rules, recent scenes and the action, and marks unmet people as unknown',async()=>{
+await test('The prompt carries the rules, recent scenes and the action, and marks unmet people as unknown',async()=>{
   const f=fixture();geminiReplies(f,[scene()]);start(f);
   await f.run("act('복도로 나가 본다')");
   const sys=f.run('sent[0].messages[0].content'),user=f.run('sent[0].messages[1].content');
-  assert.match(sys,/루미아 섬/);assert.match(sys,/아글라이아/);assert.match(sys,/\[플레이어의 비밀\].*여동생/);assert.match(sys,/답을 먼저 말하지 않는다/);
-  assert.match(sys,/\[조연\].*미성년 실험체는 등장시키지 않는다/);assert.match(sys,/연애 대상은 유민뿐/);
-  assert.match(sys,/부채를 휘둘러 바람/);assert.match(sys,/말투 예시/);
   assert.match(sys,/텍스트 연애 시뮬레이션/);assert.match(sys,/성인/);assert.match(sys,/성적 묘사/);assert.match(sys,/\?\?\?/);assert.match(sys,/"lines"/);
   assert.match(sys,/유민 \(플레이어는 아직 이름을 모름\)/);
   assert.match(user,/1일째 · 아침/);assert.match(user,/복도로 나가 본다/);assert.match(user,/\[이름을 아는 인물\] \(아직 없음\)/);
@@ -96,7 +87,7 @@ await test('A failed call changes nothing, keeps the choices and does not use an
   const before=f.run('JSON.stringify(G)');
   assert.equal(await f.run("act('a')"),false);
   assert.equal(f.run('JSON.stringify(G)'),before);assert.equal(f.run('busy'),false);assert.equal(f.run('undoSnap'),null);
-  assert.match(f.run('notices.at(-1)'),/bad key/);assert.match(f.el('choices').innerHTML,/창가로 다가가/);
+  assert.match(f.run('notices.at(-1)'),/bad key/);assert.match(f.el('choices').innerHTML,/문을 열고/);
 });
 await test('Without any AI key the player is told how to connect',async()=>{
   const f=fixture();start(f);f.run('SET.keys={}');

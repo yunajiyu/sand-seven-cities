@@ -1,8 +1,8 @@
-// Run: node tests/haemu-check.test.cjs
-// Uses the actual haemu.html script. Checks dice checks for risky actions: the code rolls 2d6 before the single
+// Run: node tests/lumia-check.test.cjs
+// Uses the actual lumia.html script. Checks dice checks for risky actions: the code rolls 2d6 before the single
 // AI call, passes the result for the AI to follow, logs the roll, and tracks the lab's hidden alert level.
 const assert=require('node:assert/strict');
-const {fixture,geminiReplies,test,done}=require('./_haemu-fixture.cjs');
+const {fixture,geminiReplies,test,done}=require('./_lumia-fixture.cjs');
 const risky={lines:[{who:'',text:'관찰실 단말기가 잠겨 있다.'}],choices:['돌아간다',{text:'관리자 기록을 몰래 열어 본다',check:'기록',dc:'보통'},{text:'카메라 사각지대로 숨는다',check:'은신',dc:'어려움'}],place:'watch',met:[],end:false};
 const plain=(o={})=>({lines:[{who:'',text:'조용했다.'}],choices:['가','나'],place:'',met:[],end:false,...o});
 const dice=(f,a,b)=>f.run(`Math.random=(()=>{const q=[${(a-1)/6+0.01},${(b-1)/6+0.01}];return ()=>q.length?q.shift():0.5})()`);
