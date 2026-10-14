@@ -61,7 +61,7 @@ await test('Undo steps back through two choices, survives a reload and then stop
 await test('Undo returns to the earlier choices with the story as it was',async()=>{
   const f=fixture();begin(f,[reply(1)]);
   await f.run("act('가')");await f.run('undoLast()');
-  assert.equal(f.run('G.log.length'),4);assert.match(f.el('choices').innerHTML,/문을 열고/);
+  assert.equal(f.run('G.log.length'),5);assert.match(f.el('choices').innerHTML,/문을 열고/);
   assert.equal(f.run('G.scene.choices[0]'),'문을 열고 복도를 내다본다');
 });
 await test('A new game clears undo history from the previous game',async()=>{

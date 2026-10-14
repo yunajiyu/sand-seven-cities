@@ -11,7 +11,7 @@ const logText=f=>f.el('logInner').innerHTML;
 await test('A new game shows the whole fixed opening as text with choices, without any AI call or unknown names',async()=>{
   const f=fixture();geminiReplies(f,[]);start(f);
   assert.equal(f.run('sent.length'),0);
-  assert.equal(f.run('G.log.length'),4);assert.match(logText(f),/안개에 반쯤 잠겨/);assert.match(logText(f),/다시 멀어졌다/);
+  assert.equal(f.run('G.log.length'),5);assert.match(logText(f),/안개에 반쯤 잠겨/);assert.match(logText(f),/다시 멀어졌다/);
   assert.doesNotMatch(f.run('JSON.stringify(G.log)'),/유민/,'the opening never names someone the player has not met');
   assert.match(f.el('choices').innerHTML,/문을 열고 복도를 내다본다/);assert.match(f.el('choices').innerHTML,/직접 쓰기/);
   assert.equal(f.el('when').textContent,'1일째 · 아침 · 숙소 방');
@@ -20,7 +20,7 @@ await test('One action makes exactly one story call and the whole scene is added
   const f=fixture();geminiReplies(f,[scene()]);start(f);
   assert.equal(await f.run('act(G.scene.choices[0])'),true);
   assert.equal(f.run('sent.length'),1);assert.equal(f.run('sent[0].model'),'gemini-3.8-flash');
-  assert.deepEqual(f.obj('G.log.slice(4).map(e=>e.who)'),['▶','','???','유민']);
+  assert.deepEqual(f.obj('G.log.slice(5).map(e=>e.who)'),['▶','','???','유민']);
   assert.equal(f.run('G.place'),'hall');assert.equal(f.el('when').textContent,'1일째 · 아침 · 병동 복도');
   const html=logText(f);
   assert.match(html,/class="act new">문을 열고 복도를 내다본다/);

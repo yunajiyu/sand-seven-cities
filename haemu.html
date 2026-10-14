@@ -40,6 +40,14 @@ section.screen{position:fixed;inset:0;display:flex;flex-direction:column}
 #game{background:var(--bg)}
 .top{display:flex;align-items:center;gap:8px;padding:calc(6px + env(safe-area-inset-top)) 12px 6px;border-bottom:1px solid var(--line)}
 .top .when{flex:1;font-size:14px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#goal{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;color:var(--ink);padding:7px 12px;font-size:14px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#goal .g{color:var(--accent);margin-right:.4em}
+#log p.quest{color:var(--accent);font-size:calc(14px * var(--fs));margin:-.4em 0 1.1em;padding-left:12px}
+.qlist{list-style:none;margin:0 0 6px;padding:0}
+.qlist li{padding:6px 0;border-bottom:1px solid var(--line);line-height:1.5}
+.qlist li.done{color:var(--mute)}
+.qbar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:6px 0 10px}
+.qbar i{display:block;height:100%;background:var(--accent)}
 #saveWarning{display:none;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:rgba(160,70,40,.25);font-size:14px}
 #log{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px 18px 8px}
 #log .inner{max-width:680px;margin:0 auto}
@@ -106,6 +114,7 @@ section.screen{position:fixed;inset:0;display:flex;flex-direction:column}
     <button class="small" id="undoBtn" onclick="undoLast()" disabled>↩ 되돌리기</button>
     <button class="small" onclick="openMenu()" aria-label="메뉴">☰</button>
   </div>
+  <button id="goal" onclick="openQuests()" aria-label="퀘스트 목록"></button>
   <div id="saveWarning" role="alert"><span>⚠ 자동 저장에 실패했습니다. 현재 진행을 파일로 보관해 주세요.</span><button class="small" onclick="save()">저장 재시도</button><button class="small" onclick="exportSave()">현재 진행 다운로드</button></div>
   <div id="log" aria-live="polite"><div class="inner" id="logInner"></div></div>
   <div class="dock"><div id="choices"></div></div>
@@ -129,7 +138,12 @@ const UI_KEY='haemu_ui';
 const WORLD={
   title:'해무',
   sub:'안개 속의 이야기 · 가제',
-  setting:'남쪽 외딴 섬 「해무섬」의 해무요양원. 안개가 잦고, 밤이면 닫힌 별관 쪽에서 설명할 수 없는 일이 일어난다는 소문이 돈다. 플레이어는 23세 신입 생활지원 직원(2병동)으로 막 부임했다.',
+  setting:'남쪽 외딴 섬 「해무섬」의 해무요양원. 안개가 잦고, 밤이면 닫힌 별관 쪽에서 설명할 수 없는 일이 일어난다는 소문이 돈다. 플레이어는 23세 신입 생활지원 직원(2병동)으로 막 부임했다. 3주 전 전임 직원이 갑자기 사라졌고, 원에서는 「자진 퇴사해 육지로 나갔다」고만 말한다. 원 전체가 그 일을 덮으려 하고, 플레이어는 유민과 함께 그 일의 진실을 조사하게 된다.',
+  truth:`[사건의 진실 — 플레이어는 모른다. 단계가 허락하는 만큼만, 단서·증언·물건을 통해 조금씩 드러낸다]
+- 전임 2병동 생활지원사 한서진(29세)은 3주 전 밤, 별관 지하 보관실에서 입소자들의 이상 사망을 지운 기록을 보았고, 그 직후 사고로 숨졌다. 원장 노성호와 수간호사 오경자가 이를 숨기려 「자진 퇴사」로 처리했고, 별관을 걸어 잠갔다.\n- 서진의 마지막 근무 일지와 열쇠 사본은 숙소 방과 시설관리 곽 씨 손에 남아 있다. 곽 씨는 알지만 겁먹은 증인이다.
+- 유민은 서진의 가장 가까운 동료였다. 공식 설명을 믿지 않고 혼자 조용히 조사해 왔다.
+- 원 사람들은 질문하는 신입을 부드럽게 막고, 소문·서류·잠금장치로 사건을 덮는다. 폭력적으로 위협하지는 않는다(분위기의 압박으로 그린다).
+- 진상은 [지금 풀어야 할 일]의 단계를 넘어서 한꺼번에 밝히지 않는다.`,
   tone:'잔잔한 공포와 설렘이 함께 있는 이야기. 공포는 소리·기척·빛·안개 같은 분위기로 그리고, 잔혹하거나 피가 낭자한 묘사는 하지 않는다.',
   places:{
     room:{n:'숙소 방'},
@@ -144,13 +158,43 @@ const WORLD={
     lines:[
       {who:'',text:'배가 포구에 닿았을 때, 섬은 안개에 반쯤 잠겨 있었다.'},
       {who:'',text:'배정받은 숙소 방은 좁고 깨끗했다. 창밖으로 불 꺼진 건물 한 채가 보였다. 그 건물에 대해서는 아무도 말해 주지 않았다.'},
+      {who:'',text:'옷장 안쪽에서 이름 칸이 칼로 긁어낸 듯 지워진 명찰과, 3주 전 날짜에서 멈춘 근무 일지가 나왔다. 이 방을 쓰던 사람은 어디로 갔을까.'},
       {who:'',text:'짐 가방을 내려놓았을 때, 복도 끝에서 누군가 낮게 콧노래를 부르며 걸어왔다.'},
       {who:'',text:'노랫소리는 당신의 방문 앞에서 잠깐 멈췄다가, 다시 멀어졌다.'},
     ],
-    choices:['문을 열고 복도를 내다본다','짐을 풀며 노랫소리가 사라지길 기다린다','창밖의 불 꺼진 건물을 바라본다'],
+    choices:['문을 열고 복도를 내다본다','근무 일지의 마지막 장을 읽어 본다','창밖의 불 꺼진 건물을 바라본다'],
   },
 };
 const PLACES=WORLD.places;
+
+/* ---------- 퀘스트 · 단계 — 진행 상태는 코드가 관리한다 (AI는 같은 장면 응답에서 달성한 id만 알려 줌) ----------
+   한 단계의 퀘스트를 모두 달성하면 다음 단계의 퀘스트가 열린다. 아직 열리지 않은 단계의 제목·퀘스트는 화면에 보이지 않는다.
+   t: 화면에 보이는 목표(답을 말하지 않는다. {유민}은 이름을 알기 전엔 "그 사람") · ai: AI에게만 주는 달성 조건 */
+const STAGES=[
+  {n:'도착',quests:[
+    {id:'room',t:'숙소 방에 남은 전임자의 흔적을 살펴본다',ai:'플레이어가 방 안(옷장·일지·명찰 등)에 남은 전임자의 흔적을 직접 확인했다.'},
+    {id:'meet',t:'복도에서 마주친 사람과 이야기를 나눈다',ai:'플레이어가 유민과 이름을 주고받을 만큼 대화했다.'}]},
+  {n:'빈자리',quests:[
+    {id:'left',t:'전임자가 어떻게 떠났는지 원내 사람들에게 알아본다',ai:'플레이어가 원 측의 공식 설명(자진 퇴사 후 육지로 나갔다)을 누군가에게 직접 들었다.'},
+    {id:'yumin',t:'{유민}이 전임자 이야기에 굳어지는 이유를 알아낸다',ai:'플레이어가 유민이 전임자와 가까웠다는 것을 알게 됐다.'}]},
+  {n:'손을 잡다',quests:[
+    {id:'gap',t:'공식 설명과 어긋나는 점을 하나 찾아낸다',ai:'플레이어가 공식 설명과 모순되는 구체적 증거(기록·물건·증언)를 발견했다.'},
+    {id:'pact',t:'{유민}과 아는 것을 나누고 함께 알아보기로 한다',ai:'유민이 플레이어를 믿고 함께 조사하기로 분명히 합의했다.'}]},
+  {n:'닫힌 별관',quests:[
+    {id:'way',t:'닫힌 별관에 들어갈 방법을 찾는다',ai:'플레이어가 별관 안으로 들어갈 현실적인 방법(경로·시간·도움)을 알아냈다.'},
+    {id:'key',t:'별관 출입 기록이나 열쇠를 손에 넣는다',ai:'플레이어가 별관 열쇠나 출입 기록을 실제로 확보했다.'}]},
+  {n:'진상',quests:[
+    {id:'proof',t:'전임자에게 일어난 일의 증거를 손에 넣는다',ai:'플레이어가 전임자의 최후와 은폐를 입증하는 증거를 확보했다.'},
+    {id:'who',t:'사건을 덮으려 한 사람이 누구인지 확인한다',ai:'플레이어와 유민이 은폐를 지시한 사람을 증거로 확인했다.'}]},
+  {n:'매듭',quests:[
+    {id:'end',t:'손에 넣은 것을 어떻게 할지 {유민}과 정한다',ai:'플레이어와 유민이 증거를 어떻게 할지 결정하고 행동에 옮겼다.'}]},
+];
+const QUESTS=STAGES.flatMap((st,si)=>st.quests.map(q=>({...q,stage:si})));
+function qText(q){ return q.t.replace(/\{유민\}/g,knownName('유민')?'유민':'그 사람') }
+function qDone(id){ return !!G&&(G.qdone||[]).includes(id) }
+/* 지금 단계: 아직 끝나지 않은 퀘스트가 남은 첫 단계. 모두 끝났으면 STAGES.length */
+function stageIndex(){ const i=STAGES.findIndex(st=>st.quests.some(q=>!qDone(q.id))); return i<0?STAGES.length:i }
+function activeQuests(){ const i=stageIndex(); return i<STAGES.length?STAGES[i].quests.filter(q=>!qDone(q.id)):[] }
 const MOODS=['기본','웃음','슬픔','당황','화남','놀람'];   // 대사의 감정 (지금은 화면에 쓰지 않고 기록만 함)
 
 /* ---------- 판정 (주사위) — 들키면 위험한 행동은 코드가 2d6으로 정하고, AI는 결과대로만 쓴다 ----------
@@ -200,8 +244,8 @@ const YUMIN_DEFAULT={
   speech:'가벼운 구어체 반말. 늘임표(~)는 한 번 말할 때 최대 1~2회만. 주어와 호칭은 자주 생략하고 평소엔 "너"라고 한다. 이름은 주의를 끌거나 걱정되거나 진지한 순간에만 성 없이 "{이름}"처럼 부른다.',
   examples:'[회피 — 불편할 때] "뭐~ 그럴 수도 있지. 배고프지 않아?" (가볍게 넘기고 화제 전환)\n[밀어내기] 같은 가벼운 톤으로 정확하게 선을 긋는 말 (예: "그 얘긴 지난 점호 방송에 날려 보냈어~")\n[밀어내기] "나 걱정하는 거야, 관리하는 거야?" (역질문으로 상대를 흔듦)\n[무의식적 누출] "조심해" (자기가 함께하지 않는 위험한 일에 상대가 나설 때, 무심코 툭)',
   banned:'단답, 차가운 거절, 말없이 자리를 뜨는 것. "심장 빨라졌어?" 같은 직접적으로 캐묻기 — 상대의 감정을 감지해도 농담이나 웃음으로 넘기고 화제를 돌린다.',
-  ability:'노래로 소리와 원내 방송, 전자기기를 흔든다. 과하게 쓰는 게 습관이라, 한 번 쓰면 판이 크게 뒤집힌다.',
-  inner:'정서적 친밀감과 누군가에게 기대는 것을 두려워한다. 그를 키운 할아버지는 섬 출신 뱃사람으로 해무요양원 확장 공사에 관여했고, 그의 죽음과 당국의 배신이 얽혀 있다. 유민은 십 대 때부터 사실상 혼자 지냈다. 외로움을 "감당할 수 있는 것"이라 여긴다. 이 섬에 온 이유는 말하지 않는다. 유민의 노래와 학원도시 지식 일부는 할아버지에게서 배운 것이지만, 본인은 그 사실을 굳이 말하지 않는다. (내면은 대사로 직접 말하지 않고 서술로만 암시한다.)',
+  ability:'노래로 소리와 원내 방송, 전자기기를 흔든다. 과하게 쓰는 게 습관이라, 한 번 쓰면 판이 크게 뒤집힌다. 조사가 막힐 때 원내 방송이나 소리로 시선을 돌려 주는 식으로 도울 수 있다.',
+  inner:'정서적 친밀감과 누군가에게 기대는 것을 두려워한다. 그를 키운 할아버지는 섬 출신 뱃사람이었다. 유민은 십 대 때부터 사실상 혼자 지냈다. 외로움을 "감당할 수 있는 것"이라 여긴다. 3주 전 사라진 전임 직원 한서진은 섬에서 유일하게 마음을 열던 동료였다. 유민은 「자진 퇴사」라는 공식 설명을 믿지 않고 혼자 조용히 조사해 왔지만 번번이 막혔다. 처음엔 신입도 원 쪽 사람일 수 있다고 경계해 농담으로 선을 긋는다. 플레이어가 서진의 흔적을 직접 마주하고 진심으로 진실을 원하는 것이 보이면, 조금씩 아는 것을 나누고 함께 움직인다. 서진의 이야기가 나오면 말이 갑자기 가벼워지거나 끊긴다. (내면은 대사로 직접 말하지 않고 서술로만 암시한다.)',
   avoid:'불편해지면 말이 많아지고, 분위기를 가볍게 유지하고, 되묻거나 화제를 돌린다. 예: "뭐~ 그럴 수도 있지. 배고프지 않아?" 단답, 차가운 거절, 말없이 자리를 뜨는 것은 유민답지 않다.',
 };
 const CHARS={'유민':YUMIN_DEFAULT};
@@ -580,7 +624,7 @@ function newGameState(name,best,profile){
   const o=WORLD.opening, stats={};
   best=skillKey(best)||'sneak';
   for(const k in SKILLS) stats[k]=k===best?SKILL_BEST:SKILL_BASE;
-  const g={v:2,char:{name,stats,...cleanProfile(profile)},day:1,slot:0,place:WORLD.start,alert:0,known:[],summary:'',recent:[],log:[],scene:{choices:o.choices.slice()}};
+  const g={v:3,char:{name,stats,...cleanProfile(profile)},day:1,slot:0,place:WORLD.start,alert:0,known:[],qdone:[],clues:[],summary:'',recent:[],log:[],scene:{choices:o.choices.slice()}};
   const prev=G; G=g; try{ logScene(o.lines) }finally{ G=prev }
   return g;
 }
@@ -630,25 +674,39 @@ function sysPrompt(){
 - 장면은 플레이어가 고를 수 있는 순간에서 멈춘다. 선택지는 플레이어가 할 말이나 행동 2~4개이며, 서로 성격이 다르게 쓴다.
 - 들키면 위험한 행동(닫힌 별관에 몰래 들어가기, 서류·명부 몰래 뒤지기, 잠긴 문 열기, 거짓말로 둘러대기 등)인 선택지에만 판정을 붙인다: {"text":"…","check":"${Object.values(SKILLS).map(x=>x.n).join('|')}","dc":"${Object.values(DCS).map(x=>x.n).join('|')}"}. 평범한 행동은 문자열로 쓴다. 판정 선택지는 한 장면에 많아야 2개.
 - [판정 결과]가 주어지면 그 결과를 그대로 따른다. 주사위·판정·수치는 장면에 쓰지 않는다.
+- [지금 풀어야 할 일]에 있는 일만 이번 장면에서 진전시킨다. 단계 밖의 진상은 먼저 밝히지 않고, 플레이어의 선택과 판정 결과 없이 단서를 주지 않는다. 판정에 실패한 장면은 어떤 일도 달성되지 않는다.
+- 어떤 일이 이번 장면에서 분명히 달성됐을 때만 done에 그 id를 넣는다 (애매하면 넣지 않는다). 새로 알게 된 사실이 있으면 clue에 한 줄(40자 이내)로 쓴다.
 - [원내의 경계]가 높을수록 사람들의 의심과 추궁의 압박을 장면에 드러낸다.
+[사건]
+${WORLD.truth}
+- 이 이야기는 플레이어와 유민이 은폐된 사건을 함께 풀어 가는 이야기다. 유민은 플레이어의 눈을 피할 대상이 아니라, 신뢰가 쌓이면 함께 움직이는 동료다. 다만 유민의 신뢰는 플레이어의 행동으로 얻는다.
+- 원내 사람들(원장·수간호사 등)은 은폐 쪽이다. 질문을 부드럽게 막고, 소문·서류·잠금장치가 단서를 가린다.
 ${playerBlock()}
 [등장인물]
 ${charBlock()}
 [출력] JSON 하나만 쓴다.
-{"lines":[{"who":"","text":"지문"},{"who":"인물 이름 또는 ???","mood":"기본","text":"대사 (따옴표 없이)"}],"choices":["평범한 행동",{"text":"위험한 행동","check":"은신","dc":"보통"},"…"],"place":"","met":[],"end":false}
+{"lines":[{"who":"","text":"지문"},{"who":"인물 이름 또는 ???","mood":"기본","text":"대사 (따옴표 없이)"}],"choices":["평범한 행동",{"text":"위험한 행동","check":"은신","dc":"보통"},"…"],"place":"","met":[],"done":[],"clue":"","end":false}
 - lines ${L.lines[0]}~${L.lines[1]}줄, 한 줄은 120자 이내. who는 "" (지문), "나" (플레이어가 소리 내어 한 말), 인물 이름, "???" 중 하나.
 - mood는 ${MOODS.join('|')} 중 하나 (지문이면 생략).
 - place: 장면이 끝났을 때 플레이어가 있는 곳의 키 (${Object.entries(PLACES).map(([k,p])=>k+'='+p.n).join(', ')}). 그대로면 "".
+- done: [지금 풀어야 할 일]의 id 중 이번 장면에서 달성된 것 (없으면 []). clue: 새 단서 한 줄 (없으면 "").
 - end: 지금 시간대(${WORLD.slots.join('·')})에 할 일이 마무리되어 다음 시간대로 넘어가도 자연스러우면 true.`;
 }
 function recentBlock(g=G){
   return (g.recent||[]).slice(-RECENT_PROMPT).map(r=>r.role==='action'?`▶ 플레이어: ${r.text}`:r.text).join('\n')||'(없음)';
+}
+function questBlock(){
+  const a=activeQuests(), i=stageIndex();
+  if(!a.length) return '(모든 일이 끝났다 — 이야기를 마무리하는 방향으로 쓴다)';
+  return `단계 ${i+1}/${STAGES.length} 「${STAGES[i].n}」\n`+a.map(q=>`- ${q.id}: ${qText(q)} (달성 조건: ${q.ai})`).join('\n')+((G.clues||[]).length?`\n알아낸 단서: ${G.clues.slice(-8).join(' / ')}`:'');
 }
 function userPrompt(action,roll){
   return `[지금] ${G.day}일째 · ${slotName(G.slot)} · ${placeName(G.place)}
 [플레이어] ${G.char.name}
 [이름을 아는 인물] ${(G.known||[]).join(', ')||'(아직 없음)'}
 [원내의 경계] ${({low:'낮음',mid:'조금 높아짐',high:'높음 — 사람들이 당신을 눈여겨본다'})[alertLevel()]}
+[지금 풀어야 할 일]
+${questBlock()}
 [줄거리 요약]
 ${G.summary||'(아직 없음)'}
 [최근 장면]
@@ -674,13 +732,15 @@ function normalizeScene(o){
     return check?{text,check,dc:dcKey(c.dc)}:text;
   }).filter(Boolean).slice(0,4);
   const met=(Array.isArray(o.met)?o.met:[]).filter(n=>typeof n==='string').map(cleanWho).filter(n=>n&&n!=='나'&&n!=='???');
-  return {lines,choices,place:PLACES[o.place]?o.place:'',met,end:o.end===true};
+  const done=(Array.isArray(o.done)?o.done:[]).filter(x=>typeof x==='string'&&QUESTS.some(q=>q.id===x)).filter((x,i,a)=>a.indexOf(x)===i).slice(0,3);
+  const clue=typeof o.clue==='string'?clip(o.clue.trim(),80):'';
+  return {lines,choices,place:PLACES[o.place]?o.place:'',met,done,clue,end:o.end===true};
 }
 /* JSON이 아닌 글이 오면 문단을 지문으로 쓴다 (장면이 통째로 사라지지 않게) */
 function textToScene(t){
   const paras=String(t||'').replace(/```[a-z]*|```/g,'').split(/\n\s*\n|\n/).map(s=>s.trim()).filter(Boolean).slice(0,12);
   if(!paras.length) return null;
-  return {lines:paras.map(p=>({who:'',text:clip(p,320)})),choices:[],place:'',met:[],end:false};
+  return {lines:paras.map(p=>({who:'',text:clip(p,320)})),choices:[],place:'',met:[],done:[],clue:'',end:false};
 }
 const FALLBACK_CHOICES=['주위를 조금 더 살핀다','잠시 숨을 고른다'];
 /* 선택지: 문자열(평범한 행동) 또는 {text, check, dc}(판정이 필요한 행동) */
@@ -695,6 +755,20 @@ async function storyTurn(action,roll){
   const t=await callAI(sysPrompt(),userPrompt(action,roll),L.tok,'story');
   return normalizeScene(parseJSON(t))||textToScene(t);
 }
+/* 달성한 일은 지금 단계에 열려 있는 것만, 판정에 실패한 행동으로는 인정하지 않는다 */
+function applyQuests(sc,roll){
+  if(!G.qdone) G.qdone=[]; if(!G.clues) G.clues=[];
+  const before=stageIndex();
+  const open=activeQuests();   // 한 장면에서는 장면이 시작할 때 열려 있던 일만 인정한다 (한 번에 두 단계를 건너뛰지 않음)
+  if(!roll||roll.result!=='fail') for(const id of sc.done||[]){
+    const q=open.find(x=>x.id===id); if(!q||qDone(id)) continue;
+    G.qdone.push(id); G.log.push({who:'📋',text:`✔ 달성 — ${qText(q)}`});
+  }
+  const cl=sc.clue&&(!roll||roll.result!=='fail')?sc.clue:'';
+  if(cl&&!G.clues.includes(cl)){ G.clues.push(cl); if(G.clues.length>40) G.clues.shift(); G.log.push({who:'📋',text:`＋ 단서 — ${cl}`}) }
+  const after=stageIndex();
+  if(after!==before) G.log.push({who:'📋',text:after<STAGES.length?`새 단계 — ${after+1}. ${STAGES[after].n}`:'모든 일을 마쳤다'});
+}
 function applyScene(action,sc,roll){
   G.log.push({who:'▶',text:clip(action,200)});
   if(roll){
@@ -703,6 +777,7 @@ function applyScene(action,sc,roll){
   }
   for(const n of sc.met) if(!G.known.includes(n)) G.known.push(n);   // 이번 장면에서 이름이 드러난 인물(met)만 이름표에 이름이 나온다
   logScene(sc.lines);
+  applyQuests(sc,roll);
   if(sc.place) G.place=sc.place;
   if(sc.end){ const nt=nextTime(G.day,G.slot); if(nt.day!==G.day) G.alert=Math.max(0,(G.alert||0)-1); G.day=nt.day; G.slot=nt.slot; logScene([{card:true,text:`${nt.day}일째 · ${slotName(nt.slot)}`}]) }
   G.recent.push({role:'action',text:clip(action,200)+(roll?` (${SKILLS[roll.skill].n} 판정 ${RESULT_TEXT[roll.result]})`:'')});
@@ -754,7 +829,7 @@ function sendFree(){
 
 /* ---------- 줄거리 요약 (오래된 장면을 압축 — 장기 기억) ---------- */
 let sumBusy=false;
-const SUM_SYS='너는 텍스트 연애 시뮬레이션의 줄거리 기록자다. 기존 요약에 새 장면을 합쳐, 앞으로의 장면을 쓰는 데 필요한 사실만 시간 순서로 정리한다. 인물 사이의 관계 변화, 약속, 알게 된 이름과 장소, 풀리지 않은 수상한 일을 남긴다. 짐작하거나 새로 지어내지 않는다. 1200자 이내의 평문으로만 쓴다.';
+const SUM_SYS='너는 텍스트 연애 시뮬레이션의 줄거리 기록자다. 기존 요약에 새 장면을 합쳐, 앞으로의 장면을 쓰는 데 필요한 사실만 시간 순서로 정리한다. 인물 사이의 관계 변화, 약속, 알게 된 이름과 장소, 풀리지 않은 수상한 일과 알아낸 단서를 남긴다. 짐작하거나 새로 지어내지 않는다. 1200자 이내의 평문으로만 쓴다.';
 async function maybeSummarize(){
   if(sumBusy||!G||G.recent.length<=RECENT_SUMMARIZE) return false;
   const g=G, take=g.recent.slice(0,SUMMARY_TAKE); sumBusy=true;
@@ -812,6 +887,7 @@ function logHTML(e,isNew){
   const n=isNew?' new':'';
   if(e.who==='▶') return `<p class="act${n}">${esc(e.text)}</p>`;
   if(e.who==='§') return `<p class="time${n}">${esc(e.text)}</p>`;
+  if(e.who==='📋') return `<p class="quest${n}">${esc(e.text)}</p>`;
   if(e.who==='🎲') return `<p class="roll${n}">${esc(e.text)}</p>`;
   if(!e.who) return `<p class="narr${n}">${esc(e.text)}</p>`;
   const me=e.who==='나';
@@ -834,10 +910,31 @@ function renderLog(){
     else wrap.scrollTop=wrap.scrollHeight;
   }
 }
+function renderGoal(){
+  const el=document.getElementById('goal'); if(!el) return;
+  const a=activeQuests();
+  el.innerHTML=a.length?`<span class="g">🎯</span>${esc(qText(a[0]))}${a.length>1?` <span class="muted">외 ${a.length-1}</span>`:''}`:`<span class="g">🎯</span>모든 일을 마쳤다`;
+}
+function openQuests(){
+  if(!G) return;
+  const i=stageIndex(), total=QUESTS.length, n=(G.qdone||[]).length;
+  const row=q=>`<li class="${qDone(q.id)?'done':''}">${qDone(q.id)?'✔':'☐'} ${esc(qText(q))}</li>`;
+  const now=i<STAGES.length?STAGES[i].quests:[];
+  const past=STAGES.slice(0,i).map((st,k)=>`<details><summary>${k+1}. ${esc(st.n)} ✔</summary><ul class="qlist">${st.quests.map(row).join('')}</ul></details>`).join('');
+  const steps=STAGES.map((st,k)=>k<i?`<span>✔ ${k+1}. ${esc(st.n)}</span>`:k===i?`<b>● ${k+1}. ${esc(st.n)}</b>`:`<span class="muted">○ ${k+1}. ？？？</span>`).join('<br>');
+  const clues=(G.clues||[]).length?`<h4 style="margin:14px 0 4px">단서 수첩</h4><ul class="qlist">${G.clues.map(c=>`<li>· ${esc(c)}</li>`).join('')}</ul>`:'';
+  modal('퀘스트',`<p class="muted" style="margin:0">${i<STAGES.length?`${i+1} / ${STAGES.length} 단계 · ${esc(STAGES[i].n)}`:'모든 단계를 마쳤습니다'}</p>
+    <div class="qbar"><i style="width:${Math.round(n/total*100)}%"></i></div>
+    <h4 style="margin:10px 0 4px">지금 해야 할 일</h4>
+    ${now.length?`<ul class="qlist">${now.map(row).join('')}</ul>`:'<p class="muted">남은 일이 없습니다.</p>'}
+    <h4 style="margin:14px 0 4px">단계</h4><p style="line-height:1.8;margin:0">${steps}</p>
+    ${past?`<h4 style="margin:14px 0 4px">지난 일</h4>${past}`:''}${clues}`);
+}
 function render(){
   if(!G) return;
   updateUndoBtn();
   document.getElementById('when').textContent=`${G.day}일째 · ${slotName(G.slot)} · ${placeName(G.place)}`;
+  renderGoal();
   renderLog();
   const ch=document.getElementById('choices');
   if(busy) ch.innerHTML='';
@@ -860,6 +957,7 @@ function openMenu(){
   let backup=false; try{ backup=!!localStorage.getItem(SAVE_BACKUP_KEY) }catch(e){}
   const t=usageTotal();
   modal('메뉴',`<div class="menuList">
+    <button onclick="openQuests()">📋 퀘스트 · 진행도</button>
     <button onclick="openProfile()">👤 내 캐릭터</button>
     <button onclick="openMemory()">🧠 줄거리 기억</button>
     <p class="muted" style="font-size:13px;margin:4px 2px">${esc(G.char.name)} · ${Object.entries(SKILLS).map(([k,v])=>`${v.n} +${skillVal(k)}`).join(' · ')}</p>
@@ -1023,13 +1121,15 @@ function newGame(name,best,profile){
 }
 function validateSaveData(g){
   const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x), str=x=>typeof x==='string', int=x=>Number.isInteger(x);
-  if(!obj(g)||g.v!==2) throw Error('해무 저장 파일이 아닙니다.');
+  if(!obj(g)||g.v!==3) throw Error('해무 저장 파일이 아닙니다.');
   if(!obj(g.char)||!str(g.char.name)||!g.char.name.trim()||g.char.name.length>20) throw Error('플레이어 정보가 없거나 손상됐습니다.');
   if(!int(g.day)||g.day<1||!int(g.slot)||g.slot<0||g.slot>=WORLD.slots.length||!PLACES[g.place]) throw Error('날짜·시간·장소 정보가 손상됐습니다.');
   if(!Array.isArray(g.known)||g.known.some(x=>!str(x))) throw Error('인물 기록이 손상됐습니다.');
   if(!str(g.summary)||!Array.isArray(g.recent)||g.recent.some(x=>!obj(x)||!['action','scene'].includes(x.role)||!str(x.text))) throw Error('줄거리 기록이 손상됐습니다.');
   if(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||!str(x.who)||!str(x.text))) throw Error('이야기 기록이 손상됐습니다.');
   if(!obj(g.scene)||!Array.isArray(g.scene.choices)||!g.scene.choices.length||g.scene.choices.some(x=>!str(x)&&!(obj(x)&&str(x.text)&&SKILLS[x.check]&&DCS[x.dc]))) throw Error('지금 장면 정보가 손상됐습니다.');
+  if(!Array.isArray(g.qdone)||g.qdone.some(x=>!QUESTS.some(q=>q.id===x))||new Set(g.qdone).size!==g.qdone.length) throw Error('퀘스트 기록이 손상됐습니다.');
+  if(!Array.isArray(g.clues)||g.clues.length>40||g.clues.some(x=>!str(x)||x.length>120)) throw Error('단서 기록이 손상됐습니다.');
   if(PROFILE_FIELDS.some(f=>g.char[f.k]!==undefined&&(!str(g.char[f.k])||g.char[f.k].length>f.max))) throw Error('캐릭터 설명이 손상됐습니다.');
   if(g.char.stats!==undefined&&(!obj(g.char.stats)||Object.keys(SKILLS).some(k=>!int(g.char.stats[k])||g.char.stats[k]<0||g.char.stats[k]>6))) throw Error('능력치 정보가 손상됐습니다.');
   if(g.alert!==undefined&&(!int(g.alert)||g.alert<0||g.alert>ALERT_MAX)) throw Error('경계 정보가 손상됐습니다.');
