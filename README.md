@@ -84,8 +84,9 @@
 - **미리 드러나지 않게**: 장면 안에서 이름이 드러나기 전의 인물은 대사 앞에 `???`로 나오고, 그때 ???였던 줄은 나중에 이름을 알아도 ???로 남습니다. 시간대가 끝나면 「── 1일째 · 오전 ──」 구분선이 붙고 시간이 넘어갑니다.
 - **내 캐릭터 설명**: 새로 시작할 때 외모 · 성격·말투 · 배경·특징을 적을 수 있고(모두 선택), 게임 중에는 ☰ 메뉴 → 👤 내 캐릭터에서 고칩니다. AI는 당신을 묘사할 때만 참고하고 행동·대사·감정을 대신 정하지 않으며, 다른 인물은 겉으로 보이는 것만 알고 배경은 당신이 이야기 속에서 말해야 압니다. 비워 두면 AI가 지어내지 않습니다.
 - 장면을 받지 못하면 아무것도 바뀌지 않고 선택지가 그대로 남습니다. 늦게 온 다른 게임의 응답은 버립니다. 되돌리기는 직전 선택 2번까지입니다.
+- **사건과 퀘스트**: 해무와 같은 틀입니다. 유민의 눈을 피하기보다, 실험체 기록이 조용히 지워지는 연구소의 은폐를 유민과 함께 푸는 이야기입니다(진상은 `WORLD.truth`, AI에게만 전해짐). 플레이어의 비밀(여동생의 치료제)은 그대로이고, 유민에게 밝힐지는 플레이어가 정합니다. 단계(`STAGES`): 도착 · 지워진 이름 · 손을 잡다 · 금지 구역 · 진상 · 매듭. 한 단계의 퀘스트를 모두 달성해야 다음 단계가 열리고, AI는 같은 장면 응답의 `done`·`clue`만 덧붙이므로 AI 호출은 늘지 않습니다. 판정 실패는 달성으로 치지 않습니다. 상단 「🎯 지금 목표」 줄과 ☰ → 📋 퀘스트 · 진행도에서 볼 수 있고, 열리지 않은 단계는 「？？？」, 모르는 이름은 「그 사람」으로 가려집니다. 저장 형식은 v4입니다.
 - 세계 설정은 코드의 `WORLD`, 인물은 `YUMIN_DEFAULT`·`CHARS`에 있습니다.
-- 검증: `node tests/lumia-scene.test.cjs` · `node tests/lumia-check.test.cjs` · `node tests/lumia-char.test.cjs` · `node tests/lumia-save.test.cjs` · `node tests/lumia-ai.test.cjs` (`tests/_lumia-fixture.cjs`는 공용 준비 파일).
+- 검증: `node tests/lumia-scene.test.cjs` · `node tests/lumia-check.test.cjs` · `node tests/lumia-char.test.cjs` · `node tests/lumia-save.test.cjs` · `node tests/lumia-ai.test.cjs` · `node tests/lumia-quest.test.cjs` (`tests/_lumia-fixture.cjs`는 공용 준비 파일).
 
 ## 원작 보관
 - `sand_seven_cities.html` — 개변 전 원작 「모래 아래의 일곱 도시」 (`images/home/`의 그림을 사용). `hanbit.html`(출석부에 없는 구역)과 따로 열 수 있고, 세이브 키가 달라(`sand7_save` / `hanbit_save_v1`) 서로 섞이지 않습니다. 설정·API 키는 공유합니다.
