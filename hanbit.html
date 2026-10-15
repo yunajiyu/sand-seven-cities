@@ -372,7 +372,7 @@ function newState(name){
     zs, noise, zombies:{...ZOMBIE_START},
     comp:{yumin:{met:false,joined:false,aff:0}},
     surv:Object.fromEntries(SURVIVORS.map(s=>[s.id,{met:false,rescued:false,aff:0}])),
-    log:[],
+    log:[], pend:0,
   };
 }
 
@@ -381,6 +381,7 @@ function migrate(){
   if(!G) return;
   if(!Array.isArray(G.items)) G.items=[];
   if(!Array.isArray(G.log)) G.log=[];
+  if(!Number.isInteger(G.pend)||G.pend<0||G.pend>G.log.length) G.pend=0;
   if(G.infection===undefined) G.infection=null;
   if(G.route===undefined) G.route=null;
   if(G.ending===undefined) G.ending=null;
@@ -410,6 +411,7 @@ function validateSaveData(g,strict=true){
  }
  if(!obj(g.comp)||!obj(g.comp.yumin)||!obj(g.surv)) throw Error('동행자 정보가 손상됐습니다.');
  if(!opt('log')&&(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||typeof x.type!=='string'||typeof x.text!=='string'))) throw Error('기록 정보가 손상됐습니다.');
+ if(!opt('pend')&&(!Number.isInteger(g.pend)||g.pend<0||g.pend>(Array.isArray(g.log)?g.log.length:0))) throw Error('기록 정보가 손상됐습니다.');
  return g;
 }
 function prepareSavedGame(text){
@@ -761,7 +763,7 @@ function addLog(type,text,extra){
 }
 
 /* 행동 표: 선택지 id의 앞부분('move:stairs'의 move)에 맞는 함수. 새 행동은 여기에 한 줄 */
-const ACTIONS={ move:id=>goZone(id) };
+const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere() };
 
 function goZone(id){
   if(!G||G.ending||busy) return false;
@@ -783,7 +785,25 @@ function buildChoices(){
     return {id:'move:'+id,icon:z.icon,label:`${z.s}${josa(z.s,'으로','로')} 이동 · 위험 ${RISK_LABEL[z.risk]}`};
   });
   run('choices',list);
+  // 훅이 잘못된 항목을 넣거나 목록을 비워도 화면이 막히지 않게 한다
+  for(let i=list.length-1;i>=0;i--){ const c=list[i]; if(!c||typeof c.id!=='string'||!c.id||typeof c.label!=='string'||!c.label) list.splice(i,1) }
+  for(const b of BASIC_CHOICES) if(!list.some(c=>c.id===b.id)) list.push({...b});
   return list;
+}
+/* 항상 있는 기본 선택지 (2단계에서 시간·소음 판정이 붙을 자리. 지금은 상태를 바꾸지 않는다) */
+const BASIC_CHOICES=[{id:'look:',label:'주변을 살핀다'},{id:'rest:',label:'잠시 쉰다'}];
+function lookAround(){
+  if(!G||G.ending||busy) return;
+  const ns=neighbors(G.loc).map(id=>`${ZONE[id].s}(위험 ${RISK_LABEL[ZONE[id].risk]})`);
+  addLog('action',`${ZONE[G.loc].s}에서 주변을 살핀다`);
+  say({t:'n',text:ns.length?`가까운 곳은 ${ns.join(', ')}. 숨을 죽이고 귀를 기울여 본다.`:'주변은 조용하다.'});
+  run('after','look'); save(); render();
+}
+function restHere(){
+  if(!G||G.ending||busy) return;
+  addLog('action',`${ZONE[G.loc].s}에서 잠시 쉰다`);
+  say({t:'n',text:'벽에 기대어 숨을 고른다. 아직은 움직일 수 있다.'});
+  run('after','rest'); save(); render();
 }
 function pick(cid){
   if(busy||!G||!queueIdle()) return;   // 줄이 남아 있는 동안은 선택할 수 없다
@@ -859,6 +879,22 @@ function normLine(l){
 function nameOf(who){ return own(CAST,who)?CAST[who].n():'' }
 
 function logType(l){ return l.t==='d'?'dialog':l.t==='s'?'sys':'scene' }
+/* 아직 화면에 다 보여 주지 못한 줄 수를 저장에 남긴다 (불러오면 로그 끝에서 복원) */
+function syncPend(){
+  if(!G) return;
+  const n=Q.pending.length+(Q.typing?1:0);
+  if(G.pend!==n){ G.pend=n; save() }
+}
+function restoreQueue(){
+  if(!G) return;
+  const n=Math.min(G.pend||0,G.log.length), tail=G.log.slice(G.log.length-n).filter(e=>e.type!=='action');
+  G.pend=0;
+  if(!tail.length) return;
+  const lines=tail.map(e=>e.type==='dialog'?{t:'d',who:e.who,emo:e.emo,text:e.text}:{t:e.type==='sys'?'s':'n',text:e.text});
+  for(const l of lines){ const o=normLine(l); if(o) Q.pending.push(o) }
+  syncPend();
+  if(Q.pending.length) nextLine();
+}
 function say(lines){
   if(!G) return;
   const list=(Array.isArray(lines)?lines:[lines]).map(normLine).filter(Boolean);
@@ -869,6 +905,7 @@ function say(lines){
     Q.pending.push(one);
   }
   if(idle&&Q.pending.length) nextLine();
+  syncPend();
 }
 function queueIdle(){ return !Q.typing&&!Q.pending.length }
 function resetQueue(){ clearTimeout(Q.timer); clearTimeout(Q.autoT); Q.pending=[]; Q.cur=null; Q.pos=0; Q.typing=false }
@@ -876,7 +913,7 @@ function resetQueue(){ clearTimeout(Q.timer); clearTimeout(Q.autoT); Q.pending=[
 function nextLine(){
   clearTimeout(Q.timer); clearTimeout(Q.autoT);
   const l=Q.pending.shift();
-  if(!l){ Q.typing=false; paintMark(); renderChoices(); return }
+  if(!l){ Q.typing=false; syncPend(); paintMark(); renderChoices(); return }
   Q.cur=l; Q.pos=0; paintName(); renderCast();
   const ms=speedMs();
   if(!ms){ Q.pos=l.text.length; paintText(); doneTyping(); return }
@@ -886,7 +923,7 @@ function nextLine(){
 }
 function finishTyping(){ clearTimeout(Q.timer); if(Q.cur) Q.pos=Q.cur.text.length; paintText(); doneTyping() }
 function doneTyping(){
-  Q.typing=false; paintMark(); renderChoices();
+  Q.typing=false; syncPend(); paintMark(); renderChoices();
   if(UI.auto&&Q.pending.length) Q.autoT=setTimeout(()=>{ if(!Q.typing&&Q.pending.length) nextLine() },900+(Q.cur?Q.cur.text.length*45:0));
 }
 /* 화면 탭: 글자가 나오는 중이면 즉시 완성, 완성됐으면 다음 줄 */
@@ -1216,7 +1253,7 @@ function finishCreation(){
 }
 function openLoadedGame(g){
   G=g; busy=false; stableSnap=JSON.stringify(g);
-  resetQueue(); show('game'); render();
+  resetQueue(); show('game'); render(); restoreQueue();
 }
 function continueGame(){
   if(busy) return toast('현재 행동을 마친 뒤 불러와 주세요.');
