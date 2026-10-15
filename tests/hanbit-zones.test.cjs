@@ -76,19 +76,19 @@ await test('Moving is blocked after an ending and while an AI reply is pending',
 
 await test('Choices are built by code from the current zone and pick() ignores anything not in the list',()=>{
   const {run,obj}=game();
-  assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['move:stairs']);
+  assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['move:stairs','look:','rest:']);
   assert.match(run("buildChoices()[0].label"),/계단·복도로 이동 · 위험 보통/);
   run("pick('move:garage')"); assert.equal(run('G.loc'),'room','garage is not offered from the room');
   run("pick('move:stairs')"); assert.equal(run('G.loc'),'stairs');
-  assert.deepEqual(obj("buildChoices().map(c=>c.id).sort()"),['move:garage','move:roof','move:room','move:shop']);
+  assert.deepEqual(obj("buildChoices().map(c=>c.id).sort()"),['look:','move:garage','move:roof','move:room','move:shop','rest:']);
   run("pick('bogus:thing')"); assert.equal(run('G.loc'),'stairs');
   run("G.ending='x'"); assert.deepEqual(obj('buildChoices()'),[]);
 });
 
 await test('The choices hook can add options and a failing hook never breaks the list',()=>{
   const {run,obj}=game();
-  run("on('choices',5,l=>l.push({id:'rest:',label:'😴 쉰다'}));on('choices',1,()=>{throw Error('boom')});console.warn=()=>{}");
-  assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['move:stairs','rest:']);
+  run("on('choices',5,l=>l.push({id:'talk:yumin',label:'말을 건다'}));on('choices',1,()=>{throw Error('boom')});console.warn=()=>{}");
+  assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['move:stairs','talk:yumin','look:','rest:']);
 });
 
 await test('The goal line always has one clear sentence and names what is missing for the chosen route',()=>{

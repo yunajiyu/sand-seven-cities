@@ -26,9 +26,9 @@ await test('Invalid save JSON and core fields never replace the live game or exi
 
 await test('A save missing later-added optional fields is filled in isolation and the live game is untouched until installed',()=>{
   const {run}=setup();
-  run("save();const before=G;const legacy=JSON.parse(localStorage.getItem(SAVE_KEY));delete legacy.meds;delete legacy.infection;delete legacy.route;delete legacy.ending;delete legacy.items;const migrated=prepareSavedGame(JSON.stringify(legacy))");
+  run("save();const before=G;const legacy=JSON.parse(localStorage.getItem(SAVE_KEY));delete legacy.meds;delete legacy.infection;delete legacy.route;delete legacy.ending;delete legacy.items;delete legacy.pend;const migrated=prepareSavedGame(JSON.stringify(legacy))");
   assert.equal(run('G===before'),true);
-  assert.equal(run('migrated.meds'),0); assert.equal(run('migrated.infection'),null); assert.equal(run('migrated.route'),null); assert.equal(run('migrated.ending'),null);
+  assert.equal(run("migrated.pend"),0); assert.equal(run("migrated.meds"),0); assert.equal(run('migrated.infection'),null); assert.equal(run('migrated.route'),null); assert.equal(run('migrated.ending'),null);
   assert.equal(run('Array.isArray(migrated.items)'),true);
 });
 
