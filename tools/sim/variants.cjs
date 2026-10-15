@@ -35,5 +35,8 @@ const VARIANTS={
   'A':V('후보 A: 감염 5시간대 + 옥상 좀비 1마리 + 마지막 날 3일차',P.infect(5),P.zombies({roof:1}),P.days(3)),
   'B':V('후보 B: 물림 0.7 + 조우 ×1.5 + 감염 6시간대',P.bite(0.7),P.enc(0.18,0.06,0.075),P.infect(6)),
   'C':V('후보 C: 감염 5시간대 + 조우 ×1.5 + 옥상 좀비 1마리 + 마지막 날 3일차',P.infect(5),P.enc(0.18,0.06,0.075),P.zombies({roof:1}),P.days(3)),
+  'D':V('후보 D: 감염 3시간대 + 옥상 좀비 1마리 + 농담 호감 +1',P.infect(3),P.zombies({roof:1}),P.joke(1)),
+  'E':V('후보 E: 감염 4시간대 + 조우 ×1.5 + 옥상 좀비 1마리 + 농담 호감 +1',P.infect(4),P.enc(0.18,0.06,0.075),P.zombies({roof:1}),P.joke(1)),
+  'F':V('후보 F: 감염 4시간대 + 물림 피해 3 + 옥상 좀비 1마리 + 농담 호감 +1',P.infect(4),P.dmg(3),P.zombies({roof:1}),P.joke(1)),
 };
 module.exports={VARIANTS,P,V};
