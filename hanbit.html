@@ -52,6 +52,7 @@ svg.pix{width:1.2em;height:1.2em;vertical-align:-.24em;margin-right:.25em;flex:0
 .stats .st .pix{margin-right:4px}
 #goal .pix{margin-right:4px}
 #choices button .pix{margin-right:8px}
+.endcard{text-align:center;padding:12px;background:#1a1c2c;color:#ffcd75;border:3px solid #ffcd75;box-shadow:3px 3px 0 #0b0c14;font-size:calc(16px*var(--fs,1))}
 #placeLabel .pix{margin-right:4px}
 #title h1{font-size:34px;margin:0 0 8px;color:var(--accent);letter-spacing:1px;text-shadow:3px 3px 0 var(--edge),-1px -1px 0 var(--edge),1px -1px 0 var(--edge),-1px 1px 0 var(--edge)}
 #title .skyline{display:block;width:288px;max-width:80vw;height:auto;margin:0 auto 14px;image-rendering:pixelated;shape-rendering:crispEdges}
@@ -764,7 +765,7 @@ function addLog(type,text,extra){
 }
 
 /* 행동 표: 선택지 id의 앞부분('move:stairs'의 move)에 맞는 함수. 새 행동은 여기에 한 줄 */
-const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere(), cure:()=>cureInfection(), route:id=>setRoute(id), talk:t=>talkTo(t) };
+const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere(), escape:()=>escapeNow(), cure:()=>cureInfection(), route:id=>setRoute(id), talk:t=>talkTo(t) };
 
 /* =========================================================
    시간대 한 번 = 행동 한 번. 판정은 전부 코드가 한다(주사위는 rng 하나로만).
@@ -894,6 +895,39 @@ const ENDING_TEXT={
   infected:'감염이 몸을 다 삼켰다. 나는 더 이상 나로 남지 못했다.',
   timeout: '마지막 날이 저물었다. 나는 끝내 이 단지를 빠져나가지 못했다.',
 };
+const ENDING_NAME={dead:'쓰러진 밤',infected:'잠식',timeout:'닫힌 단지',escape_together:'함께 나선 아침',escape_alone:'홀로 나선 길'};
+function endingName(k){ return own(ENDING_NAME,k)?ENDING_NAME[k]:'끝' }
+const ESC_LEVEL=4;                           // 이 단계 이상이고 동행 중이면 함께 탈출한다
+const ESC_ROUTE_LINE={
+  front:'차 시동이 걸린다. 가림막을 들이받고 정문을 지나 도로로 달려 나간다.',
+  rear: '열쇠가 자물쇠에 맞는다. 공사 통로를 따라 후문 밖으로 빠져나간다.',
+  roof: '신호탄이 하늘로 솟는다. 얼마 뒤 멀리서 헬기 소리가 다가온다.',
+};
+function canEscape(){ return !!G&&!G.ending&&!!G.route&&own(ROUTES,G.route)&&routeReady(G.route)&&G.loc===ROUTES[G.route].at }
+function escapeKind(){ const y=G.comp.yumin; return y.joined&&affLevel(y.aff)>=ESC_LEVEL?'escape_together':'escape_alone' }
+function escapeLines(kind){
+  const n=G.char.name, y=G.comp.yumin, N=(t)=>({t:'n',text:t});
+  if(kind==='escape_together') return [
+    {t:'d',who:'yumin',emo:'relieved',text:'……나왔네요. 정말, 우리 둘 다.'},
+    {t:'d',who:'me',emo:'smile',text:'네. 약속했잖아요, 같이 간다고.'},
+    {t:'d',who:'yumin',emo:'smile',text:`이제 이름 부르는 것도 어색하지 않아요, ${n}.`},
+    N('아침 빛이 단지 너머로 번진다. 두 사람은 한동안 아무 말 없이 서로의 손을 잡고 서 있었다.'),
+  ];
+  if(y.joined) return [
+    {t:'d',who:'yumin',emo:'sad',text:`……여기서부터는 각자 가요. 고마웠어요, ${n} 씨.`},
+    N('그녀는 끝내 마음을 열지 못한 채 다른 길로 걸어간다. 바깥의 아침은 생각보다 조용하다.')];
+  if(y.met) return [N('계단 어딘가에 남겨 둔 이름 하나가 마음에 걸린다. 돌아가기엔 이미 너무 멀리 왔다.')];
+  return [N('이 단지에 누가 남아 있었는지, 끝내 알지 못한 채 떠난다. 아침 햇빛이 낯설게 따갑다.')];
+}
+function escapeNow(){
+  if(!G||busy||!canEscape()) return;
+  TALK_OPEN=false;
+  const kind=escapeKind(), r=ROUTES[G.route];
+  addLog('action',`${r.n}으로 탈출한다`);
+  const out=[{t:'n',text:ESC_ROUTE_LINE[G.route]},...escapeLines(kind),{t:'s',text:`엔딩 — ${endingName(kind)}`}];
+  G.ending=kind;
+  say(out); run('after','escape',kind); save(); render();
+}
 function addNoise(id,n){ G.noise[id]=Math.max(0,Math.min(NOISE_MAX,(G.noise[id]||0)+n)) }
 /* 조우 확률: 좀비 수·소음·위험도가 올리고 손전등이 낮춘다. 안전거점(자취방)은 0 */
 function encounterChance(id){
@@ -921,7 +955,7 @@ function encounter(id,out){
     if(yuminHere()) addAff(1,out);
   }
 }
-function finish(key,out){ if(G.ending) return; G.ending=key; out.push({t:'s',text:ENDING_TEXT[key]}) }
+function finish(key,out){ if(G.ending) return; G.ending=key; out.push({t:'s',text:ENDING_TEXT[key]}); out.push({t:'s',text:`엔딩 — ${endingName(key)}`}) }
 function advanceTime(out){
   for(const id of Object.keys(G.noise)) G.noise[id]=Math.max(0,G.noise[id]-1);
   if(G.infection){ G.infection.left--; if(G.infection.left<=0) finish('infected',out) }
@@ -985,6 +1019,7 @@ function buildChoices(){
   }
   TALK_OPEN=false;
   if(yuminHere()) list.push({id:'talk:',label:'유민에게 말을 건다'});
+  if(canEscape()) list.push({id:'escape:',label:`${ROUTES[G.route].n}으로 탈출한다`});
   if(G.infection&&G.meds>0) list.push({id:'cure:',label:'응급약을 먹는다'});
   if(G.loc==='room'){
     if(!G.route) for(const id of Object.keys(ROUTES)) list.push({id:'route:'+id,label:`${ROUTES[id].n}으로 나가기로 한다`});
@@ -1245,6 +1280,10 @@ function renderCast(){
 function renderChoices(){
   const el=document.getElementById('choices');
   if(!queueIdle()){ el.innerHTML=''; return }          // 줄이 남아 있는 동안은 선택지를 숨긴다
+  if(G.ending){
+    el.innerHTML=`<div class="endcard">엔딩 — ${esc(endingName(G.ending))}</div><button onclick="toTitle()">제목 화면으로</button>`;
+    return;
+  }
   const list=buildChoices();
   el.innerHTML=list.length
     ? list.map(c=>`<button onclick="pick('${c.id}')"${busy?' disabled':''}>${c.icon?px(c.icon)+' ':''}${esc(c.label)}</button>`).join('')
