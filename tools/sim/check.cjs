@@ -157,7 +157,7 @@ function explore(opts){
   const h=createGame(); h.run('save=()=>true'); h.begin(1); h.ctx.__c=0;
   h.run(mode==='never'?'rng=()=>0.99':mode==='bite'?'rng=()=>0':'rng=()=>(__c++%2===0?0:0.99)');
   const W=h.world, snap=()=>JSON.stringify(h.G()), tk=()=>h.run('TALK_OPEN');
-  const keyOf=()=>{ const {log,pend,char,...r}=h.G(); return JSON.stringify(r)+'|'+tk() };
+  const keyOf=()=>{ const {log,pend,char,...r}=h.G(); return require('node:crypto').createHash('md5').update(JSON.stringify(r)+'|'+tk()).digest('latin1') };
   const restore=(s,t)=>{ h.ctx.__s=s; h.ctx.__t=t; h.run('G=JSON.parse(__s);TALK_OPEN=__t;resetQueue();G.pend=0;__c=0') };
   const seen=new Set([keyOf()]), pairs=new Set(), ends={}, zonesSeen=new Set(), gifts=new Set(), routes=new Set();
   let layer=[[snap(),false]], turn=0, total=1, truncated=false, bad=0;
@@ -219,7 +219,7 @@ function checkProbes(h){
 /* ---------- 실행 ---------- */
 function main(){
   const a=process.argv, arg=(k,d)=>{ const i=a.indexOf(k); return i<0?d:+a[i+1] };
-  const o={seed:arg('--seed',1),save:arg('--save',60),fuzz:arg('--fuzz',3000),explore:arg('--explore',9),beam:arg('--beam',40000)};
+  const o={seed:arg('--seed',1),save:arg('--save',60),fuzz:arg('--fuzz',3000),explore:arg('--explore',8),beam:arg('--beam',20000)};
   const outIdx=a.indexOf('--out'), out=outIdx<0?null:a[outIdx+1];
   const h=createGame(), L=[], t0=Date.now(), sec=()=>((Date.now()-t0)/1000).toFixed(0)+'s';
   L.push(`# 한빛 안정성 검사 (seed ${o.seed})\n`);
