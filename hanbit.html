@@ -62,7 +62,7 @@ svg.pix{width:1.2em;height:1.2em;vertical-align:-.24em;margin-right:.25em;flex:0
 #game{position:relative;display:flex;flex-direction:column;height:100vh;height:var(--vvh,100dvh);overflow:hidden;background:#05070d;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 .topbar{background:#1a1c2c;border-bottom:3px solid #f4f4f4;padding:3px 10px 4px;color:#f4f4f4;flex:0 0 auto;z-index:3}
 .tb{display:flex;align-items:center;gap:8px;max-width:860px;margin:0 auto}
-.stats{display:flex;gap:0 12px;font-size:12.5px;line-height:1.5;flex:1;min-width:0;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+.stats{display:flex;gap:0 12px;font-size:12.5px;line-height:1.5;flex:1;min-width:0;flex-wrap:wrap;white-space:nowrap}
 .stats::-webkit-scrollbar{display:none}
 .stats .st{flex:0 0 auto}
 .stats .low{color:#ff6f7d}
@@ -763,18 +763,93 @@ function addLog(type,text,extra){
 }
 
 /* 행동 표: 선택지 id의 앞부분('move:stairs'의 move)에 맞는 함수. 새 행동은 여기에 한 줄 */
-const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere() };
+const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere(), cure:()=>cureInfection(), route:id=>setRoute(id) };
 
+/* =========================================================
+   시간대 한 번 = 행동 한 번. 판정은 전부 코드가 한다(주사위는 rng 하나로만).
+   순서: 행동 효과 → 조우 판정 → 시간 경과(소음 감쇠·감염·하루 소비) → 종료 조건 → 줄 출력 → 저장
+   ========================================================= */
+let rng=Math.random;
+const BITE_CHANCE=0.5;                       // 조우했을 때 물릴 확률
+const BITE_DAMAGE=2;
+const LOOT={                                 // 구역별 수색 결과(한 번만)
+  room:  {food:1,water:1},
+  stairs:{items:['flashlight']},
+  shop:  {food:2,water:2,meds:1},
+  office:{items:['gateKey','map']},
+  garage:{items:['carKey','fuel']},
+  roof:  {items:['signal']},
+  garden:{water:1},
+  gate:  {},
+};
+const ENDING_TEXT={
+  dead:    '더는 버티지 못하고 쓰러졌다. 단지는 끝내 조용해졌다.',
+  infected:'감염이 몸을 다 삼켰다. 나는 더 이상 나로 남지 못했다.',
+  timeout: '마지막 날이 저물었다. 나는 끝내 이 단지를 빠져나가지 못했다.',
+};
+function addNoise(id,n){ G.noise[id]=Math.max(0,Math.min(NOISE_MAX,(G.noise[id]||0)+n)) }
+/* 조우 확률: 좀비 수·소음·위험도가 올리고 손전등이 낮춘다. 안전거점(자취방)은 0 */
+function encounterChance(id){
+  const z=ZONE[id], n=G.zombies[id]||0;
+  if(id==='room'||n<=0) return 0;
+  let p=0.12*n+0.04*(G.noise[id]||0)+0.05*(z.risk-1);
+  if(hasItem('flashlight')) p-=0.1;
+  return Math.max(0,Math.min(0.9,p));
+}
+function encounter(id,out){
+  const p=encounterChance(id);
+  if(p<=0||rng()>=p) return;
+  addNoise(id,1);
+  if(rng()<BITE_CHANCE){
+    G.hp=Math.max(0,G.hp-BITE_DAMAGE); addNoise(id,2);
+    out.push({t:'n',text:'어둠 속에서 무언가가 달려들었다. 팔을 물렸다.'});
+    let sys=`체력 −${BITE_DAMAGE}`;
+    if(!G.infection){ G.infection={left:INFECT_SLOTS}; sys+=` · 감염 시작(${INFECT_SLOTS}시간대)` }
+    out.push({t:'s',text:sys});
+  }else{
+    out.push({t:'n',text:'바로 앞에서 무언가가 고개를 들었다. 숨을 죽이고 간신히 빠져나왔다.'});
+    out.push({t:'s',text:'소음 +1'});
+  }
+}
+function finish(key,out){ if(G.ending) return; G.ending=key; out.push({t:'s',text:ENDING_TEXT[key]}) }
+function advanceTime(out){
+  for(const id of Object.keys(G.noise)) G.noise[id]=Math.max(0,G.noise[id]-1);
+  if(G.infection){ G.infection.left--; if(G.infection.left<=0) finish('infected',out) }
+  if(G.slot+1>=TIMES.length){
+    if(G.day>=LAST_DAY){ finish('timeout',out) }
+    else{
+      G.slot=0; G.day++;
+      let loss=0;
+      if(G.food>0) G.food--; else loss++;
+      if(G.water>0) G.water--; else loss++;
+      if(loss){ G.hp=Math.max(0,G.hp-loss); out.push({t:'s',text:`굶주림과 갈증으로 체력 −${loss}`}) }
+      out.push({t:'s',text:`${G.day}일차 아침이 밝았다. 식량·물 −1`});
+    }
+  } else G.slot++;
+  if(G.hp<=0) finish('dead',out);
+}
+/* 행동 하나를 끝까지 처리하는 공통 틀. effect()가 행동 효과를 적용하고 줄을 out에 넣는다 */
+function takeTurn(kind,arg,logText,effect){
+  if(!G||G.ending||busy) return false;
+  const out=[];
+  addLog('action',logText);
+  effect(out);
+  if(!G.ending&&G.hp>0) encounter(G.loc,out);
+  if(G.hp<=0) finish('dead',out);
+  if(!G.ending) advanceTime(out);
+  say(out);
+  run('after',kind,arg);
+  save(); render();
+  return true;
+}
 function goZone(id){
   if(!G||G.ending||busy) return false;
   if(typeof id!=='string'||!own(ZONE,id)||!canMove(G.loc,id)){ toast('그쪽으로는 바로 갈 수 없습니다'); return false }
   const from=ZONE[G.loc], to=ZONE[id], first=!G.zs[id].seen;
-  G.loc=id; G.zs[id].seen=true;
-  addLog('action',`${from.s}에서 ${to.s}${josa(to.s,'으로','로')} 이동한다`);
-  say({t:'n',text:first?to.desc:`${to.n}에 다시 왔다. (위험 ${RISK_LABEL[to.risk]})`});
-  run('after','move',id);
-  save(); render();
-  return true;
+  return takeTurn('move',id,`${from.s}에서 ${to.s}${josa(to.s,'으로','로')} 이동한다`,out=>{
+    G.loc=id; G.zs[id].seen=true; addNoise(id,1);
+    out.push({t:'n',text:first?to.desc:`${to.n}에 다시 왔다. (위험 ${RISK_LABEL[to.risk]})`});
+  });
 }
 
 /* 선택지 목록: 코드가 만든다(템플릿 문구). 이후 단계에서 탐색·휴식·대화가 훅으로 붙는다 */
@@ -784,26 +859,59 @@ function buildChoices(){
     const z=ZONE[id];
     return {id:'move:'+id,icon:z.icon,label:`${z.s}${josa(z.s,'으로','로')} 이동 · 위험 ${RISK_LABEL[z.risk]}`};
   });
+  if(G.infection&&G.meds>0) list.push({id:'cure:',label:'응급약을 먹는다'});
+  if(G.loc==='room'){
+    if(!G.route) for(const id of Object.keys(ROUTES)) list.push({id:'route:'+id,label:`${ROUTES[id].n}으로 나가기로 한다`});
+    else list.push({id:'route:',label:'탈출 경로를 다시 정한다'});
+  }
   run('choices',list);
   // 훅이 잘못된 항목을 넣거나 목록을 비워도 화면이 막히지 않게 한다
   for(let i=list.length-1;i>=0;i--){ const c=list[i]; if(!c||typeof c.id!=='string'||!c.id||typeof c.label!=='string'||!c.label) list.splice(i,1) }
   for(const b of BASIC_CHOICES) if(!list.some(c=>c.id===b.id)) list.push({...b});
   return list;
 }
-/* 항상 있는 기본 선택지 (2단계에서 시간·소음 판정이 붙을 자리. 지금은 상태를 바꾸지 않는다) */
+/* 항상 있는 기본 선택지 */
 const BASIC_CHOICES=[{id:'look:',label:'주변을 살핀다'},{id:'rest:',label:'잠시 쉰다'}];
 function lookAround(){
-  if(!G||G.ending||busy) return;
-  const ns=neighbors(G.loc).map(id=>`${ZONE[id].s}(위험 ${RISK_LABEL[ZONE[id].risk]})`);
-  addLog('action',`${ZONE[G.loc].s}에서 주변을 살핀다`);
-  say({t:'n',text:ns.length?`가까운 곳은 ${ns.join(', ')}. 숨을 죽이고 귀를 기울여 본다.`:'주변은 조용하다.'});
-  run('after','look'); save(); render();
+  const z=ZONE[G&&G.loc]; if(!G||!z) return;
+  takeTurn('look','',`${z.s}에서 주변을 살핀다`,out=>{
+    addNoise(G.loc,1);
+    const st=G.zs[G.loc], loot=LOOT[G.loc]||{};
+    if(st.searched){ out.push({t:'n',text:'구석구석 다시 살폈지만 더 쓸 만한 것은 없다.'}); return }
+    st.searched=true;
+    const got=[];
+    for(const k of ['food','water','meds']) if(loot[k]){ G[k]+=loot[k]; got.push(`${{food:'식량',water:'물',meds:'응급약'}[k]} +${loot[k]}`) }
+    for(const it of loot.items||[]) if(!hasItem(it)){ G.items.push(it); got.push(ITEMS[it].n) }
+    if(got.length){ out.push({t:'n',text:'서랍과 선반을 뒤져 쓸 만한 것을 챙겼다.'}); out.push({t:'s',text:got.join(' · ')}) }
+    else out.push({t:'n',text:'한참 살폈지만 쓸 만한 것은 없었다.'});
+  });
 }
 function restHere(){
+  const z=ZONE[G&&G.loc]; if(!G||!z) return;
+  takeTurn('rest','',`${z.s}에서 잠시 쉰다`,out=>{
+    const heal=G.loc==='room'?2:1, before=G.hp;
+    G.hp=Math.min(G.maxhp,G.hp+heal); addNoise(G.loc,-1);
+    out.push({t:'n',text:'벽에 기대어 숨을 고른다.'});
+    if(G.hp>before) out.push({t:'s',text:`체력 +${G.hp-before}`});
+  });
+}
+function cureInfection(){
+  takeTurn('cure','','응급약을 먹는다',out=>{
+    if(!G.infection||G.meds<1) return;
+    G.meds--; G.infection=null;
+    out.push({t:'n',text:'약을 삼키자 열이 서서히 가라앉는다.'});
+    out.push({t:'s',text:'응급약 −1 · 감염 치료'});
+  });
+}
+function setRoute(id){
   if(!G||G.ending||busy) return;
-  addLog('action',`${ZONE[G.loc].s}에서 잠시 쉰다`);
-  say({t:'n',text:'벽에 기대어 숨을 고른다. 아직은 움직일 수 있다.'});
-  run('after','rest'); save(); render();
+  if(id===''){ G.route=null; addLog('action','탈출 경로를 다시 생각한다'); say({t:'n',text:'아직 정하지 못했다. 다시 생각해 보자.'}) }
+  else{
+    if(!own(ROUTES,id)) return;
+    G.route=id; addLog('action',`탈출 경로를 ${ROUTES[id].n}으로 정한다`);
+    say({t:'n',text:`${ROUTES[id].n}으로 나가기로 마음먹었다.`});
+  }
+  run('after','route',id); save(); render();
 }
 function pick(cid){
   if(busy||!G||!queueIdle()) return;   // 줄이 남아 있는 동안은 선택할 수 없다

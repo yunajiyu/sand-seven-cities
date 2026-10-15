@@ -5,7 +5,7 @@ const {fixture,test,done}=require('./_hanbit-fixture.cjs');
 
 function game(){
   const f=fixture();
-  f.run(`G=newState('도현');migrate();busy=false;resetQueue();UI.speed='off';UI.auto=false;console.warn=()=>{}`);
+  f.run(`G=newState('도현');migrate();busy=false;resetQueue();UI.speed='off';UI.auto=false;rng=()=>0.99;console.warn=()=>{}`);
   return f;
 }
 const flush=run=>run('while(Q.pending.length) nextLine()');
@@ -17,12 +17,11 @@ await test('Basic choices are always present, even if a hook empties or corrupts
   assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['ok:1','look:','rest:']);
 });
 
-await test('Look and rest are stateless placeholders: they write a log line, change no resources, and the choices stay',()=>{
+await test('Look and rest write an action log line and the choices stay',()=>{
   const {run,obj}=game();
-  const before=obj("({hp:G.hp,food:G.food,water:G.water,day:G.day,slot:G.slot,loc:G.loc})");
+  const before=obj("({food:G.food,water:G.water,day:G.day,loc:G.loc})");
   run("pick('look:')"); flush(run); run("pick('rest:')"); flush(run);
-  assert.deepEqual(obj("({hp:G.hp,food:G.food,water:G.water,day:G.day,slot:G.slot,loc:G.loc})"),before);
-  assert.ok(run("G.log.some(e=>e.type==='action'&&/살핀다/.test(e.text))")&&run("G.log.some(e=>e.type==='action'&&/쉰다/.test(e.text))"));
+    assert.ok(run("G.log.some(e=>e.type==='action'&&/살핀다/.test(e.text))")&&run("G.log.some(e=>e.type==='action'&&/쉰다/.test(e.text))"));
   assert.ok(obj("buildChoices().length")>=3);
 });
 
