@@ -145,5 +145,45 @@ await test('Every zone has its own pixel-art background, looked up by zone id, a
   run("goZone('stairs')"); assert.equal(el('sceneBg').style.background,run("bgFor('stairs')"));
 });
 
+await test('Yumin has a portrait for every expression key; unknown expression or someone without a picture falls back safely',()=>{
+  const {run,obj}=game();
+  const emos=obj('EMOS');
+  assert.deepEqual(emos,['neutral','smile','fluster','sad','tense','relieved']);
+  const all=emos.map(e=>run(`portraitFor('yumin',${JSON.stringify(e)})`));
+  for(const u of all) assert.match(u,/^data:image\/png;base64,/);
+  assert.equal(new Set(all).size,6,'each expression is a different picture');
+  assert.equal(run("portraitFor('yumin','rage')"),all[0],'unknown expression -> neutral');
+  assert.equal(run("portraitFor('me','smile')"),null);
+  assert.equal(run("portraitFor('__proto__','smile')"),null);
+  assert.equal(run("portraitFor('constructor','smile')"),null);
+});
+
+await test('The speaker stands in the scene lit, stays dimmed during narration, nobody is drawn when no one has spoken, and at most two people show',()=>{
+  const {run,el}=game();
+  run(`UI.speed='off';render()`);
+  assert.equal(el('cast').innerHTML,'');
+  run(`say([{t:'n',text:'서술'},{t:'d',who:'yumin',emo:'smile',text:'안녕'},{t:'n',text:'다시 서술'},{t:'d',who:'me',text:'주인공 대사'}])`);
+  assert.equal(el('cast').innerHTML,'','narration first: no portrait');
+  run('tapAdvance()');
+  assert.match(el('cast').innerHTML,/class="pt lit"/); assert.match(el('cast').innerHTML,/alt="유민"/);
+  assert.ok(el('cast').innerHTML.includes(run("portraitFor('yumin','smile')")));
+  run('tapAdvance()');
+  assert.match(el('cast').innerHTML,/class="pt dim"/,'dimmed while narration plays');
+  run('tapAdvance()');
+  assert.match(el('cast').innerHTML,/class="pt dim"/,'the player has no picture, so Yumin stays dimmed');
+  assert.equal((el('cast').innerHTML.match(/<img/g)||[]).length,1);
+  run("Q.cast=[{who:'yumin',emo:'sad'},{who:'yumin',emo:'tense'}];castSpeak({t:'d',who:'yumin',emo:'relieved'})");
+  assert.equal(run('Q.cast.length'),1); assert.equal(run('Q.cast[0].emo'),'relieved');
+});
+
+await test('A loaded save shows the last speaker dimmed or lit as she was, and a new game starts with an empty scene',()=>{
+  const {run,el}=game();
+  run(`UI.speed='off';render();say([{t:'d',who:'yumin',emo:'sad',text:'마지막 대사'}]);save()`);
+  run('const g=prepareSavedGame(localStorage.getItem(SAVE_KEY));openLoadedGame(g)');
+  assert.match(el('cast').innerHTML,/class="pt lit"/);
+  assert.ok(el('cast').innerHTML.includes(run("portraitFor('yumin','sad')")));
+  run("el=null;resetQueue()"); assert.equal(run('Q.cast.length'),0);
+});
+
 done('visual-novel screen');
 })().catch(e=>{console.error(e);process.exitCode=1});
