@@ -72,9 +72,10 @@ svg.pix{width:1.2em;height:1.2em;vertical-align:-.24em;margin-right:.25em;flex:0
 #saveWarning{padding:8px 10px;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border-bottom:3px solid var(--danger);z-index:3}
 #scene{position:relative;flex:1 1 0;min-height:0;overflow:hidden;cursor:pointer}
 #sceneBg{position:absolute;inset:0;image-rendering:pixelated}
-#cast{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:center;align-items:flex-end;gap:10px;padding:0 8px}
+#cast{position:absolute;left:0;right:0;bottom:18px;display:flex;justify-content:flex-start;align-items:flex-end;gap:0;padding:0 0 0 6px}   /* 이름표 바로 위, 왼쪽부터. 말하는 인물이 이름표 위에 선다 */
 .pt{width:192px;height:192px;max-width:49vw;max-height:49vw;image-rendering:pixelated;object-fit:contain;transition:filter .2s,opacity .2s}
-.pt.dim{filter:brightness(.4);opacity:.75}
+.pt.dim{filter:brightness(.4);opacity:.75;margin-left:-60px}
+.pt.lit{order:-1;position:relative;z-index:1}
 #placeLabel{position:absolute;left:10px;top:10px;font-size:12px;color:#f4f4f4;background:#1a1c2c;border:2px solid #f4f4f4;padding:1px 9px;pointer-events:none}
 #choices{position:absolute;left:12px;right:12px;bottom:10px;display:flex;flex-direction:column;gap:6px;z-index:2;max-width:560px;margin:0 auto}
 #choices button{text-align:left;font-size:calc(15px*var(--fs,1));line-height:1.4;padding:11px 13px 11px 30px;background:#1a1c2c;color:#f4f4f4;border:3px solid #f4f4f4;box-shadow:inset 0 0 0 2px #566c86,3px 3px 0 #0b0c14;position:relative}
