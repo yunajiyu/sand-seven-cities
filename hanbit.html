@@ -45,7 +45,7 @@ h4{margin:10px 0 6px}
 /* title */
 #title{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
 #title h1{font-size:34px;margin:0 0 6px;color:var(--accent)}
-#title .sub{color:var(--muted);margin-bottom:28px}
+#title .sub{color:var(--muted);margin-bottom:28px;word-break:keep-all;padding:0 20px}
 #title .btns{display:flex;flex-direction:column;gap:10px;width:240px;margin:0 auto}
 
 /* game — 미연시 화면: 상태바 / 장면 / 스크립트창 / 선택지 */
@@ -79,7 +79,7 @@ h4{margin:10px 0 6px}
 #nextMark{position:absolute;right:16px;bottom:calc(8px + env(safe-area-inset-bottom));color:#b4ee4a;font-size:13px;opacity:0;animation:blink 1s steps(2) infinite}
 #nextMark.on{opacity:1}
 @keyframes blink{50%{opacity:.25}}
-.entry{margin:0 0 10px;font-size:calc(15px*var(--fs,1));line-height:1.6}
+.entry{word-break:keep-all;overflow-wrap:anywhere;margin:0 0 10px;font-size:calc(15px*var(--fs,1));line-height:1.6}
 .entry.n{color:var(--muted)}
 .entry.d b{color:var(--accent);margin-right:6px}
 .entry.action{color:var(--accent2);font-weight:500;font-size:calc(13px*var(--fs,1))}
