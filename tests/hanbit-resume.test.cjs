@@ -57,12 +57,12 @@ await test('pend returns to 0 once everything is read, and nothing is replayed a
   assert.equal(run('queueIdle()'),true);
 });
 
-await test('A corrupted pend is rejected on strict validation and repaired on migrate',()=>{
+await test('A corrupted pend is refused like other broken fields; a missing pend is filled with 0',()=>{
   const {run}=game();
-  run("save();var s=JSON.parse(localStorage.getItem(SAVE_KEY));s.pend=999");
-  run("var m=prepareSavedGame(JSON.stringify(s))");
+  run("save();var s=JSON.parse(localStorage.getItem(SAVE_KEY))");
+  for(const bad of [999,-1,1.5,'3']) assert.throws(()=>run(`prepareSavedGame(JSON.stringify(Object.assign({},s,{pend:${JSON.stringify(bad)}})))`),/기록 정보가 손상/);
+  run("delete s.pend;var m=prepareSavedGame(JSON.stringify(s))");
   assert.equal(run('m.pend'),0);
-  assert.throws(()=>run("validateSaveData(Object.assign(JSON.parse(JSON.stringify(m)),{pend:-1}))"),/기록 정보가 손상/);
 });
 
 done();
