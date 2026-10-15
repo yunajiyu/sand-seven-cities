@@ -134,5 +134,16 @@ await test('Loading a save shows the last seen line statically, and the log entr
   assert.equal(run('Q.pending.length'),0);
 });
 
+await test('Every zone has its own pixel-art background, looked up by zone id, and the scene shows it',()=>{
+  const {run,obj,el}=game();
+  const ids=obj('ZONES.map(z=>z.id)');
+  const bgs=ids.map(id=>run(`bgFor(${JSON.stringify(id)})`));
+  for(const b of bgs) assert.match(b,/^url\("data:image\/png;base64,[A-Za-z0-9+/=]+"\) center bottom \/ cover no-repeat/);
+  assert.equal(new Set(bgs).size,8,'each zone has a different picture');
+  assert.match(run("bgFor('nowhere')"),/^#1a1c2c$/,'unknown zone falls back to a flat colour');
+  run('render()'); assert.equal(el('sceneBg').style.background,run("bgFor('room')"));
+  run("goZone('stairs')"); assert.equal(el('sceneBg').style.background,run("bgFor('stairs')"));
+});
+
 done('visual-novel screen');
 })().catch(e=>{console.error(e);process.exitCode=1});
