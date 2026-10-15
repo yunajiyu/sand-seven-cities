@@ -9,15 +9,9 @@ function fixture(){
   const ctx=vm.createContext({console,crypto:crypto.webcrypto,TextEncoder,URLSearchParams,AbortSignal,atob,btoa,setTimeout(){return 0},clearTimeout(){},setInterval(){return 0},clearInterval(){},localStorage:{getItem(){return null},setItem(){}},document:{getElementById(){return el},querySelector(){return el},querySelectorAll(){return []},addEventListener(){},documentElement:el},window:{addEventListener(){},matchMedia(){return {matches:false,addEventListener(){}}}},navigator:{},URL,Blob,Math:Object.create(Math)});
   vm.runInContext(script.slice(0,script.indexOf('/* 시작: 화면 설정 적용')),ctx);
   const run=s=>vm.runInContext(s,ctx),obj=s=>JSON.parse(JSON.stringify(run(s)));
-  run(`const calls=[],notices=[]; let chipHTML='',modalHTML='';
-    addLog=()=>{};toast=s=>notices.push(s);render=()=>{};renderSides=()=>{};save=()=>{};sfx=()=>{};
-    maybeIncoming=()=>{};closeModal=()=>{};apptRefresh=()=>{};renderChat=()=>{};askConfirm=async()=>true;const liveAiTurn=aiTurn;aiTurn=async(...args)=>calls.push(args);
-    chip=s=>{chipHTML=s};hideChip=()=>{};modal=(title,s)=>{modalHTML=s};
-    function seed(loc='site'){
-      G={v:1,_phoneLightVersion:1,_fearBalanceVersion:1,_relVersion:2,_clockVersion:2,_affLv:2,char:{name:'테스트',age:17,stats:{str:1,wis:1,cha:1,sur:1},traits:[]},day:1,time:'방과 후',dayStep:0,loc,steps:0,hp:12,maxhp:12,calm:10,battery:6,torch:0,cash:100,items:[],mat:{metal:0,ply:0,wire:0,keepsake:0},act:1,fragments:0,sitesDone:0,district:'music',comp:{met:false,joined:false,aff:10},rel:{},chronicle:[],site:loc==='site'?{name:'피아노 괴담 구역',pos:{x:225,y:180},depth:1,cur:'r1',rooms:[{id:'r1',name:'입구',lv:0,danger:0,visited:true,exits:['r2','r3']},{id:'r2',name:'피아노실',lv:1,danger:0,visited:true,exits:['r1']},{id:'r3',name:'방송실',lv:1,danger:0,visited:true,exits:['r1']},{id:'r4',name:'창고',lv:2,danger:0,visited:true,exits:['r3']}]}:null};
-      busy=false;PENDING={note:'',flags:{}};migrate();syncSchedule();Math.random=()=>0.99;calls.length=notices.length=0;chipHTML=modalHTML='';
-    }
-    seed('campus');G.comp.met=true;getRel('유민');getRel('서연');G.comp.spot='market';G.comp.spotKey=yKey();
+  run(`const notices=[]; let modalHTML='';
+    toast=s=>notices.push(s);render=()=>{};save=()=>{};closeModal=()=>{};askConfirm=async()=>true;modal=(title,s)=>{modalHTML=s};
+    G=newState('테스트');migrate();busy=false;Math.random=()=>0.99;
   `);
   return {run,obj,input:el,ctx};
 }
@@ -108,8 +102,8 @@ await test('Service-account JSON cannot be used as a browser bearer credential',
 await test('Settings reject accidental JSON key paste before saving anything',()=>{
  const {run}=fixture();run("const fields={k_vertex:{value:'{\"private_key\":\"synthetic\"}'},sVertex:{value:'https://relay.example'}};document.getElementById=id=>fields[id]||null;const beforeSettings=JSON.stringify(SET)");assert.equal(run('saveSetQuiet()'),false);assert.equal(run('JSON.stringify(SET)'),run('beforeSettings'));
 });
-await test('Settings can switch all roles to Vertex and keep cheap roles on the same provider',()=>{
- const {run}=fixture();run("const fields={};AI_ROLES.forEach(r=>{fields['rp_'+r.k]={value:'gemini'};fields['rm_'+r.k]={value:''};fields['re_'+r.k]={value:'low'}});document.getElementById=id=>fields[id]||null;applyVertexModels();applySavingModels()");assert.equal(run("fields.rp_lex.value"),'vertex');assert.equal(run("fields.rm_lex.value"),'gemini-3.5-flash-lite');assert.equal(run("fields.rp_story.value"),'vertex');
+await test('Settings can switch the story role to Vertex with the default model',()=>{
+ const {run}=fixture();run("const fields={};AI_ROLES.forEach(r=>{fields['rp_'+r.k]={value:'gemini'};fields['rm_'+r.k]={value:''};fields['re_'+r.k]={value:'low'}});document.getElementById=id=>fields[id]||null;applyVertexModels()");assert.equal(run("fields.rp_story.value"),'vertex');assert.equal(run("fields.rm_story.value"),'gemini-3.8-flash');
 });
 await test('Existing Gemini connections still use their original API without a relay',async()=>{
  const {run}=fixture();run("SET.keys.gemini='synthetic-key';const urls=[];fetch=async url=>{urls.push(url);return {ok:true,json:async()=>({choices:[{message:{content:'기존 응답'}}],usage:{prompt_tokens:10,completion_tokens:20}})}}");assert.equal(await run("callAI('system','user')"),'기존 응답');assert.match(run('urls[0]'),/generativelanguage.googleapis.com/);
@@ -156,16 +150,17 @@ await test('Oversized files and cancelled or superseded selections never connect
  const {run}=browserFixture();run("const fields={vertexStatus:{textContent:''}};document.getElementById=id=>fields[id]||null;const tooBig={value:'file',files:[{size:65537,text:async()=>jsonKeyText}]}");await run('selectVertexJSON(tooBig)');assert.equal(run('VERTEX_BROWSER'),null);assert.equal(run('tooBig.value'),'');assert.equal(run('browserRequests.length'),0);
  run('let releaseRead;const delayed={value:"file",files:[{size:100,text:()=>new Promise(r=>releaseRead=r)}]};const selectionTask=selectVertexJSON(delayed);disconnectVertex();releaseRead(jsonKeyText)');await run('selectionTask');assert.equal(run('VERTEX_BROWSER'),null);
 });
-await test('Vertex defaults to Gemini 3.8 flash, keeps the lite model for helper roles and keeps user-chosen models on re-selecting the JSON',async()=>{
- const {run,obj}=fixture();
+await test('Vertex defaults to Gemini 3.8 flash and keeps a user-chosen model on re-selecting the JSON',async()=>{
+ const {run}=fixture();
  assert.equal(run('PRESETS.vertex.model'),'gemini-3.8-flash');
- assert.equal(run("vertexModelFor('story')"),'gemini-3.8-flash');assert.equal(run("vertexModelFor('lex')"),'gemini-3.5-flash-lite');
- run("SET.roles={story:{provider:'vertex',model:'gemini-3.5-flash'},world:{provider:'vertex',model:'gemini-3.8-pro'},lex:{provider:'gemini',model:'x'}}");
+ assert.equal(run('AI_ROLES.map(r=>r.k).join()'),'story');
+ assert.equal(run("vertexModelFor('story')"),'gemini-3.8-flash');
+ run("SET.roles={story:{provider:'vertex',model:'gemini-3.5-flash'}}");
  assert.equal(run("vertexModelFor('story')"),'gemini-3.8-flash');   // 예전 기본값은 새 기본값으로 올림
- assert.equal(run("vertexModelFor('world')"),'gemini-3.8-pro');     // 직접 정한 모델은 유지
- assert.equal(run("vertexModelFor('lex')"),'gemini-3.5-flash-lite');
+ run("SET.roles={story:{provider:'vertex',model:'gemini-3.8-pro'}}");
+ assert.equal(run("vertexModelFor('story')"),'gemini-3.8-pro');     // 직접 정한 모델은 유지
  run("const fields={};AI_ROLES.forEach(r=>{fields['rp_'+r.k]={value:'gemini'};fields['rm_'+r.k]={value:''}});document.getElementById=id=>fields[id]||null;applyVertexModels()");
- assert.equal(run("fields.rm_world.value"),'gemini-3.8-pro');assert.equal(run("fields.rm_story.value"),'gemini-3.8-flash');
+ assert.equal(run("fields.rm_story.value"),'gemini-3.8-pro');
 });
 await test('The relay allows Gemini 3.8 flash by default',async()=>{
  const client=relay.createVertexClient({credentials,project:'test-project',location:'global',fetchImpl:async(url,init)=>{if(String(url).includes('oauth2'))return oauth();assert.match(String(url),/gemini-3\.8-flash:generateContent/);return response(200,output())}});
@@ -203,10 +198,10 @@ await test('Browsers without AbortSignal.timeout still get a time limit instead 
 });
 // ---- 「이 기기에서 연결 기억하기」: IndexedDB에는 추출 불가 CryptoKey와 공개 정보만 ----
 function fakeIDB(data=new Map()){const stores=new Set();return {data,open(){const q={};setImmediate(()=>{const db={objectStoreNames:{contains:n=>stores.has(n)},createObjectStore:n=>{stores.add(n)},close(){},transaction(){const tx={};const os={put(v,k){data.set(k,v);return {result:k}},get(k){return {result:data.get(k)}},delete(k){data.delete(k);return {result:undefined}}};tx.objectStore=()=>os;setImmediate(()=>tx.oncomplete&&tx.oncomplete());return tx}};q.result=db;q.onupgradeneeded&&q.onupgradeneeded();q.onsuccess()});return q}}}
-function rememberFixture(idb,checked=true){const f=browserFixture();f.ctx.indexedDB=idb;f.run(`const fields={sVertexMode:{value:'browser'},sVertexLocation:{value:'global'},vertexStatus:{textContent:''},sVertexRemember:{checked:${checked}}};AI_ROLES.forEach(r=>{fields['rp_'+r.k]={value:'gemini'};fields['rm_'+r.k]={value:''};fields['re_'+r.k]={value:'low'}});document.getElementById=id=>fields[id]||null;const pick=()=>({value:'k.json',files:[{size:1000,text:async()=>jsonKeyText}]})`);return f}
+function rememberFixture(idb,checked=true){const f=browserFixture();f.ctx.indexedDB=idb;f.run(`const fields={sVertexMode:{value:'browser'},sVertexLocation:{value:'global'},vertexStatus:{textContent:''},sVertexRemember:{checked:${checked}}};AI_ROLES.forEach(r=>{fields['rp_'+r.k]={value:'gemini'};fields['rm_'+r.k]={value:''};fields['re_'+r.k]={value:'low'}});document.getElementById=id=>fields[id]||null;const pickFile=()=>({value:'k.json',files:[{size:1000,text:async()=>jsonKeyText}]})`);return f}
 const PRIVATE=/PRIVATE KEY|private_key|service_account|synthetic-token|BEGIN|token_uri|evil\.example/;
 await test('Remember on: only a non-extractable key and public signing info are stored — never the PEM or JSON text',async()=>{
- const idb=fakeIDB(),f=rememberFixture(idb);await f.run('selectVertexJSON(pick())');
+ const idb=fakeIDB(),f=rememberFixture(idb);await f.run('selectVertexJSON(pickFile())');
  assert.match(f.run('fields.vertexStatus.textContent'),/이 기기에서 기억합니다/);
  const rec=idb.data.get('browser');assert.ok(rec);assert.deepEqual(Object.keys(rec).sort(),['email','key','keyId','project','tokenUrl','v']);
  assert.equal(rec.key.extractable,false);assert.equal(rec.key.type,'private');assert.equal(rec.tokenUrl,'https://oauth2.googleapis.com/token');assert.equal(rec.project,'test-project');
@@ -214,7 +209,7 @@ await test('Remember on: only a non-extractable key and public signing info are 
  assert.doesNotMatch(f.run('JSON.stringify(SET)'),PRIVATE);
 });
 await test('After a reload the remembered connection is restored and signs a fresh token request',async()=>{
- const idb=fakeIDB();await rememberFixture(idb).run('selectVertexJSON(pick())');
+ const idb=fakeIDB();await rememberFixture(idb).run('selectVertexJSON(pickFile())');
  const f=rememberFixture(idb);assert.equal(f.run('VERTEX_BROWSER'),null);await f.run('vertexRestore()');
  assert.equal(f.run('VERTEX_BROWSER.remembered'),true);assert.match(f.run('fields.vertexStatus.textContent'),/^기억된 연결 · test-project$/);assert.equal(f.run('aiProviderReady("vertex")'),true);
  assert.equal(await f.run("callAI('s','u',1200,'story')"),'장면');
@@ -223,37 +218,37 @@ await test('After a reload the remembered connection is restored and signs a fre
  assert.match(f.run("browserRequests.at(-1).url"),/test-project/);
 });
 await test('Remember off stores nothing and clears an older remembered connection; disconnect deletes it too',async()=>{
- const idb=fakeIDB();await rememberFixture(idb,false).run('selectVertexJSON(pick())');assert.equal(idb.data.size,0);
- await rememberFixture(idb).run('selectVertexJSON(pick())');assert.equal(idb.data.size,1);
- await rememberFixture(idb,false).run('selectVertexJSON(pick())');assert.equal(idb.data.size,0,'re-selecting with the box off forgets the old one');
- const f=rememberFixture(idb);await f.run('selectVertexJSON(pick())');assert.equal(idb.data.size,1);f.run('disconnectVertex()');await new Promise(r=>setTimeout(r,20));assert.equal(idb.data.size,0);
+ const idb=fakeIDB();await rememberFixture(idb,false).run('selectVertexJSON(pickFile())');assert.equal(idb.data.size,0);
+ await rememberFixture(idb).run('selectVertexJSON(pickFile())');assert.equal(idb.data.size,1);
+ await rememberFixture(idb,false).run('selectVertexJSON(pickFile())');assert.equal(idb.data.size,0,'re-selecting with the box off forgets the old one');
+ const f=rememberFixture(idb);await f.run('selectVertexJSON(pickFile())');assert.equal(idb.data.size,1);f.run('disconnectVertex()');await new Promise(r=>setTimeout(r,20));assert.equal(idb.data.size,0);
  const g=rememberFixture(idb);assert.equal(await g.run('vertexRestore()'),null);assert.equal(g.run('aiProviderReady("vertex")'),false);
 });
 await test('A rejected remembered key is deleted and the player is told to choose the file again',async()=>{
- const idb=fakeIDB();await rememberFixture(idb).run('selectVertexJSON(pick())');
+ const idb=fakeIDB();await rememberFixture(idb).run('selectVertexJSON(pickFile())');
  const f=rememberFixture(idb);await f.run('vertexRestore()');f.run("fetch=async()=>({ok:false,status:400,json:async()=>({error:'invalid_grant'})})");
  await assert.rejects(f.run("callAI('s','u')"),/다시 선택/);assert.equal(f.run('VERTEX_BROWSER'),null);await new Promise(r=>setTimeout(r,20));assert.equal(idb.data.size,0);assert.match(f.run('fields.vertexStatus.textContent'),/다시 선택/);
  // 생성 요청이 계속 401이어도 지운다
- await rememberFixture(idb).run('selectVertexJSON(pick())');const g=rememberFixture(idb);await g.run('vertexRestore()');
+ await rememberFixture(idb).run('selectVertexJSON(pickFile())');const g=rememberFixture(idb);await g.run('vertexRestore()');
  g.run("const realFetch=fetch;fetch=async(url,opt)=>url.endsWith('/token')?realFetch(url,opt):{ok:false,status:401,json:async()=>({})}");await assert.rejects(g.run("callAI('s','u')"),/다시 선택/);await new Promise(r=>setTimeout(r,20));assert.equal(idb.data.size,0);
 });
 await test('Tampered or extractable records are never restored; no IndexedDB quietly falls back to memory only',async()=>{
- const idb=fakeIDB();await rememberFixture(idb).run('selectVertexJSON(pick())');const good=idb.data.get('browser');
+ const idb=fakeIDB();await rememberFixture(idb).run('selectVertexJSON(pickFile())');const good=idb.data.get('browser');
  const ext=await crypto.webcrypto.subtle.importKey('pkcs8',pair.privateKey.export({format:'der',type:'pkcs8'}),{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},true,['sign']);
  for(const bad of [{...good,key:ext},{...good,email:'x@evil.example'},{...good,project:'../evil'},{...good,v:2}]){idb.data.set('browser',bad);const f=rememberFixture(idb);assert.equal(await f.run('vertexRestore()'),null);assert.equal(f.run('VERTEX_BROWSER'),null);await new Promise(r=>setTimeout(r,20));assert.equal(idb.data.size,0)}
- for(const broken of [undefined,{open(){throw Error('SecurityError')}}]){const f=rememberFixture(broken);await f.run('selectVertexJSON(pick())');assert.equal(f.run('aiProviderReady("vertex")'),true);assert.equal(await f.run('vertexRestore()').then(x=>!!x),true,'memory connection keeps working');const g=rememberFixture(broken);assert.equal(await g.run('vertexRestore()'),null)}
+ for(const broken of [undefined,{open(){throw Error('SecurityError')}}]){const f=rememberFixture(broken);await f.run('selectVertexJSON(pickFile())');assert.equal(f.run('aiProviderReady("vertex")'),true);assert.equal(await f.run('vertexRestore()').then(x=>!!x),true,'memory connection keeps working');const g=rememberFixture(broken);assert.equal(await g.run('vertexRestore()'),null)}
 });
 await test('Saved games, exports and imports never carry key material',async()=>{
- const idb=fakeIDB(),f=rememberFixture(idb);await f.run('selectVertexJSON(pick())');
- f.run("G={v:1,char:{name:'시험',age:17,stats:{str:1,wis:1,cha:1,sur:1},traits:[]},day:1,time:'낮',loc:'campus',hp:5,maxhp:5,calm:5,battery:5,torch:0,cash:0}");
+ const idb=fakeIDB(),f=rememberFixture(idb);await f.run('selectVertexJSON(pickFile())');
+ f.run("G=newState('시험')");
  const exported=f.run('JSON.stringify(G,null,1)');assert.doesNotMatch(exported,PRIVATE);assert.doesNotMatch(exported,/test@test-project|iam\.gserviceaccount|CryptoKey/);
  assert.doesNotMatch(f.run('snapG()'),/iam\.gserviceaccount/);
  f.run('VERTEX_BROWSER=null');f.run(`try{prepareSavedGame(JSON.stringify({...G,VERTEX_BROWSER:{project:'x'},vertex:{key:'k'}}))}catch(e){}`);assert.equal(f.run('VERTEX_BROWSER'),null);
 });
 await test('The title screen shows whether the Vertex connection is remembered or only for this page',async()=>{
  const idb=fakeIDB();const title=f=>{f.run("fields.aiStatus={textContent:''};fields.btnContinue={disabled:false};fields.game={classList:{contains:()=>true}};setTitle=()=>{};refreshTitle()");return f.run('fields.aiStatus.textContent')};
- const mem=rememberFixture(idb,false);await mem.run('selectVertexJSON(pick())');assert.match(title(mem),/Vertex: 인증 완료 · test-project \(새로고침하면 다시 선택\)/);
- await rememberFixture(idb).run('selectVertexJSON(pick())');
+ const mem=rememberFixture(idb,false);await mem.run('selectVertexJSON(pickFile())');assert.match(title(mem),/Vertex: 인증 완료 · test-project \(새로고침하면 다시 선택\)/);
+ await rememberFixture(idb).run('selectVertexJSON(pickFile())');
  const f=rememberFixture(idb);f.run("AI_ROLES.forEach(r=>SET.roles[r.k]={provider:'vertex',model:vertexModelFor(r.k)})");assert.doesNotMatch(title(f),/Vertex:/);await f.run('vertexRestore()');assert.match(f.run('fields.aiStatus.textContent'),/Vertex: 기억된 연결 · test-project/,'restore refreshes the title by itself');
  assert.doesNotMatch(f.run('fields.aiStatus.textContent'),/연결 설정 없음/);
  f.run("fetch=async()=>({ok:false,status:401,json:async()=>({})})");await assert.rejects(f.run("callAI('s','u')"));assert.doesNotMatch(f.run('fields.aiStatus.textContent'),/기억된 연결/);assert.match(f.run('fields.aiStatus.textContent'),/AI 키가 없으면/);
