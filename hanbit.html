@@ -72,7 +72,7 @@ svg.pix{width:1.2em;height:1.2em;vertical-align:-.24em;margin-right:.25em;flex:0
 #saveWarning{padding:8px 10px;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border-bottom:3px solid var(--danger);z-index:3}
 #scene{position:relative;flex:1 1 0;min-height:0;overflow:hidden;cursor:pointer}
 #sceneBg{position:absolute;inset:0;image-rendering:pixelated}
-#cast{position:absolute;left:0;right:0;bottom:18px;display:flex;justify-content:flex-start;align-items:flex-end;gap:0;padding:0 0 0 6px}   /* 이름표 바로 위, 왼쪽부터. 말하는 인물이 이름표 위에 선다 */
+#cast{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-start;align-items:flex-end;gap:0;padding:0 0 0 6px}   /* 왼쪽부터, 대사창 모서리에 붙는다(이름표가 아래쪽을 살짝 가려도 된다). 말하는 인물이 앞 */
 .pt{width:192px;height:192px;max-width:49vw;max-height:49vw;image-rendering:pixelated;object-fit:contain;transition:filter .2s,opacity .2s}
 .pt.dim{filter:brightness(.4);opacity:.75;margin-left:-60px}
 .pt.lit{order:-1;position:relative;z-index:1}
