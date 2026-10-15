@@ -372,7 +372,7 @@ function newState(name){
     items:[], infection:null, route:null, ending:null,
     zs, noise, zombies:{...ZOMBIE_START},
     comp:{yumin:{met:false,joined:false,aff:0}},
-    surv:Object.fromEntries(SURVIVORS.map(s=>[s.id,{met:false,rescued:false,aff:0}])),
+    surv:Object.fromEntries(SURVIVORS.map(s=>[s.id,{met:false,rescued:false,aff:0,gift:false}])),
     log:[], pend:0,
   };
 }
@@ -387,6 +387,7 @@ function migrate(){
   if(G.route===undefined) G.route=null;
   if(G.ending===undefined) G.ending=null;
   if(typeof G.meds!=='number') G.meds=0;
+  if(G.surv&&typeof G.surv==='object') SURVIVORS.forEach(sv=>{ const e=G.surv[sv.id]; if(e&&typeof e==='object'&&e.gift===undefined) e.gift=false });
   ZONES.forEach(z=>{
     if(!G.zs[z.id]) G.zs[z.id]={seen:false,searched:false};
     if(typeof G.noise[z.id]!=='number') G.noise[z.id]=0;
@@ -411,6 +412,7 @@ function validateSaveData(g,strict=true){
    if(!obj(g.zs[z.id])||!finite(g.zombies[z.id])||g.zombies[z.id]<0||!finite(g.noise[z.id])||g.noise[z.id]<0||g.noise[z.id]>NOISE_MAX) throw Error('구역 정보가 손상됐습니다: '+z.id);
  }
  if(!obj(g.comp)||!obj(g.comp.yumin)||!obj(g.surv)) throw Error('동행자 정보가 손상됐습니다.');
+ for(const sv of SURVIVORS){ const e=g.surv[sv.id]; if(!obj(e)||typeof e.met!=='boolean'||typeof e.rescued!=='boolean'||!finite(e.aff)||e.aff<0||e.aff>SURV_MAX||(e.gift===undefined?strict:typeof e.gift!=='boolean')) throw Error('생존자 정보가 손상됐습니다: '+sv.id) }
  const yy=g.comp.yumin; if(typeof yy.met!=='boolean'||typeof yy.joined!=='boolean'||!finite(yy.aff)||yy.aff<0||yy.aff>AFF_MAX) throw Error('동행자 정보가 손상됐습니다.');
  if(!opt('log')&&(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||typeof x.type!=='string'||typeof x.text!=='string'))) throw Error('기록 정보가 손상됐습니다.');
  if(!opt('pend')&&(!Number.isInteger(g.pend)||g.pend<0||g.pend>(Array.isArray(g.log)?g.log.length:0))) throw Error('기록 정보가 손상됐습니다.');
@@ -765,7 +767,7 @@ function addLog(type,text,extra){
 }
 
 /* 행동 표: 선택지 id의 앞부분('move:stairs'의 move)에 맞는 함수. 새 행동은 여기에 한 줄 */
-const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere(), escape:()=>escapeNow(), cure:()=>cureInfection(), route:id=>setRoute(id), talk:t=>talkTo(t) };
+const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere(), escape:()=>escapeNow(), cure:()=>cureInfection(), route:id=>setRoute(id), talk:t=>talkTo(t), chat:a=>chatTo(a) };
 
 /* =========================================================
    시간대 한 번 = 행동 한 번. 판정은 전부 코드가 한다(주사위는 rng 하나로만).
@@ -780,7 +782,7 @@ const YUMIN_MEET='stairs';                  // 처음 마주치는 곳 — 합�
 const AFF_MAX=20, AFF_LV=[0,2,5,8,12,16];   // 단계 문턱(호감 점수)
 const AFF_NAMES=['낯선 사이','조심스러운 사이','믿는 사이','편한 사이','마음이 가는 사이','서로 의지하는 사이'];
 const JOIN_LEVEL=2;                         // 이 단계 이상이 되면 동행한다
-let TALK_OPEN=false;                        // 대화 주제 선택 중인지(저장하지 않는다)
+let TALK_OPEN=false;                        // 대화 주제를 고르는 중인 상대 id('yumin' 또는 생존자 id, 저장하지 않는다)
 function affLevel(a){ let lv=0; AFF_LV.forEach((t,i)=>{ if(a>=t) lv=i }); return lv }
 function yuminHere(){ const y=G&&G.comp&&G.comp.yumin; return !!y&&y.met&&(y.joined||G.loc===YUMIN_MEET) }
 function addAff(n,out){
@@ -860,7 +862,7 @@ function talkLines(t,r){
 }
 function talkTo(t){
   if(!G||G.ending||busy) return;
-  if(t===''){ if(yuminHere()){ TALK_OPEN=true; render() } return }
+  if(t===''){ if(yuminHere()){ TALK_OPEN='yumin'; render() } return }
   if(t==='x'){ TALK_OPEN=false; render(); return }
   if(!own(TALK,t)||!yuminHere()) return;
   takeTurn('talk',t,`유민에게 말을 건다 (${TALK[t].label})`,out=>{
@@ -874,6 +876,109 @@ function talkAi(t){
   const r={comfort:'주인공이 유민에게 괜찮을 거라고 말해 준다',concern:'주인공이 유민에게 다친 데는 없는지 묻는다',joke:'주인공이 긴장을 풀려고 가벼운 농담을 던진다'}[t];
   const ask=`${r}. 유민의 반응을 짧은 대화로 쓴다. 상황이 맞으면 유민이 마음을 열고, 어색하거나 위험한 상황이면 긴장하거나 머뭇거린다.`;
   return {present:['yumin'],lines:'4~6',event:`${r} (위험 ${RISK_LABEL[ZONE[G.loc].risk]}, 소음 ${G.noise[G.loc]||0}/${NOISE_MAX})`,ask:`${ask} ${toneFor()} 호감도나 수치는 말하지 않는다.`};
+}
+
+/* =========================================================
+   추가 생존자 3명 — 친구 단계까지. 제자리에 머물며, 만나면 말을 걸 수 있다.
+   호감 0~6, 단계 3개(낯선 사람·아는 사이·친구). 친구가 되면 도움을 한 번 준다. 유민의 호감에는 영향이 없다.
+   ========================================================= */
+const SURV_MAX=6, SURV_LV=[0,2,4], SURV_NAMES=['낯선 사람','아는 사이','친구'];
+const SURV_LOOK={guard:'무뚝뚝하지만 정이 많은 중년 경비원. 반말과 하오체를 섞어 짧게 말한다.',
+  pharm:'침착하고 다정한 약사. 존댓말로 차분하게 말한다.',
+  rider:'겁은 많지만 붙임성 있는 배달 라이더 청년. 존댓말로 빠르게 말한다.'};
+function survLevel(a){ let lv=0; SURV_LV.forEach((t,i)=>{ if(a>=t) lv=i }); return lv }
+function survHere(id){ const sv=SURVIVORS.find(x=>x.id===id); return !!sv&&!!G&&!!G.surv&&!!G.surv[id]&&G.surv[id].met&&G.loc===sv.zone }
+const STALK={
+  ask: {label:'안부를 묻는다'},
+  info:{label:'단지 사정을 묻는다'},
+  joke:{label:'가볍게 농담을 건넨다'},
+};
+const SURV_GIFT={
+  guard:{item:'flashlight',alt:{food:1},text:'아저씨가 서랍에서 손전등을 꺼내 건넨다. 「가져가시오. 어두운 데선 쓸모 있을 거요.」',altText:'아저씨가 서랍에서 건빵 한 봉지를 꺼내 건넨다. 「먹고 힘내시오.」'},
+  pharm:{meds:1,text:'약사가 선반 안쪽에서 응급약을 하나 꺼내 건넨다. 「정말 급할 때만 쓰세요.」'},
+  rider:{item:'fuel',alt:{water:1},text:'청년이 오토바이 옆 보조 통에서 연료를 덜어 건넨다. 「차 있는 분한테 필요할 거예요.」',altText:'청년이 가방에서 생수를 꺼내 건넨다. 「이거라도 가져가요.」'},
+};
+function addSAff(id,n,out){
+  const e=G.surv[id], sv=SURVIVORS.find(x=>x.id===id), before=survLevel(e.aff);
+  e.aff=Math.max(0,Math.min(SURV_MAX,e.aff+n));
+  const after=survLevel(e.aff);
+  if(after>before) out.push({t:'s',text:`${sv.n}${josa(sv.n,'과','와')} 조금 가까워진 것 같다.`});
+  else if(after<before) out.push({t:'s',text:`${sv.n}${josa(sv.n,'이','가')} 경계하는 눈치다.`});
+  if(after>=2&&!e.gift){
+    e.gift=true; const g=SURV_GIFT[id], got=[];
+    if(g.meds){ G.meds+=g.meds; got.push(`응급약 +${g.meds}`); out.push({t:'n',text:g.text}) }
+    else if(g.item&&!hasItem(g.item)){ G.items.push(g.item); got.push(ITEMS[g.item].n); out.push({t:'n',text:g.text}) }
+    else if(g.alt){ for(const k of Object.keys(g.alt)){ G[k]+=g.alt[k]; got.push(`${{food:'식량',water:'물'}[k]} +${g.alt[k]}`) } out.push({t:'n',text:g.altText}) }
+    if(got.length) out.push({t:'s',text:got.join(' · ')});
+  }
+}
+function survMeetLines(id){
+  const n=G.char.name;
+  return {
+    guard:[{t:'n',text:'관리사무소 유리문 안쪽, 의자에 앉은 중년 남자가 손전등을 쥔 채 이쪽을 본다.',rep:true},
+      D('guard','tense','쉿. 천천히 들어와요. 문은 조용히.'),D('me','neutral',`3동 7층 ${n}입니다. 사람 맞아요.`),
+      D('guard','relieved','허, 살아 있는 사람이라니. 나는 여기 경비를 맡은 사람이오. 단지는 내가 좀 알지.')],
+    pharm:[{t:'n',text:'약국 카운터 뒤에 흰 가운 차림의 사람이 몸을 낮추고 있다. 손에는 소독약병이 들려 있다.',rep:true},
+      D('pharm','tense','사람이죠? 물린 데 있으면 말해 줘요, 지금 바로.'),D('me','neutral',`아니요, 없어요. 7층에 사는 ${n}입니다.`),
+      D('pharm','relieved','다행이네요. 약국 하는 사람이에요. 다치면 이쪽으로 와요, 약은 좀 남아 있으니까.')],
+    rider:[{t:'n',text:'오토바이 뒤에 헬멧을 쓴 청년이 웅크리고 있다. 시동은 꺼져 있고 열쇠를 꽉 쥐고 있다.',rep:true},
+      D('rider','tense','으헉… 사람? 놀랐잖아요. 목소리 낮춰요, 진짜로.'),D('me','neutral',`미안해요. 3동 7층 ${n}입니다.`),
+      D('rider','relieved','저는 배달 왔다가 갇혔어요. 오토바이는 있는데 길이 막혀서… 아, 여기선 소리 안 내는 게 최고예요.')],
+  }[id];
+}
+function survMeetOpts(id){
+  const sv=SURVIVORS.find(x=>x.zone===id&&G&&!G.surv[x.id].met); if(!sv) return undefined;
+  return {ai:{present:[sv.id],lines:'5~7',event:`${ZONE[id].n}에서 ${sv.n}${josa(sv.n,'과','와')} 처음 마주쳤다`,
+    ask:`두 사람이 서로 사람임을 확인하고 짧게 인사를 나누는 첫 만남 장면. ${SURV_LOOK[sv.id]} 경계하다가 안도한다.`}};
+}
+function judgeSTalk(id,t){
+  const e=G.surv[id], noise=G.noise[G.loc]||0;
+  if(t==='ask') return {d:G.hp<G.maxhp?2:1,good:true,lo:survLevel(e.aff)<1};
+  if(t==='info') return {d:1,good:true};
+  addNoise(G.loc,1);
+  return noise<=2?{d:2,good:true}:{d:-1,good:false};
+}
+function sTalkLines(id,t,r){
+  const lo=survLevel(G.surv[id].aff)<1;
+  const T={
+    guard:{
+      ask:lo?[D('me','neutral','다치신 데는 없으세요?'),D('guard','neutral','괜찮소. 밤새 문 지키는 건 이골이 났거든.')]:[D('me','smile','식사는 하셨어요? 무리하지 마세요.'),D('guard','smile','젊은 사람이 남 걱정을 다 하네. 고맙소, 덕분에 힘이 나는군.')],
+      info:[D('me','neutral','이 단지, 어디가 제일 위험해요?'),D('guard','tense','지하주차장은 가지 마시오. 소리가 울려서 한번 몰리면 답이 없소. 정문 쪽도 마찬가지고.')],
+      joke:r.good?[D('me','smile','아저씨, 근무 중에 이렇게 조용한 건 처음이시죠?'),D('guard','smile','허허, 그렇지. 평생 야근 중에 이렇게 한가한 날은 없었소.')]:[D('me','smile','이럴 땐 웃어야 덜 무서워요.'),D('guard','tense','쉿. 여긴 소리 하나로 끝나는 곳이오.')],
+    },
+    pharm:{
+      ask:lo?[D('me','neutral','약사님은 괜찮으세요?'),D('pharm','neutral','저는요. 환자 걱정이 직업이라, 남 챙기는 게 더 편해요.')]:[D('me','neutral','무리하지 마세요. 며칠째 못 주무신 얼굴이에요.'),D('pharm','smile','들켰네요. ……그렇게 말해 주는 사람 오랜만이에요.')],
+      info:[D('me','neutral','감염되면 어떻게 되는 거예요?'),D('pharm','sad','물리면 하루 이틀 안에 열이 올라요. 약을 먹으면 늦출 수 있고, 정말 늦으면… 방법이 없어요.')],
+      joke:r.good?[D('me','smile','약국인데 비타민 하나 서비스 안 되나요?'),D('pharm','smile','이 상황에 영업 마인드라니. 좋아요, 이번만이에요.')]:[D('me','smile','이럴 땐 웃어야 덜 무서워요.'),D('pharm','tense','지금은 웃을 분위기가 아니에요. 소리 줄여요.')],
+    },
+    rider:{
+      ask:lo?[D('me','neutral','다친 데는 없어요?'),D('rider','neutral','네, 넘어지긴 했는데 괜찮아요. 헬멧 덕분이에요.')]:[D('me','neutral','혼자 계속 여기 있었어요? 무섭지 않았어요?'),D('rider','sad','솔직히 많이요… 근데 이렇게 말해 주는 사람 만나니까 좀 나아요.')],
+      info:[D('me','neutral','이 근처 길, 잘 알아요?'),D('rider','neutral','배달하며 외웠어요. 정문은 막힌 차가 많고, 후문 쪽 공사 통로가 그나마 사람 몸은 지나가요.')],
+      joke:r.good?[D('me','smile','탈출하면 별점 5점 줄게요.'),D('rider','smile','와, 그럼 열심히 해야겠네요.')]:[D('me','smile','이런 데서 배달하면 별점 몇 점이에요?'),D('rider','tense','쉿! 진짜 지금은 안 돼요, 소리요!')],
+    },
+  };
+  return T[id][t];
+}
+function chatTo(arg){
+  if(!G||G.ending||busy) return;
+  const i=arg.indexOf(':'), id=i<0?arg:arg.slice(0,i), t=i<0?'':arg.slice(i+1);
+  if(!SURVIVORS.some(x=>x.id===id)||!survHere(id)) return;
+  if(t===''){ TALK_OPEN=id; render(); return }
+  if(t==='x'){ TALK_OPEN=false; render(); return }
+  if(!own(STALK,t)) return;
+  const sv=SURVIVORS.find(x=>x.id===id);
+  takeTurn('chat',arg,`${sv.n}에게 말을 건다 (${STALK[t].label})`,out=>{
+    const r=judgeSTalk(id,t);
+    for(const l of sTalkLines(id,t,r)) out.push(l);
+    addSAff(id,r.d,out);
+  },{ai:sTalkAi(id,t)});
+}
+function sTalkAi(id,t){
+  const sv=SURVIVORS.find(x=>x.id===id);
+  const r={ask:`주인공이 ${sv.n}에게 안부를 묻는다`,info:`주인공이 ${sv.n}에게 단지 사정(위험한 곳, 길)을 묻는다`,joke:`주인공이 긴장을 풀려고 ${sv.n}에게 가벼운 농담을 건넨다`}[t];
+  const lv=survLevel(G.surv[id].aff);
+  return {present:[id],lines:'4~6',event:`${r} (위험 ${RISK_LABEL[ZONE[G.loc].risk]}, 소음 ${G.noise[G.loc]||0}/${NOISE_MAX})`,
+    ask:`${r}. 짧은 대화로 쓴다. ${SURV_LOOK[id]} 사이는 ${SURV_NAMES[lv]} 정도이며 연애 감정은 없다. 소음이 크면 긴장한다. 호감도나 수치, 새 물건은 말하지 않는다.`};
 }
 
 let rng=Math.random;
@@ -1002,7 +1107,8 @@ function goZone(id){
       y.met=true; y.aff=Math.max(y.aff,1);
       for(const l of meetingLines()) out.push(l);
     } else if(y.joined&&first&&to.risk>=3) addAff(1,out);   // 위험한 곳에 처음 함께 들어서면 가까워진다
-  },meetingOpts(id));
+    for(const sv of SURVIVORS) if(sv.zone===id&&!G.surv[sv.id].met){ G.surv[sv.id].met=true; G.surv[sv.id].aff=1; for(const l of survMeetLines(sv.id)) out.push(l) }
+  },meetingOpts(id)||survMeetOpts(id));
 }
 
 /* 선택지 목록: 코드가 만든다(템플릿 문구). 이후 단계에서 탐색·휴식·대화가 훅으로 붙는다 */
@@ -1012,13 +1118,19 @@ function buildChoices(){
     const z=ZONE[id];
     return {id:'move:'+id,icon:z.icon,label:`${z.s}${josa(z.s,'으로','로')} 이동 · 위험 ${RISK_LABEL[z.risk]}`};
   });
-  if(TALK_OPEN&&yuminHere()){
+  if(TALK_OPEN==='yumin'&&yuminHere()){
     const t=Object.keys(TALK).map(k=>({id:'talk:'+k,label:TALK[k].label}));
     t.push({id:'talk:x',label:'그만둔다'});
     return t;
   }
+  if(TALK_OPEN&&TALK_OPEN!=='yumin'&&survHere(TALK_OPEN)){
+    const t=Object.keys(STALK).map(k=>({id:`chat:${TALK_OPEN}:${k}`,label:STALK[k].label}));
+    t.push({id:`chat:${TALK_OPEN}:x`,label:'그만둔다'});
+    return t;
+  }
   TALK_OPEN=false;
   if(yuminHere()) list.push({id:'talk:',label:'유민에게 말을 건다'});
+  for(const sv of SURVIVORS) if(survHere(sv.id)) list.push({id:'chat:'+sv.id,label:`${sv.n}에게 말을 건다`});
   if(canEscape()) list.push({id:'escape:',label:`${ROUTES[G.route].n}으로 탈출한다`});
   if(G.infection&&G.meds>0) list.push({id:'cure:',label:'응급약을 먹는다'});
   if(G.loc==='room'){
