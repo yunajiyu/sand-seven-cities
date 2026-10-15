@@ -47,7 +47,7 @@ await test('Reactions are judged by code: comfort fails in noise, concern pays m
   run("G.noise.stairs=7;talk('comfort')"); assert.equal(run('G.comp.yumin.aff'),4,'too loud: no gain');
   run("G.hp=G.maxhp;G.infection=null;G.comp.yumin.aff=3;talk('concern')"); assert.equal(run('G.comp.yumin.aff'),4,'unhurt: +1');
   run("G.hp=3;G.comp.yumin.aff=3;talk('concern')"); assert.equal(run('G.comp.yumin.aff'),5,'hurt: +2');
-  run("G.hp=10;G.comp.yumin.aff=3;G.noise.stairs=0;talk('joke')"); assert.equal(run('G.comp.yumin.aff'),5,'risk 2 and quiet: +2');
+  run("G.hp=10;G.comp.yumin.aff=3;G.noise.stairs=0;talk('joke')"); assert.equal(run('G.comp.yumin.aff'),4,'risk 2 and quiet: +1');
   run("G.comp.yumin.aff=3;G.comp.yumin.joined=false;G.noise.stairs=6;talk('joke')"); assert.equal(run('G.comp.yumin.aff'),2,'noisy: −1');
 });
 

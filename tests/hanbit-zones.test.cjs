@@ -40,7 +40,7 @@ await test('A new game starts in the 7th-floor room on day 1 evening with base r
   assert.equal(g.loc,'room'); assert.equal(g.day,1); assert.equal(run('TIMES[G.slot]'),'저녁');
   assert.equal(g.hp,g.maxhp); assert.ok(g.food>0&&g.water>0); assert.equal(g.infection,null); assert.equal(g.ending,null); assert.deepEqual(g.items,[]);
   assert.equal(g.zs.room.seen,true); assert.equal(g.zs.garage.seen,false);
-  assert.equal(g.zombies.room,0); assert.equal(g.zombies.roof,0); assert.ok(g.zombies.garage>=g.zombies.stairs);
+  assert.equal(g.zombies.room,0); assert.equal(g.zombies.roof,1,'one zombie on the roof (difficulty candidate D)'); assert.ok(g.zombies.garage>=g.zombies.stairs);
   assert.ok(Object.values(g.noise).every(n=>n===0));
   assert.deepEqual(Object.keys(g.surv).sort(),['guard','pharm','rider']);
   assert.equal(g.comp.yumin.joined,false);
