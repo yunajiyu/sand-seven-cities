@@ -121,15 +121,15 @@ await test('The screen shows status, goal, scene and choices; the map (in the me
   const f=fixture(); const {run,el}=f;
   f.run("G=newState('도현');migrate();busy=false");
   run('render()');
-  assert.match(el('stats').innerHTML,/1일차 저녁/); assert.match(el('stats').innerHTML,/❤ 10\/10/);
-  assert.match(el('goal').textContent,/빠져나갈 길/);
-  assert.match(el('placeLabel').textContent,/3동 7층 자취방/);
+  assert.match(el('stats').innerHTML,/1일차 저녁/); assert.match(el('stats').innerHTML,/<svg class="pix"[^>]*>.*<\/svg>10\/10/);
+  assert.match(el('goal').innerHTML,/빠져나갈 길/);
+  assert.match(el('placeLabel').innerHTML,/3동 7층 자취방/);
   assert.match(el('choices').innerHTML,/pick\('move:stairs'\)/);
   const map=run('mapHTML()');
   assert.equal((map.match(/class="znode /g)||[]).length,8);
   assert.equal((map.match(/ adj/g)||[]).length,1,'only the stairs is pressable from the room');
   assert.match(map,/aria-label="3동 7층 자취방, 현재 위치"/);
-  assert.match(map,/id="zoneCard">📍 <b>3동 7층 자취방/);
+  assert.match(map,/id="zoneCard"><svg class="pix"[^>]*>.*<\/svg> <b>3동 7층 자취방/);
   run("goZone('stairs')");
   assert.equal((run('mapHTML()').match(/ adj/g)||[]).length,4);
   assert.match(run('G.log.map(x=>x.text).join("\\n")'),/계단실/);
@@ -140,7 +140,7 @@ await test('Status shows a warning for low health and a visible infection timer'
   f.run("G=newState('도현');migrate();busy=false;G.hp=2;G.infection={left:5};G.items=['flashlight'];G.meds=2");
   run('renderStats()');
   const s=el('stats').innerHTML;
-  assert.match(s,/class="st low">❤ 2\/10/); assert.match(s,/감염 5시간대/); assert.match(s,/💊 2/); assert.match(s,/🔦/);
+  assert.match(s,/class="st low"><svg class="pix"[^>]*>.*<\/svg>2\/10/); assert.match(s,/감염 5시간대/); assert.match(s,/<\/svg>2<\/span>/,'pill count'); assert.equal((s.match(/<svg class="pix"/g)||[]).length,8,'time, heart, food, water, sound, pill, item and virus icons');
 });
 
 await test('Starting a new game needs a name, creates the opening and saves',()=>{
