@@ -802,6 +802,7 @@ const EMOS=['neutral','smile','fluster','sad','tense','relieved'];   // 표정 �
 const CAST={                                            // 등록된 인물 id (대사의 who는 이 안에서만)
   me:{n:()=>G&&G.char?G.char.name:'나'},
   yumin:{n:()=>'유민'}, guard:{n:()=>'경비원 아저씨'}, pharm:{n:()=>'상가 약사'}, rider:{n:()=>'배달 라이더 청년'},
+  unknown:{n:()=>'알 수 없음'},   // 폴백 파서가 화자를 못 정했을 때만 쓴다 (AI가 고를 수 있는 id가 아님)
 };
 const SPEEDS=[{k:'fast',n:'빠름',ms:14},{k:'mid',n:'보통',ms:30},{k:'slow',n:'느림',ms:60},{k:'off',n:'즉시',ms:0}];
 const UI_KEY='hanbit_ui';
@@ -961,6 +962,131 @@ function render(){
   run('render');
 }
 
+/* =========================================================
+   AI 서술 — 프롬프트 · 줄 배열 파서 · 검수 (행동 1회에 AI 1회)
+   AI는 장면 묘사와 대사만 쓴다. 위치·수치·시간·엔딩은 코드가 정하고, AI가 그걸 건드린 흔적은 여기서 걸러낸다.
+   AI 응답 → 줄 배열 [{t:'n'|'d',who,emo,text}] → say()가 로그에 적고 화면 큐에 넣는다.
+   ========================================================= */
+const SCRIPT_MAX_LINES=14, SCRIPT_MAX_CHARS=400;
+/* 코드만 바꿀 수 있는 사실을 AI가 말한 흔적: 수치 증감, 감염·사망, 탈출 성공, 엔딩 */
+const FACT_CLAIM=/(체력|식량|소음|감염|HP|hp)\s*(은|는|이|가|:|=)?\s*[+\-−–]\s*\d|[+\-−–]\s*\d+\s*(체력|식량|소음|감염)|(엔딩|ENDING|게임\s*오버|GAME\s*OVER)|(탈출에\s*성공|탈출했다|빠져나왔다|물렸다|감염됐다|감염되었다|죽었다|사망했다)/i;
+
+function aiReady(role='story'){ try{ return aiProviderReady(roleCfg(role).provider) }catch(e){ return false } }
+function cleanText(t){ return String(t??'').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\*\*|__/g,'').replace(/\s+/g,' ').trim().slice(0,SCRIPT_MAX_CHARS) }
+
+/* 1) JSON 배열(또는 {lines:[]})을 찾는다. 코드블록·앞뒤 설명이 붙어도 되고, 잘린 배열은 완성된 원소만 건진다 */
+function extractJsonLines(raw){
+  const t=String(raw??'').replace(/```(?:json)?/gi,'').trim();
+  const a=t.indexOf('['), b=t.lastIndexOf(']');
+  if(a>=0&&b>a){ try{ const v=JSON.parse(t.slice(a,b+1)); if(Array.isArray(v)) return v }catch(e){} }
+  const o=t.indexOf('{'), c=t.lastIndexOf('}');
+  if(o>=0&&c>o){ try{ const v=JSON.parse(t.slice(o,c+1)); if(v&&Array.isArray(v.lines)) return v.lines; if(v&&typeof v.text==='string') return [v] }catch(e){} }
+  const objs=[], re=/\{[^{}]*\}/g; let m;
+  while((m=re.exec(t))){ try{ const v=JSON.parse(m[0]); if(v&&typeof v==='object'&&typeof v.text==='string') objs.push(v) }catch(e){} }
+  return objs.length?objs:null;
+}
+/* 2) 폴백: 일반 글을 따옴표(" “” 「」 『』) 기준으로 서술/대사로 나눈다. 화자는 '이름:' 머리말 → 직전 화자 → 알 수 없음 */
+function fallbackLines(raw,allowed){
+  const out=[], nameToId={}; let last=null;
+  for(const id of allowed) nameToId[CAST[id].n()]=id;
+  const narr=s=>{ s=s.trim(); if(s) out.push({t:'n',text:s}) };
+  const rows=String(raw??'').replace(/```[a-z]*/gi,'').split(/\r?\n+/).map(x=>x.trim()).filter(x=>/[가-힣A-Za-z]/.test(x));   // 글자가 없는 줄({} [] 같은 잔해)은 버린다
+  for(let ln of rows){
+    ln=ln.replace(/^[-*•#>\s]+/,'').replace(/\*\*/g,'');
+    let who=null; const pre=ln.match(/^([가-힣A-Za-z0-9 ]{1,12})\s*[:：]\s*(.+)$/);
+    if(pre&&own(nameToId,pre[1].trim())){ who=nameToId[pre[1].trim()]; ln=pre[2] }
+    const re=/["“”「『]([^"“”」』]+)["“”」』]/g; let pos=0, had=false, m;
+    while((m=re.exec(ln))){
+      had=true; narr(ln.slice(pos,m.index));
+      const sp=who||last, known=!!sp&&allowed.includes(sp);
+      out.push({t:'d',who:known?sp:'unknown',emo:'neutral',text:m[1],fb:true}); if(known) last=sp;
+      pos=m.index+m[0].length;
+    }
+    if(had) narr(ln.slice(pos));
+    else if(who){ out.push({t:'d',who,emo:'neutral',text:ln,fb:true}); last=who }   // 이름표만 있고 따옴표 없는 대사
+    else narr(ln);
+  }
+  return out;
+}
+/* 줄 하나 검수: 시스템 알림(s)·사실을 바꾸는 서술은 버리고, 모르는 화자는 서술로, 모르는 표정은 neutral로 */
+function checkScriptItem(it,allowed){
+  if(typeof it==='string') it={t:'n',text:it};
+  if(!it||typeof it!=='object'||typeof it.text!=='string') return null;
+  if(it.t==='s') return null;                                  // 시스템 알림은 코드만 만든다 (AI가 수치를 꾸며 낼 수 없게)
+  const text=cleanText(it.text); if(!text||FACT_CLAIM.test(text)) return null;
+  const who=typeof it.who==='string'?it.who:'';
+  const ok=it.t==='d'&&(allowed.includes(who)||(it.fb===true&&who==='unknown'));
+  return ok?{t:'d',who,emo:EMOS.includes(it.emo)?it.emo:'neutral',text}:{t:'n',text};
+}
+/* AI 응답 한 덩어리 → {lines, via:'json'|'text'|'fallback', dropped}. 결과가 비면 opt.fallback 문장을 쓴다 */
+function parseScript(raw,opt={}){
+  const allowed=(opt.allowed||[]).filter(id=>own(CAST,id)&&id!=='unknown');
+  let items=extractJsonLines(raw), via='json';
+  if(!items){ items=fallbackLines(raw,allowed); via='text' }
+  const lines=[]; let dropped=0;
+  for(const it of items){
+    const l=checkScriptItem(it,allowed);
+    if(!l){ dropped++; continue }
+    if(lines.length<SCRIPT_MAX_LINES) lines.push(l); else dropped++;
+  }
+  if(!lines.length&&opt.fallback){ lines.push({t:'n',text:cleanText(opt.fallback)}); via='fallback' }
+  return {lines,via,dropped};
+}
+
+/* 프롬프트: 짧게. 허용 인물·표정 키와 '확정 사실'을 알려 주고, 그걸 바꾸지 말라고 한다 */
+function scenePrompt(kind,ctx={}){
+  const present=(ctx.present||[]).filter(id=>own(CAST,id)&&id!=='me'&&id!=='unknown');
+  const who=['me:'+nameOf('me'),...present.map(id=>id+':'+nameOf(id))].join(', ');
+  const z=ZONE[G.loc];
+  const system=[
+    '당신은 좀비가 나온 낡은 아파트 단지를 배경으로 한 연애 시뮬레이션 게임의 장면 작가입니다. 장면 묘사와 대사만 씁니다.',
+    '출력은 JSON 배열 하나뿐입니다. 머리말·설명·코드블록은 쓰지 않습니다.',
+    '원소: {"t":"n","text":"서술"} 또는 {"t":"d","who":"인물id","emo":"표정키","text":"대사"}',
+    `who는 다음 id만 쓸 수 있습니다: ${who}`,
+    `emo는 다음 중 하나만 쓸 수 있습니다: ${EMOS.join(', ')}`,
+    `${ctx.lines||'4~7'}줄. 한 줄은 80자 이내. 서술은 3인칭 현재형으로 씁니다.`,
+    '장소·시간·수치·소지품·엔딩은 코드가 정합니다. 아래 확정 사실을 바꾸거나 새로 만들지 마세요.',
+    '체력·식량·물·소음의 변화, 부상·감염, 사망, 탈출 성공, 새 물건 획득을 쓰지 마세요. 시스템 알림(t:"s")은 쓰지 마세요.',
+    '다음 행동을 대신 정하거나 선택지를 제시하지 마세요. 장면은 열린 채로 끝냅니다.',
+    '좀비는 소리에 반응하고 느립니다. 분위기는 조용하고 긴장감 있게, 과장하지 않습니다.',
+    ctx.tone||'',
+  ].filter(Boolean).join('\n');
+  const user=[
+    '[확정 사실]',
+    `${timeLabel()} · 장소: ${z.n} (위험 ${RISK_LABEL[z.risk]}) — ${z.desc}`,
+    `주인공: ${G.char.name}`,
+    `함께 있는 인물: ${present.length?present.map(id=>nameOf(id)).join(', '):'없음'}`,
+    ctx.event?`방금 일어난 일: ${ctx.event}`:'',
+    '[요청]',
+    ctx.ask||'이 장소의 분위기를 보여 주는 장면을 쓰세요.',
+  ].filter(Boolean).join('\n');
+  return {system,user};
+}
+
+/* AI 장면 1회. 키가 없거나 실패하면 기본 문장으로 대신하고, 게임은 멈추지 않는다 */
+async function aiScene(kind,ctx={}){
+  if(!G||busy) return false;
+  const g=G, fb=ctx.fallback||ZONE[G.loc].desc;
+  if(!aiReady('story')){ say([{t:'n',text:fb}]); toast('AI 연결이 없어 기본 문장을 보여 줍니다'); return false }
+  busy=true; USAGE_TURN={in:0,out:0,cost:0,unk:false}; renderChoices();
+  let res, ok=true;
+  try{
+    const {system,user}=scenePrompt(kind,ctx);
+    const raw=await callAI(system,user,ctx.maxTokens||700,'story');
+    res=parseScript(raw,{allowed:['me',...(ctx.present||[])],fallback:fb});
+  }catch(e){
+    ok=false; res={lines:[{t:'n',text:fb}],via:'error',dropped:0};
+    toast('AI 서술을 받지 못해 기본 문장을 보여 줍니다');
+  }finally{ busy=false }
+  if(G!==g) return false;                       // 기다리는 동안 다른 판으로 바뀌었으면 버린다
+  say(res.lines); updateUsageChip(); return ok;
+}
+function aiDemo(){
+  aiScene('demo',{present:['yumin'],lines:'5~7',event:'계단 아래에서 무언가 끌리는 소리가 들려, 두 사람이 숨을 죽였다',
+    ask:'소리가 멀어질 때까지 두 사람이 긴장 속에서 보내는 짧은 장면. 유민이 한두 마디 한다. 유민은 주인공에게 아직 "'+G.char.name+' 씨"라 부르며 존댓말을 쓴다.',
+    fallback:'소리가 천천히 멀어졌다. 한동안 아무도 움직이지 못했다.'});
+}
+
 /* ----- 로그 · 지도 · 메뉴 ----- */
 function logEntryHTML(l){
   if(l.type==='dialog') return `<div class="entry d"><b>${esc(nameOf(l.who)||'???')}</b>${esc(l.text)}</div>`;
@@ -1005,6 +1131,7 @@ function openMenu(){
     <button onclick="cycleSpeed()">글자 속도: ${sp.n}</button>
     <button onclick="toggleAuto()">자동 넘김: ${UI.auto?'켬':'끔'}</button>
     <button onclick="closeModal();demoScene()">더미 장면 보기 (화면 시험용)</button>
+    <button onclick="closeModal();aiDemo()">AI 장면 시험 (AI 1회 호출)</button>
   </div>`);
 }
 function cycleSpeed(){ const i=SPEEDS.findIndex(s=>s.k===UI.speed); UI.speed=SPEEDS[(i+1)%SPEEDS.length].k; saveUi(); openMenu() }
