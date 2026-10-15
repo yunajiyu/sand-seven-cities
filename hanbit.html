@@ -72,7 +72,7 @@ svg.pix{width:1.2em;height:1.2em;vertical-align:-.24em;margin-right:.25em;flex:0
 #scene{position:relative;flex:1 1 0;min-height:0;overflow:hidden;cursor:pointer}
 #sceneBg{position:absolute;inset:0;image-rendering:pixelated}
 #cast{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:center;align-items:flex-end;gap:10px;padding:0 8px}
-.pt{width:192px;height:192px;max-width:44vw;max-height:44vw;image-rendering:pixelated;object-fit:contain;transition:filter .2s,opacity .2s}
+.pt{width:192px;height:192px;max-width:49vw;max-height:49vw;image-rendering:pixelated;object-fit:contain;transition:filter .2s,opacity .2s}
 .pt.dim{filter:brightness(.4);opacity:.75}
 #placeLabel{position:absolute;left:10px;top:10px;font-size:12px;color:#f4f4f4;background:#1a1c2c;border:2px solid #f4f4f4;padding:1px 9px;pointer-events:none}
 #choices{position:absolute;left:12px;right:12px;bottom:10px;display:flex;flex-direction:column;gap:6px;z-index:2;max-width:560px;margin:0 auto}
@@ -842,10 +842,24 @@ const BG_IMG={
  gate:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAACACAMAAADDApyIAAAANlBMVEX09PT/zXVz7/eUsMLvfVdWbIZKWnSxPlNdJ10zPFcqKjEmK0Q7HTgqGDAfHyYaHCwSEx8dEiZDafSnAAABqElEQVR42u2XjZKCMAyEc/xIoELh/V/2ylXPIi0UTJBqNgOdKTXfbFcBYZgqH4gF/ycmcfY+EuBisrWPZF+5RS8qky0SQOoAGFrO2u8g8skB7ZKy9mXBrks0gPbkAGQEoFPA2t0UMPcndoDzAub+pA6Q2QEyO8C0HWit0V9kgEB/TQXAsIMrRb3TwZVEGHZAAxh79abuY3ErWgcPQvEggA6KyAENgNvBLFseB9Mqb9+isVVvNI4/RvszeO5vCUSAj3agaITPNToYRyqAj/A3sjm4F+R+qa3zmHtLkQHyAAFKv9T2efSVogOgvxJyULI7KAMOLl4pO2/vH8tnZz3Oa8VBDGDqbGMG2wEbM+j7utZ66ej7eTYbMogBuOsdoZ1nceD2+QQAVwaXM2VQBXQSQEQGVQUe3QEEGSwDSLZobDfViQBfkkHqv4P070XyPJAMJAMBCEAAAoDaL2WHGIC7ft5nFbCudwOafSqMohYeBbAv5PYlfWkUwHkARRFLOArQNOa+sbhwej19gP0bmDJAQiYFdF3HeQBz/waY+xsHzHskGUgGkkHX/QI1LvigHdTY2AAAAABJRU5ErkJggg=='
 };
 function bgFor(zoneId){ const u=BG_IMG[zoneId]; return u?`url("${u}") center bottom / cover no-repeat, #1a1c2c`:'#1a1c2c' }
-/* 인물+표정 → 이미지 (C단계에서 도트로 교체. 지금은 자리표시자가 없다) */
-function portraitFor(who,emo){ return null }
+/* 인물+표정 → 이미지. 48×48 도트 PNG를 내장한다. 표정이 없으면 neutral, 그림이 없는 인물(예: 주인공)은 null */
+const PORTRAIT={
+ yumin:{
+  neutral:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAEFUlEQVR42u1ZT0gUURz+ZlMkKqWShEyQDdPaCNlAxEiWosui5KEN2s0ICyr6Q1mHPSl28pD259KhkiDag3apbC+LIhvFFiVR7ZoZQ2USKy1rfzxI5HSwGd/Ozsx7M/NWC/pAnHW+9+b7fn/evH0C/7G4EHIxqdcXlPTuhfs6hb/SACl69MWQLq+y2sPVjMBLuCz6x/cv1DHLVxRnmLFjRLAr/PnDO7azt3X7HstGBKvitYTvbGhRrgf6eywZMWtC4CFeFm4kmoVjxYTAQ7yZaLMYMWNCyKX4snKXcj3+Pm5qLKsJYaEir5cNuyYcVh9uVzyvORz4x7EoBsjeyLkBry8oGW0NrAgafx9nGjP6YshwX2UpA1oPZhXEMsbsPKYNqJdDuyZY51+QHjBrgkcvOHg3oBkTWtFetBKyW05WSyjPTvp+/pzRvSeODSM/v4CJCyCDm1MDZeUuJUr5+QUYjdzU5Dk9+5TrT4koAGB6QqRyyflzYkA9uaPMjRu3ohgefgMAcLurcKi5XjOietzk2BOs21S/8CVE4sG9rj+irilRl0XRuHZgy8Bo5CaWzk7hRGALTgSezN+YndLkm+FyWYVYthFGkGvfVpAo2wmHlbMdEnJjzsSiuvdIaPG4l5BW5OWjED0U1GbX+7JSJ6KXj1J5LPMzZ8DrC0qT4yNYubrEcCB5QKW3PAKAc5efSQg5n2UDcuTTqSTSqSR1sP98P5cy2H3kCp8mDvd1CpXVHpA/Rgj3dQqyCXUWLjYfM/xMirdzMpenJUrdyCtXlzBlhMSZW1cx0HE+47MV0EqZ6T1AilebCfd1Cn5ACrU1YHpCxLJS5/ypQ3sbtXTU0VfPn04lsaZsI7/daDqVRGW1J+vBNb5WpZSMmlqGq66JGiyu22m9VHp9QWny40vFRI2vFclETNOEGAnBVdcEV10TCouK8e7VoOH7hlY+1BcZ+S7QigwpnkRjey+SiRjESAjTEyLESAhiJITG9t4s7uTHl/D6gpK8gJjNhmH3r6+olbQaeMmSWeW6sGjuBeTftx/b6twAgOYDB3C/Y2/2Ju7zWoVz/GQrvn39gsKiYnz7Ov8/hV+/HFlZeBa7K1hu4nQqmSGYRM/1ue8Cp8+eU4QZQYtzqesCAKDl8MGs4LBkQdfAhqoaCTAWTuLR42GqASOOPKdshMz2nBbg7ZunAtWATGYRTeLDq1UAgPjYCAAg0D2I2607lPuB7kFs23wqg0N7jtqMlpE8mniacAAZNcwKljF6WdlQVSPJJhzyH/Qin0iIzA9SN3agezDjt5pDC47Rs2XNDjPCrEBLvFkY6eB2MmdU12Y4OT+Z090aVGxEfGwEUzMRWxzTBqyuOllL5OsrXDhmy4jr4S5LZHlGX9cAj+bNBbR0/QaQeyOMGn57IwAAAABJRU5ErkJggg==',
+  smile:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAECElEQVR42u1ZT0gUURz+Zl3xYGl/JCETYsPU7CAFKkoiRZdFyUMbqCkRQUkUuXXYk1InD6XlxUtEIO1Bu0TmZVHEKDQqpHLNjKH8Q4y4bFoSUjYdYqaZ2Tcz78083YI+WJyd+b3f+77fn3lvn8B/JBfCejj1B0Ky2bOBvnbhrxSgJT01Pmxql19cxVWMwIu4Qvrrl0XbMZs2Z+nEuBEiuCX+4vF919k7eOi4YyGCU/Ik4keqT6vXg/13HAlhFSHwIK8QtyJNY+NEhMCDPEu0aYSwiBDWk3zu7iL1evbDBNNYWhHCRkXeLBtuRXicTu6WPC8fHvzjSIoAbW+suwB/ICRbbQ2cEJr9MEE1Zmp82HJf5SgDpIlpCdGMYfXDLMD4OnQrgtb/hvQAqwgeveDh3YAsIkjRTloJuS2npJfQXHQEc9ERKiJGWzfwOikhO3IAsGtfZcI9Hv5dCyA5//59Fdl5pep3aXrMdLzWDgBSU9MwFx1RBbOWkNdN+qYid+GrqksgnJ1XCml6TJeFlXnR1DapWwlStEn30nN81LbcBNBsI+wa2y3sthNeJ2c7WqyO/iGZVlape7YyLzLZc3sLkSKvHIUY8SN3F9JzfMRn6Tk+jNw6p7tnRtrMP3MJ+QMheWF2Elu3Z1sO1B5QkSKtwHe0noqI1p9jAUrk4zEJ8ZhkO7j+Wj/xfmdjM9P9Y2e7+DTxQF+7kF9cBe3HCgN97YIiQpuFlp5udDY245tni/rpbGxGS083kbybkzkviZSxkbduz6bKiBYtPd0YbAvqvjuBXSlTLWRa8kYxA33tQj0gh1ursTIv6hr6SFurpV9S9I3+4zEJO3IL+S1k8ZiE/OKqhIlLAkG1lKyaWkFRea1tsLiuxGap9AdC8sLMK1VESSAIKTpKFCFGwigqr0VReS0yMrPw/vWQ5XpjVz6WAoxrASkyWvJa1LT1QoqOQoyEsTIvQoyEIUbCqGnrTbBdmHkFfyAkKy8Q1mxYdv+evDKZ1MApKT/V64zM3wtQfd1JVJQfAAA0NjXh4dUTCf4efdqp2py/EMTy0iIyMrOwvPTnfwpra56ELDwffSA4buJ4TNIR1uLO7bsAgEuXr6jErECyuXnjOgDg9JlTCcGhyYKpgL0FJTJgTVyLJ09f2gqwslF8KkK02f7NBXj39plgK0AxpiGtxcfX2wAAE9OTAICGjiHcCx5Wnzd0DKFi/0Wdjd08RjEkIV478nbEAehqmBY0Y8yysregRFZEeJQbZpGPRkXqiYyN3dAxpPtrtLELjtXcCmcPCzEnIJFnhRUPbscqVnXNYrPhv4nVrUFeISamJ/F5NeLKhlmA07dOwivyTRcXG9Yy4nq4SxNZntE3FcCjedcDJF6/AAibKBMesNHFAAAAAElFTkSuQmCC',
+  fluster:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAESElEQVR42u1ZX0hbVxz+bhqR4aazCtKpIFaNW7YiKUjRTmSlL6GlPiyD6ZTRDrbhNmbahzxVticfNrf5MhhbKdj6oHtYmfMlNBT3B1fWUtIZbSOhqxW5khD/MqSt6UO413tvzj33nHvPrR3sB8Fr8p1zvu/375ycAP/b3prkxqTBUCRn9tnUxJD0TArQkr5z65opztfSKVSMJIq4QnpzI2055vkXKnVinAiRnBK/8euPjqN3+PU3bQuR7JInET924rT6fHXygi0hvCIkEeQV4jTSLBg7IiQR5Hm8zSKER4TkJvnaOr/6vHhvlmssqwjpaXneLBpORXjsLu6UvKg5PPiP254I0NaG6wKCoUiOdjSwQ2jx3izTmDu3rlHPVbYiQFqYlRDLGN55uAUY2yGPCOUMRJur/9JPXHy8InNbEZHNyMRD3eZGukAEy+FPqIDaOn+B57SkshkZ5RVVpsRohId+S7rfhUhh39xI6152agIAIkcb3Y+A1h4+3Db9LJW8iaKiYiYsABXLK8JRChUVFSM5H88X38B3AIBAoBlnejtQd9CnjnmQmAYA/Ot50RJLSlHXU+iH0WlTj7Jg5eSfll3O9S4UCDQDAM70dqher3mlgwn7VLuQbqeMXsRzO6v4qOfQ7ps7q6Z4HqyQFGI5RtBMyX1HTrI4Tnjt3O1obXtml2TxEX1KbC2luPDCUojkeeMOqtij2hp4Fx+o5LSkSqrrMf3NB0xEzObnFhAMRXIri3Mor6hCNiMzXVA9qq1BSXU9EVd/vFv3v5nXfS2dsJOuHpLnsxmZSl6x7s8nhXSwU++PiCniqYkhydfSCe2LZlMTQ5IigpTvrOSd3Mx5SaSMhWyVTmb2Ve+HONRwIP8FfvC8LYLlFVXOd2IteeOEVlGILywjvrDM7H3j/FaO497IshkZvpbOgoVbQ2FcnxhWRZRU12Ng9FvTefxtXWh47Q2qs4SehcxCGQxFciv346qI1lAYcmKGGI1UdAz+ti7427pQWlaJhdsx6n5jlT5UAca9gOQZLXmtnRwch5yYQSo6hq2lFFLRMaSiYzg5OF6AXbkfRzAUySkNhDca1Oo/2HgkRyrgfft21OfSsvwG1P32O2hvCwAAevv68PNnbxXM98vySyqm/+Mw1tfSKC2rxPra7re0x489BVH4a+aKZLsGshlZR1hrF76/CAD49Ow5lRjNSJivv/wCAHD6vXcLnOOoiJuaW3MAnbjWfv/jpqUAGkaZUxGijXaeC3B3/rpkKUABs5DW2j+39wMAZpNzAICe4Rguh3e7TM9wDO2vfqLDWK1jFEMS4rUib0UcgC6HWY1ljFlUmppbc4oIj/KGmecTiRTzQsbC7hmO6f4aMVbOoa2tcPbwELNjJPK8RuMh7Haaltc8GNcvtkyPBo0vYzY5h9XtqCMMtwC7XaegRf49IgTDm0ZCf+Bg8axI75sKEFG8bhiJ1xP4FzYZoE1L3wAAAABJRU5ErkJggg==',
+  sad:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAEFklEQVR42u1YW0hUQRj+zroiUWmWEGVCFKm1EWIgYRek6GUp8qENcksiioIsynrYp0x78aGkfOwiQeRD9tLNl6Ul7IJ2Mal2zYyDpSIr2pYXQiq3Bzun2XOZM3POrBb0w7Ln8s3M9/2XmTkD/LeZNSkZnXp9gbjZu+amWumvFECS7up4aIrLKygRKkYSRVwhPTY6ZNlmztysBDFOhEhOib98dMtx9NZu3GlbiGSXvBHxLdv2q9cP7jXYEsIrQhJBXiFOI82CsSNCEkGex9ssQnhESMkkn7PUo1739oS52rKKkKbL82bRcCrCZXdwp+RF9eHCP24zIoCsjaQL8PoCcdrWwA6h3p4wU5uujofUfZWtCBgNzEqIpQ1vP9wCtNOhUxGs/U9LDfCKEFELLtEF2NsTVnebZrtQmrd5RblFpJCW2NjoEHKWenTYsdEhQ6yTFHI7Cd/37xPInJ+N2Od+3Tu5ux2pqWkJWAA6rNKexCZVAOnZ1NQ0vHoeUt8dOXEJAFBYmI+zZw6qz/siLQCAb655llijyE3LLHT1ekvCPc2jWmy0u21mUkhr9++c/+3Vy+iLtGDJqk1MWCfmSEBX8BpmTX4BAFT416DC30bF82CFpBDLNkKxxz8W6Z4puc+CtbudcNk52yFtvF/mfrfBPSAsbd2snjdbnGikZmcvQ8vFw0xErPpnjoDXF4gP9nYic8FCakPygIoWhWVby5iIkP3ZFqB4PjYcRWw4atm4rOaekDTYcaheTBE3N9VKeQUlIH80a26qlRQRtChYkXdyMuc2IqUt5MwFC5kiovvmra758wFfddoWQatUZlqJSfLaDs2i8KC6BluqTqs/UgzN+9r+rRzHvZWIDUeRV1CiG7jIV6mKGO+XdR7X3nuKSy2dJXQvZBZKry8QH/z0WhVR5KtENNJqWBNysBGe4lJ4ikuRnpGFD29C1PXGKn0sFzJyLTDyDEmetO1VNxGNtEIONmK8X4YcbIQcbMT2qps67OCn1/D6AnFlAuGNBrX6l69YFzcq4JSUSfU6PWNqASrbvQfriwsBAHvLy3G3epd+AzewWMUcOVqJka9DSM/IwsjXPx81P3+6dFF40Xpbsr2Ziw1HEwiT1nDlGgDg+MlTKjGaGWEunD8HANh/YJ/OOSxRMBWQm18UB+jESXvytN1SAA2j9KkIIaM9xQV4/+6ZZClAAbOQJu3jm/kAgHB3JwDAXxfCjcrN6nt/XQjrVx9LwFiNoxVjJMRtRd6KOICEHGY1ljZmUcnNL4orIlzKAzPPRyIy80DawvbXhRL+tRgr59DGVji7eIjZMSPyvEbjIexkjpbXPJikn8yZmWfFSoS7O/FlIugIwy3A7qyjmyLf1gvB8KaR0MNdFs+K9L6pABHFmwwz4vULp3EoP+EEyoUAAAAASUVORK5CYII=',
+  tense:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAEEUlEQVR42u1ZW0gUURj+ZluRsLRSCrqAWOaWJWIgsV2QopelyIc2yE0JCyq6UNbDPhX1tA+1lS9BFwmifWh76ebLkohdsCgRbddsY6hMYsVl1ZKQyOnBZpydOXPmzGXXgj5YHGb/85/v+y/nnD0C/zGz4DLh1OP1C1rftYYD3F8pQE66v7td066sssZWMZxdxEXS378N646ZM7coTYwVIZxV4m+e3rOcvXWbdpkWwpklTyK+dXuj9PzkUYspIUZFcHaQF4nTSLPYmBHB2UHeSLRZhBgRwWWS/LLicul54GPU0FhWEVy2Iq+VDasiHGYnt0reLh8O/OOYEQHy3si4AI/XL9COBmYIDXyMMo3p726nnqtMZYA0MSshljFG/RgWoFwOrYpg9Z+VHjAqQm4beBbPThPrETQighTtGSmhnz8n0j40EUpbqyXktFIyJALiez7ehZycXCZbK3CaKSExSjk5uYi/6wEAHDl5DQBQVeXC/vrNKF5eJo35EusAAPxwzNO09W8sVfnPiACS85u3O/D4wcU/pK5L4kgg2SbiL7F09ebslxAAzJ4cwVFfBY76Xk6/nBzBl1iHRIpmu9RVIWUo60eJ/sgty0uvFfK6AliOEZkkx3KccJi525FjfJA39Z1dcLJGXrwKMYK8JSXouHKIydaMf2IGPF6/MDTQh/mFi6gD5RdUtEiXbKtjIiL3Z1qAGPlUMoFUMqE7uO78I1vKYOfBZnuauDUc4MoqayD/0NAaDnCiCLP1vvNgs6WbOSeJlLKR5xcuYspIJqBXykwbmZy8UkxrOMDVAULozHaMD/LIW1ICALhUf1jl5+Ttq7rRV/pPJRNYuGyVfTtxKplAWWWNauJqbxNehYNSKSnJKlHursWKtVuowbJ1J9ZKpcfrF4Y+90giqr1NSMQ6iT3BR0Iod9ei3F2L/IIifOhto+43euWju5HJ9wJSZOTk5dhx9i4SsU7wkRDGB3nwkRD4SAg7zt5V2Q597oHH6xfEBcRoNqjdv7x0vUBq4FmzJqXn/IKpDahuz15scFcBAOobGvDw3G6Vv8dfF0s2R441YWx0GPkFRRgbnf6fwq9fDlUWXnfe50z3QCqZSCMsR8uNqcPciVOnJWI0kGwuX7wAAGg8sE8VHJYsaApY6aoWADpxOZ6/6NIVQLMRfYpC5Nme4gK8f/eK0xUgGrOQluNT7wIAQDTeBwDwBdtwp2l6lfEF27BhzfE0G715lGJIQpx65PWIA0irYVawjNHKykpXtSCKcIgvtCIfi/HMEykb2xdsS/urtNELDm1ukbPDCDEzIJE3ChoP227maHVtxCarv4nTjgalqxCN92FkImLJxrAAs6uOaol822yLjdEysvVylyWydkZfU4AdzZsJkHj9BmoeODgM6OU1AAAAAElFTkSuQmCC',
+  relieved:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAD10lEQVR42u2ZT0gUURzHf7Pu4sFSTEFIhTD8U9tBCjZZKSTpsiR5aIO0JCQoiCK2Dnty0ZOHkvIc0qU9aJfIvCwuYhRrVIi2a7YxmH+IEZdNy4OYTQd545vZmTfvzbzdLegH4sy+33vv8/39fm/e21mA/5ZfE7IxqM8flI3axkb6hb9SAA49Pz1h6Fff2MJVjMALHEH//LFm2mff/nKVGDtCBLvg7189s529E6cuWBYiWIXXA289161cj48OWRLCKkLgAY/ASdA0PlZECDzgWaJNI4RFhJBN+OpDbuV6aSHO1JdWhJCryBtlw64Ih9XJ7cLzGsMB/7jlRQC+NrIuwOcPyqSjgRWgpYU4VZ/56QniucpSBvQmpgWi6cM6DrMA7ePQrgja8XOyBlhF8FgLDt4LkEWEXrTzVkJ2yynvJbScmITlxCQViNY3byW0vb1lCIe3oXsjcNyXNXNOOyl2uQqVyStqT6r8XK5C1b2UnMrwwduqjp62VEJOuymUklOGbQiK5Kv1yelRYj7yhMvayZoAmmNENuFojhNOK+92cNuK7UEWNqnLYXNFZPK3Yk7ayKNXIVr7VV0FRZU1um1FlTUw+eiG6jMjaKPxmUvI5w/Kq0tzUFpWQeyIv6DSizSymrMdVCD4eJYFoMinUxKkU5Jp546+US6b0fnrg3wW8dhIv1Df2AL4H8nGRvoFJEKbhfHePuI9Dm/nzZxTD0q7kEvLKqgyovrCHupRQbeGeiwBmpUy1T6Aw2sHJGUBQRvB60VfO75Z4Jg3snRKgvrGloyJPf6AIgIXYgTv9rabBovrTmyUSp8/KK8uzigiPP4ASImY7pNJjITB7W0Ht7cdikvK4ctslLjfmJUPUYB2L9CLDA6PW1toGKREDMRIGDZXRBAjYRAjYWgLDWf4ri7OgM8flNEDhDUbxNV/uLZJ1lvABQW/levikt0NqOPSZWj2HgcAgCtdXfCi92LGeC+/HVR8bt4KwMb6GhSXlMPG+t5vCjs7jowsvIs9FyyfRtMpSQWM29Dj3cPcnbv3FDCS6fk8fHAfAAC6r13NCA5NFgwF1DV4ZAAyOG6v33wwFUDyQWMiIXi2d1kAPn96K5gKQM400Lh9nT0AAADx5BwAAHQOROFp4IzS3jkQheZjt1U+ZvNoxegJcZrBm4EDgKqGaY2mj1FW6ho8MhLhQB8YRT6REKkn0i7szoGo6r/Wxyw4pLkRs4MFzIrpwbMaiYPbaxVSXbP45PQ7sepoUHsE4sk5+L4VseXDLMDqUyfjEflxkIsPaxlxfblLE1me0TcUwGPxZsP0uP4AobIYoFVz7wcAAAAASUVORK5CYII='
+ }
+};
+function portraitFor(who,emo){
+  if(!own(PORTRAIT,who)) return null;
+  const set=PORTRAIT[who];
+  return own(set,emo)?set[emo]:set.neutral||null;
+}
 
-const Q={pending:[],cur:null,pos:0,typing:false,timer:0,autoT:0};
+const Q={pending:[],cur:null,pos:0,typing:false,timer:0,autoT:0,cast:[]};   // cast: 장면에 있는 인물(최대 2명) [{who,emo}]
 
 function splitLine(text,max=LINE_MAX){
   text=String(text??'').replace(/\s+/g,' ').trim(); if(!text) return [];
@@ -908,13 +922,13 @@ function say(lines){
   syncPend();
 }
 function queueIdle(){ return !Q.typing&&!Q.pending.length }
-function resetQueue(){ clearTimeout(Q.timer); clearTimeout(Q.autoT); Q.pending=[]; Q.cur=null; Q.pos=0; Q.typing=false }
+function resetQueue(){ clearTimeout(Q.timer); clearTimeout(Q.autoT); Q.pending=[]; Q.cur=null; Q.pos=0; Q.typing=false; Q.cast=[] }
 
 function nextLine(){
   clearTimeout(Q.timer); clearTimeout(Q.autoT);
   const l=Q.pending.shift();
   if(!l){ Q.typing=false; syncPend(); paintMark(); renderChoices(); return }
-  Q.cur=l; Q.pos=0; paintName(); renderCast();
+  Q.cur=l; Q.pos=0; castSpeak(l); paintName(); renderCast();
   const ms=speedMs();
   if(!ms){ Q.pos=l.text.length; paintText(); doneTyping(); return }
   Q.typing=true; paintText(); paintMark();
@@ -953,7 +967,7 @@ function paintMark(){
 function paintStatic(){
   const last=[...G.log].reverse().find(x=>x.type==='scene'||x.type==='dialog'||x.type==='sys');
   Q.cur=last?{t:last.type==='dialog'?'d':last.type==='sys'?'s':'n',who:last.who,emo:last.emo,text:last.text}:null;
-  Q.pos=Q.cur?Q.cur.text.length:0; paintName(); paintText(); paintMark();
+  Q.pos=Q.cur?Q.cur.text.length:0; Q.cast=[]; castSpeak(Q.cur); paintName(); paintText(); paintMark(); renderCast();
 }
 
 function renderStats(){
@@ -979,9 +993,17 @@ function renderScene(){
   document.getElementById('placeLabel').innerHTML=`${px(z.icon)} ${esc(z.n)} · 위험 ${RISK_LABEL[z.risk]}`;
   renderCast();
 }
+/* 대사를 하는 인물은 장면에 서고(밝게), 말하지 않는 인물은 어둡게 남는다. 그림이 없는 인물은 서지 않는다 */
+function castSpeak(l){
+  if(!l||l.t!=='d'||!portraitFor(l.who,l.emo)) return;
+  Q.cast=Q.cast.filter(c=>c.who!==l.who);
+  Q.cast.push({who:l.who,emo:EMOS.includes(l.emo)?l.emo:'neutral'});
+  if(Q.cast.length>2) Q.cast.shift();
+}
 function renderCast(){
   const el=document.getElementById('cast'); if(!el||!G) return;
-  el.innerHTML='';   // 인물이 없으면 초상화를 그리지 않는다 (C단계에서 채운다)
+  const speaking=Q.cur&&Q.cur.t==='d'?Q.cur.who:null;
+  el.innerHTML=Q.cast.map(c=>`<img class="pt ${c.who===speaking?'lit':'dim'}" src="${portraitFor(c.who,c.emo)}" alt="${esc(nameOf(c.who))}">`).join('');
 }
 
 function renderChoices(){
