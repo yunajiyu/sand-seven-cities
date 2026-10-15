@@ -117,22 +117,22 @@ await test('Each escape route needs different things and every needed item exist
   assert.equal(r.roof.at,'roof'); assert.equal(r.front.at,'gate');
 });
 
-await test('The screen shows status, goal, map and choices; only neighbouring zones are pressable',()=>{
+await test('The screen shows status, goal, scene and choices; the map (in the menu) makes only neighbouring zones pressable',()=>{
   const f=fixture(); const {run,el}=f;
   f.run("G=newState('도현');migrate();busy=false");
   run('render()');
   assert.match(el('stats').innerHTML,/1일차 저녁/); assert.match(el('stats').innerHTML,/❤ 10\/10/);
   assert.match(el('goal').textContent,/빠져나갈 길/);
-  const map=el('cmap').innerHTML;
+  assert.match(el('placeLabel').textContent,/3동 7층 자취방/);
+  assert.match(el('choices').innerHTML,/pick\('move:stairs'\)/);
+  const map=run('mapHTML()');
   assert.equal((map.match(/class="znode /g)||[]).length,8);
   assert.equal((map.match(/ adj/g)||[]).length,1,'only the stairs is pressable from the room');
   assert.match(map,/aria-label="3동 7층 자취방, 현재 위치"/);
-  assert.match(el('zoneCard').innerHTML,/3동 7층 자취방/);
-  assert.match(el('choices').innerHTML,/pick\('move:stairs'\)/);
+  assert.match(map,/id="zoneCard">📍 <b>3동 7층 자취방/);
   run("goZone('stairs')");
-  const map2=el('cmap').innerHTML;
-  assert.equal((map2.match(/ adj/g)||[]).length,4);
-  assert.match(el('logInner').innerHTML,/계단실/);
+  assert.equal((run('mapHTML()').match(/ adj/g)||[]).length,4);
+  assert.match(run('G.log.map(x=>x.text).join("\\n")'),/계단실/);
 });
 
 await test('Status shows a warning for low health and a visible infection timer',()=>{
@@ -152,8 +152,9 @@ await test('Starting a new game needs a name, creates the opening and saves',()=
   run('finishCreation()');
   assert.equal(run('G.char.name'),'도현');
   assert.ok(disk.has('hanbit_save_v2'));
-  assert.match(run('G.log[0].text'),/3동 7층 자취방/);
-  assert.match(run('G.log[0].text'),/도현은/,'josa follows the name');
+  const all=run('G.log.map(x=>x.text).join("\\n")');
+  assert.match(all,/3동 7층 자취방/);
+  assert.match(all,/도현은/,'josa follows the name');
 });
 
 await test('No leftovers of the old game (nursing-ward, school, mystery) remain in the script',()=>{
