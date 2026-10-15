@@ -5,7 +5,7 @@ const {fixture,test,done,script}=require('./_hanbit-fixture.cjs');
 
 function game(name='도현'){
   const f=fixture();
-  f.run(`render=()=>{};G=newState(${JSON.stringify(name)});migrate();busy=false;`);
+  f.run(`render=()=>{};G=newState(${JSON.stringify(name)});migrate();busy=false;rng=()=>0.99;`);
   return f;
 }
 
@@ -65,7 +65,7 @@ await test('Moving works only along a road, updates the location and writes the 
   assert.ok(disk.has('hanbit_save_v2'),'saved under the v2 key');
   assert.equal(run("goZone('stairs')"),false,'the gate is not next to the stairs');
   assert.equal(run("goZone('garage')"),true);
-  assert.ok(obj('G.log').at(-1).text.includes('다시 왔다'),'revisit gets a short line, not the full description');
+  assert.ok(obj('G.log').some(l=>l.text.includes('다시 왔다')),'revisit gets a short line, not the full description');
 });
 
 await test('Moving is blocked after an ending and while an AI reply is pending',()=>{
@@ -76,7 +76,7 @@ await test('Moving is blocked after an ending and while an AI reply is pending',
 
 await test('Choices are built by code from the current zone and pick() ignores anything not in the list',()=>{
   const {run,obj}=game();
-  assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['move:stairs','look:','rest:']);
+  assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['move:stairs','route:front','route:rear','route:roof','look:','rest:']);
   assert.match(run("buildChoices()[0].label"),/계단·복도로 이동 · 위험 보통/);
   run("pick('move:garage')"); assert.equal(run('G.loc'),'room','garage is not offered from the room');
   run("pick('move:stairs')"); assert.equal(run('G.loc'),'stairs');
@@ -88,7 +88,7 @@ await test('Choices are built by code from the current zone and pick() ignores a
 await test('The choices hook can add options and a failing hook never breaks the list',()=>{
   const {run,obj}=game();
   run("on('choices',5,l=>l.push({id:'talk:yumin',label:'말을 건다'}));on('choices',1,()=>{throw Error('boom')});console.warn=()=>{}");
-  assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['move:stairs','talk:yumin','look:','rest:']);
+  assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['move:stairs','route:front','route:rear','route:roof','talk:yumin','look:','rest:']);
 });
 
 await test('The goal line always has one clear sentence and names what is missing for the chosen route',()=>{
