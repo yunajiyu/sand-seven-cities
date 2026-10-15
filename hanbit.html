@@ -410,6 +410,7 @@ function validateSaveData(g,strict=true){
    if(!obj(g.zs[z.id])||!finite(g.zombies[z.id])||g.zombies[z.id]<0||!finite(g.noise[z.id])||g.noise[z.id]<0||g.noise[z.id]>NOISE_MAX) throw Error('구역 정보가 손상됐습니다: '+z.id);
  }
  if(!obj(g.comp)||!obj(g.comp.yumin)||!obj(g.surv)) throw Error('동행자 정보가 손상됐습니다.');
+ const yy=g.comp.yumin; if(typeof yy.met!=='boolean'||typeof yy.joined!=='boolean'||!finite(yy.aff)||yy.aff<0||yy.aff>AFF_MAX) throw Error('동행자 정보가 손상됐습니다.');
  if(!opt('log')&&(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||typeof x.type!=='string'||typeof x.text!=='string'))) throw Error('기록 정보가 손상됐습니다.');
  if(!opt('pend')&&(!Number.isInteger(g.pend)||g.pend<0||g.pend>(Array.isArray(g.log)?g.log.length:0))) throw Error('기록 정보가 손상됐습니다.');
  return g;
@@ -763,15 +764,121 @@ function addLog(type,text,extra){
 }
 
 /* 행동 표: 선택지 id의 앞부분('move:stairs'의 move)에 맞는 함수. 새 행동은 여기에 한 줄 */
-const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere(), cure:()=>cureInfection(), route:id=>setRoute(id) };
+const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere(), cure:()=>cureInfection(), route:id=>setRoute(id), talk:t=>talkTo(t) };
 
 /* =========================================================
    시간대 한 번 = 행동 한 번. 판정은 전부 코드가 한다(주사위는 rng 하나로만).
    순서: 행동 효과 → 조우 판정 → 시간 경과(소음 감쇠·감염·하루 소비) → 종료 조건 → 줄 출력 → 저장
    ========================================================= */
+/* =========================================================
+   유민 — 호감도(0~20, 6단계) · 첫 만남 · 동행 · 대화
+   호감은 코드만 올리고 내린다. 화면에는 숫자를 보이지 않고 '가까워진 것 같다' 같은 문장만 나온다.
+   AI는 대사만 쓰고(행동 1회에 1번), 키가 없거나 실패하면 아래 기본 대사를 쓴다.
+   ========================================================= */
+const YUMIN_MEET='stairs';                  // 처음 마주치는 곳 — 합류하기 전까지 여기에 머문다
+const AFF_MAX=20, AFF_LV=[0,2,5,8,12,16];   // 단계 문턱(호감 점수)
+const AFF_NAMES=['낯선 사이','조심스러운 사이','믿는 사이','편한 사이','마음이 가는 사이','서로 의지하는 사이'];
+const JOIN_LEVEL=2;                         // 이 단계 이상이 되면 동행한다
+let TALK_OPEN=false;                        // 대화 주제 선택 중인지(저장하지 않는다)
+function affLevel(a){ let lv=0; AFF_LV.forEach((t,i)=>{ if(a>=t) lv=i }); return lv }
+function yuminHere(){ const y=G&&G.comp&&G.comp.yumin; return !!y&&y.met&&(y.joined||G.loc===YUMIN_MEET) }
+function addAff(n,out){
+  const y=G.comp.yumin, before=affLevel(y.aff);
+  y.aff=Math.max(0,Math.min(AFF_MAX,y.aff+n));
+  const after=affLevel(y.aff);
+  if(after>before) out.push({t:'s',text:'유민과의 거리가 조금 가까워진 것 같다.'});
+  else if(after<before) out.push({t:'s',text:'유민이 한 걸음 물러선 것 같다.'});
+  if(y.met&&!y.joined&&after>=JOIN_LEVEL){
+    y.joined=true;
+    out.push({t:'n',text:'유민이 잠시 망설이다 고개를 끄덕인다. 이제 함께 움직이게 됐다.'});
+    out.push({t:'s',text:'유민이 일행에 합류했다'});
+  }
+}
+function yn(){ return '유민'+(affLevel(G.comp.yumin.aff)>=4?'':' 씨') }          // 내가 부르는 호칭
+function pn(){ return G.char.name+(affLevel(G.comp.yumin.aff)>=4?'':' 씨') }     // 유민이 부르는 호칭
+function toneFor(){
+  const lv=affLevel(G.comp.yumin.aff);
+  return lv<2?`유민은 주인공을 "${G.char.name} 씨"라 부르며 경계가 남은 존댓말을 쓴다.`
+    :lv<4?`유민은 주인공을 "${G.char.name} 씨"라 부르며 존댓말을 쓰고, 말투가 한결 부드럽다.`
+    :`유민은 존댓말을 쓰지만 주인공을 "${G.char.name}"이라고 이름으로 부르고 편하게 말한다.`;
+}
+const D=(who,emo,text)=>({t:'d',who,emo,text,rep:true});
+function meetingLines(){
+  const n=G.char.name;
+  return [
+    {t:'n',text:'비상등 아래 계단참에 누군가 웅크리고 있다. 인기척에 그녀가 흠칫 고개를 든다.',rep:true},
+    D('yumin','tense','……사람, 맞죠? 소리 내지 말아요.'),
+    D('me','neutral',`네, 사람이에요. 3동 7층에 사는 ${n}입니다.`),
+    D('yumin','relieved','5층 사는 유민이에요. 다행이다… 혼자인 줄 알았어요.'),
+    D('yumin','neutral',`아래에선 계속 이상한 소리가 나요. 조심해요, ${n} 씨.`),
+  ];
+}
+function meetingOpts(id){
+  if(!G||G.comp.yumin.met||id!==YUMIN_MEET) return undefined;
+  return {ai:{present:['yumin'],lines:'5~7',event:'계단·복도에서 같은 동 5층에 사는 유민과 처음 마주쳤다',
+    ask:`두 사람이 서로 사람임을 확인하고 이름과 사는 층(주인공 7층, 유민 5층)을 나누는 첫 만남 장면. 유민은 경계하다가 안도한다. ${toneFor().replace(/주인공을 "[^"]*"라 부르며/,`주인공을 "${G.char.name} 씨"라 부르며`)}`}};
+}
+const TALK={
+  comfort:{label:'괜찮을 거라고 말해 준다'},
+  concern:{label:'다친 데는 없는지 묻는다'},
+  joke:   {label:'가벼운 농담을 던진다'},
+};
+/* 반응 판정(코드): 어떤 말이 먹히는지는 지금 상황이 정한다 */
+function judgeTalk(t){
+  const z=ZONE[G.loc], noise=G.noise[G.loc]||0;
+  if(t==='comfort') return noise>=5?{d:0,good:false}:{d:1,good:true};
+  if(t==='concern'){ const hurt=G.hp<G.maxhp||!!G.infection; return {d:hurt?2:1,good:true,hurt} }
+  const safe=z.risk<=2&&noise<=2;
+  addNoise(G.loc,1);                       // 웃음소리도 소리다
+  return safe?{d:2,good:true}:{d:-1,good:false};
+}
+function talkLines(t,r){
+  const lv=affLevel(G.comp.yumin.aff), b=lv<=1?0:lv<=3?1:2, Y=yn(), P=pn();
+  const T={
+    comfort:r.good?[
+      [D('me','neutral',`지금은 숨부터 고르죠, ${Y}. 천천히 하면 됩니다.`),D('yumin','relieved','……네. 그렇게 말해 주니 조금 낫네요.')],
+      [D('me','smile','무슨 일이 있어도 같이 움직여요. 혼자 두지 않을게요.'),D('yumin','smile','고마워요. 그 말, 기억해 둘게요.')],
+      [D('me','smile','여기까지 같이 왔잖아요. 끝까지 같이 갈 거예요.'),D('yumin','smile','……그 말만으로도 버틸 수 있을 것 같아요.')],
+    ][b]:[D('me','neutral','다 괜찮을 거예요. 정말로요.'),D('yumin','tense','지금은… 조용히 해요. 소리가 너무 커요.')],
+    concern:r.hurt?[
+      [D('me','neutral',`${Y}은 다친 데 없어요?`),D('yumin','sad',`저는 괜찮아요. 그보다 ${P} 쪽이 더 걱정인데요.`)],
+      [D('me','neutral','혹시 어디 아프면 바로 말해 줘요.'),D('yumin','fluster','……그건 제가 할 말이잖아요. 다친 거, 다 보여요.')],
+      [D('me','sad','아픈 데 있으면 참지 말아요.'),D('yumin','sad',`참는 건 ${P}이 더 하잖아요. 이번엔 제가 챙길게요.`)],
+    ][b]:[
+      [D('me','neutral','혹시 다친 데는 없어요?'),D('yumin','neutral','네, 멀쩡해요. 신경 써 줘서 고마워요.')],
+      [D('me','neutral','피곤하진 않아요? 힘들면 말해요.'),D('yumin','smile','조금요. 그래도 같이 있으니 견딜 만해요.')],
+      [D('me','smile','무리하지 말아요. 내가 옆에 있잖아요.'),D('yumin','smile','알아요. 그래서 덜 무서워요.')],
+    ][b],
+    joke:r.good?[
+      [D('me','smile','이 와중에 라면 생각나는 사람, 나만이에요?'),D('yumin','fluster','……풋. 이 상황에 그런 말이 나와요?')],
+      [D('me','smile','나가면 제일 먼저 뜨거운 국물부터 먹죠. 제가 쏠게요.'),D('yumin','smile','약속이에요. 두 그릇 먹을 거예요.')],
+      [D('me','smile','무사히 나가면 7층이랑 5층 합동 집들이 합시다.'),D('yumin','smile','좋아요. 그때는 문 잠그지 말기로 해요.')],
+    ][b]:[D('me','smile','이럴 땐 웃어야 덜 무서워요.'),D('yumin','tense','……지금은 웃을 때가 아니에요. 소리 나요.')],
+  };
+  return T[t];
+}
+function talkTo(t){
+  if(!G||G.ending||busy) return;
+  if(t===''){ if(yuminHere()){ TALK_OPEN=true; render() } return }
+  if(t==='x'){ TALK_OPEN=false; render(); return }
+  if(!own(TALK,t)||!yuminHere()) return;
+  takeTurn('talk',t,`유민에게 말을 건다 (${TALK[t].label})`,out=>{
+    const r=judgeTalk(t);
+    for(const l of talkLines(t,r)) out.push(l);
+    addAff(r.d,out);
+    out._r=r;
+  },{ai:talkAi(t)});
+}
+function talkAi(t){
+  const r={comfort:'주인공이 유민에게 괜찮을 거라고 말해 준다',concern:'주인공이 유민에게 다친 데는 없는지 묻는다',joke:'주인공이 긴장을 풀려고 가벼운 농담을 던진다'}[t];
+  const ask=`${r}. 유민의 반응을 짧은 대화로 쓴다. 상황이 맞으면 유민이 마음을 열고, 어색하거나 위험한 상황이면 긴장하거나 머뭇거린다.`;
+  return {present:['yumin'],lines:'4~6',event:`${r} (위험 ${RISK_LABEL[ZONE[G.loc].risk]}, 소음 ${G.noise[G.loc]||0}/${NOISE_MAX})`,ask:`${ask} ${toneFor()} 호감도나 수치는 말하지 않는다.`};
+}
+
 let rng=Math.random;
 const BITE_CHANCE=0.5;                       // 조우했을 때 물릴 확률
 const BITE_DAMAGE=2;
+const PROTECT_COST=1;                        // 유민을 감싸다 입는 추가 피해
 const LOOT={                                 // 구역별 수색 결과(한 번만)
   room:  {food:1,water:1},
   stairs:{items:['flashlight']},
@@ -801,14 +908,17 @@ function encounter(id,out){
   if(p<=0||rng()>=p) return;
   addNoise(id,1);
   if(rng()<BITE_CHANCE){
-    G.hp=Math.max(0,G.hp-BITE_DAMAGE); addNoise(id,2);
-    out.push({t:'n',text:'어둠 속에서 무언가가 달려들었다. 팔을 물렸다.'});
-    let sys=`체력 −${BITE_DAMAGE}`;
+    const her=yuminHere(), dmg=BITE_DAMAGE+(her?PROTECT_COST:0);
+    G.hp=Math.max(0,G.hp-dmg); addNoise(id,2);
+    out.push({t:'n',text:her?'어둠 속에서 무언가가 달려들었다. 유민을 등 뒤로 밀어내고 대신 팔을 물렸다.':'어둠 속에서 무언가가 달려들었다. 팔을 물렸다.'});
+    if(her) addAff(2,out);
+    let sys=`체력 −${dmg}`;
     if(!G.infection){ G.infection={left:INFECT_SLOTS}; sys+=` · 감염 시작(${INFECT_SLOTS}시간대)` }
     out.push({t:'s',text:sys});
   }else{
     out.push({t:'n',text:'바로 앞에서 무언가가 고개를 들었다. 숨을 죽이고 간신히 빠져나왔다.'});
     out.push({t:'s',text:'소음 +1'});
+    if(yuminHere()) addAff(1,out);
   }
 }
 function finish(key,out){ if(G.ending) return; G.ending=key; out.push({t:'s',text:ENDING_TEXT[key]}) }
@@ -829,17 +939,21 @@ function advanceTime(out){
   if(G.hp<=0) finish('dead',out);
 }
 /* 행동 하나를 끝까지 처리하는 공통 틀. effect()가 행동 효과를 적용하고 줄을 out에 넣는다 */
-function takeTurn(kind,arg,logText,effect){
+function takeTurn(kind,arg,logText,effect,opts){
   if(!G||G.ending||busy) return false;
+  TALK_OPEN=false;
   const out=[];
   addLog('action',logText);
   effect(out);
   if(!G.ending&&G.hp>0) encounter(G.loc,out);
   if(G.hp<=0) finish('dead',out);
   if(!G.ending) advanceTime(out);
-  say(out);
+  // 대사 줄(rep 표시)은 AI가 쓸 수 있으면 AI에게 맡기고, 아니면 기본 대사를 그대로 쓴다. 판정 결과(sys)와 서술은 코드가 확정한다
+  const rep=out.filter(l=>l.rep), useAi=!!(opts&&opts.ai&&rep.length&&!G.ending&&aiReady('story'));
+  say(useAi?out.filter(l=>!l.rep):out);
   run('after',kind,arg);
   save(); render();
+  if(useAi) aiScene(kind,{...opts.ai,fallbackLines:rep.map(l=>({...l,rep:undefined}))});
   return true;
 }
 function goZone(id){
@@ -849,7 +963,12 @@ function goZone(id){
   return takeTurn('move',id,`${from.s}에서 ${to.s}${josa(to.s,'으로','로')} 이동한다`,out=>{
     G.loc=id; G.zs[id].seen=true; addNoise(id,1);
     out.push({t:'n',text:first?to.desc:`${to.n}에 다시 왔다. (위험 ${RISK_LABEL[to.risk]})`});
-  });
+    const y=G.comp.yumin;
+    if(!y.met&&id===YUMIN_MEET){
+      y.met=true; y.aff=Math.max(y.aff,1);
+      for(const l of meetingLines()) out.push(l);
+    } else if(y.joined&&first&&to.risk>=3) addAff(1,out);   // 위험한 곳에 처음 함께 들어서면 가까워진다
+  },meetingOpts(id));
 }
 
 /* 선택지 목록: 코드가 만든다(템플릿 문구). 이후 단계에서 탐색·휴식·대화가 훅으로 붙는다 */
@@ -859,6 +978,13 @@ function buildChoices(){
     const z=ZONE[id];
     return {id:'move:'+id,icon:z.icon,label:`${z.s}${josa(z.s,'으로','로')} 이동 · 위험 ${RISK_LABEL[z.risk]}`};
   });
+  if(TALK_OPEN&&yuminHere()){
+    const t=Object.keys(TALK).map(k=>({id:'talk:'+k,label:TALK[k].label}));
+    t.push({id:'talk:x',label:'그만둔다'});
+    return t;
+  }
+  TALK_OPEN=false;
+  if(yuminHere()) list.push({id:'talk:',label:'유민에게 말을 건다'});
   if(G.infection&&G.meds>0) list.push({id:'cure:',label:'응급약을 먹는다'});
   if(G.loc==='room'){
     if(!G.route) for(const id of Object.keys(ROUTES)) list.push({id:'route:'+id,label:`${ROUTES[id].n}으로 나가기로 한다`});
@@ -891,8 +1017,9 @@ function restHere(){
   takeTurn('rest','',`${z.s}에서 잠시 쉰다`,out=>{
     const heal=G.loc==='room'?2:1, before=G.hp;
     G.hp=Math.min(G.maxhp,G.hp+heal); addNoise(G.loc,-1);
-    out.push({t:'n',text:'벽에 기대어 숨을 고른다.'});
+    out.push({t:'n',text:yuminHere()?'벽에 기대어 숨을 고른다. 유민도 말없이 옆에 앉는다.':'벽에 기대어 숨을 고른다.'});
     if(G.hp>before) out.push({t:'s',text:`체력 +${G.hp-before}`});
+    if(G.comp.yumin.joined) addAff(1,out);
   });
 }
 function cureInfection(){
@@ -1090,6 +1217,7 @@ function renderStats(){
   if(G.meds>0) parts.push(st(`${px('pill')}${G.meds}`));
   if(G.items.length) parts.push(st(G.items.map(i=>px(ITEMS[i].i)).join('')));
   if(G.infection) parts.push(st(`${px('virus')}감염 ${G.infection.left}시간대`,true));
+  if(G.comp.yumin.joined) parts.push(st('유민 동행'));
   document.getElementById('stats').innerHTML=parts.join('');
 }
 function renderGoal(){ document.getElementById('goal').innerHTML=px('target')+' '+esc(goalLine()) }
@@ -1233,16 +1361,17 @@ function scenePrompt(kind,ctx={}){
 /* AI 장면 1회. 키가 없거나 실패하면 기본 문장으로 대신하고, 게임은 멈추지 않는다 */
 async function aiScene(kind,ctx={}){
   if(!G||busy) return false;
-  const g=G, fb=ctx.fallback||ZONE[G.loc].desc;
-  if(!aiReady('story')){ say([{t:'n',text:fb}]); toast('AI 연결이 없어 기본 문장을 보여 줍니다'); return false }
+  const g=G, fb=ctx.fallback||ZONE[G.loc].desc, fbLines=Array.isArray(ctx.fallbackLines)&&ctx.fallbackLines.length?ctx.fallbackLines:[{t:'n',text:fb}];
+  if(!aiReady('story')){ say(fbLines); toast('AI 연결이 없어 기본 문장을 보여 줍니다'); return false }
   busy=true; USAGE_TURN={in:0,out:0,cost:0,unk:false}; renderChoices();
   let res, ok=true;
   try{
     const {system,user}=scenePrompt(kind,ctx);
     const raw=await callAI(system,user,ctx.maxTokens||700,'story');
     res=parseScript(raw,{allowed:['me',...(ctx.present||[])],fallback:fb});
+    if(res.via==='fallback') res={...res,lines:fbLines};
   }catch(e){
-    ok=false; res={lines:[{t:'n',text:fb}],via:'error',dropped:0};
+    ok=false; res={lines:fbLines,via:'error',dropped:0};
     toast('AI 서술을 받지 못해 기본 문장을 보여 줍니다');
   }finally{ busy=false }
   if(G!==g) return false;                       // 기다리는 동안 다른 판으로 바뀌었으면 버린다

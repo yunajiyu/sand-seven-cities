@@ -80,7 +80,7 @@ await test('Choices are built by code from the current zone and pick() ignores a
   assert.match(run("buildChoices()[0].label"),/계단·복도로 이동 · 위험 보통/);
   run("pick('move:garage')"); assert.equal(run('G.loc'),'room','garage is not offered from the room');
   run("pick('move:stairs')"); assert.equal(run('G.loc'),'stairs');
-  assert.deepEqual(obj("buildChoices().map(c=>c.id).sort()"),['look:','move:garage','move:roof','move:room','move:shop','rest:']);
+  assert.deepEqual(obj("buildChoices().map(c=>c.id).sort()"),['look:','move:garage','move:roof','move:room','move:shop','rest:','talk:']);
   run("pick('bogus:thing')"); assert.equal(run('G.loc'),'stairs');
   run("G.ending='x'"); assert.deepEqual(obj('buildChoices()'),[]);
 });

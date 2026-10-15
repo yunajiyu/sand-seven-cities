@@ -83,7 +83,7 @@ await test('A choice made while lines remain is ignored, and moving makes the ne
   run("pick('move:stairs')");
   assert.equal(run('G.loc'),'stairs');
   assert.equal(run('Q.cur.text').includes('계단'),true);
-  assert.equal(run('Q.pending.length'),0);
+  assert.ok(run('Q.pending.length')>0,'the first meeting with 유민 follows the zone description');
 });
 
 await test('Log view shows only lines already seen, with the speaker name, and action lines',()=>{
