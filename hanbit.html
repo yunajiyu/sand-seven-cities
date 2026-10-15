@@ -4,38 +4,41 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>재개발 예정 단지</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css" rel="stylesheet">
 <style>
 :root{
-  --bg:#e6ebf1; --panel:#f5f7fa; --ink:#1b2430; --muted:#5b6a7d; --line:#c3cdd9;
-  --accent:#4d8a12; --accent2:#2a6f93; --hl:#6c7a1a; --danger:#c0392b; --ok:#2f8a46; --warn:#b86e00;
-  --on-accent:#fff;
-  --shadow:0 2px 10px rgba(20,30,50,.14);
+  /* 도트 팔레트(16색 계열) — 밝은 테마 */
+  --bg:#e9e2cf; --panel:#f6f1e1; --ink:#1a1c2c; --muted:#4a5874; --line:#333c57;
+  --accent:#257179; --accent2:#3b5dc9; --hl:#8a5a00; --danger:#b13e53; --ok:#2d8a4a; --warn:#b8541f;
+  --on-accent:#f4f4f4; --edge:#1a1c2c;
+  --shadow:3px 3px 0 var(--edge);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0d1220; --panel:#151c2d; --ink:#e4ebf3; --muted:#8895a9; --line:#283349;
-    --accent:#b4ee4a; --accent2:#7fd0ee; --hl:#c9e36a; --danger:#ff6b5e; --ok:#7ee08f; --warn:#f0a63c;
-    --on-accent:#0d1220;
-    --shadow:0 2px 10px rgba(0,0,0,.5);
+    --bg:#1a1c2c; --panel:#262b44; --ink:#f4f4f4; --muted:#94b0c2; --line:#566c86;
+    --accent:#a7f070; --accent2:#73eff7; --hl:#ffcd75; --danger:#ff6f7d; --ok:#a7f070; --warn:#ef7d57;
+    --on-accent:#1a1c2c; --edge:#0b0c14;
+    --shadow:3px 3px 0 var(--edge);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0d1220; --panel:#151c2d; --ink:#e4ebf3; --muted:#8895a9; --line:#283349;
-  --accent:#b4ee4a; --accent2:#7fd0ee; --hl:#c9e36a; --danger:#ff6b5e; --ok:#7ee08f; --warn:#f0a63c;
-  --on-accent:#0d1220;
-  --shadow:0 2px 10px rgba(0,0,0,.5);
+  --bg:#1a1c2c; --panel:#262b44; --ink:#f4f4f4; --muted:#94b0c2; --line:#566c86;
+  --accent:#a7f070; --accent2:#73eff7; --hl:#ffcd75; --danger:#ff6f7d; --ok:#a7f070; --warn:#ef7d57;
+  --on-accent:#1a1c2c; --edge:#0b0c14;
+  --shadow:3px 3px 0 var(--edge);
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans KR',sans-serif;font-size:15px;line-height:1.6}
-button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:8px 14px}
-button:hover:not(:disabled){border-color:var(--accent)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Galmuri11','Galmuri9','DotGothic16','Noto Sans KR',monospace;font-size:15px;line-height:1.6;-webkit-font-smoothing:none;font-smooth:never}
+button{font:inherit;cursor:pointer;border:2px solid var(--ink);background:var(--panel);color:var(--ink);border-radius:0;padding:7px 14px;box-shadow:var(--shadow)}
+button:active:not(:disabled){transform:translate(3px,3px);box-shadow:0 0 0 var(--edge)}
+button:hover:not(:disabled){background:var(--bg);border-color:var(--accent)}
 button:disabled{opacity:.45;cursor:not-allowed}
-button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+button.primary{background:var(--accent);border-color:var(--ink);color:var(--on-accent)}
+button.primary:hover:not(:disabled){background:var(--accent);filter:brightness(1.12)}
 button.small{padding:4px 10px;font-size:13px}
-input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--ink);border-radius:0;padding:8px 10px;width:100%;box-shadow:inset 2px 2px 0 rgba(0,0,0,.25)}
 .wrap{max-width:860px;margin:0 auto;padding:16px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.card{background:var(--panel);border:3px solid var(--ink);outline:2px solid var(--line);outline-offset:-7px;border-radius:0;padding:20px;box-shadow:var(--shadow)}
 .hidden{display:none!important}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .muted{color:var(--muted);font-size:13px}
@@ -44,67 +47,86 @@ h4{margin:10px 0 6px}
 
 /* title */
 #title{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
-#title h1{font-size:34px;margin:0 0 6px;color:var(--accent)}
-#title .sub{color:var(--muted);margin-bottom:28px}
+svg.pix{width:1.2em;height:1.2em;vertical-align:-.24em;margin-right:.25em;flex:0 0 auto;image-rendering:pixelated}
+.stats .st{display:inline-flex;align-items:center}
+.stats .st .pix{margin-right:4px}
+#goal .pix{margin-right:4px}
+#choices button .pix{margin-right:8px}
+#placeLabel .pix{margin-right:4px}
+#title h1{font-size:34px;margin:0 0 8px;color:var(--accent);letter-spacing:1px;text-shadow:3px 3px 0 var(--edge),-1px -1px 0 var(--edge),1px -1px 0 var(--edge),-1px 1px 0 var(--edge)}
+#title .skyline{display:block;width:288px;max-width:80vw;height:auto;margin:0 auto 14px;image-rendering:pixelated;shape-rendering:crispEdges}
+#title .sub{color:var(--muted);margin-bottom:28px;word-break:keep-all;padding:0 20px}
 #title .btns{display:flex;flex-direction:column;gap:10px;width:240px;margin:0 auto}
 
-/* game */
-#game{display:flex;flex-direction:column;height:100vh;height:100dvh}
-.topbar{background:var(--panel);border-bottom:1px solid var(--line);padding:6px 12px}
+/* game — 미연시 화면: 상태바 / 장면 / 스크립트창 / 선택지 */
+#game{position:relative;display:flex;flex-direction:column;height:100vh;height:var(--vvh,100dvh);overflow:hidden;background:#05070d;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+.topbar{background:#1a1c2c;border-bottom:3px solid #f4f4f4;padding:3px 10px 4px;color:#f4f4f4;flex:0 0 auto;z-index:3}
 .tb{display:flex;align-items:center;gap:8px;max-width:860px;margin:0 auto}
-.stats{display:flex;gap:0 14px;font-size:14px;flex:1;min-width:0;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+.stats{display:flex;gap:0 12px;font-size:12.5px;line-height:1.5;flex:1;min-width:0;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
 .stats::-webkit-scrollbar{display:none}
 .stats .st{flex:0 0 auto}
-.stats .low{color:var(--danger);font-weight:700}
-#goal{max-width:860px;margin:2px auto 0;font-size:13px;color:var(--hl);font-weight:500}
-#goal::before{content:'🎯 '}
-#saveWarning{padding:10px;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border-bottom:1px solid var(--danger)}
-.mapbox{background:var(--bg);border-bottom:1px solid var(--line);padding:6px 12px}
-.mapbox .inner{max-width:560px;margin:0 auto}
-.zmap{width:100%;height:auto;max-height:min(280px,36dvh);display:block;margin:0 auto}
-.zedge{stroke:var(--line);stroke-width:2}
-.znode{cursor:default;outline:none}
-.znode circle{fill:var(--panel);stroke-width:3}
-.znode.r1 circle{stroke:var(--ok)}
-.znode.r2 circle{stroke:var(--hl)}
-.znode.r3 circle{stroke:var(--warn)}
-.znode.r4 circle{stroke:var(--danger)}
-.znode.adj{cursor:pointer}
-.znode.adj circle{fill:var(--bg);stroke-dasharray:none}
-.znode.far{opacity:.55}
-.znode.cur circle{fill:var(--accent);}
-.znode.cur .ic{filter:none}
-.znode:focus-visible circle{stroke:var(--accent2);stroke-width:4}
-.znode .ic{font-size:17px;text-anchor:middle;dominant-baseline:central}
-.znode .lb{font-size:11px;text-anchor:middle;fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round}
-.znode .rk{font-size:8px;text-anchor:middle;fill:var(--muted);letter-spacing:1px;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
-#zoneCard{font-size:13px;color:var(--muted);margin-top:2px}
-#zoneCard b{color:var(--ink)}
-#log{flex:1;min-height:90px;overflow-y:auto;padding:12px}
-#log .inner{max-width:860px;margin:0 auto}
-.entry{margin:0 0 12px}
-.entry.scene p{margin:0 0 8px;font-size:calc(16px*var(--fs,1))}
-.entry.action{color:var(--accent2);font-weight:500;font-size:calc(14px*var(--fs,1))}
+.stats .low{color:#ff6f7d}
+.topbar button.small{padding:0 9px;font-size:15px;line-height:1.5;background:#262b44;color:#f4f4f4;border-color:#f4f4f4;box-shadow:2px 2px 0 #0b0c14}
+#goal{max-width:860px;margin:0 auto;font-size:11.5px;line-height:1.45;color:#ffcd75;line-height:1.35}
+#saveWarning{padding:8px 10px;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border-bottom:3px solid var(--danger);z-index:3}
+#scene{position:relative;flex:1 1 0;min-height:0;overflow:hidden;cursor:pointer}
+#sceneBg{position:absolute;inset:0}
+#cast{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:center;align-items:flex-end;gap:10px;padding:0 8px}
+.pt{width:192px;height:192px;max-width:44vw;max-height:44vw;image-rendering:pixelated;object-fit:contain;transition:filter .2s,opacity .2s}
+.pt.dim{filter:brightness(.4);opacity:.75}
+#placeLabel{position:absolute;left:10px;top:10px;font-size:12px;color:#f4f4f4;background:#1a1c2c;border:2px solid #f4f4f4;padding:1px 9px;pointer-events:none}
+#choices{position:absolute;left:12px;right:12px;bottom:10px;display:flex;flex-direction:column;gap:6px;z-index:2;max-width:560px;margin:0 auto}
+#choices button{text-align:left;font-size:calc(15px*var(--fs,1));line-height:1.4;padding:11px 13px 11px 30px;background:#1a1c2c;color:#f4f4f4;border:3px solid #f4f4f4;box-shadow:inset 0 0 0 2px #566c86,3px 3px 0 #0b0c14;position:relative}
+#choices button::before{content:'▶';position:absolute;left:10px;top:11px;color:#a7f070;font-size:12px;line-height:1.7;opacity:.35}
+#choices button:hover:not(:disabled),#choices button:focus-visible{background:#333c57;border-color:#a7f070}
+#choices button:hover:not(:disabled)::before,#choices button:focus-visible::before{opacity:1}
+#script{position:relative;flex:0 0 auto;height:min(32dvh,280px);min-height:148px;background:#1a1c2c;border-top:4px solid #f4f4f4;box-shadow:inset 0 4px 0 #566c86;padding:22px 16px calc(12px + env(safe-area-inset-bottom));color:#f4f4f4;cursor:pointer;z-index:2}
+#scriptInner{max-width:560px;margin:0 auto;height:100%;overflow-y:auto}
+#nameTag{position:absolute;left:14px;top:-18px;background:#a7f070;color:#1a1c2c;border:3px solid #f4f4f4;font-size:14px;padding:0 14px;line-height:1.6;display:none;box-shadow:3px 3px 0 #0b0c14}
+#scriptText{font-size:calc(16px*var(--fs,1));line-height:1.7;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere}
+#scriptText.n{color:#94b0c2}
+#scriptText.d{color:#f4f4f4}
+#scriptText.s{color:#ffcd75;font-size:calc(14px*var(--fs,1))}
+#nextMark{position:absolute;right:16px;bottom:calc(8px + env(safe-area-inset-bottom));color:#a7f070;font-size:13px;opacity:0;animation:blink 1s steps(2) infinite}
+#nextMark.on{opacity:1}
+@keyframes blink{50%{opacity:.25}}
+.entry{word-break:keep-all;overflow-wrap:anywhere;margin:0 0 10px;font-size:calc(15px*var(--fs,1));line-height:1.6}
+.entry.n{color:var(--muted)}
+.entry.d b{color:var(--accent);margin-right:8px}
+.entry.action{color:var(--accent2);font-weight:500;font-size:calc(13px*var(--fs,1))}
 .entry.action::before{content:'▸ '}
-.entry.sys{color:var(--muted);font-size:calc(13px*var(--fs,1));border-left:3px solid var(--line);padding-left:8px;white-space:pre-line}
-.controls{background:var(--panel);border-top:1px solid var(--line);padding:8px 12px}
-.controls .inner{max-width:860px;margin:0 auto}
-.choices{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.choices button{text-align:left;font-size:calc(14px*var(--fs,1));line-height:1.35;padding:8px 10px}
-.choices .lbl{grid-column:1/-1;font-size:12px;color:var(--muted)}
-.loading{color:var(--muted);font-style:italic;padding:6px 0}
+.entry.s{color:var(--warn);font-size:calc(13px*var(--fs,1))}
+.logbox{max-height:62vh;overflow-y:auto}
+.zmap{width:100%;height:auto;max-height:60vh;display:block;margin:0 auto;shape-rendering:crispEdges}
+.zedge{stroke:var(--line);stroke-width:3;stroke-dasharray:6 4}
+.znode{cursor:default;outline:none}
+.znode>rect{fill:var(--panel);stroke-width:3}
+.znode.r1>rect{stroke:var(--ok)}
+.znode.r2>rect{stroke:var(--hl)}
+.znode.r3>rect{stroke:var(--warn)}
+.znode.r4>rect{stroke:var(--danger)}
+.znode.adj{cursor:pointer}
+.znode.adj>rect{fill:var(--bg)}
+.znode.far{opacity:.55}
+.znode.cur>rect{fill:var(--accent)}
+.znode:focus-visible>rect{stroke:var(--accent2);stroke-width:4}
+.znode .ic{font-size:17px;text-anchor:middle;dominant-baseline:central}
+.znode .lb{font-size:11px;text-anchor:middle;fill:var(--ink);paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:miter}
+.znode .rk{font-size:8px;text-anchor:middle;fill:var(--muted);letter-spacing:1px;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+#zoneCard{font-size:13px;color:var(--muted);margin-top:4px}
+#zoneCard b{color:var(--ink)}
 
 /* modal · toast */
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:30}
-.modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;max-width:640px;width:100%;max-height:86vh;display:flex;flex-direction:column}
-.modal header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.modal-bg{position:fixed;inset:0;background:rgba(11,12,20,.72);display:flex;align-items:center;justify-content:center;padding:16px;z-index:30}
+.modal{background:var(--panel);border:3px solid var(--ink);outline:2px solid var(--line);outline-offset:-7px;border-radius:0;box-shadow:5px 5px 0 var(--edge);max-width:640px;width:100%;max-height:86vh;display:flex;flex-direction:column}
+.modal header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px 10px;border-bottom:3px solid var(--line)}
 .modal header h3{margin:0}
 .modal .body{padding:12px 16px;overflow-y:auto}
 .sbtn{display:flex;flex-direction:column;gap:6px}
-.lex{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--bg)}
+.lex{border:2px solid var(--line);border-radius:0;padding:10px;margin-bottom:8px;background:var(--bg)}
 .lex .h{display:flex;justify-content:space-between;gap:8px;align-items:center}
 .lex .cat{font-size:12px;color:var(--muted)}
-.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:20px;font-size:14px;z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border:3px solid var(--edge);border-radius:0;font-size:14px;z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.on{opacity:.95}
 .fsLabelM{min-width:42px;text-align:center}
 @media (max-width:520px){ #title h1{font-size:28px} }
@@ -115,12 +137,13 @@ h4{margin:10px 0 6px}
 <!-- 타이틀 -->
 <section id="title">
   <div>
+    <svg class="skyline" viewBox="0 0 96 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="밤의 아파트 단지"><rect x="0" y="0" width="96" height="32" fill="#1a1c2c"/><rect x="78" y="3" width="5" height="5" fill="#f4f4f4"/><rect x="77" y="4" width="7" height="3" fill="#f4f4f4"/><rect x="80" y="3" width="3" height="5" fill="#1a1c2c"/><rect x="8" y="4" width="1" height="1" fill="#94b0c2"/><rect x="20" y="9" width="1" height="1" fill="#94b0c2"/><rect x="34" y="3" width="1" height="1" fill="#94b0c2"/><rect x="52" y="6" width="1" height="1" fill="#94b0c2"/><rect x="66" y="10" width="1" height="1" fill="#94b0c2"/><rect x="90" y="12" width="1" height="1" fill="#94b0c2"/><rect x="44" y="11" width="1" height="1" fill="#94b0c2"/><rect x="4" y="14" width="16" height="18" fill="#333c57"/><rect x="4" y="14" width="16" height="1" fill="#566c86"/><rect x="18" y="15" width="2" height="17" fill="#262b44"/><rect x="6" y="17" width="2" height="2" fill="#1a1c2c"/><rect x="10" y="17" width="2" height="2" fill="#ffcd75"/><rect x="14" y="17" width="2" height="2" fill="#1a1c2c"/><rect x="6" y="21" width="2" height="2" fill="#ffcd75"/><rect x="10" y="21" width="2" height="2" fill="#1a1c2c"/><rect x="14" y="21" width="2" height="2" fill="#1a1c2c"/><rect x="6" y="25" width="2" height="2" fill="#ffcd75"/><rect x="10" y="25" width="2" height="2" fill="#1a1c2c"/><rect x="14" y="25" width="2" height="2" fill="#ffcd75"/><rect x="22" y="6" width="18" height="26" fill="#333c57"/><rect x="22" y="6" width="18" height="1" fill="#566c86"/><rect x="38" y="7" width="2" height="25" fill="#262b44"/><rect x="24" y="9" width="2" height="2" fill="#1a1c2c"/><rect x="28" y="9" width="2" height="2" fill="#ffcd75"/><rect x="32" y="9" width="2" height="2" fill="#ffcd75"/><rect x="24" y="13" width="2" height="2" fill="#1a1c2c"/><rect x="28" y="13" width="2" height="2" fill="#1a1c2c"/><rect x="32" y="13" width="2" height="2" fill="#ffcd75"/><rect x="24" y="17" width="2" height="2" fill="#1a1c2c"/><rect x="28" y="17" width="2" height="2" fill="#1a1c2c"/><rect x="32" y="17" width="2" height="2" fill="#1a1c2c"/><rect x="24" y="21" width="2" height="2" fill="#1a1c2c"/><rect x="28" y="21" width="2" height="2" fill="#1a1c2c"/><rect x="32" y="21" width="2" height="2" fill="#1a1c2c"/><rect x="24" y="25" width="2" height="2" fill="#ffcd75"/><rect x="28" y="25" width="2" height="2" fill="#1a1c2c"/><rect x="32" y="25" width="2" height="2" fill="#1a1c2c"/><rect x="42" y="11" width="14" height="21" fill="#333c57"/><rect x="42" y="11" width="14" height="1" fill="#566c86"/><rect x="54" y="12" width="2" height="20" fill="#262b44"/><rect x="44" y="14" width="2" height="2" fill="#ffcd75"/><rect x="48" y="14" width="2" height="2" fill="#ffcd75"/><rect x="44" y="18" width="2" height="2" fill="#1a1c2c"/><rect x="48" y="18" width="2" height="2" fill="#1a1c2c"/><rect x="44" y="22" width="2" height="2" fill="#ffcd75"/><rect x="48" y="22" width="2" height="2" fill="#1a1c2c"/><rect x="44" y="26" width="2" height="2" fill="#1a1c2c"/><rect x="48" y="26" width="2" height="2" fill="#1a1c2c"/><rect x="58" y="4" width="20" height="28" fill="#333c57"/><rect x="58" y="4" width="20" height="1" fill="#566c86"/><rect x="76" y="5" width="2" height="27" fill="#262b44"/><rect x="60" y="7" width="2" height="2" fill="#1a1c2c"/><rect x="64" y="7" width="2" height="2" fill="#ffcd75"/><rect x="68" y="7" width="2" height="2" fill="#ffcd75"/><rect x="72" y="7" width="2" height="2" fill="#ffcd75"/><rect x="60" y="11" width="2" height="2" fill="#1a1c2c"/><rect x="64" y="11" width="2" height="2" fill="#1a1c2c"/><rect x="68" y="11" width="2" height="2" fill="#1a1c2c"/><rect x="72" y="11" width="2" height="2" fill="#1a1c2c"/><rect x="60" y="15" width="2" height="2" fill="#1a1c2c"/><rect x="64" y="15" width="2" height="2" fill="#1a1c2c"/><rect x="68" y="15" width="2" height="2" fill="#1a1c2c"/><rect x="72" y="15" width="2" height="2" fill="#1a1c2c"/><rect x="60" y="19" width="2" height="2" fill="#1a1c2c"/><rect x="64" y="19" width="2" height="2" fill="#1a1c2c"/><rect x="68" y="19" width="2" height="2" fill="#1a1c2c"/><rect x="72" y="19" width="2" height="2" fill="#1a1c2c"/><rect x="60" y="23" width="2" height="2" fill="#1a1c2c"/><rect x="64" y="23" width="2" height="2" fill="#1a1c2c"/><rect x="68" y="23" width="2" height="2" fill="#1a1c2c"/><rect x="72" y="23" width="2" height="2" fill="#ffcd75"/><rect x="60" y="27" width="2" height="2" fill="#1a1c2c"/><rect x="64" y="27" width="2" height="2" fill="#1a1c2c"/><rect x="68" y="27" width="2" height="2" fill="#ffcd75"/><rect x="72" y="27" width="2" height="2" fill="#1a1c2c"/><rect x="80" y="13" width="14" height="19" fill="#333c57"/><rect x="80" y="13" width="14" height="1" fill="#566c86"/><rect x="92" y="14" width="2" height="18" fill="#262b44"/><rect x="82" y="16" width="2" height="2" fill="#ffcd75"/><rect x="86" y="16" width="2" height="2" fill="#1a1c2c"/><rect x="82" y="20" width="2" height="2" fill="#1a1c2c"/><rect x="86" y="20" width="2" height="2" fill="#1a1c2c"/><rect x="82" y="24" width="2" height="2" fill="#1a1c2c"/><rect x="86" y="24" width="2" height="2" fill="#1a1c2c"/><rect x="82" y="28" width="2" height="2" fill="#1a1c2c"/><rect x="86" y="28" width="2" height="2" fill="#1a1c2c"/><rect x="0" y="30" width="96" height="2" fill="#0b0c14"/></svg>
     <h1>재개발 예정 단지</h1>
     <div class="sub">좀비가 나온 낡은 아파트 단지를 두 사람이 함께 빠져나가는 이야기</div>
     <div class="btns">
       <button class="primary" onclick="startCreation()">새로 시작하기</button>
       <button id="btnContinue" onclick="continueGame()">이어서 하기</button>
-      <button onclick="openPrefs()">⚙ 설정</button>
+      <button onclick="openPrefs()"><svg class="pix" viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true"><rect x="4" y="0" width="2" height="1" fill="#94b0c2"/><rect x="1" y="1" width="1" height="1" fill="#94b0c2"/><rect x="3" y="1" width="4" height="1" fill="#94b0c2"/><rect x="8" y="1" width="1" height="1" fill="#94b0c2"/><rect x="1" y="2" width="8" height="1" fill="#94b0c2"/><rect x="2" y="3" width="2" height="1" fill="#94b0c2"/><rect x="4" y="3" width="2" height="1" fill="#566c86"/><rect x="6" y="3" width="2" height="1" fill="#94b0c2"/><rect x="0" y="4" width="4" height="1" fill="#94b0c2"/><rect x="4" y="4" width="2" height="1" fill="#566c86"/><rect x="6" y="4" width="4" height="1" fill="#94b0c2"/><rect x="0" y="5" width="4" height="1" fill="#94b0c2"/><rect x="4" y="5" width="2" height="1" fill="#566c86"/><rect x="6" y="5" width="4" height="1" fill="#94b0c2"/><rect x="2" y="6" width="2" height="1" fill="#94b0c2"/><rect x="4" y="6" width="2" height="1" fill="#566c86"/><rect x="6" y="6" width="2" height="1" fill="#94b0c2"/><rect x="1" y="7" width="8" height="1" fill="#94b0c2"/><rect x="1" y="8" width="1" height="1" fill="#94b0c2"/><rect x="3" y="8" width="4" height="1" fill="#94b0c2"/><rect x="8" y="8" width="1" height="1" fill="#94b0c2"/><rect x="4" y="9" width="2" height="1" fill="#94b0c2"/></svg> 설정</button>
     </div>
     <p class="muted" style="margin-top:20px;padding:0 16px" id="aiStatus"></p>
   </div>
@@ -147,20 +170,21 @@ h4{margin:10px 0 6px}
   <div class="topbar">
     <div class="tb">
       <div class="stats" id="stats"></div>
-      <button class="small" onclick="openPrefs()" aria-label="설정" title="설정">⚙</button>
+      <button class="small" onclick="openMenu()" aria-label="메뉴" title="메뉴"><svg class="pix" viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true"><rect x="0" y="2" width="10" height="1" fill="#f4f4f4"/><rect x="0" y="4" width="10" height="1" fill="#f4f4f4"/><rect x="0" y="6" width="10" height="1" fill="#f4f4f4"/></svg></button>
     </div>
     <div id="goal"></div>
   </div>
-  <div id="saveWarning" role="alert" style="display:none"><span>⚠ 자동 저장에 실패했습니다. 현재 진행을 파일로 보관해 주세요.</span><button class="small" onclick="exportSave()">저장 내보내기</button></div>
-  <div class="mapbox">
-    <div class="inner">
-      <div id="cmap"></div>
-      <div id="zoneCard"></div>
-    </div>
+  <div id="saveWarning" role="alert" style="display:none"><span><svg class="pix" viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true"><rect x="4" y="1" width="2" height="1" fill="#ffcd75"/><rect x="3" y="2" width="4" height="1" fill="#ffcd75"/><rect x="3" y="3" width="1" height="1" fill="#ffcd75"/><rect x="4" y="3" width="2" height="1" fill="#1a1c2c"/><rect x="6" y="3" width="1" height="1" fill="#ffcd75"/><rect x="2" y="4" width="2" height="1" fill="#ffcd75"/><rect x="4" y="4" width="2" height="1" fill="#1a1c2c"/><rect x="6" y="4" width="2" height="1" fill="#ffcd75"/><rect x="2" y="5" width="2" height="1" fill="#ffcd75"/><rect x="4" y="5" width="2" height="1" fill="#1a1c2c"/><rect x="6" y="5" width="2" height="1" fill="#ffcd75"/><rect x="1" y="6" width="8" height="1" fill="#ffcd75"/><rect x="1" y="7" width="3" height="1" fill="#ffcd75"/><rect x="4" y="7" width="2" height="1" fill="#1a1c2c"/><rect x="6" y="7" width="3" height="1" fill="#ffcd75"/><rect x="0" y="8" width="10" height="1" fill="#ffcd75"/></svg> 자동 저장에 실패했습니다. 현재 진행을 파일로 보관해 주세요.</span><button class="small" onclick="exportSave()">저장 내보내기</button></div>
+  <div id="scene" onclick="tapAdvance(event)">
+    <div id="sceneBg"></div>
+    <div id="placeLabel"></div>
+    <div id="cast"></div>
+    <div id="choices"></div>
   </div>
-  <div id="log"><div class="inner" id="logInner"></div></div>
-  <div class="controls">
-    <div class="inner"><div class="choices" id="choices"></div></div>
+  <div id="script" onclick="tapAdvance(event)">
+    <div id="nameTag"></div>
+    <div id="scriptInner"><div id="scriptText" class="n" aria-live="polite"></div></div>
+    <div id="nextMark">▼</div>
   </div>
 </section>
 
@@ -197,7 +221,7 @@ const GAME_TITLE='재개발 예정 단지';   // 임시 제목
 
 /* 시간: 하루 4시간대. 숫자는 구현하며 조정 */
 const TIMES=['아침','낮','저녁','밤'];
-const TIME_ICON={'아침':'🌅','낮':'☀️','저녁':'🌇','밤':'🌙'};
+const TIME_ICON={'아침':'sunrise','낮':'sun','저녁':'sunset','밤':'moon'};
 const START={day:1,slot:2,loc:'room'};   // 1일차 저녁에 갇힌 채 시작
 const LAST_DAY=4;                        // 3~4일. 4일차가 마지막
 const BASE={hp:10,food:6,water:6};       // 시작 자원
@@ -208,21 +232,21 @@ const RISK_LABEL=['','낮음','보통','높음','매우 높음'];
 
 /* 8개 구역. x·y는 지도(360×256) 위 좌표 */
 const ZONES=[
- {id:'room',  n:'3동 7층 자취방',  s:'자취방',  icon:'🏠',risk:1,role:'시작 지점 · 안전거점',   gives:'휴식, 저장',          x:28, y:70,
+ {id:'room',  n:'3동 7층 자취방',  s:'자취방',  icon:'room',risk:1,role:'시작 지점 · 안전거점',   gives:'휴식, 저장',          x:28, y:70,
   desc:'불을 켜도 창밖의 단지는 어둡다. 이 방만은 아직 문이 잠겨 있고, 바닥에 둔 라디오는 잡음만 낸다.'},
- {id:'stairs',n:'계단실·복도',     s:'계단·복도',icon:'🪜',risk:2,role:'층 사이 이동 통로',     gives:'이웃 집 탐색 입구',   x:90, y:110,
+ {id:'stairs',n:'계단실·복도',     s:'계단·복도',icon:'stairs',risk:2,role:'층 사이 이동 통로',     gives:'이웃 집 탐색 입구',   x:90, y:110,
   desc:'비상등이 깜빡이는 계단실. 층마다 현관문이 열려 있고, 아래층 어딘가에서 무언가 끌리는 소리가 난다.'},
- {id:'shop',  n:'1층 상가 (마트·약국)',s:'1층 상가',icon:'🛒',risk:3,role:'물자 보급',          gives:'식량, 물, 응급약',    x:165,y:150,
+ {id:'shop',  n:'1층 상가 (마트·약국)',s:'1층 상가',icon:'shop',risk:3,role:'물자 보급',          gives:'식량, 물, 응급약',    x:165,y:150,
   desc:'셔터가 반쯤 내려간 1층 상가. 마트 진열대는 어수선하고, 약국 간판만 혼자 불이 켜져 있다.'},
- {id:'office',n:'관리사무소',      s:'관리사무소',icon:'🔑',risk:2,role:'단지 열쇠 · 방송 설비', gives:'열쇠, 단지 지도, 방송',x:215,y:66,
+ {id:'office',n:'관리사무소',      s:'관리사무소',icon:'office',risk:2,role:'단지 열쇠 · 방송 설비', gives:'열쇠, 단지 지도, 방송',x:215,y:66,
   desc:'유리문 너머로 열쇠 보관함과 낡은 단지 배치도가 보인다. 구석의 방송 장비에는 먼지가 쌓여 있다.'},
- {id:'garage',n:'지하주차장',      s:'지하주차장',icon:'🚗',risk:4,role:'차량 탈출 후보',        gives:'차량, 연료',          x:70, y:198,
+ {id:'garage',n:'지하주차장',      s:'지하주차장',icon:'garage',risk:4,role:'차량 탈출 후보',        gives:'차량, 연료',          x:70, y:198,
   desc:'지하주차장은 숨소리까지 울린다. 몇 대 남은 차들 사이로 불빛이 닿지 않는 곳이 많다.'},
- {id:'roof',  n:'옥상',            s:'옥상',    icon:'🌌',risk:1,role:'고립된 안전 지대 · 구조 신호',gives:'남은 물자, 신호 수단',x:90, y:28,
+ {id:'roof',  n:'옥상',            s:'옥상',    icon:'roof',risk:1,role:'고립된 안전 지대 · 구조 신호',gives:'남은 물자, 신호 수단',x:90, y:28,
   desc:'옥상 문을 열자 찬 바람이 분다. 단지 전체가 발아래로 조용히 내려다보인다.'},
- {id:'garden',n:'놀이터·중앙 정원',s:'놀이터·정원',icon:'🌳',risk:3,role:'동 사이 이동 구간',   gives:'서두른 이동이 필수',  x:275,y:128,
+ {id:'garden',n:'놀이터·중앙 정원',s:'놀이터·정원',icon:'garden',risk:3,role:'동 사이 이동 구간',   gives:'서두른 이동이 필수',  x:275,y:128,
   desc:'놀이터와 중앙 정원. 탁 트인 공간이라 소리도, 그림자도 멀리까지 닿는다. 서둘러 지나가야 한다.'},
- {id:'gate',  n:'정문·후문',       s:'정문·후문',icon:'🚧',risk:4,role:'탈출구',                gives:'엔딩 조건 확인',      x:300,y:206,
+ {id:'gate',  n:'정문·후문',       s:'정문·후문',icon:'gate',risk:4,role:'탈출구',                gives:'엔딩 조건 확인',      x:300,y:206,
   desc:'공사 가림막과 바리케이드가 정문과 후문을 막고 있다. 가림막 너머가 바깥이다.'},
 ];
 /* 구역 사이 길(양방향). 이 연결은 제안값이며 구현하며 조정 */
@@ -233,12 +257,12 @@ const ZOMBIE_START={room:0,roof:0,stairs:1,office:1,shop:2,garden:2,garage:3,gat
 
 /* 도구: 목적이 쉽게 보이는 것만 */
 const ITEMS={
- gateKey:   {n:'공사 통로 열쇠',i:'🗝️',use:'후문 공사 통로를 연다'},
- carKey:    {n:'차량 열쇠',     i:'🔑',use:'지하주차장의 차량을 움직인다'},
- fuel:      {n:'연료',          i:'⛽',use:'차량이 정문까지 달리게 한다'},
- flashlight:{n:'손전등',        i:'🔦',use:'어두운 곳의 위험을 줄인다'},
- map:       {n:'단지 지도',     i:'🗺️',use:'구역의 위험을 미리 알려 준다'},
- signal:    {n:'구조 신호 도구',i:'🔆',use:'옥상에서 헬기에 신호를 보낸다'},
+ gateKey:   {n:'공사 통로 열쇠',i:'key2',use:'후문 공사 통로를 연다'},
+ carKey:    {n:'차량 열쇠',     i:'key',use:'지하주차장의 차량을 움직인다'},
+ fuel:      {n:'연료',          i:'fuel',use:'차량이 정문까지 달리게 한다'},
+ flashlight:{n:'손전등',        i:'flash',use:'어두운 곳의 위험을 줄인다'},
+ map:       {n:'단지 지도',     i:'mapi',use:'구역의 위험을 미리 알려 준다'},
+ signal:    {n:'구조 신호 도구',i:'flare',use:'옥상에서 헬기에 신호를 보낸다'},
 };
 
 /* 탈출 경로 3가지: 필요한 도구가 다르다 */
@@ -275,6 +299,50 @@ const AI_ROLE_DEFAULT={
 const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
 const ZONE=Object.fromEntries(ZONES.map(z=>[z.id,z]));
 const ADJ=(()=>{ const a={}; ZONES.forEach(z=>a[z.id]=[]); EDGES.forEach(([p,q])=>{ a[p].push(q); a[q].push(p) }); return a })();
+
+/* 도트 아이콘: 한 글자가 한 픽셀(10×10). '.'은 투명. 아이콘은 px('이름')으로만 꺼내 쓴다 */
+const PIXPAL={k:'#1a1c2c',w:'#f4f4f4',s:'#94b0c2',S:'#566c86',n:'#333c57',g:'#a7f070',G:'#38b764',c:'#73eff7',C:'#41a6f6',b:'#3b5dc9',y:'#ffcd75',o:'#ef7d57',r:'#b13e53',R:'#ff6f7d',p:'#5d275d',T:'#a05b3a'};
+const PIX={
+ heart:'..........|.rrr..rrr.|rRrrrrrrrr|rRrrrrrrrr|rrrrrrrrrr|.rrrrrrrr.|..rrrrrr..|...rrrr...|....rr....|..........',
+ food:'....ww....|...wwww...|..wwwwww..|.wwwwwwww.|.wwwwwwww.|wwwwwwwwww|wkkkkkkkkw|.kkkkkkkk.|..kkkkkk..|..........',
+ water:'....CC....|...CccC...|...CccC...|..CccccC..|.CcwccccC.|.CcwccccC.|.CccccccC.|..CccccC..|...CCCC...|..........',
+ sound:'..........|.....w....|....ww..y.|.wwwww...y|.wwwww.y.y|.wwwww.y.y|.wwwww...y|....ww..y.|.....w....|..........',
+ pill:'..........|..........|..rrrwww..|.rrrrwwww.|.rRrrwwww.|.rrrrwwww.|..rrrwww..|..........|..........|..........',
+ virus:'...gggg...|..gGGGGg..|.gGggGGgG.|gGGgGGgGGg|gGGGggGGGg|gGGgGGgGGg|.gGggGGgG.|..gGGGGg..|...gggg...|..........',
+ sunrise:'..........|..........|....yy....|.y.yyyy.y.|..yyyyyy..|.yyyyyyyy.|oooooooooo|SSSSSSSSSS|..........|..........',
+ sun:'..........|....yy....|y..yyyy..y|..yyyyyy..|.yyyyyyyy.|.yyyyyyyy.|..yyyyyy..|y..yyyy..y|....yy....|..........',
+ sunset:'..........|..........|...oooo...|..oooooo..|.oooooooo.|rrrrrrrrrr|pppppppppp|nnnnnnnnnn|..........|..........',
+ moon:'..........|...yyyy.w.|..yyy.....|.yyy......|.yyy......|.yyy......|.yyyy.....|..yyyyyy..|...yyyy...|..........',
+ room:'....rr....|...rrrr...|..rrrrrr..|.rrrrrrrr.|rrrrrrrrrr|.yyyyyyyy.|.yccyyyyy.|.yccykkky.|.yyyykkky.|.yyyykkky.',
+ stairs:'........ss|........sS|......ssSS|......sS..|....ssSS..|....sS....|..ssSS....|..sS......|ssSS......|sS........',
+ shop:'..........|w.........|ww.ssssss.|.w.ssSSss.|.wssssssss|..wwwwwww.|..........|...kk.kk..|...kk.kk..|..........',
+ office:'..........|..........|.yyy......|y...y.....|y...yyyyyy|y...y.y.y.|.yyy..y.y.|..........|..........|..........',
+ key:'..........|..........|.yyy......|y...y.....|y...yyyyyy|y...y.y.y.|.yyy..y.y.|..........|..........|..........',
+ key2:'..........|..........|.sss......|s...s.....|s...ssssss|s...s.s.s.|.sss..s.s.|..........|..........|..........',
+ garage:'..........|...wwwww..|..wcccccw.|.wccwccccw|rrrrrrrrrr|rrrrrrrrrr|rkkrrrrkkr|.kk....kk.|..........|..........',
+ roof:'......y...|.....yyy..|....yyyyy.|.....yyy..|......y...|...S......|...S......|SSSSSSSSSS|nnnnnnnnnn|nSnSnSnSnS',
+ garden:'...GGGG...|..GGgGGG..|.GGGGGgGG.|.GgGGGGGG.|..GGGGGG..|....TT....|....TT....|....TT....|.gggggggg.|..........',
+ gate:'..........|..........|.yykkyykk.|.ykkyykky.|.kkyykkyy.|..........|.S......S.|.S......S.|.S......S.|..........',
+ fuel:'..........|...ss.....|..ssss....|.rrrrrrr..|.rrwwwrr..|.rrwwwrrr.|.rrrrrrr..|.rrrrrrr..|.rrrrrrr..|..........',
+ flash:'..........|..........|..........|..ssss.yy.|.ssSSssyyy|.ssSSssyyy|..ssss.yy.|..........|..........|..........',
+ mapi:'..........|..........|wwwwwwwwww|wgGwwbbwww|wgGwbbbwrw|wwwwwbwrrw|woowwwwwww|wwwwwwwwww|..........|..........',
+ flare:'..........|.....y....|....yoy...|...yooy...|.....r....|.....r....|....rrr...|....rrr...|....rrr...|..........',
+ target:'...rrrr...|.rrwwwwrr.|.rwwrrwwr.|rwwrrrrwwr|rwrrwwrrwr|rwrrwwrrwr|rwwrrrrwwr|.rwwrrwwr.|.rrwwwwrr.|...rrrr...',
+ scroll:'..........|..........|wwwwwwwwww|wSSSSSSSSw|wwwwwwwwww|wSSSSSSSww|wwwwwwwwww|wSSSSSwwww|..........|..........',
+ save:'bbbbbbbbbb|bswwwwwwsb|bswwwwwwsb|bbbbbbbbbb|bbbbbbbbbb|bbSSSSSSbb|bbSkkkkSbb|bbSkkkkSbb|bbbbbbbbbb|..........',
+ gear:'....ss....|.s.ssss.s.|.ssssssss.|..ssSSss..|ssssSSssss|ssssSSssss|..ssSSss..|.ssssssss.|.s.ssss.s.|....ss....',
+ pin:'..........|...rrrr...|..rrrrrr..|..rrwwrr..|..rrrrrr..|...rrrr...|....rr....|....rr....|....r.....|..........',
+ warn:'..........|....yy....|...yyyy...|...ykky...|..yykkyy..|..yykkyy..|.yyyyyyyy.|.yyykkyyy.|yyyyyyyyyy|..........',
+ menu:'..........|..........|wwwwwwwwww|..........|wwwwwwwwww|..........|wwwwwwwwww|..........|..........|..........'
+};
+function pxSvg(name,cls,attrs){
+  const d=PIX[name]; if(!d) return '';
+  const rows=d.split('|'); let r='';
+  rows.forEach((row,y)=>{ let x=0; while(x<row.length){ const ch=row[x]; if(ch==='.'||!PIXPAL[ch]){ x++; continue } let e=x; while(e<row.length&&row[e]===ch) e++; r+=`<rect x="${x}" y="${y}" width="${e-x}" height="1" fill="${PIXPAL[ch]}"/>`; x=e } });
+  return `<svg${cls?` class="${cls}"`:''}${attrs?' '+attrs:''} viewBox="0 0 10 10" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
+}
+const px=name=>pxSvg(name,'pix');                              // 글자 옆에 놓는 작은 아이콘
+const pxAt=(name,x,y,s)=>pxSvg(name,'',`x="${x}" y="${y}" width="${s}" height="${s}"`);   // 지도(SVG) 안에 놓는 아이콘
 
 /* =========================================================
    2. 상태 · 저장 · 설정
@@ -658,8 +726,8 @@ function usageTotal(){
 function updateUsageChip(){
   const el=document.getElementById('usageChip'); if(!el) return;
   const t=usageTotal();
-  if(!t.calls){ el.textContent='💰 사용량'; el.title='토큰 사용량 (눌러서 자세히 보기)'; return }
-  el.textContent=`💰 이번 턴 ${fmtCost(USAGE_TURN.cost)} · 누적 ${fmtCost(t.cost)}${t.unk?'+':''}`;
+  if(!t.calls){ el.textContent='사용량'; el.title='토큰 사용량 (눌러서 자세히 보기)'; return }
+  el.textContent=`이번 턴 ${fmtCost(USAGE_TURN.cost)} · 누적 ${fmtCost(t.cost)}${t.unk?'+':''}`;
   el.title=`이번 턴 입력 ${USAGE_TURN.in} · 출력 ${USAGE_TURN.out} 토큰 (눌러서 자세히 보기)`;
 }
 
@@ -686,8 +754,9 @@ function goalLine(){
   return `${r.verb} ${names.join('·')}${josa(last,'이','가')} 필요하다`;
 }
 
-function addLog(type,text){
-  G.log.push({type,text:String(text)});
+function addLog(type,text,extra){
+  const e={type,text:String(text)}; if(extra) Object.assign(e,extra);
+  G.log.push(e);
   if(G.log.length>200) G.log.splice(0,G.log.length-200);
 }
 
@@ -700,7 +769,7 @@ function goZone(id){
   const from=ZONE[G.loc], to=ZONE[id], first=!G.zs[id].seen;
   G.loc=id; G.zs[id].seen=true;
   addLog('action',`${from.s}에서 ${to.s}${josa(to.s,'으로','로')} 이동한다`);
-  addLog('scene',first?to.desc:`${to.n}에 다시 왔다. (위험 ${RISK_LABEL[to.risk]})`);
+  say({t:'n',text:first?to.desc:`${to.n}에 다시 왔다. (위험 ${RISK_LABEL[to.risk]})`});
   run('after','move',id);
   save(); render();
   return true;
@@ -711,74 +780,257 @@ function buildChoices(){
   if(!G||G.ending) return [];
   const list=neighbors(G.loc).map(id=>{
     const z=ZONE[id];
-    return {id:'move:'+id,label:`${z.icon} ${z.s}${josa(z.s,'으로','로')} 이동 · 위험 ${RISK_LABEL[z.risk]}`};
+    return {id:'move:'+id,icon:z.icon,label:`${z.s}${josa(z.s,'으로','로')} 이동 · 위험 ${RISK_LABEL[z.risk]}`};
   });
   run('choices',list);
   return list;
 }
 function pick(cid){
-  if(busy||!G) return;
+  if(busy||!G||!queueIdle()) return;   // 줄이 남아 있는 동안은 선택할 수 없다
   const c=buildChoices().find(x=>x.id===cid); if(!c) return;   // 지금 목록에 없는 선택은 무시
   const i=cid.indexOf(':'), k=i<0?cid:cid.slice(0,i), arg=i<0?'':cid.slice(i+1);
   if(own(ACTIONS,k)) ACTIONS[k](arg);
 }
 
 /* =========================================================
-   6. 화면 — 상태줄 · 목표 · 지도 · 기록 · 선택지
+   6. 화면 — 미연시: 상태바 · 장면 · 스크립트창 · 선택지 · 로그
+   줄 하나(LINE)= {t:'n'|'d'|'s', who, emo, text}. say()가 줄을 로그에 적고 화면 큐에 넣는다.
+   큐는 화면 진행용이고 저장하지 않는다(로그가 기록의 원본).
    ========================================================= */
-function paras(t){ return String(t).split(/\n+/).filter(Boolean).map(p=>`<p>${esc(p)}</p>`).join('') }
-function logEntryHTML(l){
-  if(l.type==='scene') return `<div class="entry scene">${paras(l.text)}</div>`;
-  if(l.type==='action') return `<div class="entry action">${esc(l.text)}</div>`;
-  return `<div class="entry sys">${esc(l.text)}</div>`;
+const LINE_MAX=80;                                      // 한 줄 최대 글자 수(넘으면 문장 단위로 나눈다)
+const EMOS=['neutral','smile','fluster','sad','tense','relieved'];   // 표정 키는 여기서만 정의
+const CAST={                                            // 등록된 인물 id (대사의 who는 이 안에서만)
+  me:{n:()=>G&&G.char?G.char.name:'나'},
+  yumin:{n:()=>'유민'}, guard:{n:()=>'경비원 아저씨'}, pharm:{n:()=>'상가 약사'}, rider:{n:()=>'배달 라이더 청년'},
+};
+const SPEEDS=[{k:'fast',n:'빠름',ms:14},{k:'mid',n:'보통',ms:30},{k:'slow',n:'느림',ms:60},{k:'off',n:'즉시',ms:0}];
+const UI_KEY='hanbit_ui';
+let UI=(function(){ try{ const o=JSON.parse(localStorage.getItem(UI_KEY)||'{}')||{}; return {speed:SPEEDS.some(s=>s.k===o.speed)?o.speed:'mid',auto:o.auto===true} }catch(e){ return {speed:'mid',auto:false} } })();
+function saveUi(){ try{ localStorage.setItem(UI_KEY,JSON.stringify(UI)) }catch(e){} }
+function speedMs(){ const s=SPEEDS.find(x=>x.k===UI.speed); return s?s.ms:30 }
+
+/* 구역 → 배경 (조회 함수 뒤에 둔다. 지금은 단색 그라데이션, 나중에 그림으로 교체) */
+const BG={
+  room:['#2b2540','#12101c'], stairs:['#2a3140','#10131c'], shop:['#3a3226','#17130d'], office:['#26373a','#0e1719'],
+  garage:['#2a2a31','#0a0a0e'], roof:['#1d3358','#0b1428'], garden:['#24392b','#0d1710'], gate:['#3b2a2a','#150d0d'],
+};
+function bgFor(zoneId){   // 도트 느낌: 부드러운 그라데이션 대신 6단 색 띠 + 바닥 띠 + 가는 가로줄
+  const c=BG[zoneId]||['#1a2030','#080a10'], hx=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+  const a=hx(c[0]), b=hx(c[1]), N=6, bands=[];
+  for(let i=0;i<N;i++){
+    const t=i/(N-1), col='#'+a.map((v,k)=>Math.round(v+(b[k]-v)*t).toString(16).padStart(2,'0')).join('');
+    bands.push(`${col} ${Math.round(i*100/N)}% ${Math.round((i+1)*100/N)}%`);
+  }
+  return `linear-gradient(0deg,rgba(0,0,0,.35) 0 16%,transparent 16% 100%),repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 2px,transparent 2px 4px),linear-gradient(180deg,${bands.join(',')})`;
 }
-function renderLogAll(){
-  const el=document.getElementById('logInner'); if(!el||!G) return;
-  el.innerHTML=G.log.map(logEntryHTML).join('');
-  const l=document.getElementById('log'); if(l) l.scrollTop=l.scrollHeight;
+/* 인물+표정 → 이미지 (C단계에서 도트로 교체. 지금은 자리표시자가 없다) */
+function portraitFor(who,emo){ return null }
+
+const Q={pending:[],cur:null,pos:0,typing:false,timer:0,autoT:0};
+
+function splitLine(text,max=LINE_MAX){
+  text=String(text??'').replace(/\s+/g,' ').trim(); if(!text) return [];
+  if(text.length<=max) return [text];
+  const parts=text.match(/[^.!?。…]+(?:[.!?。…]+["'”’」』)]*)?\s*/g)||[text];
+  const out=[]; let cur='';
+  const push=x=>{ x=x.trim(); if(x) out.push(x) };
+  for(let sent of parts){
+    sent=sent.trim(); if(!sent) continue;
+    while(sent.length>max){
+      let cut=sent.lastIndexOf(' ',max); if(cut<max*0.5) cut=max;
+      if(cur){ push(cur); cur='' }
+      push(sent.slice(0,cut)); sent=sent.slice(cut).trim();
+    }
+    if(!sent) continue;
+    if(cur&&(cur+' '+sent).length>max){ push(cur); cur=sent } else cur=cur?cur+' '+sent:sent;
+  }
+  push(cur); return out;
 }
+/* 줄 검수: 모르는 t는 서술로, 허용되지 않은 who는 서술로, 허용되지 않은 emo는 neutral로 바꾼다 */
+function normLine(l){
+  if(typeof l==='string') l={t:'n',text:l};
+  if(!l||typeof l!=='object'||typeof l.text!=='string') return null;
+  const text=l.text.trim(); if(!text) return null;
+  let t=l.t==='d'||l.t==='s'?l.t:'n';
+  if(t==='d'&&!(typeof l.who==='string'&&own(CAST,l.who))) t='n';
+  const o={t,text};
+  if(t==='d'){ o.who=l.who; o.emo=EMOS.includes(l.emo)?l.emo:'neutral' }
+  return o;
+}
+function nameOf(who){ return own(CAST,who)?CAST[who].n():'' }
+
+function logType(l){ return l.t==='d'?'dialog':l.t==='s'?'sys':'scene' }
+function say(lines){
+  if(!G) return;
+  const list=(Array.isArray(lines)?lines:[lines]).map(normLine).filter(Boolean);
+  const idle=!Q.typing&&!Q.pending.length;
+  for(const l of list) for(const text of splitLine(l.text)){
+    const one={...l,text};
+    addLog(logType(one),text,one.t==='d'?{who:one.who,emo:one.emo}:null);
+    Q.pending.push(one);
+  }
+  if(idle&&Q.pending.length) nextLine();
+}
+function queueIdle(){ return !Q.typing&&!Q.pending.length }
+function resetQueue(){ clearTimeout(Q.timer); clearTimeout(Q.autoT); Q.pending=[]; Q.cur=null; Q.pos=0; Q.typing=false }
+
+function nextLine(){
+  clearTimeout(Q.timer); clearTimeout(Q.autoT);
+  const l=Q.pending.shift();
+  if(!l){ Q.typing=false; paintMark(); renderChoices(); return }
+  Q.cur=l; Q.pos=0; paintName(); renderCast();
+  const ms=speedMs();
+  if(!ms){ Q.pos=l.text.length; paintText(); doneTyping(); return }
+  Q.typing=true; paintText(); paintMark();
+  const step=()=>{ Q.pos++; paintText(); if(Q.pos>=l.text.length) doneTyping(); else Q.timer=setTimeout(step,ms) };
+  Q.timer=setTimeout(step,ms);
+}
+function finishTyping(){ clearTimeout(Q.timer); if(Q.cur) Q.pos=Q.cur.text.length; paintText(); doneTyping() }
+function doneTyping(){
+  Q.typing=false; paintMark(); renderChoices();
+  if(UI.auto&&Q.pending.length) Q.autoT=setTimeout(()=>{ if(!Q.typing&&Q.pending.length) nextLine() },900+(Q.cur?Q.cur.text.length*45:0));
+}
+/* 화면 탭: 글자가 나오는 중이면 즉시 완성, 완성됐으면 다음 줄 */
+function tapAdvance(ev){
+  if(ev&&ev.target&&ev.target.closest&&ev.target.closest('button')) return;
+  if(!G||document.getElementById('modalRoot').innerHTML) return;
+  if(Q.typing) finishTyping();
+  else if(Q.pending.length) nextLine();
+}
+
+function paintName(){
+  const tag=document.getElementById('nameTag'), l=Q.cur;
+  const nm=l&&l.t==='d'?nameOf(l.who):'';
+  tag.textContent=nm; tag.style.display=nm?'block':'none';
+  const tx=document.getElementById('scriptText'); tx.className=l?l.t:'n';
+}
+function paintText(){
+  const el=document.getElementById('scriptText'), l=Q.cur;
+  el.textContent=l?l.text.slice(0,Q.pos):'';
+  const inner=document.getElementById('scriptInner'); if(inner) inner.scrollTop=inner.scrollHeight;
+}
+function paintMark(){
+  const m=document.getElementById('nextMark'); if(!m) return;
+  m.classList.toggle('on',!Q.typing&&Q.pending.length>0);
+}
+/* 저장을 불러온 직후처럼 큐가 비어 있을 때는 로그의 마지막 줄을 그대로 보여 준다 */
+function paintStatic(){
+  const last=[...G.log].reverse().find(x=>x.type==='scene'||x.type==='dialog'||x.type==='sys');
+  Q.cur=last?{t:last.type==='dialog'?'d':last.type==='sys'?'s':'n',who:last.who,emo:last.emo,text:last.text}:null;
+  Q.pos=Q.cur?Q.cur.text.length:0; paintName(); paintText(); paintMark();
+}
+
 function renderStats(){
   const st=(txt,low)=>`<span class="st${low?' low':''}">${txt}</span>`;
   const parts=[
-    st(`${TIME_ICON[TIMES[G.slot]]} ${timeLabel()}`),
-    st(`❤ ${G.hp}/${G.maxhp}`,G.hp<=3),
-    st(`🍙 ${G.food}`,G.food<=1),
-    st(`💧 ${G.water}`,G.water<=1),
-    st(`🔊 ${noiseHere()}`,noiseHere()>=NOISE_MAX-2),
+    st(`${px(TIME_ICON[TIMES[G.slot]])}${timeLabel()}`),
+    st(`${px('heart')}${G.hp}/${G.maxhp}`,G.hp<=3),
+    st(`${px('food')}${G.food}`,G.food<=1),
+    st(`${px('water')}${G.water}`,G.water<=1),
+    st(`${px('sound')}${noiseHere()}`,noiseHere()>=NOISE_MAX-2),
   ];
-  if(G.meds>0) parts.push(st(`💊 ${G.meds}`));
-  if(G.items.length) parts.push(st(G.items.map(i=>ITEMS[i].i).join('')));
-  if(G.infection) parts.push(st(`☣ 감염 ${G.infection.left}시간대`,true));
+  if(G.meds>0) parts.push(st(`${px('pill')}${G.meds}`));
+  if(G.items.length) parts.push(st(G.items.map(i=>px(ITEMS[i].i)).join('')));
+  if(G.infection) parts.push(st(`${px('virus')}감염 ${G.infection.left}시간대`,true));
   document.getElementById('stats').innerHTML=parts.join('');
 }
-function renderGoal(){ document.getElementById('goal').textContent=goalLine() }
+function renderGoal(){ document.getElementById('goal').innerHTML=px('target')+' '+esc(goalLine()) }
 
-/* 구역 지도: 이동할 수 있는 이웃 구역만 눌린다 */
-function renderMap(){
+/* 장면: 구역 배경과 인물. 대화 중인 인물은 밝게, 말하지 않는 인물은 어둡게 */
+function renderScene(){
+  const z=ZONE[G.loc];
+  document.getElementById('sceneBg').style.background=bgFor(G.loc);
+  document.getElementById('placeLabel').innerHTML=`${px(z.icon)} ${esc(z.n)} · 위험 ${RISK_LABEL[z.risk]}`;
+  renderCast();
+}
+function renderCast(){
+  const el=document.getElementById('cast'); if(!el||!G) return;
+  el.innerHTML='';   // 인물이 없으면 초상화를 그리지 않는다 (C단계에서 채운다)
+}
+
+function renderChoices(){
+  const el=document.getElementById('choices');
+  if(!queueIdle()){ el.innerHTML=''; return }          // 줄이 남아 있는 동안은 선택지를 숨긴다
+  const list=buildChoices();
+  el.innerHTML=list.length
+    ? list.map(c=>`<button onclick="pick('${c.id}')"${busy?' disabled':''}>${c.icon?px(c.icon)+' ':''}${esc(c.label)}</button>`).join('')
+    : '';
+}
+function render(){
+  if(!G) return;
+  renderStats(); renderGoal(); renderScene(); renderChoices();
+  if(!Q.cur&&queueIdle()) paintStatic();
+  run('render');
+}
+
+/* ----- 로그 · 지도 · 메뉴 ----- */
+function logEntryHTML(l){
+  if(l.type==='dialog') return `<div class="entry d"><b>${esc(nameOf(l.who)||'???')}</b>${esc(l.text)}</div>`;
+  if(l.type==='action') return `<div class="entry action">${esc(l.text)}</div>`;
+  if(l.type==='sys') return `<div class="entry s">${esc(l.text)}</div>`;
+  return `<div class="entry n">${esc(l.text)}</div>`;
+}
+function shownLog(){ return G.log.slice(0,G.log.length-Q.pending.length) }   // 아직 보지 않은 줄은 빼고 보여 준다
+function openLog(){
+  modal('지난 이야기',`<div class="logbox" id="logBox">${shownLog().map(logEntryHTML).join('')||'<p class="muted">아직 기록이 없습니다.</p>'}</div>`);
+  const b=document.getElementById('logBox'); if(b) b.scrollTop=b.scrollHeight;
+}
+function mapHTML(){
   const adj=neighbors(G.loc);
   const edges=EDGES.map(([p,q])=>`<line class="zedge" x1="${ZONE[p].x}" y1="${ZONE[p].y}" x2="${ZONE[q].x}" y2="${ZONE[q].y}"/>`).join('');
   const nodes=ZONES.map(z=>{
     const cur=z.id===G.loc, isAdj=adj.includes(z.id), cls=`znode r${z.risk}${cur?' cur':''}${isAdj?' adj':''}${!cur&&!isAdj?' far':''}`;
     const aria=cur?`${z.n}, 현재 위치`:isAdj?`${z.n}으로 이동, 위험 ${RISK_LABEL[z.risk]}`:`${z.n}, 위험 ${RISK_LABEL[z.risk]}`;
     const act=isAdj?` role="button" tabindex="0" onclick="mapTap('${z.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mapTap('${z.id}')}"`:'';
-    return `<g class="${cls}"${act} aria-label="${esc(aria)}"><circle cx="${z.x}" cy="${z.y}" r="22"/><text class="ic" x="${z.x}" y="${z.y+1}">${z.icon}</text><text class="lb" x="${z.x}" y="${z.y+33}">${esc(z.s)}</text><text class="rk" x="${z.x}" y="${z.y+43}">${'●'.repeat(z.risk)}${'○'.repeat(4-z.risk)}</text></g>`;
+    return `<g class="${cls}"${act} aria-label="${esc(aria)}"><rect x="${z.x-20}" y="${z.y-20}" width="40" height="40"/>${pxAt(z.icon,z.x-16,z.y-16,32)}<text class="lb" x="${z.x}" y="${z.y+33}">${esc(z.s)}</text><text class="rk" x="${z.x}" y="${z.y+43}">${'●'.repeat(z.risk)}${'○'.repeat(4-z.risk)}</text></g>`;
   }).join('');
-  document.getElementById('cmap').innerHTML=`<svg class="zmap" viewBox="0 0 360 256" role="group" aria-label="단지 구역 지도">${edges}${nodes}</svg>`;
   const z=ZONE[G.loc];
-  document.getElementById('zoneCard').innerHTML=`📍 <b>${esc(z.n)}</b> · 위험 ${RISK_LABEL[z.risk]} · ${esc(z.role)} · 얻을 것: ${esc(z.gives)}`;
+  return `<svg class="zmap" viewBox="0 0 360 256" role="group" aria-label="단지 구역 지도">${edges}${nodes}</svg>
+    <div id="zoneCard">${px('pin')} <b>${esc(z.n)}</b> · 위험 ${RISK_LABEL[z.risk]} · ${esc(z.role)} · 얻을 것: ${esc(z.gives)}</div>
+    <p class="muted" style="margin:6px 0 0">${queueIdle()?'이웃한 구역을 누르면 이동합니다.':'이야기를 끝까지 본 뒤에 이동할 수 있습니다.'}</p>`;
 }
-function mapTap(id){ if(G&&canMove(G.loc,id)) pick('move:'+id) }
+function openMap(){ if(G) modal('단지 지도',mapHTML()) }
+function mapTap(id){
+  if(!G||!canMove(G.loc,id)) return;
+  if(!queueIdle()) return toast('이야기를 끝까지 본 뒤에 이동할 수 있습니다');
+  document.getElementById('modalRoot').innerHTML='';
+  pick('move:'+id);
+}
+function openMenu(){
+  const sp=SPEEDS.find(s=>s.k===UI.speed)||SPEEDS[1];
+  modal('메뉴',`<div class="sbtn">
+    <button onclick="closeModal();openLog()">${px('scroll')} 로그 보기</button>
+    <button onclick="closeModal();openMap()">${px('mapi')} 지도</button>
+    <button onclick="closeModal();openSaves()">${px('save')} 저장 · 불러오기</button>
+    <button onclick="closeModal();openPrefs()">${px('gear')} 설정</button>
+    <h4 style="margin:10px 0 2px">글자 표시</h4>
+    <button onclick="cycleSpeed()">글자 속도: ${sp.n}</button>
+    <button onclick="toggleAuto()">자동 넘김: ${UI.auto?'켬':'끔'}</button>
+    <button onclick="closeModal();demoScene()">더미 장면 보기 (화면 시험용)</button>
+  </div>`);
+}
+function cycleSpeed(){ const i=SPEEDS.findIndex(s=>s.k===UI.speed); UI.speed=SPEEDS[(i+1)%SPEEDS.length].k; saveUi(); openMenu() }
+function toggleAuto(){ UI.auto=!UI.auto; saveUi(); openMenu() }
+function openSaves(){
+  let backup=false; try{ backup=!!localStorage.getItem(SAVE_BACKUP_KEY) }catch(e){}
+  modal('저장 · 불러오기',`<div class="sbtn"><button onclick="exportSave()">저장 내보내기</button><button onclick="closeModal();importSave()">저장 파일 불러오기</button>${backup?'<button onclick="closeModal();restoreSaveBackup()">가져오기 이전 저장으로 복구</button>':''}<button onclick="closeModal();toTitle()">타이틀로</button></div>
+    <p class="muted" style="margin-top:8px">진행은 행동할 때마다 이 브라우저에 자동 저장됩니다.</p>`);
+}
+/* 화면 시험용 더미 스크립트 (AI 호출 없음) */
+const DUMMY_SCRIPT=[
+  {t:'n',text:'복도 끝의 비상등이 한 번 깜빡이고 꺼졌다. 어디선가 낮게 끌리는 소리가 이어진다.'},
+  {t:'d',who:'yumin',emo:'tense',text:'……방금 그 소리, 들었어요? 아래층에서 나는 것 같은데.'},
+  {t:'d',who:'me',emo:'neutral',text:'네. 일단 숨을 죽이고 기다려 보죠.'},
+  {t:'s',text:'소음 +1'},
+  {t:'n',text:'한참 뒤에야 소리가 멀어졌다. 문틈으로 새어 들어온 찬 공기가 발목을 스친다. 두 사람은 서로의 숨소리가 들릴 만큼 가까이 서 있었고, 누구도 먼저 움직이지 못했다. 시간이 얼마나 흘렀는지는 알 수 없었다.'},
+  {t:'d',who:'yumin',emo:'relieved',text:'후우… 갔나 봐요. 고마워요, 침착하게 있어 줘서.'},
+];
+function demoScene(){ if(G){ resetQueue(); say(DUMMY_SCRIPT) } }
 
-function renderChoices(){
-  const list=buildChoices();
-  document.getElementById('choices').innerHTML=list.length
-    ? list.map(c=>`<button onclick="pick('${c.id}')"${busy?' disabled':''}>${esc(c.label)}</button>`).join('')
-    : '<div class="lbl">선택할 수 있는 행동이 없습니다.</div>';
-}
-function render(){
-  if(!G) return;
-  renderStats(); renderGoal(); renderMap(); renderLogAll(); renderChoices();
-  run('render');
+/* 키보드·주소창 때문에 화면 높이가 변해도 스크립트창과 선택지가 가려지지 않게 한다 */
+function fitViewport(){
+  const vv=window.visualViewport; if(!vv) return;
+  document.documentElement.style.setProperty('--vvh',vv.height+'px');
 }
 
 /* =========================================================
@@ -794,19 +1046,19 @@ function closeModal(){ document.getElementById('modalRoot').innerHTML=''; if(G) 
 function openPrefs(){
   const inGame=!!(G&&G.char)&&!document.getElementById('game')?.classList.contains('hidden');
   let backup=false; try{ backup=!!localStorage.getItem(SAVE_BACKUP_KEY) }catch(e){}
-  modal('⚙ 설정',`
-    <h4>🤖 AI 연결</h4>
+  modal('설정',`
+    <h4>AI 연결</h4>
     <p class="muted" style="margin:0 0 6px">${esc(aiStatusText())}</p>
-    <div class="sbtn"><button onclick="closeModal();openSettings()">AI 연결 설정 열기</button><button onclick="closeModal();openUsage()">💰 토큰 사용량</button></div>
-    <h4 style="margin-top:14px">🖥 화면</h4>
+    <div class="sbtn"><button onclick="closeModal();openSettings()">AI 연결 설정 열기</button><button onclick="closeModal();openUsage()">토큰 사용량</button></div>
+    <h4 style="margin-top:14px">화면</h4>
     <div class="sbtn">
       <button class="themeBtn" onclick="cycleTheme()">${THEME_LABEL[themeMode]}</button>
       <div class="row" style="justify-content:space-between;align-items:center"><span class="muted">글자 크기</span>
         <span style="display:inline-flex;align-items:center;gap:6px"><button class="small" onclick="setFontScale(fontScale-0.1)">가−</button><b class="fsLabelM" id="fsLabelM">${Math.round(fontScale*100)}%</b><button class="small" onclick="setFontScale(fontScale+0.1)">가+</button></span></div>
     </div>
-    <h4 style="margin-top:14px">💾 저장</h4>
+    <h4 style="margin-top:14px">저장</h4>
     <div class="sbtn">${inGame?'<button onclick="exportSave()">저장 내보내기</button>':''}<button onclick="closeModal();importSave()">저장 파일 불러오기</button>${backup?'<button onclick="closeModal();restoreSaveBackup()">가져오기 이전 저장으로 복구</button>':''}</div>
-    ${inGame?'<div class="sbtn" style="margin-top:14px"><button onclick="closeModal();toTitle()">🏠 타이틀로</button></div>':''}`);
+    ${inGame?'<div class="sbtn" style="margin-top:14px"><button onclick="closeModal();toTitle()">타이틀로</button></div>':''}`);
 }
 
 /* =========================================================
@@ -831,12 +1083,15 @@ function finishCreation(){
   const name=document.getElementById('cName').value.trim();
   if(!name) return toast('이름을 입력해 주세요');
   G=newState(name); migrate(); busy=false; stableSnap=JSON.stringify(G);
-  addLog('scene',`재개발을 앞둔 낡은 아파트 단지. 안내 방송도, 엘리베이터 소리도 끊긴 지 오래다.\n${name}${josa(name,'은','는')} 3동 7층 자취방에서 문을 잠근 채 밖의 소리를 듣고 있다. 정문과 후문은 공사 가림막으로 막혀 있다.`);
-  show('game'); save(); render();
+  resetQueue();
+  show('game');
+  say([{t:'n',text:'재개발을 앞둔 낡은 아파트 단지. 안내 방송도, 엘리베이터 소리도 끊긴 지 오래다.'},
+       {t:'n',text:`${name}${josa(name,'은','는')} 3동 7층 자취방에서 문을 잠근 채 밖의 소리를 듣고 있다. 정문과 후문은 공사 가림막으로 막혀 있다.`}]);
+  save(); render();
 }
 function openLoadedGame(g){
   G=g; busy=false; stableSnap=JSON.stringify(g);
-  show('game'); render();
+  resetQueue(); show('game'); render();
 }
 function continueGame(){
   if(busy) return toast('현재 행동을 마친 뒤 불러와 주세요.');
@@ -852,7 +1107,7 @@ function exportSave(){
 }
 
 const FS_KEY='sand7_fs', THEME_KEY='sand7_theme';
-const THEME_LABEL={auto:'🌓 자동',light:'☀️ 밝게',dark:'🌙 어둡게'};
+const THEME_LABEL={auto:'자동',light:'밝게',dark:'어둡게'};
 let fontScale=(function(){ try{ const v=parseFloat(localStorage.getItem(FS_KEY)); if(v>=0.8&&v<=1.8) return v }catch(e){} return 1 })();
 let themeMode=(function(){ try{ const v=localStorage.getItem(THEME_KEY); if(v==='light'||v==='dark'||v==='auto') return v }catch(e){} return 'dark' })();
 function applyFontScale(){
@@ -911,7 +1166,7 @@ function openSettings(){
       ${provs.filter(p=>!['anthropic','gemini','vertex'].includes(p)).map(keyRow).join('')}
       <label>사용자 지정 API 주소 (OpenAI 호환)</label><input id="sBase" value="${esc(SET.baseUrl||'')}">
     </details>
-    <details style="margin-top:12px"><summary>⚙ 고급 — 용도별 모델 · 생각 강도</summary>
+    <details style="margin-top:12px"><summary>고급 — 용도별 모델 · 생각 강도</summary>
     <p class="muted">용도별로 다른 모델을 쓸 수 있습니다. 제공자가 같으면 키는 하나만 입력하면 됩니다.</p>
     ${cards}
     </details>
@@ -961,8 +1216,8 @@ function saveSet(){
 async function testRole(k){
   if(saveSetQuiet()===false)return;
   const out=document.getElementById('to_'+k); if(out) out.textContent='테스트 중…';
-  try{ const t=await callAI('짧게 답하라.','낡은 아파트 단지를 한 문장으로 묘사해줘.',100,k); if(out) out.textContent='✅ '+t.slice(0,50) }
-  catch(e){ if(out) out.textContent='❌ '+(e.message==='NO_KEY'?'키가 없습니다':e.message) }
+  try{ const t=await callAI('짧게 답하라.','낡은 아파트 단지를 한 문장으로 묘사해줘.',100,k); if(out) out.textContent='연결 성공: '+t.slice(0,50) }
+  catch(e){ if(out) out.textContent='연결 실패: '+(e.message==='NO_KEY'?'키가 없습니다':e.message) }
 }
 function testAI(){ return testRole('story') }
 function aiStatusText(){
@@ -970,7 +1225,7 @@ function aiStatusText(){
   const miss=[...new Set(AI_ROLES.map(r=>roleCfg(r.k).provider))].filter(p=>!aiProviderReady(p));
   return hasKey
     ?`AI 연결됨 · ${roleCfg('story').model}`+(miss.length?` (연결 설정 없음: ${miss.map(provLabel).join(', ')})`:'')
-    :'⚠ AI 키가 없으면 이야기를 만들 수 없습니다 — ⚙ 설정에서 연결하세요';
+    :'AI 키가 없으면 이야기를 만들 수 없습니다 — 설정에서 연결하세요';
 }
 /* 타이틀에 보이는 Vertex JSON 연결 상태: 기억된 연결인지, 이번 페이지에서만 쓰는 연결인지 */
 function vertexTitleText(){
@@ -985,7 +1240,7 @@ function openUsage(){
   }).join('');
   modal('토큰 사용량',`
     <p class="muted">이 브라우저에서 AI를 호출한 누적 기록입니다 (${new Date(USAGE.since).toLocaleDateString('ko-KR')}부터). 비용은 공개 단가로 계산한 추정치이며, 정확한 청구액은 각 회사 콘솔에서 확인하세요. '출력'에는 생각(추론) 토큰이 포함됩니다.</p>
-    ${(()=>{ const cr=Object.values(USAGE.roles).reduce((a,u)=>a+(u.cr||0),0), ins=Object.values(USAGE.roles).reduce((a,u)=>a+u.in,0); return cr?`<p class="muted">♻ 캐시에서 다시 읽은 입력: 누적 ${fmtTok(cr)} 토큰 (입력의 ${Math.round(cr/Math.max(1,ins)*100)}% · 캐시 요금은 제공자·모델별로 다릅니다)</p>`:'' })()}
+    ${(()=>{ const cr=Object.values(USAGE.roles).reduce((a,u)=>a+(u.cr||0),0), ins=Object.values(USAGE.roles).reduce((a,u)=>a+u.in,0); return cr?`<p class="muted">캐시에서 다시 읽은 입력: 누적 ${fmtTok(cr)} 토큰 (입력의 ${Math.round(cr/Math.max(1,ins)*100)}% · 캐시 요금은 제공자·모델별로 다릅니다)</p>`:'' })()}
     <p><b>이번 턴</b> 입력 ${USAGE_TURN.in} · 출력 ${USAGE_TURN.out} 토큰 · ${fmtCost(USAGE_TURN.cost)}${USAGE_TURN.unk?' (단가 미등록 모델 포함)':''}</p>
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
       <tr style="text-align:left;color:var(--muted)"><th>역할</th><th>호출</th><th>입력</th><th>출력</th><th>비용</th></tr>
@@ -1025,6 +1280,7 @@ document.addEventListener('keydown',ev=>{
   if(ev.key==='Escape'&&document.getElementById('modalRoot').innerHTML) closeModal();
 });
 applyFontScale(); applyTheme(); updateUsageChip();
+if(window.visualViewport){ window.visualViewport.addEventListener('resize',fitViewport); fitViewport() }
 show('title');
 
 </script>
