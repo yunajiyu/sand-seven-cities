@@ -80,13 +80,13 @@ await test('Medicine cures infection and is only offered when needed',()=>{
 await test('The infection clock reaching zero ends the game',()=>{
   const {run}=game();
   run("G.infection={left:1};restHere();flush()");
-  assert.equal(run('G.ending'),'infected'); assert.deepEqual(run('JSON.stringify(buildChoices())'),'[]');
+  assert.equal(run('G.ending'),'last_night'); assert.ok(run("G.log.some(l=>/감염이 몸을/.test(l.text))")); assert.deepEqual(run('JSON.stringify(buildChoices())'),'[]');
 });
 
 await test('Starvation hurts after the food runs out, and zero health ends the game',()=>{
   const {run}=game();
   run("G.loc='stairs';G.food=0;G.water=0;G.slot=3;G.hp=1;restHere();flush()");
-  assert.equal(run('G.ending'),'dead');
+  assert.equal(run('G.ending'),'last_night');
   const g2=game(); g2.run("G.food=0;G.water=2;G.slot=3;restHere();flush()");
   assert.equal(g2.run('G.hp'),9,'no food: −1'); assert.equal(g2.run('G.ending'),null); assert.equal(g2.run('G.food'),0);
   const g3=game(); g3.run("G.food=0;G.water=2;G.slot=3;G.hp=5;restHere();flush()");
@@ -97,7 +97,7 @@ await test('Starvation hurts after the food runs out, and zero health ends the g
 await test('The last night ends in a time-out without leaving a valid day range, and the save still loads',()=>{
   const {run}=game();
   run("G.day=LAST_DAY;G.slot=3;restHere();flush()");
-  assert.equal(run('G.ending'),'timeout'); assert.equal(run('G.day'),run('LAST_DAY'));
+  assert.equal(run('G.ending'),'last_night'); assert.equal(run('G.day'),run('LAST_DAY'));
   run("validateSaveData(JSON.parse(JSON.stringify(G)))");
   run("pick('rest:')"); assert.equal(run('G.day'),run('LAST_DAY'),'nothing more happens after an ending');
 });

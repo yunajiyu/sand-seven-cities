@@ -33,7 +33,7 @@ await test('Arriving at the exit on the very last action leaves one chance to es
 await test('Without the exit and tools the last action still ends in a time-out',()=>{
   const {run}=game();
   run("G.day=LAST_DAY;G.slot=3;G.loc='garden';G.route='rear';G.items=[]");
-  run("goZone('gate');flush()"); assert.equal(run('G.ending'),'timeout'); assert.equal(run('G.last'),false);
+  run("goZone('gate');flush()"); assert.equal(run('G.ending'),'last_night'); assert.equal(run('G.last'),false);
 });
 
 await test('The last chance is saved, loaded, and old saves without the field get false',()=>{
