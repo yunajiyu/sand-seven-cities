@@ -230,15 +230,15 @@ const GAME_TITLE='재개발 예정 단지';   // 임시 제목
 const TIMES=['아침','낮','저녁','밤'];
 const TIME_ICON={'아침':'sunrise','낮':'sun','저녁':'sunset','밤':'moon'};
 const START={day:1,slot:2,loc:'room'};   // 1일차 저녁에 갇힌 채 시작
-const LAST_DAY=5;                        // 5일차가 마지막(행동 약 18번)
-const BASE={hp:10,food:3,water:3};       // 시작 자원
+const LAST_DAY=8;                        // 8일차가 마지막(행동 약 30번)
+const BASE={hp:10,food:4,water:4};       // 시작 자원
 const NOISE_MAX=10;                      // 구역별 소음 상한
-const INFECT_SLOTS=3;                    // 물린 뒤 감염 타이머(시간대). 난이도 조정(후보 D)으로 8→3
+const INFECT_SLOTS=5;                    // 물린 뒤 감염 타이머(시간대). 난이도 조정(후보 D)으로 8→3
 const INFECT_SAVE_MAX=8;                 // 옛 저장(8시간대)도 읽을 수 있게 저장 검사 상한은 그대로
 
 const RISK_LABEL=['','낮음','보통','높음','매우 높음'];
 
-/* 8개 구역. x·y는 지도(360×256) 위 좌표 */
+/* 15개 구역. x·y는 지도(360×256) 위 좌표 */
 const ZONES=[
  {id:'room',  n:'3동 7층 자취방',  s:'자취방',  icon:'room',risk:1,role:'시작 지점 · 안전거점',   gives:'휴식, 저장',          x:28, y:70,
   desc:'불을 켜도 창밖의 단지는 어둡다. 이 방만은 아직 문이 잠겨 있고, 바닥에 둔 라디오는 잡음만 낸다.'},
@@ -256,12 +256,26 @@ const ZONES=[
   desc:'놀이터와 중앙 정원. 탁 트인 공간이라 소리도, 그림자도 멀리까지 닿는다. 서둘러 지나가야 한다.'},
  {id:'gate',  n:'정문·후문',       s:'정문·후문',icon:'gate',risk:4,role:'탈출구',                gives:'엔딩 조건 확인',      x:300,y:206,
   desc:'공사 가림막과 바리케이드가 정문과 후문을 막고 있다. 가림막 너머가 바깥이다.'},
+ {id:'unit702',n:'3동 702호 (이웃집)',s:'702호',icon:'room',risk:2,role:'이웃집 · 작은 물자',gives:'식량, 물, 응급약',x:28,y:150,
+  desc:'맞은편 702호의 문이 열려 있다. 식탁에는 먹다 만 저녁이 그대로고, 집 안은 이상하리만치 조용하다.'},
+ {id:'senior',n:'경로당',s:'경로당',icon:'heart',risk:2,role:'오래된 라디오가 있는 곳',gives:'라디오, 물',x:158,y:66,
+  desc:'신발이 가지런히 놓인 경로당. 벽에 걸린 시계는 멈췄고, 선반 위 낡은 라디오 하나가 먼지를 쓰고 있다.'},
+ {id:'block2',n:'2동 3층 복도',s:'2동 복도',icon:'stairs',risk:3,role:'2동 이웃집으로 가는 길',gives:'식량, 응급약',x:268,y:24,
+  desc:'다른 동의 복도는 우리 동보다 더 어둡다. 현관문마다 번호가 붙어 있고, 몇몇 문에는 긁힌 자국이 있다.'},
+ {id:'unit2f',n:'2동 305호',s:'305호',icon:'room',risk:3,role:'차량 열쇠가 있는 집',gives:'차량 열쇠',x:332,y:24,
+  desc:'현관 선반에 차 열쇠 꾸러미와 주차 카드가 놓여 있다. 집주인의 흔적은 침실 문 너머에서 끊겼다.'},
+ {id:'gym',n:'단지 헬스장',s:'헬스장',icon:'gym',risk:3,role:'배터리 · 장비',gives:'배터리, 응급약',x:334,y:88,
+  desc:'거울이 깨진 헬스장. 러닝머신 사이로 뒹구는 아령 소리가 울리고, 충전기 거치대에 배터리가 몇 개 남아 있다.'},
+ {id:'trash',n:'분리수거장',s:'분리수거장',icon:'trash',risk:3,role:'공구 · 잔해',gives:'쇠지렛대, 식량',x:334,y:168,
+  desc:'철제 컨테이너가 줄지어 선 분리수거장. 악취가 짙고, 쌓인 폐자재 사이에서 쇳덩이가 번쩍인다.'},
+ {id:'boiler',n:'지하 기계실',s:'기계실',icon:'gear',risk:4,role:'공구 보관 · 위험',gives:'절단기',x:70,y:252,
+  desc:'펌프 소리가 멎은 기계실. 배관 사이로 물이 똑똑 떨어지고, 벽 공구함에 절단기가 걸려 있다.'},
 ];
 /* 구역 사이 길(양방향). 이 연결은 제안값이며 구현하며 조정 */
-const EDGES=[['room','stairs'],['roof','stairs'],['stairs','shop'],['stairs','garage'],['shop','office'],['shop','garden'],['office','garden'],['garden','gate'],['garage','gate']];
+const EDGES=[['room','stairs'],['roof','stairs'],['stairs','shop'],['stairs','garage'],['shop','office'],['shop','garden'],['office','garden'],['garden','gate'],['garage','gate'],['stairs','unit702'],['shop','senior'],['office','senior'],['garden','block2'],['block2','unit2f'],['garden','gym'],['garden','trash'],['gate','trash'],['garage','boiler']];
 
 /* 구역별 좀비 시작 수 (제안값 · 위험도와 같은 순서) */
-const ZOMBIE_START={room:0,roof:1,stairs:1,office:1,shop:2,garden:2,garage:3,gate:3};
+const ZOMBIE_START={room:0,roof:1,stairs:1,office:1,shop:2,garden:2,garage:3,gate:3,unit702:0,senior:1,block2:1,unit2f:1,gym:1,trash:1,boiler:2};
 
 /* 도구: 목적이 쉽게 보이는 것만 */
 const ITEMS={
@@ -271,13 +285,17 @@ const ITEMS={
  flashlight:{n:'손전등',        i:'flash',use:'어두운 곳의 위험을 줄인다'},
  map:       {n:'단지 지도',     i:'mapi',use:'구역의 위험을 미리 알려 준다'},
  signal:    {n:'구조 신호 도구',i:'flare',use:'옥상에서 헬기에 신호를 보낸다'},
+ crowbar:   {n:'쇠지렛대',      i:'tool',use:'정문 가림막을 뜯어낸다'},
+ cutter:    {n:'절단기',        i:'tool',use:'후문 쇠사슬을 끊는다'},
+ battery:   {n:'배터리',        i:'batt',use:'구조 신호 도구를 켠다'},
+ radio:     {n:'라디오',        i:'radio',use:'헬기와 교신한다'},
 };
 
 /* 탈출 경로 3가지: 필요한 도구가 다르다 */
 const ROUTES={
- front:{n:'정문', verb:'정문을 차량으로 돌파하려면',   at:'gate',need:['carKey','fuel']},
- rear: {n:'후문', verb:'후문 공사 통로로 나가려면',    at:'gate',need:['gateKey']},
- roof: {n:'옥상', verb:'옥상에서 구조 신호를 보내려면',at:'roof',need:['signal']},
+ front:{n:'정문', verb:'정문을 차량으로 돌파하려면',   at:'gate',need:['carKey','fuel','crowbar']},
+ rear: {n:'후문', verb:'후문 공사 통로로 나가려면',    at:'gate',need:['gateKey','cutter']},
+ roof: {n:'옥상', verb:'옥상에서 구조 신호를 보내려면',at:'roof',need:['signal','battery','radio']},
 };
 
 /* 추가 생존자 3명(친구 단계까지). 위치는 제안값 */
@@ -341,6 +359,11 @@ const PIX={
  gear:'....ss....|.s.ssss.s.|.ssssssss.|..ssSSss..|ssssSSssss|ssssSSssss|..ssSSss..|.ssssssss.|.s.ssss.s.|....ss....',
  pin:'..........|...rrrr...|..rrrrrr..|..rrwwrr..|..rrrrrr..|...rrrr...|....rr....|....rr....|....r.....|..........',
  warn:'..........|....yy....|...yyyy...|...ykky...|..yykkyy..|..yykkyy..|.yyyyyyyy.|.yyykkyyy.|yyyyyyyyyy|..........',
+ tool:'..........|.......ss.|......sSs.|.....sSs..|....sSs...|...sSs....|..sSs.....|.ssS......|.sS.......|..........',
+ batt:'...ss.....|..yyyy....|.yyyyyy...|.yykkyy...|.yyyyyy...|.yykkyy...|.yyyyyy...|.yyyyyy...|..yyyy....|..........',
+ radio:'.......s..|......s...|.....s....|.sssssssss|.sSSSSSSSs|.sSccSyySs|.sSccSyySs|.sSSSSSSSs|.sssssssss|..........',
+ gym:'..........|..........|ss......ss|ssssssssss|ss......ss|..........|..........|..........|..........|..........',
+ trash:'...ss.....|.ssssssss.|..GGGGGG..|..GgGGgG..|..GGGGGG..|..GgGGgG..|..GGGGGG..|..GgGGgG..|..GGGGGG..|..........',
  menu:'..........|..........|wwwwwwwwww|..........|wwwwwwwwww|..........|wwwwwwwwww|..........|..........|..........'
 };
 function pxSvg(name,cls,attrs){
@@ -995,7 +1018,7 @@ function sTalkAi(id,t){
 }
 
 let rng=Math.random;
-const BITE_CHANCE=0.5;                       // 조우했을 때 물릴 확률
+const BITE_CHANCE=0.35;                       // 조우했을 때 물릴 확률
 const BITE_DAMAGE=2;
 const PROTECT_COST=1;                        // 유민을 감싸다 입는 추가 피해
 const LOOT={                                 // 구역별 수색 결과(한 번만)
@@ -1003,7 +1026,14 @@ const LOOT={                                 // 구역별 수색 결과(한 번�
   stairs:{items:['flashlight']},
   shop:  {food:2,water:2,meds:1},
   office:{items:['gateKey','map']},
-  garage:{items:['carKey','fuel']},
+  garage:{items:['fuel']},
+  unit702:{food:1,water:1,meds:1},
+  senior:{water:1,items:['radio']},
+  block2:{food:1,meds:1},
+  unit2f:{items:['carKey']},
+  gym:   {meds:1,items:['battery']},
+  trash: {food:1,items:['crowbar']},
+  boiler:{items:['cutter']},
   roof:  {items:['signal']},
   garden:{water:1},
   gate:  {},
@@ -1254,6 +1284,7 @@ const BG_IMG={
  garden:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAACACAMAAADDApyIAAAASFBMVEX/zXX09PRz7/eUsMLvfVdWbIagWzqKWisqajpKSlIfSiqxPlNKLzU6MiYzPFcpNm8fOioaMyQWLB8dKlwSIEoaHCwNFxALEDBfjv9TAAACeklEQVR42u3WgXKcIBAG4FVK0+SKYgT7/m9aBPUAQUHZ5OL4M5MmxO7nstxM4B9y4GcC5HU6qDL3LzODG8gZ9gmgfskjIqRSuRBQ30f09QDGNRW4C78DoVKLQCpxPkQIEMiB8OufSuUC6B18C1DnzvIjmCdweg57QHJqbEDcwJF79LEZwHr7bwMICsBOdvDHyhpgy8IB2GkhvYNkg2R10LtLpCxi/5TXASs/g95fudkB+qhQlwHYvOS8pMx4/WoE3LgYrOqzLKDfBVhAKAoE6rOyHUhGnOoZHUidHWCsD55QFNjuoCrTgfzqDtgpwPugzfXB+tqXBJgtQIlbFOmg3AxiHXi3SHop3kEiAIDcwT4QqF/2iNYdLIB6Ox+g0eR10PbtCmjHdQDY6CBwRJROp0P0M8T8DoBS8zp/dez/B4H6slXxgVaHUvNvS/QzKcDSwcOsxyMfkFIBOh6gUFjV94B5EIcBuwOTgoA7Azo/Ve6INCAJYdOg0ADABuaH1F37hQ1oAQ+gVAuYgO4BFRiFswBsApOACBgB74gmIRGA+TOUBbTmtsrn9S0NOMImED2iSY4BthAAfj9zFLCEY8DOEan2FyF4RK37WTkCLMJJYBgIGXQ0MFhRwrS/bLkPDKt9AzhFOCeE62iA21GC2V92vAdW+wZwamwBRsAEtIAKjAIuYARMQAuowHSXEAFqCXtA4PV4p4BuXBro+GqpvwSs73nHg8+E93lndYAT6FQHHWIg/qu3jfwMAP2I7hm8wpCbJn03DnzGlyqVvBtb+B18bqRp0ndjuThQIhcAGuTAuwpF/ALI9UcAtb4CcOu/A3J9eg/5HvI95CsM+T/JUQg91fzcWQAAAABJRU5ErkJggg==',
  gate:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAACACAMAAADDApyIAAAANlBMVEX09PT/zXVz7/eUsMLvfVdWbIZKWnSxPlNdJ10zPFcqKjEmK0Q7HTgqGDAfHyYaHCwSEx8dEiZDafSnAAABqElEQVR42u2XjZKCMAyEc/xIoELh/V/2ylXPIi0UTJBqNgOdKTXfbFcBYZgqH4gF/ycmcfY+EuBisrWPZF+5RS8qky0SQOoAGFrO2u8g8skB7ZKy9mXBrks0gPbkAGQEoFPA2t0UMPcndoDzAub+pA6Q2QEyO8C0HWit0V9kgEB/TQXAsIMrRb3TwZVEGHZAAxh79abuY3ErWgcPQvEggA6KyAENgNvBLFseB9Mqb9+isVVvNI4/RvszeO5vCUSAj3agaITPNToYRyqAj/A3sjm4F+R+qa3zmHtLkQHyAAFKv9T2efSVogOgvxJyULI7KAMOLl4pO2/vH8tnZz3Oa8VBDGDqbGMG2wEbM+j7utZ66ej7eTYbMogBuOsdoZ1nceD2+QQAVwaXM2VQBXQSQEQGVQUe3QEEGSwDSLZobDfViQBfkkHqv4P070XyPJAMJAMBCEAAAoDaL2WHGIC7ft5nFbCudwOafSqMohYeBbAv5PYlfWkUwHkARRFLOArQNOa+sbhwej19gP0bmDJAQiYFdF3HeQBz/waY+xsHzHskGUgGkkHX/QI1LvigHdTY2AAAAABJRU5ErkJggg=='
 };
+Object.assign(BG_IMG,{unit702:BG_IMG.room,unit2f:BG_IMG.room,senior:BG_IMG.office,block2:BG_IMG.stairs,gym:BG_IMG.shop,trash:BG_IMG.garden,boiler:BG_IMG.garage});
 function bgFor(zoneId){ const u=BG_IMG[zoneId]; return u?`url("${u}") center bottom / cover no-repeat, #1a1c2c`:'#1a1c2c' }
 /* 인물+표정 → 이미지. 48×48 도트 PNG를 내장한다. 표정이 없으면 neutral, 그림이 없는 인물(예: 주인공)은 null */
 const PORTRAIT={
@@ -1606,7 +1637,7 @@ function mapHTML(){
     return `<g class="${cls}"${act} aria-label="${esc(aria)}"><rect x="${z.x-20}" y="${z.y-20}" width="40" height="40"/>${pxAt(z.icon,z.x-16,z.y-16,32)}<text class="lb" x="${z.x}" y="${z.y+33}">${esc(z.s)}</text><text class="rk" x="${z.x}" y="${z.y+43}">${'●'.repeat(z.risk)}${'○'.repeat(4-z.risk)}</text></g>`;
   }).join('');
   const z=ZONE[G.loc];
-  return `<svg class="zmap" viewBox="0 0 360 256" role="group" aria-label="단지 구역 지도">${edges}${nodes}</svg>
+  return `<svg class="zmap" viewBox="0 0 360 300" role="group" aria-label="단지 구역 지도">${edges}${nodes}</svg>
     <div id="zoneCard">${px('pin')} <b>${esc(z.n)}</b> · 위험 ${RISK_LABEL[z.risk]} · ${esc(z.role)} · 얻을 것: ${esc(z.gives)}</div>
     <p class="muted" style="margin:6px 0 0">${queueIdle()?'이웃한 구역을 누르면 이동합니다.':'이야기를 끝까지 본 뒤에 이동할 수 있습니다.'}</p>`;
 }
