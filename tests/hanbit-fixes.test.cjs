@@ -72,5 +72,16 @@ await test('Custom provider without a server address fails with a clear message'
   await assert.rejects(()=>f.run("callAIRaw('s','u')"),/서버 주소/);
 });
 
+await test('Encounter chance depends on the time of day: safer by day, riskier at night, flashlight helps more at night',()=>{
+  const {run}=game();
+  run("G.noise.shop=0");
+  const at=slot=>{ run(`G.slot=${slot}`); return +run("encounterChance('shop')").toFixed(4) };
+  const base=at(2);
+  assert.equal(at(0),+(base-0.03).toFixed(4)); assert.equal(at(1),+(base-0.03).toFixed(4)); assert.equal(at(3),+(base+0.08).toFixed(4));
+  assert.equal(run("encounterChance('room')"),0,'safe room stays safe');
+  run("G.items=['flashlight']");
+  assert.equal(at(2),+(base-0.1).toFixed(4)); assert.equal(at(3),+(base+0.08-0.15).toFixed(4));
+});
+
 done();
 })();

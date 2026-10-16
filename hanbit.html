@@ -239,6 +239,8 @@ const INFECT_SLOTS=5;                    // 물린 뒤 감염 타이머(시간�
 const RES_CAP=99;                        // 저장 검사용 자원 상한(정상 플레이로는 닿지 않는다)
 const INFECT_SAVE_MAX=8;                 // 옛 저장(8시간대)도 읽을 수 있게 저장 검사 상한은 그대로
 
+const SLOT_RISK=[-0.03,-0.03,0,0.08];     // 시간대별 조우 확률 보정(아침·낮은 낮추고 밤은 높인다)
+
 const RISK_LABEL=['','낮음','보통','높음','매우 높음'];
 
 /* 15개 구역. x·y는 지도(360×256) 위 좌표 */
@@ -1199,8 +1201,8 @@ function addNoise(id,n){ G.noise[id]=Math.max(0,Math.min(NOISE_MAX,(G.noise[id]|
 function encounterChance(id){
   const z=ZONE[id], n=G.zombies[id]||0;
   if(id==='room'||n<=0) return 0;
-  let p=0.12*n+0.04*(G.noise[id]||0)+0.05*(z.risk-1);
-  if(hasItem('flashlight')) p-=0.1;
+  let p=0.12*n+0.04*(G.noise[id]||0)+0.05*(z.risk-1)+SLOT_RISK[G.slot];
+  if(hasItem('flashlight')) p-=G.slot===3?0.15:0.1;   // 밤에는 손전등이 더 큰 도움이 된다
   return Math.max(0,Math.min(0.9,p));
 }
 function encounter(id,out){
