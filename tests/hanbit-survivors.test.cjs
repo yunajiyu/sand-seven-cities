@@ -75,7 +75,7 @@ await test('Old saves without the gift field are repaired; broken survivor data 
   run("save();var s=JSON.parse(localStorage.getItem(SAVE_KEY));for(const k in s.surv) delete s.surv[k].gift");
   run("var m=prepareSavedGame(JSON.stringify(s))");
   assert.equal(run('m.surv.guard.gift'),false);
-  for(const bad of ["met:1","rescued:'x'","aff:-1","aff:99","gift:'y'"]){
+  for(const bad of ["met:1","aff:-1","aff:99","gift:'y'"]){
     assert.throws(()=>run(`var t=JSON.parse(JSON.stringify(s));Object.assign(t.surv.rider,{${bad}});prepareSavedGame(JSON.stringify(t))`),/생존자 정보/);
   }
 });
@@ -146,10 +146,10 @@ await test('Saves made before the new survivors existed still load and get empty
   const {run}=game();
   run("save();var s=JSON.parse(localStorage.getItem(SAVE_KEY));s.surv.pharm.aff=5;s.surv.pharm.met=true;for(const k of ['granny','elder','trainer','engineer']) delete s.surv[k]");
   run("var m=prepareSavedGame(JSON.stringify(s))");
-  for(const k of ['granny','elder','trainer','engineer']) assert.deepEqual(JSON.parse(JSON.stringify(run(`m.surv.${k}`))),{met:false,rescued:false,aff:0,gift:false},k);
+  for(const k of ['granny','elder','trainer','engineer']) assert.deepEqual(JSON.parse(JSON.stringify(run(`m.surv.${k}`))),{met:false,aff:0,gift:false},k);
   assert.equal(run('m.surv.pharm.aff'),5,'existing survivors are kept');
   assert.doesNotThrow(()=>run('validateSaveData(m)'));
-  assert.throws(()=>run("var t=JSON.parse(JSON.stringify(s));t.surv.granny={met:1,rescued:false,aff:0,gift:false};prepareSavedGame(JSON.stringify(t))"),/생존자 정보/);
+  assert.throws(()=>run("var t=JSON.parse(JSON.stringify(s));t.surv.granny={met:1,aff:0,gift:false};prepareSavedGame(JSON.stringify(t))"),/생존자 정보/);
   run("var u=JSON.parse(JSON.stringify(s));delete u.surv.pharm;var m2=prepareSavedGame(JSON.stringify(u))");
   assert.equal(run('m2.surv.pharm.met'),false,'any missing survivor is filled with an empty entry');
 });

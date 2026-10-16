@@ -28,7 +28,7 @@ await test('Unknown speaker becomes narration, unknown expression becomes neutra
   assert.equal(r.lines.some(l=>l.who==='guard'||l.who==='stranger'||l.who==='unknown'),false);
 });
 
-await test('System notices from the AI and lines that change facts the code owns are dropped',()=>{
+await test('System notices from the AI are dropped; narration is kept as written',()=>{
   const f=game();
   const r=parse(f,JSON.stringify([
     {t:'n',text:'어둠 속에서 소리가 난다.'},
@@ -40,8 +40,9 @@ await test('System notices from the AI and lines that change facts the code owns
     {t:'n',text:'엔딩이 다가온다.'},
     {t:'n',text:'물 한 모금이 남았다고 생각한다.'},
   ]));
-  assert.deepEqual(r.lines.map(l=>l.text),['어둠 속에서 소리가 난다.','물 한 모금이 남았다고 생각한다.']);
-  assert.equal(r.dropped,6);
+  assert.equal(r.lines.length,7);
+  assert.ok(!r.lines.some(l=>l.text==='소음 +1'));
+  assert.equal(r.dropped,1);
 });
 
 await test('A truncated array still yields its complete lines',()=>{
@@ -68,7 +69,7 @@ await test('Plain text falls back to narration and dialogue split by quotes, wit
   assert.equal(r.lines[0].t,'n','a speaker who is not in this scene is not allowed even by name label');
   assert.ok(parse(f,'유민: 괜찮아요?').lines[0].who==='yumin','name label without quotes still marks dialogue');
   r=parse(f,'소음 +2. "체력 -1이야."');
-  assert.equal(r.lines.length,0);
+  assert.equal(r.lines.length,2,'text is kept as written (no fact filter)');
 });
 
 await test('Garbage or empty replies use the fallback sentence; long output is capped; each line is short enough for the screen box',()=>{
@@ -107,7 +108,7 @@ await test('aiScene makes exactly one AI call, shows the checked lines, locks ch
   assert.equal(run('sent.length'),1,'one call');
   assert.equal(run('sawBusy'),true,'busy while waiting');
   assert.equal(run('busy'),false);
-  assert.equal(run('G.log.map(x=>x.text).join("|")'),'소리가 멀어진다.|갔나 봐요.');
+  assert.equal(run('G.log.map(x=>x.text).join("|")'),'소리가 멀어진다.|갔나 봐요.|체력 -4');
   assert.equal(run('G.log[1].who'),'yumin'); assert.equal(run('G.log[1].emo'),'relieved');
   assert.equal(run('G.hp'),10); assert.equal(run('G.noise.room'),0);
   assert.equal(el('scriptText').textContent,'소리가 멀어진다.');
@@ -136,9 +137,9 @@ await test('If the game is replaced while the AI is answering, the late reply is
   assert.equal(f.run('G.log.length'),0);
 });
 
-await test('The menu offers the AI test scene, and a busy game refuses a second call',async()=>{
+await test('A busy game refuses a second call, and the menu no longer offers dev test scenes',async()=>{
   const f=game(); f.run('openMenu()');
-  assert.match(f.run('modalHTML'),/AI 장면 시험/);
+  assert.doesNotMatch(f.run('modalHTML'),/AI 장면 시험|더미/);
   geminiReplies(f,['[]']); f.run('busy=true');
   assert.equal(await f.run("aiScene('t',{})"),false);
   assert.equal(f.run('sent.length'),0);
