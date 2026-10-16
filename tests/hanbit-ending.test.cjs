@@ -31,15 +31,15 @@ await test('Escaping with her at a high level ends in the together ending, and t
   run("pick('escape:');flush()");
   assert.equal(run('G.ending'),'escape_together');
   assert.ok(run("G.log.some(l=>l.type==='dialog'&&l.who==='yumin')"));
-  assert.ok(run("G.log.some(l=>l.type==='sys'&&/함께 나선 아침/.test(l.text))"));
+  assert.ok(run("G.log.some(l=>l.type==='sys'&&/함께 나간 아침/.test(l.text))"));
   assert.deepEqual(obj('buildChoices()'),[]);
   run('renderChoices()');
-  assert.match(run("document.getElementById('choices').innerHTML"),/함께 나선 아침[\s\S]*toTitle/);
+  assert.match(run("document.getElementById('choices').innerHTML"),/함께 나간 아침[\s\S]*toTitle/);
 });
 
 await test('Escaping with low affection, without her, or without ever meeting her gives the alone ending with different lines',()=>{
   const lines=[];
-  for(const setup of ["G.comp.yumin.met=true;G.comp.yumin.joined=true;G.comp.yumin.aff=6","G.comp.yumin.met=true;G.comp.yumin.aff=3","G.comp.yumin.met=false"]){
+  for(const setup of ["G.comp.yumin.met=true;G.comp.yumin.joined=true;G.comp.yumin.aff=1","G.comp.yumin.met=true;G.comp.yumin.aff=3","G.comp.yumin.met=false"]){
     const {run}=game(); run(ready('rear')+';'+setup); run("pick('escape:');flush()");
     assert.equal(run('G.ending'),'escape_alone'); lines.push(run("G.log.filter(l=>l.type!=='action').map(l=>l.text).join('|')"));
   }
@@ -52,12 +52,31 @@ await test('Each route has its own escape line',()=>{
   assert.equal(seen.size,3);
 });
 
-await test('The five endings all have names, and the three failure endings show an end card too',()=>{
+await test('The four endings all have the designed names, and the failure causes share one ending with its own last line',()=>{
   const {run}=game();
-  assert.deepEqual(run("Object.keys(ENDING_NAME).sort().join()"),'dead,escape_alone,escape_together,infected,timeout');
+  assert.deepEqual(run("Object.values(ENDING_NAME).sort().join()"),['단지의 마지막 밤','동료로 탈출','함께 나간 아침','혼자 나온 날'].sort().join());
+  const lines=new Set();
   for(const k of ['dead','infected','timeout']){
-    const g=game(); g.run(`finish('${k}',[]);G.ending='${k}'`); g.run('renderChoices()');
-    assert.match(g.run("document.getElementById('choices').innerHTML"),new RegExp(g.run(`ENDING_NAME.${k}`)));
+    const g=game(); g.run(`finish('${k}',[]);`); assert.equal(g.run('G.ending'),'last_night');
+    g.run('renderChoices()');
+    assert.match(g.run("document.getElementById('choices').innerHTML"),/단지의 마지막 밤/);
+    lines.add(g.run(`ENDING_TEXT.${k}`));
+  }
+  assert.equal(lines.size,3);
+  assert.equal(game().run("OLD_ENDING.dead+OLD_ENDING.infected+OLD_ENDING.timeout"),'last_nightlast_nightlast_night');
+});
+
+await test('Old saves with the retired failure endings load as the new ending',()=>{
+  const {run}=game();
+  run("save();var s=JSON.parse(localStorage.getItem(SAVE_KEY));s.ending='infected'");
+  run("var m=prepareSavedGame(JSON.stringify(s))"); assert.equal(run('m.ending'),'last_night');
+});
+
+await test('Companion level decides the escape ending: high → together, middle → comrade, low or not joined → alone',()=>{
+  const cases=[[12,true,'escape_together'],[16,true,'escape_together'],[5,true,'escape_comrade'],[11,true,'escape_comrade'],[1,true,'escape_alone'],[20,false,'escape_alone']];
+  for(const [aff,joined,want] of cases){
+    const {run}=game(); run(ready('rear')+`;G.comp.yumin.met=true;G.comp.yumin.joined=${joined};G.comp.yumin.aff=${aff}`);
+    run("pick('escape:');flush()"); assert.equal(run('G.ending'),want,`${aff}/${joined}`);
   }
 });
 
