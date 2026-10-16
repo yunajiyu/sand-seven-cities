@@ -153,7 +153,10 @@ await test('Yumin has a portrait for every expression key; unknown expression or
   for(const u of all) assert.match(u,/^data:image\/png;base64,/);
   assert.equal(new Set(all).size,8,'each expression is a different picture');
   assert.equal(run("portraitFor('yumin','rage')"),all[0],'unknown expression -> neutral');
-  assert.equal(run("portraitFor('me','smile')"),null);
+  const me=run("portraitFor('me','neutral')");
+  assert.match(me,/^data:image\/png;base64,/); assert.notEqual(me,all[0],'the protagonist has a different picture from Yumin's');
+  assert.equal(run("portraitFor('me','smile')"),me,'the protagonist has only a neutral picture, so every expression uses it');
+  assert.equal(run("portraitFor('guard','smile')"),null,'someone without a picture draws nothing');
   assert.equal(run("portraitFor('__proto__','smile')"),null);
   assert.equal(run("portraitFor('constructor','smile')"),null);
 });
@@ -170,8 +173,11 @@ await test('The speaker stands in the scene lit, stays dimmed during narration, 
   run('tapAdvance()');
   assert.match(el('cast').innerHTML,/class="pt dim"/,'dimmed while narration plays');
   run('tapAdvance()');
-  assert.match(el('cast').innerHTML,/class="pt dim"/,'the player has no picture, so Yumin stays dimmed');
-  assert.equal((el('cast').innerHTML.match(/<img/g)||[]).length,1);
+  assert.match(el('cast').innerHTML,/class="pt lit"[^>]*alt="[^"]*"/,'the player speaks and stands lit');
+  assert.equal((el('cast').innerHTML.match(/<img/g)||[]).length,2,'the player and Yumin both show');
+  assert.equal((el('cast').innerHTML.match(/class="pt dim"/g)||[]).length,1,'Yumin stays dimmed while the player speaks');
+  assert.ok(el('cast').innerHTML.includes(run("portraitFor('me','neutral')")));
+  assert.ok(el('cast').innerHTML.includes(run("portraitFor('yumin','smile')")));
   run("Q.cast=[{who:'yumin',emo:'sad'},{who:'yumin',emo:'tense'}];castSpeak({t:'d',who:'yumin',emo:'relieved'})");
   assert.equal(run('Q.cast.length'),1); assert.equal(run('Q.cast[0].emo'),'relieved');
 });
