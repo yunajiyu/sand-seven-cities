@@ -1082,7 +1082,7 @@ function sTalkAi(id,t){
 }
 
 let rng=Math.random;
-const BITE_CHANCE=0.35;                       // 조우했을 때 물릴 확률
+const BITE_CHANCE=0.2;                        // 조우했을 때 물릴 확률(0.35→0.2, 호감도·대화를 쌓을 여유를 주려고 낮춤)
 const BITE_DAMAGE=2;
 const PROTECT_COST=1;                        // 유민을 감싸다 입는 추가 피해
 const LOOT={                                 // 구역별 수색 결과(한 번만)
@@ -1240,7 +1240,11 @@ function encounter(id,out){
 function finish(key,out){ if(G.ending) return; G.ending='last_night'; out.push({t:'s',text:ENDING_TEXT[key]}); out.push({t:'s',text:`엔딩 — ${endingName('last_night')}`}) }
 function advanceTime(out){
   for(const id of Object.keys(G.noise)) G.noise[id]=Math.max(0,G.noise[id]-1);
-  if(G.infection){ G.infection.left--; if(G.infection.left<=0) finish('infected',out) }
+  if(G.infection){
+    // 유민이 동행 중이면 감염이 느리게 번진다(두 시간대에 한 번만 줄어든다)
+    const slow=G.comp&&G.comp.yumin&&G.comp.yumin.joined&&((G.day*TIMES.length+G.slot)%2===0);
+    if(!slow){ G.infection.left--; if(G.infection.left<=0) finish('infected',out) }
+  }
   if(G.slot+1>=TIMES.length){
     if(G.day>=LAST_DAY){
       // 마지막 행동으로 출구에 닿았다면 탈출할 마지막 기회를 한 번 준다(탈출은 시간이 들지 않는 행동)
