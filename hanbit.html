@@ -1276,7 +1276,7 @@ function goZone(id){
     if(!y.met&&id===YUMIN_MEET){
       y.met=true; y.aff=Math.max(y.aff,1);
       for(const l of meetingLines()) out.push(l);
-    } else if(y.joined&&first&&to.risk>=3) addAff(1,out);   // 위험한 곳에 처음 함께 들어서면 가까워진다
+    } else if(y.joined&&first&&to.risk>=3) addAff(to.risk-1,out);   // 위험한 곳에 처음 함께 들어서면 가까워진다(위험 3: +2, 4: +3)
     for(const sv of SURVIVORS) if(sv.zone===id&&!G.surv[sv.id].met){ G.surv[sv.id].met=true; G.surv[sv.id].aff=1; for(const l of survMeetLines(sv.id)) out.push(l) }
   },meetingOpts(id)||survMeetOpts(id));
 }

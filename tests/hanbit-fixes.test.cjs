@@ -83,5 +83,15 @@ await test('Encounter chance depends on the time of day: safer by day, riskier a
   assert.equal(at(2),+(base-0.1).toFixed(4)); assert.equal(at(3),+(base+0.08-0.15).toFixed(4));
 });
 
+await test('Entering a dangerous zone for the first time with Yumin deepens the bond by risk-1 (risk 3: +2, risk 4: +3)',()=>{
+  const {run}=game();
+  run("G.comp.yumin={met:true,joined:true,aff:5};G.loc='stairs';goZone('shop');flush()");
+  assert.equal(run('G.comp.yumin.aff'),7,'shop is risk 3');
+  run("G.loc='stairs';goZone('garage');flush()");
+  assert.equal(run('G.comp.yumin.aff'),10,'garage is risk 4');
+  run("G.loc='stairs';goZone('garage');flush()");
+  assert.equal(run('G.comp.yumin.aff'),10,'second visit: no bonus');
+});
+
 done();
 })();
