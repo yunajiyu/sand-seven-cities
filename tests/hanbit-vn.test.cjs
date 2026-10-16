@@ -154,7 +154,7 @@ await test('Yumin has a portrait for every expression key; unknown expression or
   assert.equal(new Set(all).size,8,'each expression is a different picture');
   assert.equal(run("portraitFor('yumin','rage')"),all[0],'unknown expression -> neutral');
   const me=run("portraitFor('me','neutral')");
-  assert.match(me,/^data:image\/png;base64,/); assert.notEqual(me,all[0],'the protagonist has a different picture from Yumin's');
+  assert.match(me,/^data:image\/png;base64,/); assert.notEqual(me,all[0],'the protagonist has a different picture from Yumin');
   assert.equal(run("portraitFor('me','smile')"),me,'the protagonist has only a neutral picture, so every expression uses it');
   assert.equal(run("portraitFor('guard','smile')"),null,'someone without a picture draws nothing');
   assert.equal(run("portraitFor('__proto__','smile')"),null);
