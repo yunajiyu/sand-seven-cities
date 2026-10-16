@@ -108,7 +108,7 @@ await test('aiScene makes exactly one AI call, shows the checked lines, locks ch
   assert.equal(run('sent.length'),1,'one call');
   assert.equal(run('sawBusy'),true,'busy while waiting');
   assert.equal(run('busy'),false);
-  assert.equal(run('G.log.map(x=>x.text).join("|")'),'소리가 멀어진다.|갔나 봐요.');
+  assert.equal(run('G.log.map(x=>x.text).join("|")'),'소리가 멀어진다.|갔나 봐요.|체력 -4');
   assert.equal(run('G.log[1].who'),'yumin'); assert.equal(run('G.log[1].emo'),'relieved');
   assert.equal(run('G.hp'),10); assert.equal(run('G.noise.room'),0);
   assert.equal(el('scriptText').textContent,'소리가 멀어진다.');
