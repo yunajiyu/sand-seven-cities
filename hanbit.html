@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>재개발 예정 단지</title>
-<link href="https://cdn.jsdelivr.net/npm/galmuri@latest/dist/galmuri.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css" rel="stylesheet">
 <style>
 :root{
   /* 도트 팔레트(16색 계열) — 밝은 테마 */
@@ -91,6 +91,7 @@ svg.pix{width:1.2em;height:1.2em;vertical-align:-.24em;margin-right:.25em;flex:0
 #scriptText.s{color:#ffcd75;font-size:calc(14px*var(--fs,1))}
 #nextMark{position:absolute;right:16px;bottom:calc(8px + env(safe-area-inset-bottom));color:#a7f070;font-size:13px;opacity:0;animation:blink 1s steps(2) infinite}
 #nextMark.on{opacity:1}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @keyframes blink{50%{opacity:.25}}
 .entry{word-break:keep-all;overflow-wrap:anywhere;margin:0 0 10px;font-size:calc(15px*var(--fs,1));line-height:1.6}
 .entry.n{color:var(--muted)}
@@ -189,8 +190,9 @@ svg.pix{width:1.2em;height:1.2em;vertical-align:-.24em;margin-right:.25em;flex:0
   </div>
   <div id="script" onclick="tapAdvance(event)">
     <div id="nameTag"></div>
-    <div id="scriptInner"><div id="scriptText" class="n" aria-live="polite"></div></div>
-    <div id="nextMark">▼</div>
+    <div id="scriptInner"><div id="scriptText" class="n"></div></div>
+    <div id="nextMark" aria-hidden="true">▼</div>
+    <div id="srLive" class="sr" aria-live="polite"></div>
   </div>
 </section>
 
@@ -234,6 +236,7 @@ const LAST_DAY=8;                        // 8일차가 마지막(행동 약 30�
 const BASE={hp:10,food:4,water:4};       // 시작 자원
 const NOISE_MAX=10;                      // 구역별 소음 상한
 const INFECT_SLOTS=5;                    // 물린 뒤 감염 타이머(시간대). 난이도 조정(후보 D)으로 8→3
+const RES_CAP=99;                        // 저장 검사용 자원 상한(정상 플레이로는 닿지 않는다)
 const INFECT_SAVE_MAX=8;                 // 옛 저장(8시간대)도 읽을 수 있게 저장 검사 상한은 그대로
 
 const RISK_LABEL=['','낮음','보통','높음','매우 높음'];
@@ -283,7 +286,7 @@ const ITEMS={
  carKey:    {n:'차량 열쇠',     i:'key',use:'지하주차장의 차량을 움직인다'},
  fuel:      {n:'연료',          i:'fuel',use:'차량이 정문까지 달리게 한다'},
  flashlight:{n:'손전등',        i:'flash',use:'어두운 곳의 위험을 줄인다'},
- map:       {n:'단지 지도',     i:'mapi',use:'구역의 위험을 미리 알려 준다'},
+ map:       {n:'단지 지도',     i:'mapi',use:'단지 배치도. 길을 익히는 데 도움이 된다'},
  signal:    {n:'구조 신호 도구',i:'flare',use:'옥상에서 헬기에 신호를 보낸다'},
  crowbar:   {n:'쇠지렛대',      i:'tool',use:'정문 가림막을 뜯어낸다'},
  cutter:    {n:'절단기',        i:'tool',use:'후문 쇠사슬을 끊는다'},
@@ -406,7 +409,7 @@ function newState(name,info){
     items:[], infection:null, route:null, ending:null,
     zs, noise, zombies:{...ZOMBIE_START},
     comp:{yumin:{met:false,joined:false,aff:0}},
-    surv:Object.fromEntries(SURVIVORS.map(s=>[s.id,{met:false,rescued:false,aff:0,gift:false}])),
+    surv:Object.fromEntries(SURVIVORS.map(s=>[s.id,{met:false,aff:0,gift:false}])),
     ev:null, fb:null, log:[], pend:0, last:false,
   };
 }
@@ -427,7 +430,7 @@ function migrate(){
   if(typeof G.ending==='string'&&own(OLD_ENDING,G.ending)) G.ending=OLD_ENDING[G.ending];
   if(typeof G.meds!=='number') G.meds=0;
   if(G.surv&&typeof G.surv==='object') SURVIVORS.forEach(sv=>{
-    if(G.surv[sv.id]===undefined) G.surv[sv.id]={met:false,rescued:false,aff:0,gift:false};   // 나중에 추가된 생존자
+    if(G.surv[sv.id]===undefined) G.surv[sv.id]={met:false,aff:0,gift:false};   // 나중에 추가된 생존자
     const e=G.surv[sv.id]; if(e&&typeof e==='object'&&e.gift===undefined) e.gift=(Number.isFinite(e.aff)&&e.aff>=SURV_LV[2]);
   });
   ZONES.forEach(z=>{
@@ -446,21 +449,22 @@ function validateSaveData(g,strict=true){
  if(!(g.char.age===undefined&&!strict)&&g.char.age!==null&&(!Number.isInteger(g.char.age)||g.char.age<AGE_MIN||g.char.age>AGE_MAX)) throw Error('캐릭터 나이가 올바르지 않습니다.');
  if(!(g.char.trait===undefined&&!strict)&&(typeof g.char.trait!=='string'||g.char.trait.length>TRAIT_MAX)) throw Error('캐릭터 성격 정보가 손상됐습니다.');
  if(!Number.isInteger(g.day)||g.day<1||g.day>LAST_DAY||!Number.isInteger(g.slot)||g.slot<0||g.slot>=TIMES.length||typeof g.loc!=='string'||!own(ZONE,g.loc)) throw Error('날짜·시간·위치 정보가 손상됐습니다.');
- if(!['hp','maxhp','food','water'].every(k=>finite(g[k]))||(!opt('meds')&&!finite(g.meds))||g.maxhp<=0||g.hp<0||g.hp>g.maxhp||g.food<0||g.water<0||g.meds<0) throw Error('체력·자원 정보가 손상됐습니다.');
- if(!opt('items')&&(!Array.isArray(g.items)||g.items.some(x=>typeof x!=='string'||!own(ITEMS,x)))) throw Error('도구 정보가 손상됐습니다.');
+ if(!['hp','maxhp','food','water'].every(k=>finite(g[k]))||(!opt('meds')&&!finite(g.meds))||g.maxhp<=0||g.maxhp>RES_CAP||g.hp<0||g.hp>g.maxhp||g.food<0||g.water<0||g.meds<0||g.food>RES_CAP||g.water>RES_CAP||g.meds>RES_CAP) throw Error('체력·자원 정보가 손상됐습니다.');
+ if(!opt('items')&&(!Array.isArray(g.items)||new Set(g.items).size!==g.items.length||g.items.some(x=>typeof x!=='string'||!own(ITEMS,x)))) throw Error('도구 정보가 손상됐습니다.');
  if(!opt('infection')&&g.infection!==null&&(!obj(g.infection)||!Number.isInteger(g.infection.left)||g.infection.left<0||g.infection.left>INFECT_SAVE_MAX)) throw Error('감염 정보가 손상됐습니다.');
  if(!opt('route')&&g.route!==null&&(typeof g.route!=='string'||!own(ROUTES,g.route))) throw Error('탈출 경로 정보가 손상됐습니다.');
- if(!opt('ending')&&g.ending!==null&&typeof g.ending!=='string') throw Error('엔딩 정보가 손상됐습니다.');
+ if(!opt('ending')&&g.ending!==null&&(typeof g.ending!=='string'||!(own(ENDING_NAME,g.ending)||own(OLD_ENDING,g.ending)))) throw Error('엔딩 정보가 손상됐습니다.');
  if(!obj(g.zs)||!obj(g.noise)||!obj(g.zombies)) throw Error('구역 정보가 손상됐습니다.');
  for(const z of ZONES){
    if(!strict&&g.zs[z.id]===undefined&&g.zombies[z.id]===undefined&&g.noise[z.id]===undefined) continue;   // 나중에 추가된 구역(옛 세이브) — migrate가 채운다
-   if(!obj(g.zs[z.id])||(g.zs[z.id].rested!==undefined&&typeof g.zs[z.id].rested!=='boolean')||!finite(g.zombies[z.id])||g.zombies[z.id]<0||!finite(g.noise[z.id])||g.noise[z.id]<0||g.noise[z.id]>NOISE_MAX) throw Error('구역 정보가 손상됐습니다: '+z.id);
+   if(!obj(g.zs[z.id])||typeof g.zs[z.id].seen!=='boolean'||typeof g.zs[z.id].searched!=='boolean'||(g.zs[z.id].rested!==undefined&&typeof g.zs[z.id].rested!=='boolean')||!finite(g.zombies[z.id])||g.zombies[z.id]<0||!finite(g.noise[z.id])||g.noise[z.id]<0||g.noise[z.id]>NOISE_MAX) throw Error('구역 정보가 손상됐습니다: '+z.id);
  }
  if(!obj(g.comp)||!obj(g.comp.yumin)||!obj(g.surv)) throw Error('동행자 정보가 손상됐습니다.');
- for(const sv of SURVIVORS){ const e=g.surv[sv.id]; if(e===undefined&&!strict) continue; if(!obj(e)||typeof e.met!=='boolean'||typeof e.rescued!=='boolean'||!finite(e.aff)||e.aff<0||e.aff>SURV_MAX||(e.gift===undefined?strict:typeof e.gift!=='boolean')) throw Error('생존자 정보가 손상됐습니다: '+sv.id) }
+ for(const sv of SURVIVORS){ const e=g.surv[sv.id]; if(e===undefined&&!strict) continue; if(!obj(e)||typeof e.met!=='boolean'||!finite(e.aff)||e.aff<0||e.aff>SURV_MAX||(e.gift===undefined?strict:typeof e.gift!=='boolean')) throw Error('생존자 정보가 손상됐습니다: '+sv.id) }
  const yy=g.comp.yumin; if(typeof yy.met!=='boolean'||typeof yy.joined!=='boolean'||!finite(yy.aff)||yy.aff<0||yy.aff>AFF_MAX) throw Error('동행자 정보가 손상됐습니다.');
  if(!opt('log')&&(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||typeof x.type!=='string'||typeof x.text!=='string'))) throw Error('기록 정보가 손상됐습니다.');
  if(!opt('last')&&typeof g.last!=='boolean') throw Error('시간 정보가 손상됐습니다.');
+ if(g.last===true&&(g.ending!==null&&g.ending!==undefined||g.day!==LAST_DAY||g.slot!==TIMES.length-1||typeof g.route!=='string'||!own(ROUTES,g.route)||g.loc!==ROUTES[g.route].at||!ROUTES[g.route].need.every(x=>Array.isArray(g.items)&&g.items.includes(x)))) throw Error('시간 정보가 손상됐습니다.');
  if(!opt('ev')&&g.ev!==null&&(typeof g.ev!=='string'||!own(EVENTS,g.ev))) throw Error('사건 정보가 손상됐습니다.');
  if(!opt('fb')&&g.fb!==null&&(!Array.isArray(g.fb)||g.fb.length>SCRIPT_MAX_LINES||g.fb.some(x=>!obj(x)||typeof x.text!=='string'||x.text.length>SCRIPT_MAX_CHARS))) throw Error('장면 정보가 손상됐습니다.');
  if(!opt('pend')&&(!Number.isInteger(g.pend)||g.pend<0||g.pend>(Array.isArray(g.log)?g.log.length:0))) throw Error('기록 정보가 손상됐습니다.');
@@ -475,7 +479,7 @@ function prepareSavedGame(text){
  const previous=G;
  try{ G=candidate; migrate(); validateSaveData(G); return G }finally{ G=previous }
 }
-let stableSnap=null, undoSnap=null, undoLabel='', undoOlder=[], chronLastDay=null;   // undoSnap=가장 최근 행동 이전, undoOlder=그 이전 상태들(되돌리기 최대 UNDO_MAX번)
+let stableSnap=null;
 const SAVE_BACKUP_KEY=SAVE_KEY+'_before_import';
 let saveFailed=false;
 function saveStatus(ok){
@@ -520,7 +524,6 @@ function clamp(v,a,b){ return Math.max(a,Math.min(b,v)) }
 function trunc(s,n){ s=String(s); return s.length>n?s.slice(0,n)+'…':s }
 function hasBatchim(w){ w=String(w); const c=w.charCodeAt(w.length-1); return c>=0xAC00&&c<=0xD7A3&&(c-0xAC00)%28>0 }
 function josa(w,a,b){ return hasBatchim(w)?a:b }
-function vocative(n){ const c=n.charCodeAt(n.length-1); if(c<0xAC00||c>0xD7A3) return n; return n+(((c-0xAC00)%28)?'아':'야') }
 function parseJSON(t){
   if(!t) return null;
   t=String(t).replace(/```json|```/g,'');
@@ -729,6 +732,7 @@ async function callAIRaw(system,user,maxTokens=1200,role='story',opt){
     return (d.content||[]).map(x=>x.text||'').join('');
   }
   const base=(c.provider==='custom'?(SET.baseUrl||''):(PRESETS[c.provider]&&PRESETS[c.provider].baseUrl)||'').replace(/\/$/,'');
+  if(!/^https?:\/\//i.test(base)) throw new Error(c.provider==='custom'?'사용자 지정 제공자의 서버 주소(http:// 또는 https://로 시작)를 AI 설정에서 입력해 주세요.':`${provLabel(c.provider)} 서버 주소가 올바르지 않습니다.`);
   const body={model:c.model,max_tokens:maxTokens,temperature:0.9,messages:[{role:'system',content:system},{role:'user',content:user}]};
   if(c.provider==='gemini'){ body.max_tokens=Math.max(maxTokens*2,3000); body.reasoning_effort=c.effort||'low' }
   const send=()=>aiRequest(base+'/chat/completions',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+key},body:JSON.stringify(body)});
@@ -770,19 +774,12 @@ function trackUsage(role,model,inTok,outTok,cr,cw,cg){
   USAGE_TURN.cr=(USAGE_TURN.cr||0)+cr+cg;
   inTok+=cr+cw;
   USAGE_TURN.in+=inTok; USAGE_TURN.out+=outTok; USAGE_TURN.cost+=cost; if(!p) USAGE_TURN.unk=true;
-  saveUsage(); updateUsageChip();
+  saveUsage();
 }
 function usageTotal(){
   const t={calls:0,in:0,out:0,cost:0,unk:0};
   for(const k in USAGE.roles){ const r=USAGE.roles[k]; t.calls+=r.calls; t.in+=r.in; t.out+=r.out; t.cost+=r.cost; t.unk+=r.unk }
   return t;
-}
-function updateUsageChip(){
-  const el=document.getElementById('usageChip'); if(!el) return;
-  const t=usageTotal();
-  if(!t.calls){ el.textContent='사용량'; el.title='토큰 사용량 (눌러서 자세히 보기)'; return }
-  el.textContent=`이번 턴 ${fmtCost(USAGE_TURN.cost)} · 누적 ${fmtCost(t.cost)}${t.unk?'+':''}`;
-  el.title=`이번 턴 입력 ${USAGE_TURN.in} · 출력 ${USAGE_TURN.out} 토큰 (눌러서 자세히 보기)`;
 }
 
 
@@ -1503,6 +1500,7 @@ function nextLine(){
 }
 function finishTyping(){ clearTimeout(Q.timer); if(Q.cur) Q.pos=Q.cur.text.length; paintText(); doneTyping() }
 function doneTyping(){
+  const sr=document.getElementById('srLive'); if(sr&&Q.cur) sr.textContent=(Q.cur.t==='d'?nameOf(Q.cur.who)+': ':'')+Q.cur.text;   // 스크린리더에는 한 줄이 다 나온 뒤 한 번만 읽힌다
   Q.typing=false; syncPend(); paintMark(); renderChoices();
   if(UI.auto&&Q.pending.length) Q.autoT=setTimeout(()=>{ if(!Q.typing&&Q.pending.length) nextLine() },900+(Q.cur?Q.cur.text.length*45:0));
 }
@@ -1598,8 +1596,6 @@ function render(){
    AI 응답 → 줄 배열 [{t:'n'|'d',who,emo,text}] → say()가 로그에 적고 화면 큐에 넣는다.
    ========================================================= */
 const SCRIPT_MAX_LINES=14, SCRIPT_MAX_CHARS=400;
-/* 코드만 바꿀 수 있는 사실을 AI가 말한 흔적: 수치 증감, 감염·사망, 탈출 성공, 엔딩 */
-const FACT_CLAIM=/(체력|식량|소음|감염|HP|hp)\s*(은|는|이|가|:|=)?\s*[+\-−–]\s*\d|[+\-−–]\s*\d+\s*(체력|식량|소음|감염)|(엔딩|ENDING|게임\s*오버|GAME\s*OVER)|(탈출에\s*성공|탈출했다|빠져나왔다|물렸다|감염됐다|감염되었다|죽었다|사망했다)/i;
 
 function aiReady(role='story'){ try{ return aiProviderReady(roleCfg(role).provider) }catch(e){ return false } }
 function cleanText(t){ return String(t??'').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\*\*|__/g,'').replace(/\s+/g,' ').trim().slice(0,SCRIPT_MAX_CHARS) }
@@ -1638,12 +1634,12 @@ function fallbackLines(raw,allowed){
   }
   return out;
 }
-/* 줄 하나 검수: 시스템 알림(s)·사실을 바꾸는 서술은 버리고, 모르는 화자는 서술로, 모르는 표정은 neutral로 */
+/* 줄 하나 검수: 시스템 알림(s)은 버리고, 모르는 화자는 서술로, 모르는 표정은 neutral로 */
 function checkScriptItem(it,allowed){
   if(typeof it==='string') it={t:'n',text:it};
   if(!it||typeof it!=='object'||typeof it.text!=='string') return null;
   if(it.t==='s') return null;                                  // 시스템 알림은 코드만 만든다 (AI가 수치를 꾸며 낼 수 없게)
-  const text=cleanText(it.text); if(!text||FACT_CLAIM.test(text)) return null;
+  const text=cleanText(it.text); if(!text) return null;
   const who=typeof it.who==='string'?it.who:'';
   const ok=it.t==='d'&&(allowed.includes(who)||(it.fb===true&&who==='unknown'));
   return ok?{t:'d',who,emo:EMOS.includes(it.emo)?it.emo:'neutral',text}:{t:'n',text};
@@ -1729,7 +1725,7 @@ async function aiScene(kind,ctx={}){
     toast('AI 서술을 받지 못해 기본 문장을 보여 줍니다');
   }finally{ if(G===g) busy=false }              // 다른 판으로 바뀐 뒤 늦게 끝난 호출이 새 판의 busy를 건드리지 않게
   if(G!==g) return false;                       // 기다리는 동안 다른 판으로 바뀌었으면 버린다
-  say(res.lines); g.fb=null; save(); updateUsageChip(); return ok;
+  say(res.lines); g.fb=null; save(); return ok;
 }
 /* ----- 로그 · 지도 · 메뉴 ----- */
 function logEntryHTML(l){
@@ -2048,7 +2044,7 @@ document.addEventListener('keydown',ev=>{
     if(!queueIdle()){ ev.preventDefault(); tapAdvance() }
   }
 });
-applyFontScale(); applyTheme(); updateUsageChip();
+applyFontScale(); applyTheme();
 if(window.visualViewport){ window.visualViewport.addEventListener('resize',fitViewport); fitViewport() }
 show('title');
 

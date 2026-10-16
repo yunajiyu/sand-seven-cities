@@ -55,5 +55,22 @@ await test('A late AI reply from a replaced game does not clear busy for the new
   assert.equal(f.run('busy'),true,'new game keeps its own busy flag');
 });
 
+await test('Stricter save validation: duplicate items, odd endings, huge resources, bad zone flags, impossible last-chance flag',()=>{
+  const {run}=game();
+  run("save();var s=JSON.parse(localStorage.getItem(SAVE_KEY))");
+  const bad=m=>assert.throws(()=>run(`var t=JSON.parse(JSON.stringify(s));${m};prepareSavedGame(JSON.stringify(t))`),/손상|올바르지/,m);
+  bad("t.items=['map','map']"); bad("t.ending='hacked'"); bad("t.food=100000"); bad("t.maxhp=999");
+  bad("t.zs.room.seen='yes'"); bad("t.zs.room.searched=1"); bad("t.last=true");
+  assert.doesNotThrow(()=>run("t.ending='dead';t.last=false;prepareSavedGame(JSON.stringify(t))"),'old ending names still load');
+  run("var u=JSON.parse(JSON.stringify(s));Object.assign(u,{day:LAST_DAY,slot:3,loc:'gate',route:'rear',items:['gateKey','cutter'],last:true})");
+  assert.doesNotThrow(()=>run('prepareSavedGame(JSON.stringify(u))'),'a genuine last chance loads');
+});
+
+await test('Custom provider without a server address fails with a clear message',async()=>{
+  const f=game();
+  f.run("SET.keys.custom='k';SET.roles.story={provider:'custom',model:'m'};SET.baseUrl='';fetch=async()=>{throw new Error('should not be called')}");
+  await assert.rejects(()=>f.run("callAIRaw('s','u')"),/서버 주소/);
+});
+
 done();
 })();

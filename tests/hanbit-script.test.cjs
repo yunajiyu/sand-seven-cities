@@ -28,7 +28,7 @@ await test('Unknown speaker becomes narration, unknown expression becomes neutra
   assert.equal(r.lines.some(l=>l.who==='guard'||l.who==='stranger'||l.who==='unknown'),false);
 });
 
-await test('System notices from the AI and lines that change facts the code owns are dropped',()=>{
+await test('System notices from the AI are dropped; narration is kept as written',()=>{
   const f=game();
   const r=parse(f,JSON.stringify([
     {t:'n',text:'어둠 속에서 소리가 난다.'},
@@ -40,8 +40,9 @@ await test('System notices from the AI and lines that change facts the code owns
     {t:'n',text:'엔딩이 다가온다.'},
     {t:'n',text:'물 한 모금이 남았다고 생각한다.'},
   ]));
-  assert.deepEqual(r.lines.map(l=>l.text),['어둠 속에서 소리가 난다.','물 한 모금이 남았다고 생각한다.']);
-  assert.equal(r.dropped,6);
+  assert.equal(r.lines.length,7);
+  assert.ok(!r.lines.some(l=>l.text==='소음 +1'));
+  assert.equal(r.dropped,1);
 });
 
 await test('A truncated array still yields its complete lines',()=>{
@@ -68,7 +69,7 @@ await test('Plain text falls back to narration and dialogue split by quotes, wit
   assert.equal(r.lines[0].t,'n','a speaker who is not in this scene is not allowed even by name label');
   assert.ok(parse(f,'유민: 괜찮아요?').lines[0].who==='yumin','name label without quotes still marks dialogue');
   r=parse(f,'소음 +2. "체력 -1이야."');
-  assert.equal(r.lines.length,0);
+  assert.equal(r.lines.length,2,'text is kept as written (no fact filter)');
 });
 
 await test('Garbage or empty replies use the fallback sentence; long output is capped; each line is short enough for the screen box',()=>{
