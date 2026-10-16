@@ -90,15 +90,40 @@ await test('Protecting her in an encounter costs extra health and raises affecti
 await test('With an AI connection, a talk makes exactly one AI call and the code-decided changes are already applied',async()=>{
   const f=game(); const {run}=f;
   run("go('stairs');G.noise.stairs=0;G.comp.yumin.aff=3");
-  run("aiReady=()=>true;var calls=0;callAI=async()=>{calls++;return JSON.stringify([{t:'d',who:'yumin',emo:'smile',text:'고마워요, 도현 씨.'}])}");
+  run("aiReady=()=>true;var calls=0;callAI=async()=>{calls++;return JSON.stringify([{t:'d',who:'yumin',emo:'smile',text:'고마워, 도현아.'}])}");
   run("pick('talk:');pick('talk:comfort')");
   assert.equal(run('G.comp.yumin.aff'),4,'affection decided before the AI answers');
   for(let i=0;i<20&&run('calls')<1;i++) await new Promise(r=>setImmediate(r));
   for(let i=0;i<20&&run('busy');i++) await new Promise(r=>setImmediate(r));
   assert.equal(run('calls'),1);
   run('flush()');
-  assert.ok(run("G.log.some(l=>l.type==='dialog'&&l.text==='고마워요, 도현 씨.')"));
+  assert.ok(run("G.log.some(l=>l.type==='dialog'&&l.text==='고마워, 도현아.')"));
   assert.ok(!run("G.log.some(l=>l.type==='dialog'&&/괜찮을 거예요/.test(l.text))"),'the static lines are replaced, not doubled');
+});
+
+await test('Yumin speaks in banmal: no honorific endings or 「씨」 in any built-in line, the protagonist is called by name, and the AI is told so',()=>{
+  const {run,obj}=game();
+  const texts=obj(`(()=>{const out=[];
+    const add=a=>{for(const l of (a||[])) if(l&&l.t==='d'&&l.who==='yumin') out.push(l.text)};
+    add(meetingLines());
+    for(const aff of [0,5,12]){ G.comp.yumin.aff=aff;
+      for(const t of ['comfort','concern','joke']) for(const r of [{good:true,hurt:false,d:1},{good:true,hurt:true,d:2},{good:false,hurt:false,d:0}]) add(talkLines(t,r)); }
+    G.comp.yumin.joined=true; for(const k of ['escape_together','escape_comrade','escape_alone']) add(escapeLines(k));
+    return out})()`);
+  assert.ok(texts.length>=20,'collected every built-in Yumin line: '+texts.length);
+  for(const text of texts){
+    assert.ok(!/ 씨/.test(text),'no 씨 in: '+text);
+    for(const frag of text.split(/[.?!…]+/).map(s=>s.trim()).filter(Boolean))
+      assert.ok(!/(요|니다|죠)$/.test(frag),'honorific ending in: '+text);
+  }
+  assert.equal(run("pn()"),'도현','she calls the protagonist by name, without 씨, at every level');
+  assert.equal(run("vocn('도현')"),'도현아'); assert.equal(run("vocn('민지')"),'민지야');
+  for(const aff of [0,5,12]){
+    run(`G.comp.yumin.aff=${aff}`);
+    const tone=run('toneFor()');
+    assert.match(tone,/반말/); assert.ok(!/존댓말/.test(tone)); assert.ok(!/ 씨"/.test(tone));
+  }
+  assert.match(run("scenePrompt('x',{present:['yumin']}).user"),/말투: 항상 반말로 말한다/);
 });
 
 await test('If the AI call fails, the built-in dialogue is used and nothing else changes',async()=>{
@@ -109,7 +134,7 @@ await test('If the AI call fails, the built-in dialogue is used and nothing else
   for(let i=0;i<30&&run('busy');i++) await new Promise(r=>setImmediate(r));
   run('flush()');
   assert.equal(run('G.comp.yumin.aff'),4);
-  assert.ok(run("G.log.some(l=>l.type==='dialog'&&l.who==='yumin'&&/숨|기억|버틸|낫네요/.test(l.text))"));
+  assert.ok(run("G.log.some(l=>l.type==='dialog'&&l.who==='yumin'&&/숨|기억|버틸|낫네/.test(l.text))"));
 });
 
 await test('Saves validate her state: wrong types or an out-of-range score are refused',()=>{

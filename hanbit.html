@@ -845,28 +845,30 @@ function addAff(n,out){
   }
 }
 function yn(){ return '유민'+(affLevel(G.comp.yumin.aff)>=4?'':' 씨') }          // 내가 부르는 호칭
-function pn(){ return G.char.name+(affLevel(G.comp.yumin.aff)>=4?'':' 씨') }     // 유민이 부르는 호칭
+function pn(){ return G.char.name }                                                 // 유민이 부르는 호칭(반말이라 '씨'를 붙이지 않는다)
+function vocn(n){ return n+josa(n,'아','야') }                                       // 이름 뒤에 부르는 말(도현아·서윤아)
 function toneFor(){
   const lv=affLevel(G.comp.yumin.aff);
-  return lv<2?`유민은 주인공을 "${G.char.name} 씨"라 부르며 경계가 남은 존댓말을 쓴다.`
-    :lv<4?`유민은 주인공을 "${G.char.name} 씨"라 부르며 존댓말을 쓰고, 말투가 한결 부드럽다.`
-    :`유민은 존댓말을 쓰지만 주인공을 "${G.char.name}"이라고 이름으로 부르고 편하게 말한다.`;
+  const nm=G.char.name, call=`"${vocn(nm)}"처럼 이름으로 부르고 「씨」는 붙이지 않는다`;
+  return lv<2?`유민은 주인공을 ${call}. 항상 반말을 쓰며, 아직 경계가 남아 짧고 건조하게 말한다.`
+    :lv<4?`유민은 주인공을 ${call}. 항상 반말을 쓰고, 말투가 한결 부드럽다.`
+    :`유민은 주인공을 ${call}. 항상 반말로 편하게 말한다.`;
 }
 const D=(who,emo,text)=>({t:'d',who,emo,text,rep:true});
 function meetingLines(){
   const n=G.char.name;
   return [
     {t:'n',text:'비상등 아래 계단참에 누군가 웅크리고 있다. 인기척에 유민이 흠칫 고개를 든다.',rep:true},
-    D('yumin','tense','……사람, 맞죠? 소리 내지 말아요.'),
+    D('yumin','tense','……사람, 맞지? 소리 내지 마.'),
     D('me','neutral',`네, 사람이에요. 3동 7층에 사는 ${n}입니다.`),
-    D('yumin','relieved','5층 사는 유민이에요. 다행이다… 혼자인 줄 알았어요.'),
-    D('yumin','neutral',`아래에선 계속 이상한 소리가 나요. 조심해요, ${n} 씨.`),
+    D('yumin','relieved','5층 사는 유민이야. 다행이다… 혼자인 줄 알았어.'),
+    D('yumin','neutral',`아래에선 계속 이상한 소리가 나. 조심해, ${vocn(n)}.`),
   ];
 }
 function meetingOpts(id){
   if(!G||G.comp.yumin.met||id!==YUMIN_MEET) return undefined;
   return {ai:{present:['yumin'],lines:'5~7',event:'계단·복도에서 같은 동 5층에 사는 유민과 처음 마주쳤다',
-    ask:`두 사람이 서로 사람임을 확인하고 이름과 사는 층(주인공 7층, 유민 5층)을 나누는 첫 만남 장면. 유민은 경계하다가 안도한다. ${toneFor().replace(/주인공을 "[^"]*"라 부르며/,`주인공을 "${G.char.name} 씨"라 부르며`)}`}};
+    ask:`두 사람이 서로 사람임을 확인하고 이름과 사는 층(주인공 7층, 유민 5층)을 나누는 첫 만남 장면. 유민은 경계하다가 안도한다. ${toneFor()}`}};
 }
 const TALK={
   comfort:{label:'괜찮을 거라고 말해 준다'},
@@ -886,24 +888,24 @@ function talkLines(t,r){
   const lv=affLevel(G.comp.yumin.aff), b=lv<=1?0:lv<=3?1:2, Y=yn(), P=pn();
   const T={
     comfort:r.good?[
-      [D('me','neutral',`지금은 숨부터 고르죠, ${Y}. 천천히 하면 됩니다.`),D('yumin','relieved','……네. 그렇게 말해 주니 조금 낫네요.')],
-      [D('me','smile','무슨 일이 있어도 같이 움직여요. 혼자 두지 않을게요.'),D('yumin','smile','고마워요. 그 말, 기억해 둘게요.')],
-      [D('me','smile','여기까지 같이 왔잖아요. 끝까지 같이 갈 거예요.'),D('yumin','smile','……그 말만으로도 버틸 수 있을 것 같아요.')],
-    ][b]:[D('me','neutral','다 괜찮을 거예요. 정말로요.'),D('yumin','tense','지금은… 조용히 해요. 소리가 너무 커요.')],
+      [D('me','neutral',`지금은 숨부터 고르죠, ${Y}. 천천히 하면 됩니다.`),D('yumin','relieved','……응. 그렇게 말해 주니 조금 낫네.')],
+      [D('me','smile','무슨 일이 있어도 같이 움직여요. 혼자 두지 않을게요.'),D('yumin','smile','고마워. 그 말, 기억해 둘게.')],
+      [D('me','smile','여기까지 같이 왔잖아요. 끝까지 같이 갈 거예요.'),D('yumin','smile','……그 말만으로도 버틸 수 있을 것 같아.')],
+    ][b]:[D('me','neutral','다 괜찮을 거예요. 정말로요.'),D('yumin','tense','지금은… 조용히 해. 소리가 너무 커.')],
     concern:r.hurt?[
-      [D('me','neutral',`${Y}은 다친 데 없어요?`),D('yumin','sad',`저는 괜찮아요. 그보다 ${P} 쪽이 더 걱정인데요.`)],
-      [D('me','neutral','혹시 어디 아프면 바로 말해 줘요.'),D('yumin','fluster','……그건 제가 할 말이잖아요. 다친 거, 다 보여요.')],
-      [D('me','sad','아픈 데 있으면 참지 말아요.'),D('yumin','sad',`참는 건 ${P}이 더 하잖아요. 이번엔 제가 챙길게요.`)],
+      [D('me','neutral',`${Y}은 다친 데 없어요?`),D('yumin','sad',`나는 괜찮아. 그보다 ${P} 쪽이 더 걱정인데.`)],
+      [D('me','neutral','혹시 어디 아프면 바로 말해 줘요.'),D('yumin','fluster','……그건 내가 할 말이잖아. 다친 거, 다 보여.')],
+      [D('me','sad','아픈 데 있으면 참지 말아요.'),D('yumin','sad',`참는 건 ${P}${josa(P,'이','가')} 더 하잖아. 이번엔 내가 챙길게.`)],
     ][b]:[
-      [D('me','neutral','혹시 다친 데는 없어요?'),D('yumin','neutral','네, 멀쩡해요. 신경 써 줘서 고마워요.')],
-      [D('me','neutral','피곤하진 않아요? 힘들면 말해요.'),D('yumin','smile','조금요. 그래도 같이 있으니 견딜 만해요.')],
-      [D('me','smile','무리하지 말아요. 내가 옆에 있잖아요.'),D('yumin','smile','알아요. 그래서 덜 무서워요.')],
+      [D('me','neutral','혹시 다친 데는 없어요?'),D('yumin','neutral','응, 멀쩡해. 신경 써 줘서 고마워.')],
+      [D('me','neutral','피곤하진 않아요? 힘들면 말해요.'),D('yumin','smile','조금. 그래도 같이 있으니 견딜 만해.')],
+      [D('me','smile','무리하지 말아요. 내가 옆에 있잖아요.'),D('yumin','smile','알아. 그래서 덜 무서워.')],
     ][b],
     joke:r.good?[
-      [D('me','smile','이 와중에 라면 생각나는 사람, 나만이에요?'),D('yumin','fluster','……풋. 이 상황에 그런 말이 나와요?')],
-      [D('me','smile','나가면 제일 먼저 뜨거운 국물부터 먹죠. 제가 쏠게요.'),D('yumin','smile','약속이에요. 두 그릇 먹을 거예요.')],
-      [D('me','smile','무사히 나가면 7층이랑 5층 합동 집들이 합시다.'),D('yumin','smile','좋아요. 그때는 문 잠그지 말기로 해요.')],
-    ][b]:[D('me','smile','이럴 땐 웃어야 덜 무서워요.'),D('yumin','tense','……지금은 웃을 때가 아니에요. 소리 나요.')],
+      [D('me','smile','이 와중에 라면 생각나는 사람, 나만이에요?'),D('yumin','fluster','……풋. 이 상황에 그런 말이 나와?')],
+      [D('me','smile','나가면 제일 먼저 뜨거운 국물부터 먹죠. 제가 쏠게요.'),D('yumin','smile','약속이야. 두 그릇 먹을 거야.')],
+      [D('me','smile','무사히 나가면 7층이랑 5층 합동 집들이 합시다.'),D('yumin','smile','좋아. 그때는 문 잠그지 말기로 하자.')],
+    ][b]:[D('me','smile','이럴 땐 웃어야 덜 무서워요.'),D('yumin','tense','……지금은 웃을 때가 아니야. 소리 나.')],
   };
   return T[t];
 }
@@ -1171,18 +1173,18 @@ function escapeKind(){
 function escapeLines(kind){
   const n=G.char.name, y=G.comp.yumin, N=(t)=>({t:'n',text:t});
   if(kind==='escape_together') return [
-    {t:'d',who:'yumin',emo:'relieved',text:'……나왔네요. 정말, 우리 둘 다.'},
+    {t:'d',who:'yumin',emo:'relieved',text:'……나왔네. 정말, 우리 둘 다.'},
     {t:'d',who:'me',emo:'smile',text:'네. 약속했잖아요, 같이 간다고.'},
-    {t:'d',who:'yumin',emo:'smile',text:`이제 이름 부르는 것도 어색하지 않아요, ${n}.`},
+    {t:'d',who:'yumin',emo:'smile',text:`이제 이름 부르는 것도 어색하지 않네, ${vocn(n)}.`},
     N('아침 빛이 단지 너머로 번진다. 두 사람은 한동안 아무 말 없이 서로의 손을 잡고 서 있었다.'),
   ];
   if(kind==='escape_comrade') return [
-    {t:'d',who:'yumin',emo:'relieved',text:`여기까지 같이 왔네요. 고마워요, ${n} 씨.`},
+    {t:'d',who:'yumin',emo:'relieved',text:`여기까지 같이 왔네. 고마워, ${vocn(n)}.`},
     {t:'d',who:'me',emo:'neutral',text:'저도요. 혼자였으면 못 나왔을 거예요.'},
     N('두 사람은 나란히 서서 밝아 오는 바깥을 바라본다. 서로를 부르는 말은 아직 조심스럽다.'),
   ];
   if(y.joined) return [
-    {t:'d',who:'yumin',emo:'sad',text:`……여기서부터는 각자 가요. 고마웠어요, ${n} 씨.`},
+    {t:'d',who:'yumin',emo:'sad',text:`……여기서부터는 각자 가. 고마웠어, ${vocn(n)}.`},
     N('유민은 끝내 마음을 열지 못한 채 다른 길로 걸어간다. 바깥의 아침은 생각보다 조용하다.')];
   if(y.met) return [N('계단 어딘가에 남겨 둔 이름 하나가 마음에 걸린다. 돌아가기엔 이미 너무 멀리 왔다.')];
   return [N('이 단지에 누가 남아 있었는지, 끝내 알지 못한 채 떠난다. 아침 햇빛이 낯설게 따갑다.')];
@@ -1672,13 +1674,14 @@ const YUMIN_SHEET={
   age:24,
   look:'177cm. 가늘지만 단단한 근육, 섬세한 이목구비, 흰 피부, 긴 속눈썹, 긴 목선과 손가락. 웃으면 입꼬리가 올라간다. 턱~어깨 길이의 검은 머리는 자연스럽게 헝클어져 있고, 소년 같은 앞머리가 한쪽 눈을 살짝 가리며 한쪽 머리는 귀 뒤로 넘겼다. 눈은 회색이고 가늘고 처진 눈매.',
   persona:'느긋하고 장난기가 있으며 말을 부드럽게 잘 푼다. 불편할수록 말이 많아지고 농담과 화제 전환으로 피한다. 상대의 변화는 분석하지 않고 느낌으로 알아채며, 파고들지 않고 가볍게 넘긴다. 진짜 감정은 농담에 섞여 새어 나올 뿐 입 밖으로 말하지 않는다.',
+  speech:'항상 반말로 말한다. 존댓말(~요, ~습니다)은 쓰지 않고, 상대는 이름으로 부른다.',
   hidden:'마음 깊은 곳에서는 가까워지는 것과 누군가에게 의지하는 것을 두려워한다. (직접 말하지 말 것)',
 };
 function profileLines(present){
   const c=G.char, out=[];
   const me=[`${c.name}`]; if(Number.isInteger(c.age)) me.push(`${c.age}세`); if(c.trait) me.push(`성격: ${cleanText(c.trait).slice(0,TRAIT_MAX)}`);
   out.push(`주인공 — ${me.join(', ')}`);
-  if(present.includes('yumin')) out.push(`유민 — ${YUMIN_SHEET.age}세. 외형: ${YUMIN_SHEET.look} 성격: ${YUMIN_SHEET.persona} ${YUMIN_SHEET.hidden}`);
+  if(present.includes('yumin')) out.push(`유민 — ${YUMIN_SHEET.age}세. 외형: ${YUMIN_SHEET.look} 성격: ${YUMIN_SHEET.persona} 말투: ${YUMIN_SHEET.speech} ${YUMIN_SHEET.hidden}`);
   for(const id of present) if(SURV_LOOK[id]) out.push(`${nameOf(id)} — ${SURV_LOOK[id]}`);
   return out;
 }
