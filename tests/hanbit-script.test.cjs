@@ -67,7 +67,7 @@ await test('Plain text falls back to narration and dialogue split by quotes, wit
   assert.equal(JSON.parse(JSON.stringify(f.run("nameOf('unknown')"))),'알 수 없음');
   r=parse(f,'경비원: "여긴 위험해요."');
   assert.equal(r.lines[0].t,'n','a speaker who is not in this scene is not allowed even by name label');
-  assert.ok(parse(f,'유민: 괜찮아요?').lines[0].who==='yumin','name label without quotes still marks dialogue');
+  assert.ok(parse(f,'유민: 괜찮아?').lines[0].who==='yumin','name label without quotes still marks dialogue');
   r=parse(f,'소음 +2. "체력 -1이야."');
   assert.equal(r.lines.length,2,'text is kept as written (no fact filter)');
 });
@@ -88,11 +88,11 @@ await test('Garbage or empty replies use the fallback sentence; long output is c
 
 await test('The prompt lists only the allowed speakers and expression keys, the fixed facts, and the rules, in a compact size',()=>{
   const f=game();
-  f.ctx.__c={present:['yumin','nobody','me'],event:'소리가 났다',ask:'장면을 쓰세요',tone:'유민은 존댓말을 쓴다'};
+  f.ctx.__c={present:['yumin','nobody','me'],event:'소리가 났다',ask:'장면을 쓰세요',tone:'유민은 반말을 쓴다'};
   const {system,user}=JSON.parse(JSON.stringify(f.run("scenePrompt('x',__c)")));
   assert.match(system,/me:도현, yumin:유민/); assert.equal(system.includes('nobody'),false); assert.equal(system.includes('guard'),false);
   assert.match(system,/neutral, smile, fluster, sad, tense, relieved, blush, happy/);
-  assert.match(system,/JSON 배열/); assert.match(system,/시스템 알림/); assert.match(system,/선택지를 제시하지/); assert.match(system,/유민은 존댓말/);
+  assert.match(system,/JSON 배열/); assert.match(system,/시스템 알림/); assert.match(system,/선택지를 제시하지/); assert.match(system,/유민은 반말/);
   assert.match(user,/1일차 저녁/); assert.match(user,/3동 7층 자취방/); assert.match(user,/주인공: 도현/); assert.match(user,/함께 있는 인물: 유민/); assert.match(user,/방금 일어난 일: 소리가 났다/);
   assert.ok(system.length+user.length<1600,'prompt stays short: '+(system.length+user.length));
   f.ctx.__c={};
