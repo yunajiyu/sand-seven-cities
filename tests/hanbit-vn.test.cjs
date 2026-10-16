@@ -98,13 +98,13 @@ await test('Log view shows only lines already seen, with the speaker name, and a
   assert.match(run('modalHTML'),/<b>유민<\/b>아직 안 본 대사/);
 });
 
-await test('Menu has log, map, save and settings; the dummy scene queues lines without any AI call and the map move is blocked mid-script',()=>{
+await test('Menu has log, map, save and settings; queued lines without any AI call and the map move is blocked mid-script',()=>{
   const {run,obj}=game();
   run("var aiCalls=0;callAI=async()=>{aiCalls++;return ''};callAIRaw=callAI;UI.speed='off';render()");
   run('openMenu()');
   const m=run('modalHTML');
   for(const t of ['로그 보기','지도','저장','설정','글자 속도','자동 넘김']) assert.ok(m.includes(t),t);
-  run('demoScene()');
+  run("say([{t:'n',text:'a'},{t:'n',text:'b'},{t:'n',text:'c'},{t:'n',text:'d'},{t:'n',text:'e'},{t:'n',text:'f'}])");
   assert.ok(run('G.log.length')>=6);
   assert.equal(run('aiCalls'),0);
   run("mapTap('stairs')");

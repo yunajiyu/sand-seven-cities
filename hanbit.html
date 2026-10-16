@@ -407,7 +407,7 @@ function newState(name,info){
     zs, noise, zombies:{...ZOMBIE_START},
     comp:{yumin:{met:false,joined:false,aff:0}},
     surv:Object.fromEntries(SURVIVORS.map(s=>[s.id,{met:false,rescued:false,aff:0,gift:false}])),
-    ev:null, log:[], pend:0, last:false,
+    ev:null, fb:null, log:[], pend:0, last:false,
   };
 }
 
@@ -420,6 +420,7 @@ function migrate(){
   if(!Number.isInteger(G.pend)||G.pend<0||G.pend>G.log.length) G.pend=0;
   if(typeof G.last!=='boolean') G.last=false;
   if(G.ev===undefined) G.ev=null;
+  if(G.fb===undefined) G.fb=null;
   if(G.infection===undefined) G.infection=null;
   if(G.route===undefined) G.route=null;
   if(G.ending===undefined) G.ending=null;
@@ -453,7 +454,7 @@ function validateSaveData(g,strict=true){
  if(!obj(g.zs)||!obj(g.noise)||!obj(g.zombies)) throw Error('구역 정보가 손상됐습니다.');
  for(const z of ZONES){
    if(!strict&&g.zs[z.id]===undefined&&g.zombies[z.id]===undefined&&g.noise[z.id]===undefined) continue;   // 나중에 추가된 구역(옛 세이브) — migrate가 채운다
-   if(!obj(g.zs[z.id])||!finite(g.zombies[z.id])||g.zombies[z.id]<0||!finite(g.noise[z.id])||g.noise[z.id]<0||g.noise[z.id]>NOISE_MAX) throw Error('구역 정보가 손상됐습니다: '+z.id);
+   if(!obj(g.zs[z.id])||(g.zs[z.id].rested!==undefined&&typeof g.zs[z.id].rested!=='boolean')||!finite(g.zombies[z.id])||g.zombies[z.id]<0||!finite(g.noise[z.id])||g.noise[z.id]<0||g.noise[z.id]>NOISE_MAX) throw Error('구역 정보가 손상됐습니다: '+z.id);
  }
  if(!obj(g.comp)||!obj(g.comp.yumin)||!obj(g.surv)) throw Error('동행자 정보가 손상됐습니다.');
  for(const sv of SURVIVORS){ const e=g.surv[sv.id]; if(e===undefined&&!strict) continue; if(!obj(e)||typeof e.met!=='boolean'||typeof e.rescued!=='boolean'||!finite(e.aff)||e.aff<0||e.aff>SURV_MAX||(e.gift===undefined?strict:typeof e.gift!=='boolean')) throw Error('생존자 정보가 손상됐습니다: '+sv.id) }
@@ -461,6 +462,7 @@ function validateSaveData(g,strict=true){
  if(!opt('log')&&(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||typeof x.type!=='string'||typeof x.text!=='string'))) throw Error('기록 정보가 손상됐습니다.');
  if(!opt('last')&&typeof g.last!=='boolean') throw Error('시간 정보가 손상됐습니다.');
  if(!opt('ev')&&g.ev!==null&&(typeof g.ev!=='string'||!own(EVENTS,g.ev))) throw Error('사건 정보가 손상됐습니다.');
+ if(!opt('fb')&&g.fb!==null&&(!Array.isArray(g.fb)||g.fb.length>SCRIPT_MAX_LINES||g.fb.some(x=>!obj(x)||typeof x.text!=='string'||x.text.length>SCRIPT_MAX_CHARS))) throw Error('장면 정보가 손상됐습니다.');
  if(!opt('pend')&&(!Number.isInteger(g.pend)||g.pend<0||g.pend>(Array.isArray(g.log)?g.log.length:0))) throw Error('기록 정보가 손상됐습니다.');
  return g;
 }
@@ -1256,10 +1258,12 @@ function takeTurn(kind,arg,logText,effect,opts){
   if(!G.ending) advanceTime(out);
   // 대사 줄(rep 표시)은 AI가 쓸 수 있으면 AI에게 맡기고, 아니면 기본 대사를 그대로 쓴다. 판정 결과(sys)와 서술은 코드가 확정한다
   const rep=out.filter(l=>l.rep), useAi=!!(opts&&opts.ai&&rep.length&&!G.ending&&aiReady('story'));
+  const fallbackLines=rep.map(l=>({t:l.t,who:l.who,emo:l.emo,text:l.text}));
   say(useAi?out.filter(l=>!l.rep):out);
+  G.fb=useAi?fallbackLines:null;   // AI 답을 기다리는 동안 닫히면, 다시 열 때 기본 대사를 보여 주기 위해 저장해 둔다
   run('after',kind,arg);
   save(); render();
-  if(useAi) aiScene(kind,{...opts.ai,fallbackLines:rep.map(l=>({...l,rep:undefined}))});
+  if(useAi) aiScene(kind,{...opts.ai,fallbackLines});
   return true;
 }
 function goZone(id){
@@ -1337,7 +1341,8 @@ function restHere(){
     G.hp=Math.min(G.maxhp,G.hp+heal); addNoise(G.loc,-1);
     out.push({t:'n',text:yuminHere()?'벽에 기대어 숨을 고른다. 유민도 말없이 옆에 앉는다.':'벽에 기대어 숨을 고른다.'});
     if(G.hp>before) out.push({t:'s',text:`체력 +${G.hp-before}`});
-    if(G.comp.yumin.joined) addAff(1,out);
+    const zst=G.zs[G.loc];   // 같은 곳에서 쉬기만 반복해 호감을 모으지 못하게, 구역마다 처음 한 번만
+    if(G.comp.yumin.joined&&!zst.rested){ zst.rested=true; addAff(1,out) }
   });
 }
 function cureInfection(){
@@ -1711,7 +1716,7 @@ function scenePrompt(kind,ctx={}){
 async function aiScene(kind,ctx={}){
   if(!G||busy) return false;
   const g=G, fb=ctx.fallback||ZONE[G.loc].desc, fbLines=Array.isArray(ctx.fallbackLines)&&ctx.fallbackLines.length?ctx.fallbackLines:[{t:'n',text:fb}];
-  if(!aiReady('story')){ say(fbLines); toast('AI 연결이 없어 기본 문장을 보여 줍니다'); return false }
+  if(!aiReady('story')){ say(fbLines); g.fb=null; save(); toast('AI 연결이 없어 기본 문장을 보여 줍니다'); return false }
   busy=true; USAGE_TURN={in:0,out:0,cost:0,unk:false}; renderChoices();
   let res, ok=true;
   try{
@@ -1722,16 +1727,10 @@ async function aiScene(kind,ctx={}){
   }catch(e){
     ok=false; res={lines:fbLines,via:'error',dropped:0};
     toast('AI 서술을 받지 못해 기본 문장을 보여 줍니다');
-  }finally{ busy=false }
+  }finally{ if(G===g) busy=false }              // 다른 판으로 바뀐 뒤 늦게 끝난 호출이 새 판의 busy를 건드리지 않게
   if(G!==g) return false;                       // 기다리는 동안 다른 판으로 바뀌었으면 버린다
-  say(res.lines); updateUsageChip(); return ok;
+  say(res.lines); g.fb=null; save(); updateUsageChip(); return ok;
 }
-function aiDemo(){
-  aiScene('demo',{present:['yumin'],lines:'5~7',event:'계단 아래에서 무언가 끌리는 소리가 들려, 두 사람이 숨을 죽였다',
-    ask:'소리가 멀어질 때까지 두 사람이 긴장 속에서 보내는 짧은 장면. 유민이 한두 마디 한다. 유민은 주인공에게 아직 "'+G.char.name+' 씨"라 부르며 존댓말을 쓴다.',
-    fallback:'소리가 천천히 멀어졌다. 한동안 아무도 움직이지 못했다.'});
-}
-
 /* ----- 로그 · 지도 · 메뉴 ----- */
 function logEntryHTML(l){
   if(l.type==='dialog') return `<div class="entry d"><b>${esc(nameOf(l.who)||'???')}</b>${esc(l.text)}</div>`;
@@ -1756,12 +1755,15 @@ function mapHTML(){
   const z=ZONE[G.loc];
   return `<svg class="zmap" viewBox="0 0 360 300" role="group" aria-label="단지 구역 지도">${edges}${nodes}</svg>
     <div id="zoneCard">${px('pin')} <b>${esc(z.n)}</b> · 위험 ${RISK_LABEL[z.risk]} · ${esc(z.role)} · 얻을 것: ${esc(z.gives)}</div>
-    <p class="muted" style="margin:6px 0 0">${queueIdle()?'이웃한 구역을 누르면 이동합니다.':'이야기를 끝까지 본 뒤에 이동할 수 있습니다.'}</p>`;
+    <p class="muted" style="margin:6px 0 0">${!queueIdle()?'이야기를 끝까지 본 뒤에 이동할 수 있습니다.':G.ev?'눈앞의 일부터 정해야 이동할 수 있습니다.':'이웃한 구역을 누르면 이동합니다.'}</p>`;
 }
 function openMap(){ if(G) modal('단지 지도',mapHTML()) }
 function mapTap(id){
   if(!G||!canMove(G.loc,id)) return;
   if(!queueIdle()) return toast('이야기를 끝까지 본 뒤에 이동할 수 있습니다');
+  if(busy) return toast('장면을 쓰는 중입니다. 잠시 기다려 주세요');
+  TALK_OPEN=false;   // 열려 있던 대화 메뉴는 닫고 이동한다
+  if(!buildChoices().some(c=>c.id==='move:'+id)) return toast(G.ev?'눈앞의 일부터 정해야 합니다':'지금은 이동할 수 없습니다');
   document.getElementById('modalRoot').innerHTML='';
   pick('move:'+id);
 }
@@ -1775,8 +1777,6 @@ function openMenu(){
     <h4 style="margin:10px 0 2px">글자 표시</h4>
     <button onclick="cycleSpeed()">글자 속도: ${sp.n}</button>
     <button onclick="toggleAuto()">자동 넘김: ${UI.auto?'켬':'끔'}</button>
-    <button onclick="closeModal();demoScene()">더미 장면 보기 (화면 시험용)</button>
-    <button onclick="closeModal();aiDemo()">AI 장면 시험 (AI 1회 호출)</button>
   </div>`);
 }
 function cycleSpeed(){ const i=SPEEDS.findIndex(s=>s.k===UI.speed); UI.speed=SPEEDS[(i+1)%SPEEDS.length].k; saveUi(); openMenu() }
@@ -1786,17 +1786,6 @@ function openSaves(){
   modal('저장 · 불러오기',`<div class="sbtn"><button onclick="exportSave()">저장 내보내기</button><button onclick="closeModal();importSave()">저장 파일 불러오기</button>${backup?'<button onclick="closeModal();restoreSaveBackup()">가져오기 이전 저장으로 복구</button>':''}<button onclick="closeModal();toTitle()">타이틀로</button></div>
     <p class="muted" style="margin-top:8px">진행은 행동할 때마다 이 브라우저에 자동 저장됩니다.</p>`);
 }
-/* 화면 시험용 더미 스크립트 (AI 호출 없음) */
-const DUMMY_SCRIPT=[
-  {t:'n',text:'복도 끝의 비상등이 한 번 깜빡이고 꺼졌다. 어디선가 낮게 끌리는 소리가 이어진다.'},
-  {t:'d',who:'yumin',emo:'tense',text:'……방금 그 소리, 들었어요? 아래층에서 나는 것 같은데.'},
-  {t:'d',who:'me',emo:'neutral',text:'네. 일단 숨을 죽이고 기다려 보죠.'},
-  {t:'s',text:'소음 +1'},
-  {t:'n',text:'한참 뒤에야 소리가 멀어졌다. 문틈으로 새어 들어온 찬 공기가 발목을 스친다. 두 사람은 서로의 숨소리가 들릴 만큼 가까이 서 있었고, 누구도 먼저 움직이지 못했다. 시간이 얼마나 흘렀는지는 알 수 없었다.'},
-  {t:'d',who:'yumin',emo:'relieved',text:'후우… 갔나 봐요. 고마워요, 침착하게 있어 줘서.'},
-];
-function demoScene(){ if(G){ resetQueue(); say(DUMMY_SCRIPT) } }
-
 /* 키보드·주소창 때문에 화면 높이가 변해도 스크립트창과 선택지가 가려지지 않게 한다 */
 function fitViewport(){
   const vv=window.visualViewport; if(!vv) return;
@@ -1866,6 +1855,7 @@ function finishCreation(){
 function openLoadedGame(g){
   G=g; busy=false; stableSnap=JSON.stringify(g);
   resetQueue(); show('game'); render(); restoreQueue();
+  if(G.fb&&G.fb.length){ const fb=G.fb; G.fb=null; say(fb); save() }   // AI 답을 받기 전에 닫혔던 장면은 기본 대사로 이어 준다
 }
 function continueGame(){
   if(busy) return toast('현재 행동을 마친 뒤 불러와 주세요.');
@@ -2052,6 +2042,11 @@ function importSave(){
 vertexRestore().catch(()=>{});   // 기억된 Vertex 연결이 있으면 복원(없거나 IndexedDB를 못 쓰면 아무것도 하지 않음)
 document.addEventListener('keydown',ev=>{
   if(ev.key==='Escape'&&document.getElementById('modalRoot').innerHTML) closeModal();
+  else if((ev.key===' '||ev.key==='Enter')&&G&&!document.getElementById('modalRoot').innerHTML&&!document.getElementById('game').classList.contains('hidden')){
+    const t=ev.target, tag=t&&t.tagName;
+    if(tag==='BUTTON'||tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||tag==='A') return;   // 버튼·입력칸의 기본 동작은 그대로 둔다
+    if(!queueIdle()){ ev.preventDefault(); tapAdvance() }
+  }
 });
 applyFontScale(); applyTheme(); updateUsageChip();
 if(window.visualViewport){ window.visualViewport.addEventListener('resize',fitViewport); fitViewport() }

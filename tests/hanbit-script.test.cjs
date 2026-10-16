@@ -136,9 +136,9 @@ await test('If the game is replaced while the AI is answering, the late reply is
   assert.equal(f.run('G.log.length'),0);
 });
 
-await test('The menu offers the AI test scene, and a busy game refuses a second call',async()=>{
+await test('A busy game refuses a second call, and the menu no longer offers dev test scenes',async()=>{
   const f=game(); f.run('openMenu()');
-  assert.match(f.run('modalHTML'),/AI 장면 시험/);
+  assert.doesNotMatch(f.run('modalHTML'),/AI 장면 시험|더미/);
   geminiReplies(f,['[]']); f.run('busy=true');
   assert.equal(await f.run("aiScene('t',{})"),false);
   assert.equal(f.run('sent.length'),0);
