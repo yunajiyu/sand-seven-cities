@@ -126,6 +126,27 @@ await test('Yumin speaks in banmal: no honorific endings or 「씨」 in any bui
   assert.match(run("scenePrompt('x',{present:['yumin']}).user"),/말투: 항상 반말로 말한다/);
 });
 
+await test('Yumin calls a full-name protagonist by the given name only (박도현 → 도현아, never 박도현아)',()=>{
+  const {run,obj}=game();
+  assert.equal(run("vocn('박도현')"),'도현아'); assert.equal(run("vocn('김서연')"),'서연아');
+  assert.equal(run("vocn('남궁민수')"),'민수야'); assert.equal(run("vocn('민지')"),'민지야');
+  assert.equal(run("givenName('도현')"),'도현'); assert.equal(run("givenName('Alex')"),'Alex');
+  run("G.char.name='박도현'");
+  assert.equal(run('pn()'),'도현');
+  const texts=obj(`(()=>{const out=[];
+    const add=a=>{for(const l of (a||[])) if(l&&l.t==='d'&&l.who==='yumin') out.push(l.text)};
+    add(meetingLines());
+    for(const aff of [0,5,12]){ G.comp.yumin.aff=aff;
+      for(const t of ['comfort','concern','joke']) for(const r of [{good:true,hurt:false,d:1},{good:true,hurt:true,d:2},{good:false,hurt:false,d:0}]) add(talkLines(t,r)); }
+    G.comp.yumin.joined=true; for(const k of ['escape_together','escape_comrade','escape_alone']) add(escapeLines(k));
+    return out})()`);
+  assert.ok(texts.length>=20);
+  for(const text of texts) assert.ok(!/박도현/.test(text),'surname leaked in: '+text);
+  assert.ok(texts.some(t=>/도현[아이가]/.test(t)),'given name is used');
+  const tone=run('toneFor()');
+  assert.match(tone,/도현아/); assert.ok(!/박도현아/.test(tone)); assert.match(tone,/성을 빼고/);
+});
+
 await test('If the AI call fails, the built-in dialogue is used and nothing else changes',async()=>{
   const {run}=game();
   run("go('stairs');G.noise.stairs=0;G.comp.yumin.aff=3");
