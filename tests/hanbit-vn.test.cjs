@@ -148,10 +148,10 @@ await test('Every zone has its own pixel-art background, looked up by zone id, a
 await test('Yumin has a portrait for every expression key; unknown expression or someone without a picture falls back safely',()=>{
   const {run,obj}=game();
   const emos=obj('EMOS');
-  assert.deepEqual(emos,['neutral','smile','fluster','sad','tense','relieved']);
+  assert.deepEqual(emos,['neutral','smile','fluster','sad','tense','relieved','blush','happy','smirk']);
   const all=emos.map(e=>run(`portraitFor('yumin',${JSON.stringify(e)})`));
   for(const u of all) assert.match(u,/^data:image\/png;base64,/);
-  assert.equal(new Set(all).size,6,'each expression is a different picture');
+  assert.equal(new Set(all).size,9,'each expression is a different picture');
   assert.equal(run("portraitFor('yumin','rage')"),all[0],'unknown expression -> neutral');
   assert.equal(run("portraitFor('me','smile')"),null);
   assert.equal(run("portraitFor('__proto__','smile')"),null);
