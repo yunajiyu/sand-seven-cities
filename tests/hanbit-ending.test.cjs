@@ -57,13 +57,13 @@ await test('The four endings all have the designed names, and the failure causes
   const {run}=game();
   assert.deepEqual(run("Object.values(ENDING_NAME).sort().join()"),['단지의 마지막 밤','동료로 탈출','함께 나간 아침','혼자 나온 날'].sort().join());
   const lines=new Set();
-  for(const k of ['dead','infected','timeout']){
+  for(const k of ['dead','infected']){
     const g=game(); g.run(`finish('${k}',[]);`); assert.equal(g.run('G.ending'),'last_night');
     g.run('renderChoices()');
     assert.match(g.run("document.getElementById('choices').innerHTML"),/단지의 마지막 밤/);
     lines.add(g.run(`ENDING_TEXT.${k}`));
   }
-  assert.equal(lines.size,3);
+  assert.equal(lines.size,2);
   assert.equal(game().run("OLD_ENDING.dead+OLD_ENDING.infected+OLD_ENDING.timeout"),'last_nightlast_nightlast_night');
 });
 

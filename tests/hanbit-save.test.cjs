@@ -15,7 +15,7 @@ await test('Invalid save JSON and core fields never replace the live game or exi
   run('save();const before=G;const stored=localStorage.getItem(SAVE_KEY)');
   const base=JSON.parse(run('stored'));
   const zombies={...base.zombies,room:-1}, noise={...base.noise,room:99};
-  for(const change of [{char:{name:''}},{char:{name:'x'.repeat(21)}},{hp:'10'},{hp:99},{slot:9},{day:0},{day:99},{items:{}},{items:['nope']},{loc:'nowhere'},{loc:'__proto__'},{route:'nope'},{infection:{left:99}},{v:1},{zombies},{noise},{log:[{type:'scene',text:{bad:true}}]},{comp:null}]){
+  for(const change of [{char:{name:''}},{char:{name:'x'.repeat(21)}},{hp:'10'},{hp:99},{slot:9},{day:0},{day:10000},{items:{}},{items:['nope']},{loc:'nowhere'},{loc:'__proto__'},{route:'nope'},{infection:{left:99}},{v:1},{zombies},{noise},{log:[{type:'scene',text:{bad:true}}]},{comp:null}]){
     ctx.bad=JSON.stringify({...base,...change});
     assert.throws(()=>run('prepareSavedGame(bad)'),undefined,JSON.stringify(change));
     assert.equal(run('G===before'),true);

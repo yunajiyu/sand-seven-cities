@@ -94,12 +94,11 @@ await test('Starvation hurts after the food runs out, and zero health ends the g
   assert.equal(g2.run('G.water'),1);
 });
 
-await test('The last night ends in a time-out without leaving a valid day range, and the save still loads',()=>{
+await test('Day 8 is not the end: resting through its last slot starts day 9 and nothing ends',()=>{
   const {run}=game();
-  run("G.day=LAST_DAY;G.slot=3;restHere();flush()");
-  assert.equal(run('G.ending'),'last_night'); assert.equal(run('G.day'),run('LAST_DAY'));
+  run("G.day=8;G.slot=3;G.food=5;G.water=5;restHere();flush()");
+  assert.equal(run('G.ending'),null); assert.equal(run('G.day'),9);
   run("validateSaveData(JSON.parse(JSON.stringify(G)))");
-  run("pick('rest:')"); assert.equal(run('G.day'),run('LAST_DAY'),'nothing more happens after an ending');
 });
 
 await test('Action results are written as ordinary lines (narration plus a short status line) with no AI call',()=>{

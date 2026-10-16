@@ -21,28 +21,21 @@ await test('Old saves with an 8-slot infection clock are still accepted',()=>{
   assert.throws(()=>run("var t=JSON.parse(s);t.infection.left=9;prepareSavedGame(JSON.stringify(t))"),/감염/);
 });
 
-await test('Arriving at the exit on the very last action leaves one chance to escape instead of a time-out',()=>{
-  const {run,obj}=game();
-  run("G.day=LAST_DAY;G.slot=3;G.loc='garden';G.zs.gate.seen=true;G.route='rear';G.items=['gateKey','cutter']");
-  run("goZone('gate');flush()");
-  assert.equal(run('G.ending'),null); assert.equal(run('G.last'),true);
-  assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['escape:']);
+await test('There is no day limit: the game goes on past day 8 and can still be escaped from',()=>{
+  const {run}=game();
+  run("G.day=8;G.slot=3;G.food=9;G.water=9;G.loc='room';restHere();flush()");
+  assert.equal(run('G.ending'),null); assert.equal(run('G.day'),9); assert.equal(run('G.slot'),0);
+  run("G.day=40;G.slot=3;G.loc='garden';G.zs.gate.seen=true;G.route='rear';G.items=['gateKey','cutter'];goZone('gate');flush()");
+  assert.equal(run('G.ending'),null); assert.equal(run('G.day'),41);
   run("pick('escape:');flush()"); assert.match(run('G.ending'),/^escape_/);
 });
 
-await test('Without the exit and tools the last action still ends in a time-out',()=>{
+await test('Old saves that stood at the last chance still load and simply continue; the old flag is dropped',()=>{
   const {run}=game();
-  run("G.day=LAST_DAY;G.slot=3;G.loc='garden';G.route='rear';G.items=[]");
-  run("goZone('gate');flush()"); assert.equal(run('G.ending'),'last_night'); assert.equal(run('G.last'),false);
-});
-
-await test('The last chance is saved, loaded, and old saves without the field get false',()=>{
-  const {run}=game();
-  run("G.day=LAST_DAY;G.slot=3;G.loc='garden';G.zs.gate.seen=true;G.route='rear';G.items=['gateKey','cutter'];goZone('gate');flush();save();var s=JSON.parse(localStorage.getItem(SAVE_KEY))");
-  assert.equal(run('s.last'),true);
-  run("openLoadedGame(prepareSavedGame(JSON.stringify(s)))"); assert.equal(run('G.last'),true);
-  run("delete s.last;var m=prepareSavedGame(JSON.stringify(s))"); assert.equal(run('m.last'),false);
-  assert.throws(()=>run("var t=JSON.parse(JSON.stringify(s));t.last='yes';prepareSavedGame(JSON.stringify(t))"),/시간/);
+  run("G.day=8;G.slot=3;G.loc='gate';G.route='rear';G.items=['gateKey','cutter'];save();var s=JSON.parse(localStorage.getItem(SAVE_KEY));s.last=true");
+  run("var m=prepareSavedGame(JSON.stringify(s))");
+  assert.equal(run('m.last'),undefined); assert.equal(run('m.day'),8);
+  run("openLoadedGame(m)"); assert.ok(run("buildChoices().some(c=>c.id==='escape:')"));
 });
 
 await test('An old save where a survivor is already a friend does not give the gift again',()=>{

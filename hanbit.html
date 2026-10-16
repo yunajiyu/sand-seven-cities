@@ -233,7 +233,7 @@ const GAME_TITLE='재개발 예정 단지';   // 임시 제목
 const TIMES=['아침','낮','저녁','밤'];
 const TIME_ICON={'아침':'sunrise','낮':'sun','저녁':'sunset','밤':'moon'};
 const START={day:1,slot:2,loc:'room'};   // 1일차 저녁에 갇힌 채 시작
-const LAST_DAY=8;                        // 8일차가 마지막(행동 약 30번)
+const DAY_CAP=9999;                      // 날짜 제한은 없다(저장 검사용 안전 상한일 뿐)
 const BASE={hp:10,food:4,water:4};       // 시작 자원
 const NOISE_MAX=10;                      // 구역별 소음 상한
 const INFECT_SLOTS=5;                    // 물린 뒤 감염 타이머(시간대). 난이도 조정(후보 D)으로 8→3
@@ -413,7 +413,7 @@ function newState(name,info){
     zs, noise, zombies:{...ZOMBIE_START},
     comp:{yumin:{met:false,joined:false,aff:0}},
     surv:Object.fromEntries(SURVIVORS.map(s=>[s.id,{met:false,aff:0,gift:false}])),
-    ev:null, fb:null, log:[], pend:0, last:false,
+    ev:null, fb:null, log:[], pend:0,
   };
 }
 
@@ -424,7 +424,7 @@ function migrate(){
   if(!Array.isArray(G.items)) G.items=[];
   if(!Array.isArray(G.log)) G.log=[];
   if(!Number.isInteger(G.pend)||G.pend<0||G.pend>G.log.length) G.pend=0;
-  if(typeof G.last!=='boolean') G.last=false;
+  delete G.last;   // 옛 저장의 「마지막 기회」 표시 — 이제 날짜 제한이 없다
   if(G.ev===undefined) G.ev=null;
   if(G.fb===undefined) G.fb=null;
   if(G.infection===undefined) G.infection=null;
@@ -451,7 +451,7 @@ function validateSaveData(g,strict=true){
  if(!obj(g.char)||typeof g.char.name!=='string'||!g.char.name.trim()||g.char.name.length>20) throw Error('캐릭터 정보가 없거나 손상됐습니다.');
  if(!(g.char.age===undefined&&!strict)&&g.char.age!==null&&(!Number.isInteger(g.char.age)||g.char.age<AGE_MIN||g.char.age>AGE_MAX)) throw Error('캐릭터 나이가 올바르지 않습니다.');
  if(!(g.char.trait===undefined&&!strict)&&(typeof g.char.trait!=='string'||g.char.trait.length>TRAIT_MAX)) throw Error('캐릭터 성격 정보가 손상됐습니다.');
- if(!Number.isInteger(g.day)||g.day<1||g.day>LAST_DAY||!Number.isInteger(g.slot)||g.slot<0||g.slot>=TIMES.length||typeof g.loc!=='string'||!own(ZONE,g.loc)) throw Error('날짜·시간·위치 정보가 손상됐습니다.');
+ if(!Number.isInteger(g.day)||g.day<1||g.day>DAY_CAP||!Number.isInteger(g.slot)||g.slot<0||g.slot>=TIMES.length||typeof g.loc!=='string'||!own(ZONE,g.loc)) throw Error('날짜·시간·위치 정보가 손상됐습니다.');
  if(!['hp','maxhp','food','water'].every(k=>finite(g[k]))||(!opt('meds')&&!finite(g.meds))||g.maxhp<=0||g.maxhp>RES_CAP||g.hp<0||g.hp>g.maxhp||g.food<0||g.water<0||g.meds<0||g.food>RES_CAP||g.water>RES_CAP||g.meds>RES_CAP) throw Error('체력·자원 정보가 손상됐습니다.');
  if(!opt('items')&&(!Array.isArray(g.items)||new Set(g.items).size!==g.items.length||g.items.some(x=>typeof x!=='string'||!own(ITEMS,x)))) throw Error('도구 정보가 손상됐습니다.');
  if(!opt('infection')&&g.infection!==null&&(!obj(g.infection)||!Number.isInteger(g.infection.left)||g.infection.left<0||g.infection.left>INFECT_SAVE_MAX)) throw Error('감염 정보가 손상됐습니다.');
@@ -466,8 +466,6 @@ function validateSaveData(g,strict=true){
  for(const sv of SURVIVORS){ const e=g.surv[sv.id]; if(e===undefined&&!strict) continue; if(!obj(e)||typeof e.met!=='boolean'||!finite(e.aff)||e.aff<0||e.aff>SURV_MAX||(e.gift===undefined?strict:typeof e.gift!=='boolean')) throw Error('생존자 정보가 손상됐습니다: '+sv.id) }
  const yy=g.comp.yumin; if(typeof yy.met!=='boolean'||typeof yy.joined!=='boolean'||!finite(yy.aff)||yy.aff<0||yy.aff>AFF_MAX) throw Error('동행자 정보가 손상됐습니다.');
  if(!opt('log')&&(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||typeof x.type!=='string'||typeof x.text!=='string'))) throw Error('기록 정보가 손상됐습니다.');
- if(!opt('last')&&typeof g.last!=='boolean') throw Error('시간 정보가 손상됐습니다.');
- if(g.last===true&&(g.ending!==null&&g.ending!==undefined||g.day!==LAST_DAY||g.slot!==TIMES.length-1||typeof g.route!=='string'||!own(ROUTES,g.route)||g.loc!==ROUTES[g.route].at||!ROUTES[g.route].need.every(x=>Array.isArray(g.items)&&g.items.includes(x)))) throw Error('시간 정보가 손상됐습니다.');
  if(!opt('ev')&&g.ev!==null&&(typeof g.ev!=='string'||!own(EVENTS,g.ev))) throw Error('사건 정보가 손상됐습니다.');
  if(!opt('fb')&&g.fb!==null&&(!Array.isArray(g.fb)||g.fb.length>SCRIPT_MAX_LINES||g.fb.some(x=>!obj(x)||typeof x.text!=='string'||x.text.length>SCRIPT_MAX_CHARS))) throw Error('장면 정보가 손상됐습니다.');
  if(!opt('pend')&&(!Number.isInteger(g.pend)||g.pend<0||g.pend>(Array.isArray(g.log)?g.log.length:0))) throw Error('기록 정보가 손상됐습니다.');
@@ -1162,7 +1160,6 @@ function eventPick(arg){
 const ENDING_TEXT={
   dead:    '더는 버티지 못하고 쓰러졌다. 단지는 끝내 조용해졌다.',
   infected:'감염이 몸을 다 삼켰다. 나는 더 이상 나로 남지 못했다.',
-  timeout: '마지막 날이 저물었다. 나는 끝내 이 단지를 빠져나가지 못했다.',
 };
 const ENDING_NAME={last_night:'단지의 마지막 밤',escape_alone:'혼자 나온 날',escape_comrade:'동료로 탈출',escape_together:'함께 나간 아침'};
 function endingName(k){ return own(ENDING_NAME,k)?ENDING_NAME[k]:'끝' }
@@ -1246,19 +1243,12 @@ function advanceTime(out){
     if(!slow){ G.infection.left--; if(G.infection.left<=0) finish('infected',out) }
   }
   if(G.slot+1>=TIMES.length){
-    if(G.day>=LAST_DAY){
-      // 마지막 행동으로 출구에 닿았다면 탈출할 마지막 기회를 한 번 준다(탈출은 시간이 들지 않는 행동)
-      if(!G.ending&&canEscape()){ G.last=true; out.push({t:'s',text:'마지막 순간이다. 출구가 눈앞에 있다.'}) }
-      else finish('timeout',out);
-    }
-    else{
-      G.slot=0; G.day++;
-      let loss=0;
-      if(G.food>0) G.food--; else loss++;
-      if(G.water>0) G.water--; else loss++;
-      if(loss){ G.hp=Math.max(0,G.hp-loss); out.push({t:'s',text:`굶주림과 갈증으로 체력 −${loss}`}) }
-      out.push({t:'s',text:`${G.day}일차 아침이 밝았다. 식량·물 −1`});
-    }
+    G.slot=0; G.day++;
+    let loss=0;
+    if(G.food>0) G.food--; else loss++;
+    if(G.water>0) G.water--; else loss++;
+    if(loss){ G.hp=Math.max(0,G.hp-loss); out.push({t:'s',text:`굶주림과 갈증으로 체력 −${loss}`}) }
+    out.push({t:'s',text:`${G.day}일차 아침이 밝았다. 식량·물 −1`});
   } else G.slot++;
   if(G.hp<=0) finish('dead',out);
 }
@@ -1301,7 +1291,6 @@ function goZone(id){
 /* 선택지 목록: 코드가 만든다(템플릿 문구). 이후 단계에서 탐색·휴식·대화가 훅으로 붙는다 */
 function buildChoices(){
   if(!G||G.ending) return [];
-  if(G.last) return canEscape()?[{id:'escape:',label:`${ROUTES[G.route].n}으로 탈출한다`}]:[];   // 시간이 끝난 뒤 남은 한 번의 기회
   const evc=eventChoices(); if(evc) return evc;   // 사건이 열려 있으면 고를 때까지 다른 행동은 잠긴다
   const list=neighbors(G.loc).map(id=>{
     const z=ZONE[id];
