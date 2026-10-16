@@ -52,9 +52,9 @@ await test('Each route has its own escape line',()=>{
   assert.equal(seen.size,3);
 });
 
-await test('The five endings all have the designed names, and the failure causes share one ending with its own last line',()=>{
+await test('The four endings all have the designed names, and the failure causes share one ending with its own last line',()=>{
   const {run}=game();
-  assert.deepEqual(run("Object.values(ENDING_NAME).sort().join()"),['단지의 마지막 밤','동료로 탈출','모두 함께','함께 나간 아침','혼자 나온 날'].sort().join());
+  assert.deepEqual(run("Object.values(ENDING_NAME).sort().join()"),['단지의 마지막 밤','동료로 탈출','함께 나간 아침','혼자 나온 날'].sort().join());
   const lines=new Set();
   for(const k of ['dead','infected','timeout']){
     const g=game(); g.run(`finish('${k}',[]);`); assert.equal(g.run('G.ending'),'last_night');
@@ -78,14 +78,6 @@ await test('Companion level decides the escape ending: high → together, middle
     const {run}=game(); run(ready('rear')+`;G.comp.yumin.met=true;G.comp.yumin.joined=${joined};G.comp.yumin.aff=${aff}`);
     run("pick('escape:');flush()"); assert.equal(run('G.ending'),want,`${aff}/${joined}`);
   }
-});
-
-await test('The hidden ending needs her with us (middle level or more) and all three survivors as friends; it takes priority',()=>{
-  const setup="G.comp.yumin.met=true;G.comp.yumin.joined=true;G.comp.yumin.aff=6;for(const k in G.surv){G.surv[k].met=true;G.surv[k].aff=4}";
-  const a=game(); a.run(ready('roof')+';'+setup); a.run("pick('escape:');flush()"); assert.equal(a.run('G.ending'),'escape_all');
-  const b=game(); b.run(ready('roof')+';'+setup+';G.comp.yumin.aff=14'); b.run("pick('escape:');flush()"); assert.equal(b.run('G.ending'),'escape_all','beats the romance ending');
-  const c=game(); c.run(ready('roof')+';'+setup+';G.surv.rider.aff=3'); c.run("pick('escape:');flush()"); assert.equal(c.run('G.ending'),'escape_comrade','one friend missing');
-  const d=game(); d.run(ready('roof')+';'+setup+';G.comp.yumin.joined=false'); d.run("pick('escape:');flush()"); assert.equal(d.run('G.ending'),'escape_alone','without her no hidden ending');
 });
 
 await test('Escaping costs no extra time or AI call, ignores a finished game, and the ending survives a save',()=>{

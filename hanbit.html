@@ -1013,7 +1013,7 @@ const ENDING_TEXT={
   infected:'감염이 몸을 다 삼켰다. 나는 더 이상 나로 남지 못했다.',
   timeout: '마지막 날이 저물었다. 나는 끝내 이 단지를 빠져나가지 못했다.',
 };
-const ENDING_NAME={last_night:'단지의 마지막 밤',escape_alone:'혼자 나온 날',escape_comrade:'동료로 탈출',escape_together:'함께 나간 아침',escape_all:'모두 함께'};
+const ENDING_NAME={last_night:'단지의 마지막 밤',escape_alone:'혼자 나온 날',escape_comrade:'동료로 탈출',escape_together:'함께 나간 아침'};
 function endingName(k){ return own(ENDING_NAME,k)?ENDING_NAME[k]:'끝' }
 const OLD_ENDING={dead:'last_night',infected:'last_night',timeout:'last_night'};   // 옛 저장의 엔딩 이름을 새 이름으로
 const ESC_LEVEL=4;                           // 이 단계 이상이고 동행 중이면 「함께 나간 아침」
@@ -1023,24 +1023,15 @@ const ESC_ROUTE_LINE={
   roof: '신호탄이 하늘로 솟는다. 얼마 뒤 멀리서 헬기 소리가 다가온다.',
 };
 function canEscape(){ return !!G&&!G.ending&&!!G.route&&own(ROUTES,G.route)&&routeReady(G.route)&&G.loc===ROUTES[G.route].at }
-function allFriends(){ return SURVIVORS.every(sv=>G.surv[sv.id]&&G.surv[sv.id].aff>=SURV_LV[2]) }
-/* 탈출 엔딩 판정(코드): 숨은 엔딩 > 호감 높음 > 호감 중간 > 그 밖(동행 안 함·동행 중단) */
+/* 탈출 엔딩 판정(코드): 호감 높음 > 호감 중간 > 그 밖(동행 안 함·동행 중단) */
 function escapeKind(){
   const y=G.comp.yumin, lv=affLevel(y.aff), withHer=y.joined&&lv>=JOIN_LEVEL;
-  if(withHer&&allFriends()) return 'escape_all';
   if(withHer&&lv>=ESC_LEVEL) return 'escape_together';
   if(withHer) return 'escape_comrade';
   return 'escape_alone';
 }
 function escapeLines(kind){
   const n=G.char.name, y=G.comp.yumin, N=(t)=>({t:'n',text:t});
-  if(kind==='escape_all') return [
-    N('출구 앞에 하나둘 사람들이 모여든다. 경비원 아저씨와 약사, 배달 라이더 청년이 각자 짐을 들고 서 있다.'),
-    {t:'d',who:'guard',emo:'smile',text:'허, 정말 나왔구려. 이 단지에서 이렇게 많이 나가는 건 처음 보오.'},
-    {t:'d',who:'rider',emo:'relieved',text:'오토바이는 두고 가야겠네요. 대신 별점 5점이에요!'},
-    {t:'d',who:'yumin',emo:'smile',text:`다 같이 나왔네요. ${n}, 이거 꿈 아니죠?`},
-    N('아침 빛이 다섯 사람의 그림자를 길게 늘인다. 단지의 마지막 밤은 그렇게 끝났다.'),
-  ];
   if(kind==='escape_together') return [
     {t:'d',who:'yumin',emo:'relieved',text:'……나왔네요. 정말, 우리 둘 다.'},
     {t:'d',who:'me',emo:'smile',text:'네. 약속했잖아요, 같이 간다고.'},
