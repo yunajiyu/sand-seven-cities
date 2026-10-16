@@ -9,7 +9,7 @@ function game(){
   f.run("var flush=()=>{while(Q.pending.length)nextLine()}");
   return f;
 }
-const ready=(route)=>{ const at={front:'gate',rear:'gate',roof:'roof'}[route], need={front:['carKey','fuel'],rear:['gateKey'],roof:['signal']}[route];
+const ready=(route)=>{ const at={front:'gate',rear:'gate',roof:'roof'}[route], need={front:['carKey','fuel','crowbar'],rear:['gateKey','cutter'],roof:['signal','battery','radio']}[route];
   return `G.route='${route}';G.items=${JSON.stringify(need)};G.loc='${at}'` };
 
 (async()=>{
@@ -19,7 +19,8 @@ await test('The escape choice appears only with a route, all its tools, and the 
   assert.equal(has(),false);
   run("G.route='front';G.loc='gate'"); assert.equal(has(),false,'no tools');
   run("G.items=['carKey'];"); assert.equal(has(),false,'missing fuel');
-  run("G.items=['carKey','fuel'];G.loc='garage'"); assert.equal(has(),false,'wrong place');
+  run("G.items=['carKey','fuel'];G.loc='gate'"); assert.equal(has(),false,'missing crowbar');
+  run("G.items=['carKey','fuel','crowbar'];G.loc='garage'"); assert.equal(has(),false,'wrong place');
   run("G.loc='gate'"); assert.equal(has(),true);
   run(ready('rear')); assert.equal(has(),true); run(ready('roof')); assert.equal(has(),true);
   run("G.items=[]"); assert.equal(has(),false);
@@ -94,7 +95,7 @@ await test('Escaping costs no extra time or AI call, ignores a finished game, an
 await test('A rear-gate escape is reachable inside the time limit by walking and searching (no luck needed)',()=>{
   const {run}=game();
   run("pick('route:rear');flush()");
-  for(const st of ["move:stairs","move:shop","move:office","look:","move:garden","move:gate","escape:"]){ run(`pick('${st}');flush()`) }
+  for(const st of ["move:stairs","move:shop","move:office","look:","move:shop","move:stairs","move:garage","move:boiler","look:","move:garage","move:gate","escape:"]){ run(`pick('${st}');flush()`) }
   assert.equal(run('G.ending'),'escape_alone');
   assert.ok(run('G.day*10+G.slot')<=44);
 });

@@ -10,14 +10,14 @@ function game(name='도현'){
 }
 
 (async()=>{
-await test('Exactly the 8 designed zones exist with unique ids and valid risk levels',()=>{
+await test('Exactly the 15 designed zones exist with unique ids and valid risk levels',()=>{
   const {obj,run}=game();
   const z=obj('ZONES');
-  assert.equal(z.length,8);
-  assert.deepEqual(z.map(x=>x.id).sort(),['garage','garden','gate','office','roof','room','shop','stairs']);
-  assert.equal(new Set(z.map(x=>x.id)).size,8);
-  assert.deepEqual(Object.fromEntries(z.map(x=>[x.id,x.risk])),{room:1,stairs:2,shop:3,office:2,garage:4,roof:1,garden:3,gate:4});
-  for(const x of z){ assert.ok(x.risk>=1&&x.risk<=4); assert.ok(x.desc&&x.role&&x.gives); assert.ok(x.x>=0&&x.x<=360&&x.y>=0&&x.y<=250) }
+  assert.equal(z.length,15);
+  assert.deepEqual(z.map(x=>x.id).sort(),['block2','boiler','garage','garden','gate','gym','office','roof','room','senior','shop','stairs','trash','unit2f','unit702']);
+  assert.equal(new Set(z.map(x=>x.id)).size,15);
+  assert.deepEqual(Object.fromEntries(z.map(x=>[x.id,x.risk])),{room:1,stairs:2,shop:3,office:2,garage:4,roof:1,garden:3,gate:4,unit702:2,senior:2,block2:3,unit2f:3,gym:3,trash:3,boiler:4});
+  for(const x of z){ assert.ok(x.risk>=1&&x.risk<=4); assert.ok(x.desc&&x.role&&x.gives); assert.ok(x.x>=0&&x.x<=360&&x.y>=0&&x.y<=300) }
   assert.equal(run("RISK_LABEL[4]"),'매우 높음');
 });
 
@@ -27,10 +27,10 @@ await test('The zone graph is symmetric, has no dead ends from the start, and th
   for(const [a,list] of Object.entries(adj)) for(const b of list) assert.ok(adj[b].includes(a),`${a}-${b} must be two-way`);
   const seen=new Set(['room']),queue=['room'];
   while(queue.length){ const c=queue.shift(); for(const n of adj[c]) if(!seen.has(n)){ seen.add(n); queue.push(n) } }
-  assert.equal(seen.size,8,'every zone is reachable from the start room');
+  assert.equal(seen.size,15,'every zone is reachable from the start room');
   assert.deepEqual(adj.roof,['stairs']);
   assert.deepEqual(adj.room,['stairs']);
-  assert.ok(adj.gate.includes('garden')&&adj.gate.includes('garage'));
+  assert.ok(adj.gate.includes('garden')&&adj.gate.includes('garage')&&adj.gate.includes('trash'));
 });
 
 await test('A new game starts in the 7th-floor room on day 1 evening with base resources and no ending',()=>{
@@ -42,7 +42,7 @@ await test('A new game starts in the 7th-floor room on day 1 evening with base r
   assert.equal(g.zs.room.seen,true); assert.equal(g.zs.garage.seen,false);
   assert.equal(g.zombies.room,0); assert.equal(g.zombies.roof,1,'one zombie on the roof (difficulty candidate D)'); assert.ok(g.zombies.garage>=g.zombies.stairs);
   assert.ok(Object.values(g.noise).every(n=>n===0));
-  assert.deepEqual(Object.keys(g.surv).sort(),['guard','pharm','rider']);
+  assert.deepEqual(Object.keys(g.surv).sort(),['elder','engineer','granny','guard','pharm','rider','trainer']);
   assert.equal(g.comp.yumin.joined,false);
   assert.doesNotThrow(()=>run('validateSaveData(G)'));
 });
@@ -80,7 +80,7 @@ await test('Choices are built by code from the current zone and pick() ignores a
   assert.match(run("buildChoices()[0].label"),/계단·복도로 이동 · 위험 보통/);
   run("pick('move:garage')"); assert.equal(run('G.loc'),'room','garage is not offered from the room');
   run("pick('move:stairs')"); assert.equal(run('G.loc'),'stairs');
-  assert.deepEqual(obj("buildChoices().map(c=>c.id).sort()"),['look:','move:garage','move:roof','move:room','move:shop','rest:','talk:']);
+  assert.deepEqual(obj("buildChoices().map(c=>c.id).sort()"),['look:','move:garage','move:roof','move:room','move:shop','move:unit702','rest:','talk:']);
   run("pick('bogus:thing')"); assert.equal(run('G.loc'),'stairs');
   run("G.ending='x'"); assert.deepEqual(obj('buildChoices()'),[]);
 });
@@ -95,16 +95,16 @@ await test('The goal line always has one clear sentence and names what is missin
   const {run}=game();
   assert.match(run('goalLine()'),/빠져나갈 길/);
   run("G.route='rear'");
-  assert.equal(run('goalLine()'),'후문 공사 통로로 나가려면 공사 통로 열쇠가 필요하다');
+  assert.equal(run('goalLine()'),'후문 공사 통로로 나가려면 공사 통로 열쇠·절단기가 필요하다');
   run("G.route='front'");
-  assert.equal(run('goalLine()'),'정문을 차량으로 돌파하려면 차량 열쇠·연료가 필요하다');
+  assert.equal(run('goalLine()'),'정문을 차량으로 돌파하려면 차량 열쇠·연료·쇠지렛대가 필요하다');
   run("G.items.push('carKey')");
-  assert.equal(run('goalLine()'),'정문을 차량으로 돌파하려면 연료가 필요하다');
-  run("G.items.push('fuel')");
+  assert.equal(run('goalLine()'),'정문을 차량으로 돌파하려면 연료·쇠지렛대가 필요하다');
+  run("G.items.push('fuel','crowbar')");
   assert.equal(run('routeReady("front")'),true);
   assert.match(run('goalLine()'),/정문으로 나갈 준비가 됐다/);
   run("G.route='roof'");
-  assert.equal(run('goalLine()'),'옥상에서 구조 신호를 보내려면 구조 신호 도구가 필요하다');
+  assert.equal(run('goalLine()'),'옥상에서 구조 신호를 보내려면 구조 신호 도구·배터리·라디오가 필요하다');
   assert.equal(run('routeReady("rear")'),false);
 });
 
@@ -113,7 +113,7 @@ await test('Each escape route needs different things and every needed item exist
   const r=obj('ROUTES'), items=obj('ITEMS');
   assert.deepEqual(Object.keys(r).sort(),['front','rear','roof']);
   for(const route of Object.values(r)) for(const id of route.need) assert.ok(items[id],`unknown item ${id}`);
-  assert.deepEqual(r.front.need,['carKey','fuel']); assert.deepEqual(r.rear.need,['gateKey']); assert.deepEqual(r.roof.need,['signal']);
+  assert.deepEqual(r.front.need,['carKey','fuel','crowbar']); assert.deepEqual(r.rear.need,['gateKey','cutter']); assert.deepEqual(r.roof.need,['signal','battery','radio']);
   assert.equal(r.roof.at,'roof'); assert.equal(r.front.at,'gate');
 });
 
@@ -126,12 +126,12 @@ await test('The screen shows status, goal, scene and choices; the map (in the me
   assert.match(el('placeLabel').innerHTML,/3동 7층 자취방/);
   assert.match(el('choices').innerHTML,/pick\('move:stairs'\)/);
   const map=run('mapHTML()');
-  assert.equal((map.match(/class="znode /g)||[]).length,8);
+  assert.equal((map.match(/class="znode /g)||[]).length,15);
   assert.equal((map.match(/ adj/g)||[]).length,1,'only the stairs is pressable from the room');
   assert.match(map,/aria-label="3동 7층 자취방, 현재 위치"/);
   assert.match(map,/id="zoneCard"><svg class="pix"[^>]*>.*<\/svg> <b>3동 7층 자취방/);
   run("goZone('stairs')");
-  assert.equal((run('mapHTML()').match(/ adj/g)||[]).length,4);
+  assert.equal((run('mapHTML()').match(/ adj/g)||[]).length,5);
   assert.match(run('G.log.map(x=>x.text).join("\\n")'),/계단실/);
 });
 

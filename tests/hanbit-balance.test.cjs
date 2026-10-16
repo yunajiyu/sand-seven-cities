@@ -9,10 +9,10 @@ function game(){
   return f;
 }
 (async()=>{
-await test('Candidate D values: infection clock 3, one zombie on the roof, and a safe joke gives +1',()=>{
+await test('Candidate D values: infection clock 5, one zombie on the roof, and a safe joke gives +1',()=>{
   const {run}=game();
-  assert.equal(run('INFECT_SLOTS'),3); assert.equal(run('ZOMBIE_START.roof'),1); assert.equal(run('G.zombies.roof'),1);
-  run("rng=()=>0;G.loc='stairs';restHere();flush()"); assert.equal(run('G.infection.left'),2,'3 at the bite, one slot passes');
+  assert.equal(run('INFECT_SLOTS'),5); assert.equal(run('ZOMBIE_START.roof'),1); assert.equal(run('G.zombies.roof'),1);
+  run("rng=()=>0;G.loc='stairs';restHere();flush()"); assert.equal(run('G.infection.left'),4,'5 at the bite, one slot passes');
 });
 
 await test('Old saves with an 8-slot infection clock are still accepted',()=>{
@@ -23,7 +23,7 @@ await test('Old saves with an 8-slot infection clock are still accepted',()=>{
 
 await test('Arriving at the exit on the very last action leaves one chance to escape instead of a time-out',()=>{
   const {run,obj}=game();
-  run("G.day=LAST_DAY;G.slot=3;G.loc='garden';G.zs.gate.seen=true;G.route='rear';G.items=['gateKey']");
+  run("G.day=LAST_DAY;G.slot=3;G.loc='garden';G.zs.gate.seen=true;G.route='rear';G.items=['gateKey','cutter']");
   run("goZone('gate');flush()");
   assert.equal(run('G.ending'),null); assert.equal(run('G.last'),true);
   assert.deepEqual(obj("buildChoices().map(c=>c.id)"),['escape:']);
@@ -38,7 +38,7 @@ await test('Without the exit and tools the last action still ends in a time-out'
 
 await test('The last chance is saved, loaded, and old saves without the field get false',()=>{
   const {run}=game();
-  run("G.day=LAST_DAY;G.slot=3;G.loc='garden';G.zs.gate.seen=true;G.route='rear';G.items=['gateKey'];goZone('gate');flush();save();var s=JSON.parse(localStorage.getItem(SAVE_KEY))");
+  run("G.day=LAST_DAY;G.slot=3;G.loc='garden';G.zs.gate.seen=true;G.route='rear';G.items=['gateKey','cutter'];goZone('gate');flush();save();var s=JSON.parse(localStorage.getItem(SAVE_KEY))");
   assert.equal(run('s.last'),true);
   run("openLoadedGame(prepareSavedGame(JSON.stringify(s)))"); assert.equal(run('G.last'),true);
   run("delete s.last;var m=prepareSavedGame(JSON.stringify(s))"); assert.equal(run('m.last'),false);

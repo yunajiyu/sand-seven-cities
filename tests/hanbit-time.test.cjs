@@ -16,7 +16,7 @@ await test('Every action costs exactly one time slot; the day rolls over after n
   assert.equal(run('G.day*10+G.slot'),12,'day 1 evening');
   run("go('stairs')"); assert.equal(run('G.day*10+G.slot'),13);
   run("go('room')"); assert.equal(run('G.day'),2); assert.equal(run('G.slot'),0);
-  assert.equal(run('G.food'),1); assert.equal(run('G.water'),1);
+  assert.equal(run('G.food'),3); assert.equal(run('G.water'),3);
   run("restHere();flush()"); assert.equal(run('G.slot'),1);
   run("lookAround();flush()"); assert.equal(run('G.slot'),2);
 });
@@ -33,11 +33,11 @@ await test('Choosing a route is free (no time) and can be changed later',()=>{
 await test('Searching finds a zone\'s loot once; searching again finds nothing',()=>{
   const {run,obj}=game();
   run("G.loc='shop';G.slot=0;lookAround();flush()");
-  assert.equal(run('G.food'),4); assert.equal(run('G.water'),4); assert.equal(run('G.meds'),1); assert.equal(run('G.zs.shop.searched'),true);
-  run("lookAround();flush()"); assert.equal(run('G.food'),4,'second search gives nothing');
+  assert.equal(run('G.food'),6); assert.equal(run('G.water'),6); assert.equal(run('G.meds'),1); assert.equal(run('G.zs.shop.searched'),true);
+  run("lookAround();flush()"); assert.equal(run('G.food'),6,'second search gives nothing');
   run("G.loc='garage';lookAround();flush()");
-  assert.deepEqual(obj("G.items.sort()"),['carKey','fuel']);
-  run("G.loc='garage';G.zs.garage.searched=false;lookAround();flush()"); assert.equal(run('G.items.length'),2,'items never duplicate');
+  assert.deepEqual(obj("G.items.sort()"),['fuel']);
+  run("G.loc='garage';G.zs.garage.searched=false;lookAround();flush()"); assert.equal(run('G.items.length'),1,'items never duplicate');
 });
 
 await test('Encounter chance rises with zombies, noise and danger, drops with a flashlight, and is zero in the room',()=>{
