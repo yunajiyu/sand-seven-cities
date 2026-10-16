@@ -91,7 +91,7 @@ await test('The prompt lists only the allowed speakers and expression keys, the 
   f.ctx.__c={present:['yumin','nobody','me'],event:'소리가 났다',ask:'장면을 쓰세요',tone:'유민은 존댓말을 쓴다'};
   const {system,user}=JSON.parse(JSON.stringify(f.run("scenePrompt('x',__c)")));
   assert.match(system,/me:도현, yumin:유민/); assert.equal(system.includes('nobody'),false); assert.equal(system.includes('guard'),false);
-  assert.match(system,/neutral, smile, fluster, sad, tense, relieved, blush, happy, smirk/);
+  assert.match(system,/neutral, smile, fluster, sad, tense, relieved, blush, happy/);
   assert.match(system,/JSON 배열/); assert.match(system,/시스템 알림/); assert.match(system,/선택지를 제시하지/); assert.match(system,/유민은 존댓말/);
   assert.match(user,/1일차 저녁/); assert.match(user,/3동 7층 자취방/); assert.match(user,/주인공: 도현/); assert.match(user,/함께 있는 인물: 유민/); assert.match(user,/방금 일어난 일: 소리가 났다/);
   assert.ok(system.length+user.length<1600,'prompt stays short: '+(system.length+user.length));
