@@ -407,7 +407,7 @@ function newState(name,info){
     zs, noise, zombies:{...ZOMBIE_START},
     comp:{yumin:{met:false,joined:false,aff:0}},
     surv:Object.fromEntries(SURVIVORS.map(s=>[s.id,{met:false,rescued:false,aff:0,gift:false}])),
-    log:[], pend:0, last:false,
+    ev:null, log:[], pend:0, last:false,
   };
 }
 
@@ -419,6 +419,7 @@ function migrate(){
   if(!Array.isArray(G.log)) G.log=[];
   if(!Number.isInteger(G.pend)||G.pend<0||G.pend>G.log.length) G.pend=0;
   if(typeof G.last!=='boolean') G.last=false;
+  if(G.ev===undefined) G.ev=null;
   if(G.infection===undefined) G.infection=null;
   if(G.route===undefined) G.route=null;
   if(G.ending===undefined) G.ending=null;
@@ -459,6 +460,7 @@ function validateSaveData(g,strict=true){
  const yy=g.comp.yumin; if(typeof yy.met!=='boolean'||typeof yy.joined!=='boolean'||!finite(yy.aff)||yy.aff<0||yy.aff>AFF_MAX) throw Error('동행자 정보가 손상됐습니다.');
  if(!opt('log')&&(!Array.isArray(g.log)||g.log.some(x=>!obj(x)||typeof x.type!=='string'||typeof x.text!=='string'))) throw Error('기록 정보가 손상됐습니다.');
  if(!opt('last')&&typeof g.last!=='boolean') throw Error('시간 정보가 손상됐습니다.');
+ if(!opt('ev')&&g.ev!==null&&(typeof g.ev!=='string'||!own(EVENTS,g.ev))) throw Error('사건 정보가 손상됐습니다.');
  if(!opt('pend')&&(!Number.isInteger(g.pend)||g.pend<0||g.pend>(Array.isArray(g.log)?g.log.length:0))) throw Error('기록 정보가 손상됐습니다.');
  return g;
 }
@@ -811,7 +813,7 @@ function addLog(type,text,extra){
 }
 
 /* 행동 표: 선택지 id의 앞부분('move:stairs'의 move)에 맞는 함수. 새 행동은 여기에 한 줄 */
-const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere(), escape:()=>escapeNow(), cure:()=>cureInfection(), route:id=>setRoute(id), talk:t=>talkTo(t), chat:a=>chatTo(a) };
+const ACTIONS={ move:id=>goZone(id), look:()=>lookAround(), rest:()=>restHere(), escape:()=>escapeNow(), cure:()=>cureInfection(), route:id=>setRoute(id), talk:t=>talkTo(t), chat:a=>chatTo(a), ev:a=>eventPick(a) };
 
 /* =========================================================
    시간대 한 번 = 행동 한 번. 판정은 전부 코드가 한다(주사위는 rng 하나로만).
@@ -1092,6 +1094,57 @@ const SEARCH_NOTE={
   unit2f:'현관 선반의 키 꾸러미 옆에 메모가 붙어 있다. 「여보, 병원 가요. 차 열쇠는 여기 둘게.」 침실 문은 안쪽에서 잠겨 있고, 문 너머는 조용하다.',
   trash:'컨테이너 한쪽 벽에 분필로 그은 날짜 표시가 칸마다 이어지다 어느 날에서 끊겨 있다. 그 아래에는 빈 통조림 몇 개가 가지런히 쌓여 있다.',
 };
+/* 새 구역 사건: 구역에서 처음 주변을 살필 때 한 번 일어나고, 고를 때까지 다른 행동은 잠긴다.
+   선택은 시간을 쓰지 않는다(수색이 이미 한 번 썼다). 결과는 코드가 정한다: fx = 식량·물·응급약·체력·소음·그 구역 좀비 수 */
+const EVENTS={
+  unit702:{text:'베란다 너머 맞은편 동의 어두운 창에서 불빛이 세 번 깜빡인다. 잠시 뒤 다시 세 번.',opts:[
+    {label:'손전등 대신 라이터로 같은 횟수 답한다',fx:{noise:2,food:1,water:1},text:'한참 뒤, 맞은편 베란다에서 줄에 매단 비닐봉지가 천천히 내려와 아래층 난간에 걸렸다. 손을 뻗어 받았다.'},
+    {label:'커튼을 치고 모른 척한다',fx:{noise:-1},text:'커튼 틈으로 보이던 불빛이 한 번 더 깜빡이다 꺼졌다. 마음 한쪽이 무겁다.'}]},
+  senior:{text:'낡은 라디오가 혼자 지직거리다가, 잡음 사이로 사람 목소리 같은 것이 섞여 나온다.',opts:[
+    {label:'볼륨을 올려 끝까지 듣는다',fx:{noise:3,water:1},text:'「…7동 옥상… 신호… 반복…」 같은 말이 끊어졌다 이어졌다. 라디오 옆 정수기에서 물을 한 병 채웠다.'},
+    {label:'전원을 끄고 숨을 고른다',fx:{noise:-1,hp:1},text:'소리가 사라지자 방 안이 한결 조용해졌다. 방석에 앉아 잠시 쉬었다.'}]},
+  block2:{text:'303호 문 안쪽에서 마른 기침 같은 소리가 나더니, 문을 두 번 두드린다.',opts:[
+    {label:'문에 대고 낮게 말을 건다',fx:{noise:1,meds:1},text:'대답은 없었지만 문 아래 틈으로 약통이 하나 밀려 나왔다. 안쪽에서 누군가 숨을 내쉬는 소리가 들렸다.'},
+    {label:'비닐봉지만 챙기고 물러난다',fx:{food:1},text:'봉지 안에 든 건조 식품을 챙겨 조용히 물러났다. 두드리는 소리는 따라오지 않았다.'}]},
+  unit2f:{text:'안쪽에서 잠긴 침실 문 아래로 가느다란 빛이 새어 나온다. 문고리가 아주 조금 움직였다 멈춘다.',opts:[
+    {label:'문을 부수고 들어간다',fx:{noise:3,hp:-1,food:1,meds:1,zomb:1},text:'문이 부서지며 무언가 거칠게 몸을 스쳤다. 쓰러진 서랍장 안에서 식량과 약을 챙겼다.'},
+    {label:'문 앞에 물병을 놓고 물러난다',fx:{water:-1,hp:1},text:'물병을 문 앞에 놓자 문고리 움직임이 멎었다. 이유를 알 수 없지만 마음이 조금 놓였다.'}]},
+  gym:{text:'탈의실 사물함 하나가 안쪽에서 쿵, 쿵 흔들린다. 다른 사물함은 모두 조용하다.',opts:[
+    {label:'사물함을 열어 본다',fx:{noise:2,hp:-1,meds:1,zomb:1},text:'문이 튕겨 열리며 팔을 스쳤다. 안쪽 수납칸에서 구급 파우치를 찾았다.'},
+    {label:'가만히 서서 소리가 멎기를 기다린다',fx:{noise:-1},text:'한참 뒤 흔들림이 서서히 잦아들었다. 발소리를 죽이고 물러났다.'}]},
+  trash:{text:'컨테이너 뒤에서 가냘픈 고양이 울음소리가 들린다. 발소리에 맞춰 멈췄다 다시 난다.',opts:[
+    {label:'통조림 하나를 열어 놓아 준다',fx:{food:-1,hp:1},text:'마른 고양이가 허겁지겁 먹고는 무릎에 몸을 기댔다. 따뜻한 온기에 손이 멈췄다.'},
+    {label:'소리 나는 쪽으로 쫓아낸다',fx:{noise:2},text:'고양이는 어둠으로 달아났다. 쇠 부딪히는 소리가 컨테이너 사이로 크게 울렸다.'}]},
+  boiler:{text:'압력계 바늘이 떨리고, 벽 안쪽 파이프 어딘가에서 물 흐르는 소리가 난다.',opts:[
+    {label:'밸브를 돌려 물을 받는다',fx:{noise:3,water:2},text:'파이프가 낮게 울리며 물이 쏟아졌다. 소리가 건물 전체에 퍼지는 것 같았지만 병을 가득 채웠다.'},
+    {label:'밸브를 잠그고 물러선다',fx:{noise:-2},text:'녹슨 밸브를 천천히 돌리자 물소리가 멎고 압력계 바늘이 가라앉았다.'}]},
+};
+const FX_NAME={food:'식량',water:'물',meds:'응급약',hp:'체력'};
+function eventStart(id,out){
+  if(!own(EVENTS,id)||G.ending) return;
+  G.ev=id; out.push({t:'n',text:EVENTS[id].text});
+}
+function eventChoices(){
+  if(!G||!G.ev||!own(EVENTS,G.ev)) return null;
+  return EVENTS[G.ev].opts.map((o,i)=>({id:'ev:'+i,label:o.label}));
+}
+function eventPick(arg){
+  if(!G||G.ending||busy||!G.ev||!own(EVENTS,G.ev)) return false;
+  const ev=EVENTS[G.ev], i=Number(arg);
+  if(!/^\d+$/.test(String(arg))||i>=ev.opts.length) return false;
+  const o=ev.opts[i], fx=o.fx, out=[], sys=[];
+  addLog('action',o.label);
+  G.ev=null;
+  out.push({t:'n',text:o.text});
+  for(const k of ['food','water','meds']) if(fx[k]){ const v=Math.max(-G[k],fx[k]); G[k]+=v; if(v) sys.push(`${FX_NAME[k]} ${v>0?'+':'−'}${Math.abs(v)}`) }
+  if(fx.hp){ const b=G.hp; G.hp=Math.max(0,Math.min(G.maxhp,G.hp+fx.hp)); if(G.hp!==b) sys.push(`체력 ${G.hp>b?'+':'−'}${Math.abs(G.hp-b)}`) }
+  if(fx.noise){ addNoise(G.loc,fx.noise); sys.push(fx.noise>0?`소음 +${fx.noise}`:`소음 −${-fx.noise}`) }
+  if(fx.zomb){ G.zombies[G.loc]=(G.zombies[G.loc]||0)+fx.zomb; sys.push('이 구역이 더 위험해졌다') }
+  if(sys.length) out.push({t:'s',text:sys.join(' · ')});
+  if(G.hp<=0) finish('dead',out);
+  say(out); run('after','event',arg); save(); render();
+  return true;
+}
 const ENDING_TEXT={
   dead:    '더는 버티지 못하고 쓰러졌다. 단지는 끝내 조용해졌다.',
   infected:'감염이 몸을 다 삼켰다. 나는 더 이상 나로 남지 못했다.',
@@ -1229,6 +1282,7 @@ function goZone(id){
 function buildChoices(){
   if(!G||G.ending) return [];
   if(G.last) return canEscape()?[{id:'escape:',label:`${ROUTES[G.route].n}으로 탈출한다`}]:[];   // 시간이 끝난 뒤 남은 한 번의 기회
+  const evc=eventChoices(); if(evc) return evc;   // 사건이 열려 있으면 고를 때까지 다른 행동은 잠긴다
   const list=neighbors(G.loc).map(id=>{
     const z=ZONE[id];
     return {id:'move:'+id,icon:z.icon,label:`${z.s}${josa(z.s,'으로','로')} 이동 · 위험 ${RISK_LABEL[z.risk]}`};
@@ -1273,6 +1327,7 @@ function lookAround(){
     if(got.length){ out.push({t:'n',text:'서랍과 선반을 뒤져 쓸 만한 것을 챙겼다.'}); out.push({t:'s',text:got.join(' · ')}) }
     else out.push({t:'n',text:'한참 살폈지만 쓸 만한 것은 없었다.'});
     if(own(SEARCH_NOTE,G.loc)) out.push({t:'n',text:SEARCH_NOTE[G.loc]});
+    eventStart(G.loc,out);
   });
 }
 function restHere(){

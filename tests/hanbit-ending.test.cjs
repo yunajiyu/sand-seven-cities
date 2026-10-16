@@ -95,7 +95,7 @@ await test('Escaping costs no extra time or AI call, ignores a finished game, an
 await test('A rear-gate escape is reachable inside the time limit by walking and searching (no luck needed)',()=>{
   const {run}=game();
   run("pick('route:rear');flush()");
-  for(const st of ["move:stairs","move:shop","move:office","look:","move:shop","move:stairs","move:garage","move:boiler","look:","move:garage","move:gate","escape:"]){ run(`pick('${st}');flush()`) }
+  for(const st of ["move:stairs","move:shop","move:office","look:","move:shop","move:stairs","move:garage","move:boiler","look:","ev:1","move:garage","move:gate","escape:"]){ run(`pick('${st}');flush()`) }
   assert.equal(run('G.ending'),'escape_alone');
   assert.ok(run('G.day*10+G.slot')<=44);
 });
