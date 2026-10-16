@@ -171,10 +171,10 @@ await test('Saves from the 8-zone era load: missing zones are filled in, but a h
 
 await test('Neighbour notes appear once, on the first search of zones without a survivor',()=>{
   const {run}=game();
-  for(const [zone,from,key] of [['block2','garden','303호'],['unit2f','block2','차 열쇠는 여기'],['trash','garden','분필']]){
+  for(const [zone,from,key] of [['block2','garden','필요한 분 가져가세요'],['unit2f','block2','차 열쇠는 여기'],['trash','garden','분필']]){
     run(`${at(from)};go('${zone}');pick('look:');flush()`);
     assert.equal(run(`G.log.filter(l=>l.text&&l.text.includes('${key}')).length`),1,zone+' note once');
-    run("pick('look:');flush()");
+    run("pick('ev:1');flush();pick('look:');flush()");   // 사건을 정리한 뒤 다시 살핀다
     assert.equal(run(`G.log.filter(l=>l.text&&l.text.includes('${key}')).length`),1,zone+' not repeated');
   }
   run(`${at('stairs')};go('unit702');pick('look:');flush()`);
