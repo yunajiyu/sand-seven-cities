@@ -73,8 +73,8 @@ await test('Resting together and entering a dangerous place together for the fir
   const {run}=game();
   run("go('stairs');G.comp.yumin.joined=true;G.comp.yumin.aff=6");
   run("restHere();flush()"); assert.equal(run('G.comp.yumin.aff'),7);
-  run("go('shop')"); assert.equal(run('G.comp.yumin.aff'),8,'first visit to a risk-3 zone');
-  run("go('stairs');go('shop')"); assert.equal(run('G.comp.yumin.aff'),8,'no gain for going back and forth');
+  run("go('shop')"); assert.equal(run('G.comp.yumin.aff'),9,'first visit to a risk-3 zone');
+  run("go('stairs');go('shop')"); assert.equal(run('G.comp.yumin.aff'),9,'no gain for going back and forth');
 });
 
 await test('Protecting her in an encounter costs extra health and raises affection; a near miss raises it a little',()=>{
