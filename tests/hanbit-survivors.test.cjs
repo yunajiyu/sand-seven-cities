@@ -154,6 +154,21 @@ await test('Saves made before the new survivors existed still load and get empty
   assert.equal(run('m2.surv.pharm.met'),false,'any missing survivor is filled with an empty entry');
 });
 
+await test('Saves from the 8-zone era load: missing zones are filled in, but a half-broken zone is still refused',()=>{
+  const {run}=game();
+  const NEW=['unit702','senior','block2','unit2f','gym','trash','boiler'];
+  run(`save();var s=JSON.parse(localStorage.getItem(SAVE_KEY));s.zs.stairs.seen=true;for(const k of ${JSON.stringify(NEW)}){delete s.zs[k];delete s.noise[k];delete s.zombies[k]}for(const k of ['granny','elder','trainer','engineer']) delete s.surv[k]`);
+  run("var m=prepareSavedGame(JSON.stringify(s))");
+  for(const k of NEW){
+    assert.deepEqual(JSON.parse(JSON.stringify(run(`m.zs.${k}`))),{seen:false,searched:false},k);
+    assert.equal(run(`m.noise.${k}`),0,k); assert.equal(typeof run(`m.zombies.${k}`),'number',k);
+  }
+  assert.equal(run('m.zs.stairs.seen'),true,'existing zones are kept');
+  assert.doesNotThrow(()=>run('validateSaveData(m)'));
+  assert.throws(()=>run("var t=JSON.parse(JSON.stringify(s));t.zombies.unit702=-1;prepareSavedGame(JSON.stringify(t))"),/구역 정보/);
+  assert.throws(()=>run("var t=JSON.parse(JSON.stringify(s));delete t.zombies.room;prepareSavedGame(JSON.stringify(t))"),/구역 정보/,'an old zone missing its data is still refused');
+});
+
 await test('Neighbour notes appear once, on the first search of zones without a survivor',()=>{
   const {run}=game();
   for(const [zone,from,key] of [['block2','garden','303호'],['unit2f','block2','차 열쇠는 여기'],['trash','garden','분필']]){

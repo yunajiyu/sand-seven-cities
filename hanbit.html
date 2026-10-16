@@ -451,6 +451,7 @@ function validateSaveData(g,strict=true){
  if(!opt('ending')&&g.ending!==null&&typeof g.ending!=='string') throw Error('엔딩 정보가 손상됐습니다.');
  if(!obj(g.zs)||!obj(g.noise)||!obj(g.zombies)) throw Error('구역 정보가 손상됐습니다.');
  for(const z of ZONES){
+   if(!strict&&g.zs[z.id]===undefined&&g.zombies[z.id]===undefined&&g.noise[z.id]===undefined) continue;   // 나중에 추가된 구역(옛 세이브) — migrate가 채운다
    if(!obj(g.zs[z.id])||!finite(g.zombies[z.id])||g.zombies[z.id]<0||!finite(g.noise[z.id])||g.noise[z.id]<0||g.noise[z.id]>NOISE_MAX) throw Error('구역 정보가 손상됐습니다: '+z.id);
  }
  if(!obj(g.comp)||!obj(g.comp.yumin)||!obj(g.surv)) throw Error('동행자 정보가 손상됐습니다.');
