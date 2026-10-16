@@ -1,5 +1,6 @@
 // Run: node tests/hanbit-survivors.test.cjs
-// 추가 생존자 3명: 첫 만남·말 걸기·친구 단계 선물·저장 검증·AI 대사 1회/폴백.
+// 추가 생존자 7명: 첫 만남·말 걸기·친구 단계 선물·저장 검증·AI 대사 1회/폴백.
+// 새 구역 4명(702호 할머니·경로당 어르신·헬스장 트레이너·설비 기사님)과 이웃의 흔적 메모도 확인한다.
 const assert=require('node:assert/strict');
 const {fixture,test,done}=require('./_hanbit-fixture.cjs');
 
@@ -77,6 +78,92 @@ await test('Old saves without the gift field are repaired; broken survivor data 
   for(const bad of ["met:1","rescued:'x'","aff:-1","aff:99","gift:'y'"]){
     assert.throws(()=>run(`var t=JSON.parse(JSON.stringify(s));Object.assign(t.surv.rider,{${bad}});prepareSavedGame(JSON.stringify(t))`),/생존자 정보/);
   }
+});
+
+const NEW=[['granny','unit702','stairs'],['elder','senior','shop'],['trainer','gym','garden'],['engineer','boiler','garage']];
+
+await test('The four new-zone survivors are met once on first entering their zone, and only there',()=>{
+  const {run}=game();
+  for(const [id,zone,from] of NEW){
+    run(`${at(from)};go('${zone}')`);
+    assert.equal(run(`G.surv.${id}.met`),true,id); assert.equal(run(`G.surv.${id}.aff`),1);
+    assert.ok(run(`G.log.some(l=>l.type==='dialog'&&l.who==='${id}')`),id+' speaks in the meeting');
+    assert.equal(run(`survHere('${id}')`),true);
+    const n=run(`G.log.filter(l=>l.who==='${id}').length`); run(`${at(from)};go('${zone}')`);
+    assert.equal(run(`G.log.filter(l=>l.who==='${id}').length`),n,'no second meeting');
+    run(`${at(from)}`); assert.equal(run(`survHere('${id}')`),false,'not available elsewhere');
+  }
+});
+
+await test('Every survivor has a look, a gift, a cast entry, a meeting, and lines for every topic in both moods',()=>{
+  const {run,obj}=game();
+  const ids=obj('SURVIVORS.map(s=>s.id)');
+  assert.equal(ids.length,7);
+  run("G.char.name='도현'");
+  for(const id of ids){
+    assert.ok(run(`typeof SURV_LOOK.${id}==='string'&&SURV_LOOK.${id}.length>10`),id+' look');
+    assert.ok(run(`!!SURV_GIFT.${id}&&!!CAST.${id}&&CAST.${id}.n().length>0`),id+' gift/cast');
+    const meet=obj(`survMeetLines('${id}')`);
+    assert.ok(meet.length>=3&&meet[0].t==='n'&&meet.some(l=>l.t==='d'&&l.who===id)&&meet.some(l=>l.who==='me'),id+' meeting');
+    for(const aff of [0,3]) for(const t of ['ask','info','joke']) for(const good of [true,false]){
+      run(`G.surv.${id}.aff=${aff}`);
+      const lines=obj(`sTalkLines('${id}','${t}',{good:${good}})`);
+      assert.ok(lines.length>=2,`${id}/${t}`);
+      assert.ok(lines.every(l=>l.t==='d'&&(l.who==='me'||l.who===id)&&typeof l.text==='string'&&l.text.length>3),`${id}/${t} speakers`);
+    }
+  }
+});
+
+await test('New survivors judge talk in code and give their own gift once when they become friends',()=>{
+  const {run}=game();
+  run(`${at('stairs')};go('unit702');G.hp=3;G.surv.granny.aff=3;chat('granny','ask')`);
+  assert.equal(run('G.surv.granny.gift'),true);
+  const gift=()=>run("G.log.filter(l=>l.text&&l.text.includes('삶은 달걀')).length");
+  assert.equal(gift(),1,'the gift is told');
+  assert.ok(run("G.log.some(l=>l.type==='sys'&&/식량 \\+1/.test(l.text)&&/물 \\+1/.test(l.text))"),'one food and one water are shown as a result line');
+  run("G.surv.granny.aff=3;chat('granny','ask')"); assert.equal(gift(),1,'gift only once');
+  run(`${at('shop')};go('senior');G.hp=3;G.surv.elder.aff=3;chat('elder','ask')`);
+  assert.ok(run("hasItem('radio')"));
+  run(`${at('garden')};go('gym');G.hp=3;G.surv.trainer.aff=3;chat('trainer','ask')`);
+  assert.ok(run("hasItem('battery')"));
+  run(`${at('garage')};go('boiler');G.hp=3;G.surv.engineer.aff=3;chat('engineer','ask')`);
+  assert.ok(run("hasItem('cutter')"));
+  assert.equal(run('G.comp.yumin.aff'),0,'friendship never touches Yumin affection');
+  run("G.noise.boiler=6;G.surv.engineer.aff=3;chat('engineer','joke')"); assert.equal(run('G.surv.engineer.aff'),2,'a joke in a loud room costs affection');
+});
+
+await test('If the gift item is already owned the new survivors give a small supply instead',()=>{
+  const {run}=game();
+  run(`G.items.push('radio');${at('shop')};go('senior');G.surv.elder.aff=3;G.hp=3;chat('elder','ask')`);
+  assert.equal(run('G.items.filter(x=>x==="radio").length'),1);
+  assert.ok(run("G.log.some(l=>l.text&&l.text.includes('보온병에서 물을'))"),'water instead of the radio');
+  run(`G.items.push('cutter');${at('garage')};go('boiler');G.surv.engineer.aff=3;G.hp=3;chat('engineer','ask')`);
+  assert.equal(run('G.items.filter(x=>x==="cutter").length'),1);
+  assert.ok(run("G.log.some(l=>l.text&&l.text.includes('건빵을 꺼내'))"),'food instead of the cutter');
+});
+
+await test('Saves made before the new survivors existed still load and get empty entries; broken entries are still refused',()=>{
+  const {run}=game();
+  run("save();var s=JSON.parse(localStorage.getItem(SAVE_KEY));s.surv.pharm.aff=5;s.surv.pharm.met=true;for(const k of ['granny','elder','trainer','engineer']) delete s.surv[k]");
+  run("var m=prepareSavedGame(JSON.stringify(s))");
+  for(const k of ['granny','elder','trainer','engineer']) assert.deepEqual(JSON.parse(JSON.stringify(run(`m.surv.${k}`))),{met:false,rescued:false,aff:0,gift:false},k);
+  assert.equal(run('m.surv.pharm.aff'),5,'existing survivors are kept');
+  assert.doesNotThrow(()=>run('validateSaveData(m)'));
+  assert.throws(()=>run("var t=JSON.parse(JSON.stringify(s));t.surv.granny={met:1,rescued:false,aff:0,gift:false};prepareSavedGame(JSON.stringify(t))"),/생존자 정보/);
+  run("var u=JSON.parse(JSON.stringify(s));delete u.surv.pharm;var m2=prepareSavedGame(JSON.stringify(u))");
+  assert.equal(run('m2.surv.pharm.met'),false,'any missing survivor is filled with an empty entry');
+});
+
+await test('Neighbour notes appear once, on the first search of zones without a survivor',()=>{
+  const {run}=game();
+  for(const [zone,from,key] of [['block2','garden','303호'],['unit2f','block2','차 열쇠는 여기'],['trash','garden','분필']]){
+    run(`${at(from)};go('${zone}');pick('look:');flush()`);
+    assert.equal(run(`G.log.filter(l=>l.text&&l.text.includes('${key}')).length`),1,zone+' note once');
+    run("pick('look:');flush()");
+    assert.equal(run(`G.log.filter(l=>l.text&&l.text.includes('${key}')).length`),1,zone+' not repeated');
+  }
+  run(`${at('stairs')};go('unit702');pick('look:');flush()`);
+  assert.equal(run("G.log.filter(l=>l.text&&/필요한 분 가져가세요|분필|병원 가요/.test(l.text)).length"),3,'zones with a survivor have no extra note');
 });
 
 await test('With an AI connection one call is made and the code-decided changes are already applied; failure uses built-in lines',async()=>{

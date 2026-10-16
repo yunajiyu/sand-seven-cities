@@ -42,7 +42,7 @@ await test('A new game starts in the 7th-floor room on day 1 evening with base r
   assert.equal(g.zs.room.seen,true); assert.equal(g.zs.garage.seen,false);
   assert.equal(g.zombies.room,0); assert.equal(g.zombies.roof,1,'one zombie on the roof (difficulty candidate D)'); assert.ok(g.zombies.garage>=g.zombies.stairs);
   assert.ok(Object.values(g.noise).every(n=>n===0));
-  assert.deepEqual(Object.keys(g.surv).sort(),['guard','pharm','rider']);
+  assert.deepEqual(Object.keys(g.surv).sort(),['elder','engineer','granny','guard','pharm','rider','trainer']);
   assert.equal(g.comp.yumin.joined,false);
   assert.doesNotThrow(()=>run('validateSaveData(G)'));
 });
