@@ -240,6 +240,9 @@ const INFECT_SLOTS=5;                    // 물린 뒤 감염 타이머(시간�
 const RES_CAP=99;                        // 저장 검사용 자원 상한(정상 플레이로는 닿지 않는다)
 const INFECT_SAVE_MAX=8;                 // 옛 저장(8시간대)도 읽을 수 있게 저장 검사 상한은 그대로
 
+const NOISE_WEIGHT=0.02;                  // 소음이 조우 확률에 주는 영향(0.04→0.02, 생존 부담을 줄이려고 낮춤)
+const NOISE_DECAY=2;                      // 시간대마다 줄어드는 소음(1→2)
+const STARVE_MAX=1;                       // 식량·물이 바닥나도 하루에 잃는 체력은 최대 이만큼
 const SLOT_RISK=[-0.03,-0.03,0,0.08];     // 시간대별 조우 확률 보정(아침·낮은 낮추고 밤은 높인다)
 
 const RISK_LABEL=['','낮음','보통','높음','매우 높음'];
@@ -1134,6 +1137,28 @@ const EVENTS={
     {label:'밸브를 돌려 물을 받는다',fx:{noise:3,water:2},text:'파이프가 낮게 울리며 물이 쏟아졌다. 소리가 건물 전체에 퍼지는 것 같았지만 병을 가득 채웠다.'},
     {label:'밸브를 잠그고 물러선다',fx:{noise:-2},text:'녹슨 밸브를 천천히 돌리자 물소리가 멎고 압력계 바늘이 가라앉았다.'}]},
 };
+/* 위기 장면: 쓰러졌다 깨어난 직후·고열 중에 유민 곁에서 고르는 대화. 유민이 동행 중일 때만 열린다.
+   호감(aff)은 대화 선택으로 오르고, 물자를 나눠도 호감은 오르지 않는다(확정 규칙) */
+Object.assign(EVENTS,{
+  crisis_faint:{text:'유민이 곁에 앉아 있다. 손에는 물병이 들려 있고, 눈가가 조금 붉다. 내가 눈을 뜬 것을 알아챈 유민이 숨을 길게 내쉰다.',opts:[
+    {label:'걱정을 끼쳐서 미안하다고 말한다',fx:{aff:1},text:'낮게 사과하자 유민이 고개를 젓는다.',lines:[
+      D('yumin','sad','미안하다는 말 듣고 싶은 거 아니야. ……일어나 줘서 다행이라는 거야.')]},
+    {label:'곁에 있어 줘서 고맙다고 말한다',fx:{aff:2},text:'고맙다는 말에 유민이 눈을 피한다.',lines:[
+      D('yumin','blush','……그런 말, 갑자기 하지 마. 얼굴 뜨거워지잖아.'),
+      D('yumin','smile','그래도 들으니까 나쁘진 않네.')]},
+    {label:'건네는 물병을 받아 마신다',fx:{water:-1,hp:2},text:'물이 목을 타고 내려가자 흐릿하던 정신이 맑아진다.',lines:[
+      D('yumin','relieved','천천히 마셔. 급하게 마시면 또 속 뒤집혀.')]}]},
+  crisis_fever:{text:'열이 가라앉지 않는다. 유민이 젖은 천을 이마에 얹어 주며 내 얼굴을 살핀다. 손끝이 조금 떨린다.',opts:[
+    {label:'약이 없어도 괜찮다고 웃어 보인다',fx:{aff:1},text:'억지로 웃어 보이자 유민의 표정이 조금 풀린다.',lines:[
+      D('yumin','sad','괜찮을 리가 없잖아. ……그래도 웃는 건 보기 좋네.')]},
+    {label:'나 때문에 시간 쓰지 말고 먼저 가라고 말한다',fx:{},text:'말이 끝나기도 전에 유민이 천을 쥔 손에 힘을 준다.',lines:[
+      D('yumin','tense','……그 말 한 번만 더 하면 진짜 화낼 거야.'),
+      D('yumin','sad','내가 정한 거야. 같이 간다고.')]},
+    {label:'아무 얘기나 해 달라고 부탁한다',fx:{aff:2,hp:1},text:'유민이 잠시 망설이다 시시한 이야기를 늘어놓기 시작한다.',lines:[
+      D('yumin','smile','……뭐부터 말하지. 별 내용 없어도 웃지 마?'),
+      D('me','neutral','웃을 힘도 없어요. 계속 말해 줘요.')]},
+  ]},
+});
 const FX_NAME={food:'식량',water:'물',meds:'응급약',hp:'체력'};
 function eventStart(id,out){
   if(!own(EVENTS,id)||G.ending) return;
@@ -1151,6 +1176,8 @@ function eventPick(arg){
   addLog('action',o.label);
   G.ev=null;
   out.push({t:'n',text:o.text});
+  if(Array.isArray(o.lines)) for(const l of o.lines) out.push({...l});   // 유민의 반응 대사(위기 장면 등)
+  if(fx.aff&&G.comp.yumin.met) addAff(fx.aff,out);
   for(const k of ['food','water','meds']) if(fx[k]){ const v=Math.max(-G[k],fx[k]); G[k]+=v; if(v) sys.push(`${FX_NAME[k]} ${v>0?'+':'−'}${Math.abs(v)}`) }
   if(fx.hp){ const b=G.hp; G.hp=Math.max(0,Math.min(G.maxhp,G.hp+fx.hp)); if(G.hp!==b) sys.push(`체력 ${G.hp>b?'+':'−'}${Math.abs(G.hp-b)}`) }
   if(fx.noise){ addNoise(G.loc,fx.noise); sys.push(fx.noise>0?`소음 +${fx.noise}`:`소음 −${-fx.noise}`) }
@@ -1215,7 +1242,7 @@ function addNoise(id,n){ G.noise[id]=Math.max(0,Math.min(NOISE_MAX,(G.noise[id]|
 function encounterChance(id){
   const z=ZONE[id], n=G.zombies[id]||0;
   if(id==='room'||n<=0) return 0;
-  let p=0.12*n+0.04*(G.noise[id]||0)+0.05*(z.risk-1)+SLOT_RISK[G.slot];
+  let p=0.12*n+NOISE_WEIGHT*(G.noise[id]||0)+0.05*(z.risk-1)+SLOT_RISK[G.slot];
   if(hasItem('flashlight')) p-=G.slot===3?0.15:0.1;   // 밤에는 손전등이 더 큰 도움이 된다
   return Math.max(0,Math.min(0.9,p));
 }
@@ -1254,9 +1281,8 @@ function faint(out){                       // 체력 0
   if(her){
     out.push({t:'n',text:'눈앞이 하얘지며 무릎이 꺾였다. 정신을 차렸을 땐 유민이 내 팔을 붙잡고 곁에 앉아 있었다.'});
     out.push(D('yumin','sad','……정신 들어? 제발, 이런 식으로 쓰러지지 마.'));
-    out.push(D('me','neutral','미안해요. 잠깐 정신을 놓쳤나 봐요. 이제 괜찮아요.'));
-    out.push(D('yumin','relieved','괜찮긴 뭐가… 그래도 눈 떠서 다행이야.'));
-    addAff(2,out);
+    addAff(1,out);
+    eventStart('crisis_faint',out);        // 깨어난 직후 유민과 나누는 대화(선택지)
   }else{
     out.push({t:'n',text:'눈앞이 하얘지며 쓰러졌다. 한참 뒤에야 겨우 눈을 떴다. 아직 숨은 붙어 있다.'});
     const f=Math.min(1,G.food), w=Math.min(1,G.water);
@@ -1278,12 +1304,13 @@ function fever(out){                       // 감염 한계
   }else{
     const b=G.hp; G.hp=Math.max(1,Math.floor(G.hp/2)); G.infection={left:3};
     out.push({t:'n',text:her?'열이 치솟아 쓰러졌다. 흐린 의식 속에서 유민이 이름을 부르며 이마의 땀을 닦아 주었다.':'열이 치솟아 쓰러졌다. 한참을 앓다가 겨우 의식이 돌아왔다.'});
-    if(her){ out.push(D('yumin','sad','약이 없어… 그래도 포기하지 마. 내가 옆에 있을게.')); addAff(2,out) }
+    if(her){ out.push(D('yumin','sad','약이 없어… 그래도 포기하지 마. 내가 옆에 있을게.')); addAff(1,out) }
     out.push({t:'s',text:`고열로 쓰러졌다 · 체력 −${b-G.hp} · 감염 3시간대로 다시 시작 · 남은 위기 ${crisisLeft()}번`});
+    if(her) eventStart('crisis_fever',out);   // 고열 속에서 유민과 나누는 대화(선택지)
   }
 }
 function advanceTime(out){
-  for(const id of Object.keys(G.noise)) G.noise[id]=Math.max(0,G.noise[id]-1);
+  for(const id of Object.keys(G.noise)) G.noise[id]=Math.max(0,G.noise[id]-NOISE_DECAY);
   if(G.infection){
     // 유민이 동행 중이면 감염이 느리게 번진다(두 시간대에 한 번만 줄어든다)
     const slow=G.comp&&G.comp.yumin&&G.comp.yumin.joined&&((G.day*TIMES.length+G.slot)%2===0);
@@ -1300,6 +1327,7 @@ function advanceTime(out){
       let loss=0;
       if(G.food>0) G.food--; else loss++;
       if(G.water>0) G.water--; else loss++;
+      loss=Math.min(loss,STARVE_MAX);
       if(loss){ G.hp=Math.max(0,G.hp-loss); out.push({t:'s',text:`굶주림과 갈증으로 체력 −${loss}`}) }
       out.push({t:'s',text:`${G.day}일차 아침이 밝았다. 식량·물 −1`});
     }
